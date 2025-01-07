@@ -153,26 +153,26 @@
 <span class=normal>153</span>
 <span class=normal>154</span>
 <span class=normal>155</span>
-<span class=normal>156</span></pre></div></td><td class=code><div><pre><span></span><a id=line-1 name=line-1></a><span class=kn>import</span> <span class=nn>logging</span>
-<a id=line-2 name=line-2></a><span class=kn>import</span> <span class=nn>os</span>
-<a id=line-3 name=line-3></a><span class=kn>import</span> <span class=nn>pickle</span>
-<a id=line-4 name=line-4></a><span class=kn>from</span> <span class=nn>typing</span> <span class=kn>import</span> <span class=n>Callable</span><span class=p>,</span> <span class=n>Optional</span><span class=p>,</span> <span class=n>Sequence</span><span class=p>,</span> <span class=n>Union</span>
+<span class=normal>156</span></pre></div></td><td class=code><div><pre><span></span><a id=line-1 name=line-1></a><span class=kn>import</span><span class=w> </span><span class=nn>logging</span>
+<a id=line-2 name=line-2></a><span class=kn>import</span><span class=w> </span><span class=nn>os</span>
+<a id=line-3 name=line-3></a><span class=kn>import</span><span class=w> </span><span class=nn>pickle</span>
+<a id=line-4 name=line-4></a><span class=kn>from</span><span class=w> </span><span class=nn>typing</span><span class=w> </span><span class=kn>import</span> <span class=n>Callable</span><span class=p>,</span> <span class=n>Optional</span><span class=p>,</span> <span class=n>Sequence</span><span class=p>,</span> <span class=n>Union</span>
 <a id=line-5 name=line-5></a>
-<a id=line-6 name=line-6></a><span class=kn>from</span> <span class=nn>...common</span> <span class=kn>import</span> <span class=n>GenericPath</span>
-<a id=line-7 name=line-7></a><span class=kn>from</span> <span class=nn>...ffi</span> <span class=kn>import</span> <span class=n>TaskId</span>
-<a id=line-8 name=line-8></a><span class=kn>from</span> <span class=nn>...ffi.protocol</span> <span class=kn>import</span> <span class=n>ResourceRequest</span><span class=p>,</span> <span class=n>TaskDescription</span>
-<a id=line-9 name=line-9></a><span class=kn>from</span> <span class=nn>..task</span> <span class=kn>import</span> <span class=n>EnvType</span><span class=p>,</span> <span class=n>Task</span><span class=p>,</span> <span class=n>_make_ffi_requests</span>
-<a id=line-10 name=line-10></a><span class=kn>from</span> <span class=nn>.wrapper</span> <span class=kn>import</span> <span class=n>CloudWrapper</span>
+<a id=line-6 name=line-6></a><span class=kn>from</span><span class=w> </span><span class=nn>...common</span><span class=w> </span><span class=kn>import</span> <span class=n>GenericPath</span>
+<a id=line-7 name=line-7></a><span class=kn>from</span><span class=w> </span><span class=nn>...ffi</span><span class=w> </span><span class=kn>import</span> <span class=n>TaskId</span>
+<a id=line-8 name=line-8></a><span class=kn>from</span><span class=w> </span><span class=nn>...ffi.protocol</span><span class=w> </span><span class=kn>import</span> <span class=n>ResourceRequest</span><span class=p>,</span> <span class=n>TaskDescription</span>
+<a id=line-9 name=line-9></a><span class=kn>from</span><span class=w> </span><span class=nn>..task</span><span class=w> </span><span class=kn>import</span> <span class=n>EnvType</span><span class=p>,</span> <span class=n>Task</span><span class=p>,</span> <span class=n>_make_ffi_requests</span>
+<a id=line-10 name=line-10></a><span class=kn>from</span><span class=w> </span><span class=nn>.wrapper</span><span class=w> </span><span class=kn>import</span> <span class=n>CloudWrapper</span>
 <a id=line-11 name=line-11></a>
 <a id=line-12 name=line-12></a><span class=n>_CLOUDWRAPPER_CACHE</span> <span class=o>=</span> <span class=p>{}</span>
 <a id=line-13 name=line-13></a>
 <a id=line-14 name=line-14></a>
-<a id=line-15 name=line-15></a><span class=k>def</span> <span class=nf>purge_cache</span><span class=p>():</span>
+<a id=line-15 name=line-15></a><span class=k>def</span><span class=w> </span><span class=nf>purge_cache</span><span class=p>():</span>
 <a id=line-16 name=line-16></a>    <span class=k>global</span> <span class=n>_CLOUDWRAPPER_CACHE</span>
 <a id=line-17 name=line-17></a>    <span class=n>_CLOUDWRAPPER_CACHE</span> <span class=o>=</span> <span class=p>{}</span>
 <a id=line-18 name=line-18></a>
 <a id=line-19 name=line-19></a>
-<a id=line-20 name=line-20></a><span class=k>def</span> <span class=nf>cloud_wrap</span><span class=p>(</span><span class=n>fn</span><span class=p>,</span> <span class=n>cache</span><span class=o>=</span><span class=kc>True</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=n>CloudWrapper</span><span class=p>:</span>
+<a id=line-20 name=line-20></a><span class=k>def</span><span class=w> </span><span class=nf>cloud_wrap</span><span class=p>(</span><span class=n>fn</span><span class=p>,</span> <span class=n>cache</span><span class=o>=</span><span class=kc>True</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=n>CloudWrapper</span><span class=p>:</span>
 <a id=line-21 name=line-21></a>    <span class=k>if</span> <span class=nb>isinstance</span><span class=p>(</span><span class=n>fn</span><span class=p>,</span> <span class=n>CloudWrapper</span><span class=p>):</span>
 <a id=line-22 name=line-22></a>        <span class=k>return</span> <span class=n>fn</span>
 <a id=line-23 name=line-23></a>    <span class=k>return</span> <span class=n>CloudWrapper</span><span class=p>(</span><span class=n>fn</span><span class=p>,</span> <span class=n>cache</span><span class=o>=</span><span class=n>cache</span><span class=p>)</span>
@@ -186,14 +186,14 @@
 <a id=line-31 name=line-31></a><span class=p>}</span>
 <a id=line-32 name=line-32></a>
 <a id=line-33 name=line-33></a>
-<a id=line-34 name=line-34></a><span class=k>def</span> <span class=nf>get_logging_level</span><span class=p>(</span><span class=n>default</span><span class=p>:</span> <span class=nb>int</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=nb>int</span><span class=p>:</span>
+<a id=line-34 name=line-34></a><span class=k>def</span><span class=w> </span><span class=nf>get_logging_level</span><span class=p>(</span><span class=n>default</span><span class=p>:</span> <span class=nb>int</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=nb>int</span><span class=p>:</span>
 <a id=line-35 name=line-35></a>    <span class=n>level</span> <span class=o>=</span> <span class=n>os</span><span class=o>.</span><span class=n>environ</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=s2>&quot;HQ_PYLOG&quot;</span><span class=p>)</span>
 <a id=line-36 name=line-36></a>    <span class=k>return</span> <span class=n>LOG_LEVELS</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=n>level</span><span class=p>,</span> <span class=n>default</span><span class=p>)</span>
 <a id=line-37 name=line-37></a>
 <a id=line-38 name=line-38></a>
-<a id=line-39 name=line-39></a><span class=k>def</span> <span class=nf>task_main</span><span class=p>():</span>
-<a id=line-40 name=line-40></a>    <span class=kn>import</span> <span class=nn>pickle</span>
-<a id=line-41 name=line-41></a>    <span class=kn>import</span> <span class=nn>sys</span>
+<a id=line-39 name=line-39></a><span class=k>def</span><span class=w> </span><span class=nf>task_main</span><span class=p>():</span>
+<a id=line-40 name=line-40></a>    <span class=kn>import</span><span class=w> </span><span class=nn>pickle</span>
+<a id=line-41 name=line-41></a>    <span class=kn>import</span><span class=w> </span><span class=nn>sys</span>
 <a id=line-42 name=line-42></a>
 <a id=line-43 name=line-43></a>    <span class=k>try</span><span class=p>:</span>
 <a id=line-44 name=line-44></a>        <span class=n>logging</span><span class=o>.</span><span class=n>basicConfig</span><span class=p>(</span>
@@ -205,8 +205,8 @@
 <a id=line-50 name=line-50></a>        <span class=n>fn</span><span class=p>,</span> <span class=n>a</span><span class=p>,</span> <span class=n>kw</span> <span class=o>=</span> <span class=n>pickle</span><span class=o>.</span><span class=n>loads</span><span class=p>(</span><span class=n>sys</span><span class=o>.</span><span class=n>stdin</span><span class=o>.</span><span class=n>buffer</span><span class=o>.</span><span class=n>read</span><span class=p>())</span>
 <a id=line-51 name=line-51></a>        <span class=n>fn</span><span class=p>(</span><span class=o>*</span><span class=n>a</span><span class=p>,</span> <span class=o>**</span><span class=p>(</span><span class=n>kw</span> <span class=k>if</span> <span class=n>kw</span> <span class=ow>is</span> <span class=ow>not</span> <span class=kc>None</span> <span class=k>else</span> <span class=p>{}))</span>
 <a id=line-52 name=line-52></a>    <span class=k>except</span> <span class=ne>BaseException</span><span class=p>:</span>
-<a id=line-53 name=line-53></a>        <span class=kn>import</span> <span class=nn>os</span>
-<a id=line-54 name=line-54></a>        <span class=kn>import</span> <span class=nn>traceback</span>
+<a id=line-53 name=line-53></a>        <span class=kn>import</span><span class=w> </span><span class=nn>os</span>
+<a id=line-54 name=line-54></a>        <span class=kn>import</span><span class=w> </span><span class=nn>traceback</span>
 <a id=line-55 name=line-55></a>
 <a id=line-56 name=line-56></a>        <span class=n>t</span> <span class=o>=</span> <span class=n>traceback</span><span class=o>.</span><span class=n>format_exc</span><span class=p>()</span>
 <a id=line-57 name=line-57></a>        <span class=k>with</span> <span class=nb>open</span><span class=p>(</span><span class=n>os</span><span class=o>.</span><span class=n>environ</span><span class=p>[</span><span class=s2>&quot;HQ_ERROR_FILENAME&quot;</span><span class=p>],</span> <span class=s2>&quot;w&quot;</span><span class=p>)</span> <span class=k>as</span> <span class=n>f</span><span class=p>:</span>
@@ -217,8 +217,8 @@
 <a id=line-62 name=line-62></a>        <span class=n>sys</span><span class=o>.</span><span class=n>exit</span><span class=p>(</span><span class=mi>1</span><span class=p>)</span>
 <a id=line-63 name=line-63></a>
 <a id=line-64 name=line-64></a>
-<a id=line-65 name=line-65></a><span class=k>class</span> <span class=nc>PythonEnv</span><span class=p>:</span>
-<a id=line-66 name=line-66></a>    <span class=k>def</span> <span class=fm>__init__</span><span class=p>(</span>
+<a id=line-65 name=line-65></a><span class=k>class</span><span class=w> </span><span class=nc>PythonEnv</span><span class=p>:</span>
+<a id=line-66 name=line-66></a>    <span class=k>def</span><span class=w> </span><span class=fm>__init__</span><span class=p>(</span>
 <a id=line-67 name=line-67></a>        <span class=bp>self</span><span class=p>,</span>
 <a id=line-68 name=line-68></a>        <span class=n>python_bin</span><span class=p>:</span> <span class=nb>str</span> <span class=o>=</span> <span class=s2>&quot;python3&quot;</span><span class=p>,</span>
 <a id=line-69 name=line-69></a>        <span class=n>prologue</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=nb>str</span><span class=p>]</span> <span class=o>=</span> <span class=kc>None</span><span class=p>,</span>
@@ -238,12 +238,12 @@
 <a id=line-83 name=line-83></a>            <span class=bp>self</span><span class=o>.</span><span class=n>args</span> <span class=o>=</span> <span class=p>[</span><span class=n>python_bin</span><span class=p>,</span> <span class=s2>&quot;-c&quot;</span><span class=p>,</span> <span class=n>code</span><span class=p>]</span>
 <a id=line-84 name=line-84></a>
 <a id=line-85 name=line-85></a>
-<a id=line-86 name=line-86></a><span class=k>class</span> <span class=nc>PythonFunction</span><span class=p>(</span><span class=n>Task</span><span class=p>):</span>
+<a id=line-86 name=line-86></a><span class=k>class</span><span class=w> </span><span class=nc>PythonFunction</span><span class=p>(</span><span class=n>Task</span><span class=p>):</span>
 <a id=line-87 name=line-87></a><span class=w>    </span><span class=sd>&quot;&quot;&quot;</span>
 <a id=line-88 name=line-88></a><span class=sd>    Task that represents the execution of a Python function.</span>
 <a id=line-89 name=line-89></a><span class=sd>    &quot;&quot;&quot;</span>
 <a id=line-90 name=line-90></a>
-<a id=line-91 name=line-91></a>    <span class=k>def</span> <span class=fm>__init__</span><span class=p>(</span>
+<a id=line-91 name=line-91></a>    <span class=k>def</span><span class=w> </span><span class=fm>__init__</span><span class=p>(</span>
 <a id=line-92 name=line-92></a>        <span class=bp>self</span><span class=p>,</span>
 <a id=line-93 name=line-93></a>        <span class=n>task_id</span><span class=p>:</span> <span class=n>TaskId</span><span class=p>,</span>
 <a id=line-94 name=line-94></a>        <span class=n>fn</span><span class=p>:</span> <span class=n>Callable</span><span class=p>,</span>
@@ -282,7 +282,7 @@
 <a id=line-127 name=line-127></a>        <span class=bp>self</span><span class=o>.</span><span class=n>args</span> <span class=o>=</span> <span class=n>args</span>
 <a id=line-128 name=line-128></a>        <span class=bp>self</span><span class=o>.</span><span class=n>kwargs</span> <span class=o>=</span> <span class=n>kwargs</span>
 <a id=line-129 name=line-129></a>
-<a id=line-130 name=line-130></a>    <span class=k>def</span> <span class=nf>_build</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>client</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=n>TaskDescription</span><span class=p>:</span>
+<a id=line-130 name=line-130></a>    <span class=k>def</span><span class=w> </span><span class=nf>_build</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>client</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=n>TaskDescription</span><span class=p>:</span>
 <a id=line-131 name=line-131></a>        <span class=n>depends_on</span> <span class=o>=</span> <span class=p>[</span><span class=n>dependency</span><span class=o>.</span><span class=n>task_id</span> <span class=k>for</span> <span class=n>dependency</span> <span class=ow>in</span> <span class=bp>self</span><span class=o>.</span><span class=n>dependencies</span><span class=p>]</span>
 <a id=line-132 name=line-132></a>        <span class=k>return</span> <span class=n>TaskDescription</span><span class=p>(</span>
 <a id=line-133 name=line-133></a>            <span class=nb>id</span><span class=o>=</span><span class=bp>self</span><span class=o>.</span><span class=n>task_id</span><span class=p>,</span>
@@ -298,15 +298,15 @@
 <a id=line-143 name=line-143></a>            <span class=n>resource_request</span><span class=o>=</span><span class=n>_make_ffi_requests</span><span class=p>(</span><span class=bp>self</span><span class=o>.</span><span class=n>resources</span><span class=p>),</span>
 <a id=line-144 name=line-144></a>        <span class=p>)</span>
 <a id=line-145 name=line-145></a>
-<a id=line-146 name=line-146></a>    <span class=k>def</span> <span class=fm>__repr__</span><span class=p>(</span><span class=bp>self</span><span class=p>):</span>
+<a id=line-146 name=line-146></a>    <span class=k>def</span><span class=w> </span><span class=fm>__repr__</span><span class=p>(</span><span class=bp>self</span><span class=p>):</span>
 <a id=line-147 name=line-147></a>        <span class=k>return</span> <span class=sa>f</span><span class=s2>&quot;&lt;PyFunction fn=</span><span class=si>{</span><span class=bp>self</span><span class=o>.</span><span class=n>fn</span><span class=o>.</span><span class=vm>__name__</span><span class=si>}</span><span class=s2>&gt;&quot;</span>
 <a id=line-148 name=line-148></a>
 <a id=line-149 name=line-149></a>
-<a id=line-150 name=line-150></a><span class=k>def</span> <span class=nf>generate_task_name</span><span class=p>(</span><span class=nb>id</span><span class=p>:</span> <span class=n>TaskId</span><span class=p>,</span> <span class=n>name</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=nb>str</span><span class=p>],</span> <span class=n>fn</span><span class=p>:</span> <span class=n>Callable</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=n>Optional</span><span class=p>[</span><span class=nb>str</span><span class=p>]:</span>
+<a id=line-150 name=line-150></a><span class=k>def</span><span class=w> </span><span class=nf>generate_task_name</span><span class=p>(</span><span class=nb>id</span><span class=p>:</span> <span class=n>TaskId</span><span class=p>,</span> <span class=n>name</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=nb>str</span><span class=p>],</span> <span class=n>fn</span><span class=p>:</span> <span class=n>Callable</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=n>Optional</span><span class=p>[</span><span class=nb>str</span><span class=p>]:</span>
 <a id=line-151 name=line-151></a>    <span class=k>if</span> <span class=n>name</span> <span class=ow>is</span> <span class=ow>not</span> <span class=kc>None</span><span class=p>:</span>
 <a id=line-152 name=line-152></a>        <span class=k>return</span> <span class=n>name</span>
 <a id=line-153 name=line-153></a>
 <a id=line-154 name=line-154></a>    <span class=k>if</span> <span class=nb>hasattr</span><span class=p>(</span><span class=n>fn</span><span class=p>,</span> <span class=s2>&quot;__name__&quot;</span><span class=p>):</span>
 <a id=line-155 name=line-155></a>        <span class=k>return</span> <span class=sa>f</span><span class=s2>&quot;</span><span class=si>{</span><span class=n>fn</span><span class=o>.</span><span class=vm>__name__</span><span class=si>}</span><span class=s2>/</span><span class=si>{</span><span class=nb>id</span><span class=si>}</span><span class=s2>&quot;</span>
 <a id=line-156 name=line-156></a>    <span class=k>return</span> <span class=kc>None</span>
-</pre></div></td></tr></table></div><p class=footer> Generated by <a href=https://github.com/spirali/nedoc>nedoc</a> v0.10 at 2025-01-03 15:16 </p></div></div></body></html>
+</pre></div></td></tr></table></div><p class=footer> Generated by <a href=https://github.com/spirali/nedoc>nedoc</a> v0.10 at 2025-01-07 09:39 </p></div></div></body></html>

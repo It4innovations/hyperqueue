@@ -38,13 +38,13 @@
 <span class=normal>38</span>
 <span class=normal>39</span>
 <span class=normal>40</span>
-<span class=normal>41</span></pre></div></td><td class=code><div><pre><span></span><a id=line-1 name=line-1></a><span class=kn>from</span> <span class=nn>.common</span> <span class=kn>import</span> <span class=n>GenericPath</span>
-<a id=line-2 name=line-2></a><span class=kn>from</span> <span class=nn>.job</span> <span class=kn>import</span> <span class=n>Job</span>
-<a id=line-3 name=line-3></a><span class=kn>from</span> <span class=nn>.task.task</span> <span class=kn>import</span> <span class=n>Task</span>
-<a id=line-4 name=line-4></a><span class=kn>from</span> <span class=nn>.utils.package</span> <span class=kn>import</span> <span class=n>MissingPackageException</span>
+<span class=normal>41</span></pre></div></td><td class=code><div><pre><span></span><a id=line-1 name=line-1></a><span class=kn>from</span><span class=w> </span><span class=nn>.common</span><span class=w> </span><span class=kn>import</span> <span class=n>GenericPath</span>
+<a id=line-2 name=line-2></a><span class=kn>from</span><span class=w> </span><span class=nn>.job</span><span class=w> </span><span class=kn>import</span> <span class=n>Job</span>
+<a id=line-3 name=line-3></a><span class=kn>from</span><span class=w> </span><span class=nn>.task.task</span><span class=w> </span><span class=kn>import</span> <span class=n>Task</span>
+<a id=line-4 name=line-4></a><span class=kn>from</span><span class=w> </span><span class=nn>.utils.package</span><span class=w> </span><span class=kn>import</span> <span class=n>MissingPackageException</span>
 <a id=line-5 name=line-5></a>
 <a id=line-6 name=line-6></a>
-<a id=line-7 name=line-7></a><span class=k>def</span> <span class=nf>visualize_job</span><span class=p>(</span><span class=n>job</span><span class=p>:</span> <span class=n>Job</span><span class=p>,</span> <span class=n>path</span><span class=p>:</span> <span class=n>GenericPath</span><span class=p>):</span>
+<a id=line-7 name=line-7></a><span class=k>def</span><span class=w> </span><span class=nf>visualize_job</span><span class=p>(</span><span class=n>job</span><span class=p>:</span> <span class=n>Job</span><span class=p>,</span> <span class=n>path</span><span class=p>:</span> <span class=n>GenericPath</span><span class=p>):</span>
 <a id=line-8 name=line-8></a><span class=w>    </span><span class=sd>&quot;&quot;&quot;</span>
 <a id=line-9 name=line-9></a><span class=sd>    Visualizes the task graph of the passed job in the DOT format.</span>
 <a id=line-10 name=line-10></a><span class=sd>    The result is written to a file located at `path`.</span>
@@ -53,14 +53,14 @@
 <a id=line-13 name=line-13></a><span class=sd>    &quot;&quot;&quot;</span>
 <a id=line-14 name=line-14></a>
 <a id=line-15 name=line-15></a>    <span class=k>try</span><span class=p>:</span>
-<a id=line-16 name=line-16></a>        <span class=kn>import</span> <span class=nn>pydot</span>
+<a id=line-16 name=line-16></a>        <span class=kn>import</span><span class=w> </span><span class=nn>pydot</span>
 <a id=line-17 name=line-17></a>    <span class=k>except</span> <span class=ne>ImportError</span><span class=p>:</span>
 <a id=line-18 name=line-18></a>        <span class=k>raise</span> <span class=n>MissingPackageException</span><span class=p>(</span><span class=s2>&quot;pydot&quot;</span><span class=p>)</span>
 <a id=line-19 name=line-19></a>
 <a id=line-20 name=line-20></a>    <span class=n>graph</span> <span class=o>=</span> <span class=n>pydot</span><span class=o>.</span><span class=n>Dot</span><span class=p>(</span><span class=s2>&quot;job&quot;</span><span class=p>,</span> <span class=n>graph_type</span><span class=o>=</span><span class=s2>&quot;digraph&quot;</span><span class=p>)</span>
 <a id=line-21 name=line-21></a>    <span class=n>visited</span> <span class=o>=</span> <span class=p>{}</span>
 <a id=line-22 name=line-22></a>
-<a id=line-23 name=line-23></a>    <span class=k>def</span> <span class=nf>visit</span><span class=p>(</span><span class=n>task</span><span class=p>:</span> <span class=n>Task</span><span class=p>):</span>
+<a id=line-23 name=line-23></a>    <span class=k>def</span><span class=w> </span><span class=nf>visit</span><span class=p>(</span><span class=n>task</span><span class=p>:</span> <span class=n>Task</span><span class=p>):</span>
 <a id=line-24 name=line-24></a>        <span class=k>nonlocal</span> <span class=n>visited</span><span class=p>,</span> <span class=n>graph</span>
 <a id=line-25 name=line-25></a>        <span class=k>if</span> <span class=n>task</span><span class=o>.</span><span class=n>task_id</span> <span class=ow>in</span> <span class=n>visited</span><span class=p>:</span>
 <a id=line-26 name=line-26></a>            <span class=k>return</span> <span class=n>visited</span><span class=p>[</span><span class=n>task</span><span class=o>.</span><span class=n>task_id</span><span class=p>]</span>
@@ -79,4 +79,4 @@
 <a id=line-39 name=line-39></a>        <span class=n>visit</span><span class=p>(</span><span class=n>task</span><span class=p>)</span>
 <a id=line-40 name=line-40></a>
 <a id=line-41 name=line-41></a>    <span class=n>graph</span><span class=o>.</span><span class=n>write</span><span class=p>(</span><span class=n>path</span><span class=p>)</span>
-</pre></div></td></tr></table></div><p class=footer> Generated by <a href=https://github.com/spirali/nedoc>nedoc</a> v0.10 at 2025-01-03 15:16 </p></div></div></body></html>
+</pre></div></td></tr></table></div><p class=footer> Generated by <a href=https://github.com/spirali/nedoc>nedoc</a> v0.10 at 2025-01-07 09:39 </p></div></div></body></html>

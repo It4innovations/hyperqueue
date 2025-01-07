@@ -47,19 +47,19 @@
 <span class=normal>47</span>
 <span class=normal>48</span>
 <span class=normal>49</span>
-<span class=normal>50</span></pre></div></td><td class=code><div><pre><span></span><a id=line-1 name=line-1></a><span class=kn>import</span> <span class=nn>dataclasses</span>
-<a id=line-2 name=line-2></a><span class=kn>import</span> <span class=nn>datetime</span>
-<a id=line-3 name=line-3></a><span class=kn>from</span> <span class=nn>typing</span> <span class=kn>import</span> <span class=n>Dict</span><span class=p>,</span> <span class=n>List</span><span class=p>,</span> <span class=n>Optional</span><span class=p>,</span> <span class=n>Sequence</span><span class=p>,</span> <span class=n>Union</span>
+<span class=normal>50</span></pre></div></td><td class=code><div><pre><span></span><a id=line-1 name=line-1></a><span class=kn>import</span><span class=w> </span><span class=nn>dataclasses</span>
+<a id=line-2 name=line-2></a><span class=kn>import</span><span class=w> </span><span class=nn>datetime</span>
+<a id=line-3 name=line-3></a><span class=kn>from</span><span class=w> </span><span class=nn>typing</span><span class=w> </span><span class=kn>import</span> <span class=n>Dict</span><span class=p>,</span> <span class=n>List</span><span class=p>,</span> <span class=n>Optional</span><span class=p>,</span> <span class=n>Sequence</span><span class=p>,</span> <span class=n>Union</span>
 <a id=line-4 name=line-4></a>
-<a id=line-5 name=line-5></a><span class=kn>from</span> <span class=nn>..output</span> <span class=kn>import</span> <span class=n>StdioDef</span>
+<a id=line-5 name=line-5></a><span class=kn>from</span><span class=w> </span><span class=nn>..output</span><span class=w> </span><span class=kn>import</span> <span class=n>StdioDef</span>
 <a id=line-6 name=line-6></a>
 <a id=line-7 name=line-7></a>
-<a id=line-8 name=line-8></a><span class=k>class</span> <span class=nc>ResourceRequest</span><span class=p>:</span>
+<a id=line-8 name=line-8></a><span class=k>class</span><span class=w> </span><span class=nc>ResourceRequest</span><span class=p>:</span>
 <a id=line-9 name=line-9></a>    <span class=n>n_nodes</span><span class=p>:</span> <span class=nb>int</span> <span class=o>=</span> <span class=mi>0</span>
 <a id=line-10 name=line-10></a>    <span class=n>resources</span><span class=p>:</span> <span class=n>Dict</span><span class=p>[</span><span class=nb>str</span><span class=p>,</span> <span class=n>Union</span><span class=p>[</span><span class=nb>int</span><span class=p>,</span> <span class=nb>float</span><span class=p>,</span> <span class=nb>str</span><span class=p>]]</span> <span class=o>=</span> <span class=n>dataclasses</span><span class=o>.</span><span class=n>field</span><span class=p>(</span><span class=n>default_factory</span><span class=o>=</span><span class=nb>dict</span><span class=p>)</span>
 <a id=line-11 name=line-11></a>    <span class=n>min_time</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=nb>float</span><span class=p>]</span> <span class=o>=</span> <span class=kc>None</span>
 <a id=line-12 name=line-12></a>
-<a id=line-13 name=line-13></a>    <span class=k>def</span> <span class=fm>__init__</span><span class=p>(</span>
+<a id=line-13 name=line-13></a>    <span class=k>def</span><span class=w> </span><span class=fm>__init__</span><span class=p>(</span>
 <a id=line-14 name=line-14></a>        <span class=bp>self</span><span class=p>,</span>
 <a id=line-15 name=line-15></a>        <span class=o>*</span><span class=p>,</span>
 <a id=line-16 name=line-16></a>        <span class=n>n_nodes</span><span class=o>=</span><span class=mi>0</span><span class=p>,</span>
@@ -74,12 +74,12 @@
 <a id=line-25 name=line-25></a>        <span class=bp>self</span><span class=o>.</span><span class=n>resources</span> <span class=o>=</span> <span class=n>resources</span>
 <a id=line-26 name=line-26></a>        <span class=bp>self</span><span class=o>.</span><span class=n>min_time</span> <span class=o>=</span> <span class=n>min_time</span><span class=o>.</span><span class=n>total_seconds</span><span class=p>()</span> <span class=k>if</span> <span class=n>min_time</span> <span class=ow>is</span> <span class=ow>not</span> <span class=kc>None</span> <span class=k>else</span> <span class=kc>None</span>
 <a id=line-27 name=line-27></a>
-<a id=line-28 name=line-28></a>    <span class=k>def</span> <span class=fm>__repr__</span><span class=p>(</span><span class=bp>self</span><span class=p>):</span>
+<a id=line-28 name=line-28></a>    <span class=k>def</span><span class=w> </span><span class=fm>__repr__</span><span class=p>(</span><span class=bp>self</span><span class=p>):</span>
 <a id=line-29 name=line-29></a>        <span class=k>return</span> <span class=sa>f</span><span class=s2>&quot;&lt;ResourceRequest n_nodes=</span><span class=si>{</span><span class=bp>self</span><span class=o>.</span><span class=n>n_nodes</span><span class=si>}</span><span class=s2> resources=</span><span class=si>{</span><span class=bp>self</span><span class=o>.</span><span class=n>resources</span><span class=si>}</span><span class=s2> min_time=</span><span class=si>{</span><span class=bp>self</span><span class=o>.</span><span class=n>min_time</span><span class=si>}</span><span class=s2>&gt;&quot;</span>
 <a id=line-30 name=line-30></a>
 <a id=line-31 name=line-31></a>
 <a id=line-32 name=line-32></a><span class=nd>@dataclasses</span><span class=o>.</span><span class=n>dataclass</span><span class=p>()</span>
-<a id=line-33 name=line-33></a><span class=k>class</span> <span class=nc>TaskDescription</span><span class=p>:</span>
+<a id=line-33 name=line-33></a><span class=k>class</span><span class=w> </span><span class=nc>TaskDescription</span><span class=p>:</span>
 <a id=line-34 name=line-34></a>    <span class=nb>id</span><span class=p>:</span> <span class=nb>int</span>
 <a id=line-35 name=line-35></a>    <span class=n>args</span><span class=p>:</span> <span class=n>List</span><span class=p>[</span><span class=nb>str</span><span class=p>]</span>
 <a id=line-36 name=line-36></a>    <span class=n>cwd</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=nb>str</span><span class=p>]</span>
@@ -94,7 +94,7 @@
 <a id=line-45 name=line-45></a>
 <a id=line-46 name=line-46></a>
 <a id=line-47 name=line-47></a><span class=nd>@dataclasses</span><span class=o>.</span><span class=n>dataclass</span>
-<a id=line-48 name=line-48></a><span class=k>class</span> <span class=nc>JobDescription</span><span class=p>:</span>
+<a id=line-48 name=line-48></a><span class=k>class</span><span class=w> </span><span class=nc>JobDescription</span><span class=p>:</span>
 <a id=line-49 name=line-49></a>    <span class=n>tasks</span><span class=p>:</span> <span class=n>List</span><span class=p>[</span><span class=n>TaskDescription</span><span class=p>]</span>
 <a id=line-50 name=line-50></a>    <span class=n>max_fails</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=nb>int</span><span class=p>]</span>
-</pre></div></td></tr></table></div><p class=footer> Generated by <a href=https://github.com/spirali/nedoc>nedoc</a> v0.10 at 2025-01-03 15:16 </p></div></div></body></html>
+</pre></div></td></tr></table></div><p class=footer> Generated by <a href=https://github.com/spirali/nedoc>nedoc</a> v0.10 at 2025-01-07 09:39 </p></div></div></body></html>

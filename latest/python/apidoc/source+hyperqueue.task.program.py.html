@@ -97,24 +97,24 @@
 <span class=normal> 97</span>
 <span class=normal> 98</span>
 <span class=normal> 99</span>
-<span class=normal>100</span></pre></div></td><td class=code><div><pre><span></span><a id=line-1 name=line-1></a><span class=kn>from</span> <span class=nn>typing</span> <span class=kn>import</span> <span class=n>Dict</span><span class=p>,</span> <span class=n>List</span><span class=p>,</span> <span class=n>Optional</span><span class=p>,</span> <span class=n>Sequence</span><span class=p>,</span> <span class=n>Union</span>
+<span class=normal>100</span></pre></div></td><td class=code><div><pre><span></span><a id=line-1 name=line-1></a><span class=kn>from</span><span class=w> </span><span class=nn>typing</span><span class=w> </span><span class=kn>import</span> <span class=n>Dict</span><span class=p>,</span> <span class=n>List</span><span class=p>,</span> <span class=n>Optional</span><span class=p>,</span> <span class=n>Sequence</span><span class=p>,</span> <span class=n>Union</span>
 <a id=line-2 name=line-2></a>
-<a id=line-3 name=line-3></a><span class=kn>from</span> <span class=nn>..common</span> <span class=kn>import</span> <span class=n>GenericPath</span>
-<a id=line-4 name=line-4></a><span class=kn>from</span> <span class=nn>..ffi</span> <span class=kn>import</span> <span class=n>TaskId</span>
-<a id=line-5 name=line-5></a><span class=kn>from</span> <span class=nn>..ffi.protocol</span> <span class=kn>import</span> <span class=n>ResourceRequest</span><span class=p>,</span> <span class=n>TaskDescription</span>
-<a id=line-6 name=line-6></a><span class=kn>from</span> <span class=nn>..output</span> <span class=kn>import</span> <span class=n>Output</span><span class=p>,</span> <span class=n>Stdio</span><span class=p>,</span> <span class=n>gather_outputs</span>
-<a id=line-7 name=line-7></a><span class=kn>from</span> <span class=nn>..validation</span> <span class=kn>import</span> <span class=n>ValidationException</span><span class=p>,</span> <span class=n>validate_args</span>
-<a id=line-8 name=line-8></a><span class=kn>from</span> <span class=nn>.task</span> <span class=kn>import</span> <span class=n>EnvType</span><span class=p>,</span> <span class=n>Task</span><span class=p>,</span> <span class=n>_make_ffi_requests</span>
+<a id=line-3 name=line-3></a><span class=kn>from</span><span class=w> </span><span class=nn>..common</span><span class=w> </span><span class=kn>import</span> <span class=n>GenericPath</span>
+<a id=line-4 name=line-4></a><span class=kn>from</span><span class=w> </span><span class=nn>..ffi</span><span class=w> </span><span class=kn>import</span> <span class=n>TaskId</span>
+<a id=line-5 name=line-5></a><span class=kn>from</span><span class=w> </span><span class=nn>..ffi.protocol</span><span class=w> </span><span class=kn>import</span> <span class=n>ResourceRequest</span><span class=p>,</span> <span class=n>TaskDescription</span>
+<a id=line-6 name=line-6></a><span class=kn>from</span><span class=w> </span><span class=nn>..output</span><span class=w> </span><span class=kn>import</span> <span class=n>Output</span><span class=p>,</span> <span class=n>Stdio</span><span class=p>,</span> <span class=n>gather_outputs</span>
+<a id=line-7 name=line-7></a><span class=kn>from</span><span class=w> </span><span class=nn>..validation</span><span class=w> </span><span class=kn>import</span> <span class=n>ValidationException</span><span class=p>,</span> <span class=n>validate_args</span>
+<a id=line-8 name=line-8></a><span class=kn>from</span><span class=w> </span><span class=nn>.task</span><span class=w> </span><span class=kn>import</span> <span class=n>EnvType</span><span class=p>,</span> <span class=n>Task</span><span class=p>,</span> <span class=n>_make_ffi_requests</span>
 <a id=line-9 name=line-9></a>
 <a id=line-10 name=line-10></a><span class=n>ProgramArgs</span> <span class=o>=</span> <span class=n>Union</span><span class=p>[</span><span class=n>List</span><span class=p>[</span><span class=nb>str</span><span class=p>],</span> <span class=nb>str</span><span class=p>]</span>
 <a id=line-11 name=line-11></a>
 <a id=line-12 name=line-12></a>
-<a id=line-13 name=line-13></a><span class=k>class</span> <span class=nc>ExternalProgram</span><span class=p>(</span><span class=n>Task</span><span class=p>):</span>
+<a id=line-13 name=line-13></a><span class=k>class</span><span class=w> </span><span class=nc>ExternalProgram</span><span class=p>(</span><span class=n>Task</span><span class=p>):</span>
 <a id=line-14 name=line-14></a><span class=w>    </span><span class=sd>&quot;&quot;&quot;</span>
 <a id=line-15 name=line-15></a><span class=sd>    Task that represents the execution of an executable binary.</span>
 <a id=line-16 name=line-16></a><span class=sd>    &quot;&quot;&quot;</span>
 <a id=line-17 name=line-17></a>
-<a id=line-18 name=line-18></a>    <span class=k>def</span> <span class=fm>__init__</span><span class=p>(</span>
+<a id=line-18 name=line-18></a>    <span class=k>def</span><span class=w> </span><span class=fm>__init__</span><span class=p>(</span>
 <a id=line-19 name=line-19></a>        <span class=bp>self</span><span class=p>,</span>
 <a id=line-20 name=line-20></a>        <span class=n>task_id</span><span class=p>:</span> <span class=n>TaskId</span><span class=p>,</span>
 <a id=line-21 name=line-21></a>        <span class=o>*</span><span class=p>,</span>
@@ -155,7 +155,7 @@
 <a id=line-56 name=line-56></a>
 <a id=line-57 name=line-57></a>        <span class=bp>self</span><span class=o>.</span><span class=n>outputs</span> <span class=o>=</span> <span class=n>get_task_outputs</span><span class=p>(</span><span class=bp>self</span><span class=p>)</span>
 <a id=line-58 name=line-58></a>
-<a id=line-59 name=line-59></a>    <span class=k>def</span> <span class=nf>_build</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>client</span><span class=p>):</span>
+<a id=line-59 name=line-59></a>    <span class=k>def</span><span class=w> </span><span class=nf>_build</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>client</span><span class=p>):</span>
 <a id=line-60 name=line-60></a>        <span class=n>depends_on</span> <span class=o>=</span> <span class=p>[</span><span class=n>dependency</span><span class=o>.</span><span class=n>task_id</span> <span class=k>for</span> <span class=n>dependency</span> <span class=ow>in</span> <span class=bp>self</span><span class=o>.</span><span class=n>dependencies</span><span class=p>]</span>
 <a id=line-61 name=line-61></a>        <span class=k>return</span> <span class=n>TaskDescription</span><span class=p>(</span>
 <a id=line-62 name=line-62></a>            <span class=nb>id</span><span class=o>=</span><span class=bp>self</span><span class=o>.</span><span class=n>task_id</span><span class=p>,</span>
@@ -171,22 +171,22 @@
 <a id=line-72 name=line-72></a>            <span class=n>resource_request</span><span class=o>=</span><span class=n>_make_ffi_requests</span><span class=p>(</span><span class=bp>self</span><span class=o>.</span><span class=n>resources</span><span class=p>),</span>
 <a id=line-73 name=line-73></a>        <span class=p>)</span>
 <a id=line-74 name=line-74></a>
-<a id=line-75 name=line-75></a>    <span class=k>def</span> <span class=fm>__getitem__</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>key</span><span class=p>:</span> <span class=nb>str</span><span class=p>):</span>
+<a id=line-75 name=line-75></a>    <span class=k>def</span><span class=w> </span><span class=fm>__getitem__</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>key</span><span class=p>:</span> <span class=nb>str</span><span class=p>):</span>
 <a id=line-76 name=line-76></a>        <span class=k>if</span> <span class=n>key</span> <span class=ow>not</span> <span class=ow>in</span> <span class=bp>self</span><span class=o>.</span><span class=n>outputs</span><span class=p>:</span>
 <a id=line-77 name=line-77></a>            <span class=k>raise</span> <span class=ne>Exception</span><span class=p>(</span><span class=sa>f</span><span class=s2>&quot;Output `</span><span class=si>{</span><span class=n>key</span><span class=si>}</span><span class=s2>` not found in </span><span class=si>{</span><span class=bp>self</span><span class=si>}</span><span class=s2>&quot;</span><span class=p>)</span>
 <a id=line-78 name=line-78></a>        <span class=k>return</span> <span class=bp>self</span><span class=o>.</span><span class=n>outputs</span><span class=p>[</span><span class=n>key</span><span class=p>]</span>
 <a id=line-79 name=line-79></a>
-<a id=line-80 name=line-80></a>    <span class=k>def</span> <span class=fm>__repr__</span><span class=p>(</span><span class=bp>self</span><span class=p>):</span>
+<a id=line-80 name=line-80></a>    <span class=k>def</span><span class=w> </span><span class=fm>__repr__</span><span class=p>(</span><span class=bp>self</span><span class=p>):</span>
 <a id=line-81 name=line-81></a>        <span class=k>return</span> <span class=sa>f</span><span class=s2>&quot;Task(args=</span><span class=si>{</span><span class=bp>self</span><span class=o>.</span><span class=n>args</span><span class=si>}</span><span class=s2>, env=</span><span class=si>{</span><span class=bp>self</span><span class=o>.</span><span class=n>env</span><span class=si>}</span><span class=s2>, cwd=</span><span class=si>{</span><span class=bp>self</span><span class=o>.</span><span class=n>cwd</span><span class=si>}</span><span class=s2>, outputs=</span><span class=si>{</span><span class=bp>self</span><span class=o>.</span><span class=n>outputs</span><span class=si>}</span><span class=s2>)&quot;</span>
 <a id=line-82 name=line-82></a>
 <a id=line-83 name=line-83></a>
-<a id=line-84 name=line-84></a><span class=k>def</span> <span class=nf>to_arg_list</span><span class=p>(</span><span class=n>args</span><span class=p>:</span> <span class=n>ProgramArgs</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=n>List</span><span class=p>[</span><span class=nb>str</span><span class=p>]:</span>
+<a id=line-84 name=line-84></a><span class=k>def</span><span class=w> </span><span class=nf>to_arg_list</span><span class=p>(</span><span class=n>args</span><span class=p>:</span> <span class=n>ProgramArgs</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=n>List</span><span class=p>[</span><span class=nb>str</span><span class=p>]:</span>
 <a id=line-85 name=line-85></a>    <span class=k>if</span> <span class=nb>isinstance</span><span class=p>(</span><span class=n>args</span><span class=p>,</span> <span class=nb>str</span><span class=p>):</span>
 <a id=line-86 name=line-86></a>        <span class=k>return</span> <span class=p>[</span><span class=n>args</span><span class=p>]</span>
 <a id=line-87 name=line-87></a>    <span class=k>return</span> <span class=n>args</span>
 <a id=line-88 name=line-88></a>
 <a id=line-89 name=line-89></a>
-<a id=line-90 name=line-90></a><span class=k>def</span> <span class=nf>get_task_outputs</span><span class=p>(</span><span class=n>task</span><span class=p>:</span> <span class=n>ExternalProgram</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=n>Dict</span><span class=p>[</span><span class=nb>str</span><span class=p>,</span> <span class=n>Output</span><span class=p>]:</span>
+<a id=line-90 name=line-90></a><span class=k>def</span><span class=w> </span><span class=nf>get_task_outputs</span><span class=p>(</span><span class=n>task</span><span class=p>:</span> <span class=n>ExternalProgram</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=n>Dict</span><span class=p>[</span><span class=nb>str</span><span class=p>,</span> <span class=n>Output</span><span class=p>]:</span>
 <a id=line-91 name=line-91></a>    <span class=c1># TODO: outputs in cwd</span>
 <a id=line-92 name=line-92></a>    <span class=c1># TODO: multiple outputs with the same name, but different parameters</span>
 <a id=line-93 name=line-93></a>    <span class=n>output_map</span> <span class=o>=</span> <span class=p>{}</span>
@@ -197,4 +197,4 @@
 <a id=line-98 name=line-98></a>            <span class=k>raise</span> <span class=n>ValidationException</span><span class=p>(</span><span class=sa>f</span><span class=s2>&quot;Output `</span><span class=si>{</span><span class=n>output</span><span class=o>.</span><span class=n>name</span><span class=si>}</span><span class=s2>` has been defined multiple times&quot;</span><span class=p>)</span>
 <a id=line-99 name=line-99></a>        <span class=n>output_map</span><span class=p>[</span><span class=n>output</span><span class=o>.</span><span class=n>name</span><span class=p>]</span> <span class=o>=</span> <span class=n>output</span>
 <a id=line-100 name=line-100></a>    <span class=k>return</span> <span class=n>output_map</span>
-</pre></div></td></tr></table></div><p class=footer> Generated by <a href=https://github.com/spirali/nedoc>nedoc</a> v0.10 at 2025-01-03 15:16 </p></div></div></body></html>
+</pre></div></td></tr></table></div><p class=footer> Generated by <a href=https://github.com/spirali/nedoc>nedoc</a> v0.10 at 2025-01-07 09:39 </p></div></div></body></html>

@@ -141,42 +141,42 @@
 <span class=normal>141</span>
 <span class=normal>142</span>
 <span class=normal>143</span>
-<span class=normal>144</span></pre></div></td><td class=code><div><pre><span></span><a id=line-1 name=line-1></a><span class=kn>import</span> <span class=nn>itertools</span>
-<a id=line-2 name=line-2></a><span class=kn>import</span> <span class=nn>logging</span>
-<a id=line-3 name=line-3></a><span class=kn>from</span> <span class=nn>typing</span> <span class=kn>import</span> <span class=n>Dict</span><span class=p>,</span> <span class=n>Optional</span><span class=p>,</span> <span class=n>Sequence</span>
+<span class=normal>144</span></pre></div></td><td class=code><div><pre><span></span><a id=line-1 name=line-1></a><span class=kn>import</span><span class=w> </span><span class=nn>itertools</span>
+<a id=line-2 name=line-2></a><span class=kn>import</span><span class=w> </span><span class=nn>logging</span>
+<a id=line-3 name=line-3></a><span class=kn>from</span><span class=w> </span><span class=nn>typing</span><span class=w> </span><span class=kn>import</span> <span class=n>Dict</span><span class=p>,</span> <span class=n>Optional</span><span class=p>,</span> <span class=n>Sequence</span>
 <a id=line-4 name=line-4></a>
-<a id=line-5 name=line-5></a><span class=kn>from</span> <span class=nn>tqdm</span> <span class=kn>import</span> <span class=n>tqdm</span>
+<a id=line-5 name=line-5></a><span class=kn>from</span><span class=w> </span><span class=nn>tqdm</span><span class=w> </span><span class=kn>import</span> <span class=n>tqdm</span>
 <a id=line-6 name=line-6></a>
-<a id=line-7 name=line-7></a><span class=kn>from</span> <span class=nn>.common</span> <span class=kn>import</span> <span class=n>GenericPath</span>
-<a id=line-8 name=line-8></a><span class=kn>from</span> <span class=nn>.ffi.client</span> <span class=kn>import</span> <span class=p>(</span>
+<a id=line-7 name=line-7></a><span class=kn>from</span><span class=w> </span><span class=nn>.common</span><span class=w> </span><span class=kn>import</span> <span class=n>GenericPath</span>
+<a id=line-8 name=line-8></a><span class=kn>from</span><span class=w> </span><span class=nn>.ffi.client</span><span class=w> </span><span class=kn>import</span> <span class=p>(</span>
 <a id=line-9 name=line-9></a>    <span class=n>ClientConnection</span><span class=p>,</span>
 <a id=line-10 name=line-10></a>    <span class=n>FailedTaskContext</span><span class=p>,</span>
 <a id=line-11 name=line-11></a>    <span class=n>JobId</span><span class=p>,</span>
 <a id=line-12 name=line-12></a>    <span class=n>TaskFailureMap</span><span class=p>,</span>
 <a id=line-13 name=line-13></a>    <span class=n>TaskId</span><span class=p>,</span>
 <a id=line-14 name=line-14></a><span class=p>)</span>
-<a id=line-15 name=line-15></a><span class=kn>from</span> <span class=nn>.job</span> <span class=kn>import</span> <span class=n>HasJobId</span><span class=p>,</span> <span class=n>Job</span><span class=p>,</span> <span class=n>SubmittedJob</span><span class=p>,</span> <span class=n>get_job_id</span>
-<a id=line-16 name=line-16></a><span class=kn>from</span> <span class=nn>.task.function</span> <span class=kn>import</span> <span class=n>PythonEnv</span>
-<a id=line-17 name=line-17></a><span class=kn>from</span> <span class=nn>.utils.string</span> <span class=kn>import</span> <span class=n>pluralize</span>
+<a id=line-15 name=line-15></a><span class=kn>from</span><span class=w> </span><span class=nn>.job</span><span class=w> </span><span class=kn>import</span> <span class=n>HasJobId</span><span class=p>,</span> <span class=n>Job</span><span class=p>,</span> <span class=n>SubmittedJob</span><span class=p>,</span> <span class=n>get_job_id</span>
+<a id=line-16 name=line-16></a><span class=kn>from</span><span class=w> </span><span class=nn>.task.function</span><span class=w> </span><span class=kn>import</span> <span class=n>PythonEnv</span>
+<a id=line-17 name=line-17></a><span class=kn>from</span><span class=w> </span><span class=nn>.utils.string</span><span class=w> </span><span class=kn>import</span> <span class=n>pluralize</span>
 <a id=line-18 name=line-18></a>
 <a id=line-19 name=line-19></a><span class=n>MAX_PRINTED_TASKS</span> <span class=o>=</span> <span class=mi>5</span>
 <a id=line-20 name=line-20></a>
 <a id=line-21 name=line-21></a><span class=n>JobMap</span> <span class=o>=</span> <span class=n>Dict</span><span class=p>[</span><span class=n>JobId</span><span class=p>,</span> <span class=n>Job</span><span class=p>]</span>
 <a id=line-22 name=line-22></a>
 <a id=line-23 name=line-23></a>
-<a id=line-24 name=line-24></a><span class=k>class</span> <span class=nc>FailedJobsException</span><span class=p>(</span><span class=ne>Exception</span><span class=p>):</span>
+<a id=line-24 name=line-24></a><span class=k>class</span><span class=w> </span><span class=nc>FailedJobsException</span><span class=p>(</span><span class=ne>Exception</span><span class=p>):</span>
 <a id=line-25 name=line-25></a><span class=w>    </span><span class=sd>&quot;&quot;&quot;</span>
 <a id=line-26 name=line-26></a><span class=sd>    This exception is triggered if a task fails.</span>
 <a id=line-27 name=line-27></a><span class=sd>    &quot;&quot;&quot;</span>
 <a id=line-28 name=line-28></a>
-<a id=line-29 name=line-29></a>    <span class=k>def</span> <span class=fm>__init__</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>failed_tasks</span><span class=p>:</span> <span class=n>TaskFailureMap</span><span class=p>,</span> <span class=n>job_map</span><span class=p>:</span> <span class=n>JobMap</span><span class=p>):</span>
+<a id=line-29 name=line-29></a>    <span class=k>def</span><span class=w> </span><span class=fm>__init__</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>failed_tasks</span><span class=p>:</span> <span class=n>TaskFailureMap</span><span class=p>,</span> <span class=n>job_map</span><span class=p>:</span> <span class=n>JobMap</span><span class=p>):</span>
 <a id=line-30 name=line-30></a>        <span class=bp>self</span><span class=o>.</span><span class=n>failed_tasks</span> <span class=o>=</span> <span class=n>failed_tasks</span>
 <a id=line-31 name=line-31></a>        <span class=bp>self</span><span class=o>.</span><span class=n>job_map</span> <span class=o>=</span> <span class=n>job_map</span>
 <a id=line-32 name=line-32></a>
-<a id=line-33 name=line-33></a>    <span class=k>def</span> <span class=nf>task_label</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>job_id</span><span class=p>:</span> <span class=n>JobId</span><span class=p>,</span> <span class=n>task_id</span><span class=p>:</span> <span class=n>TaskId</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=nb>str</span><span class=p>:</span>
+<a id=line-33 name=line-33></a>    <span class=k>def</span><span class=w> </span><span class=nf>task_label</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>job_id</span><span class=p>:</span> <span class=n>JobId</span><span class=p>,</span> <span class=n>task_id</span><span class=p>:</span> <span class=n>TaskId</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=nb>str</span><span class=p>:</span>
 <a id=line-34 name=line-34></a>        <span class=k>return</span> <span class=bp>self</span><span class=o>.</span><span class=n>job_map</span><span class=p>[</span><span class=n>job_id</span><span class=p>]</span><span class=o>.</span><span class=n>task_by_id</span><span class=p>(</span><span class=n>task_id</span><span class=p>)</span><span class=o>.</span><span class=n>label</span>
 <a id=line-35 name=line-35></a>
-<a id=line-36 name=line-36></a>    <span class=k>def</span> <span class=fm>__str__</span><span class=p>(</span><span class=bp>self</span><span class=p>):</span>
+<a id=line-36 name=line-36></a>    <span class=k>def</span><span class=w> </span><span class=fm>__str__</span><span class=p>(</span><span class=bp>self</span><span class=p>):</span>
 <a id=line-37 name=line-37></a>        <span class=n>error</span> <span class=o>=</span> <span class=s2>&quot;&quot;</span>
 <a id=line-38 name=line-38></a>        <span class=k>for</span> <span class=n>job_id</span><span class=p>,</span> <span class=n>tasks</span> <span class=ow>in</span> <span class=bp>self</span><span class=o>.</span><span class=n>failed_tasks</span><span class=o>.</span><span class=n>items</span><span class=p>():</span>
 <a id=line-39 name=line-39></a>            <span class=n>error</span> <span class=o>+=</span> <span class=sa>f</span><span class=s2>&quot;The following tasks of job `</span><span class=si>{</span><span class=n>job_id</span><span class=si>}</span><span class=s2>` have failed:</span><span class=se>\n</span><span class=s2>&quot;</span>
@@ -194,8 +194,8 @@
 <a id=line-51 name=line-51></a>        <span class=k>return</span> <span class=sa>f</span><span class=s2>&quot;</span><span class=si>{</span><span class=n>error</span><span class=si>}</span><span class=se>\n</span><span class=s2>&quot;</span>
 <a id=line-52 name=line-52></a>
 <a id=line-53 name=line-53></a>
-<a id=line-54 name=line-54></a><span class=k>class</span> <span class=nc>Client</span><span class=p>:</span>
-<a id=line-55 name=line-55></a>    <span class=k>def</span> <span class=fm>__init__</span><span class=p>(</span>
+<a id=line-54 name=line-54></a><span class=k>class</span><span class=w> </span><span class=nc>Client</span><span class=p>:</span>
+<a id=line-55 name=line-55></a>    <span class=k>def</span><span class=w> </span><span class=fm>__init__</span><span class=p>(</span>
 <a id=line-56 name=line-56></a>        <span class=bp>self</span><span class=p>,</span>
 <a id=line-57 name=line-57></a>        <span class=n>server_dir</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=n>GenericPath</span><span class=p>]</span> <span class=o>=</span> <span class=kc>None</span><span class=p>,</span>
 <a id=line-58 name=line-58></a>        <span class=n>python_env</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=n>PythonEnv</span><span class=p>]</span> <span class=o>=</span> <span class=kc>None</span><span class=p>,</span>
@@ -214,7 +214,7 @@
 <a id=line-71 name=line-71></a>            <span class=n>python_env</span> <span class=o>=</span> <span class=n>PythonEnv</span><span class=p>()</span>
 <a id=line-72 name=line-72></a>        <span class=bp>self</span><span class=o>.</span><span class=n>python_env</span> <span class=o>=</span> <span class=n>python_env</span>
 <a id=line-73 name=line-73></a>
-<a id=line-74 name=line-74></a>    <span class=k>def</span> <span class=nf>submit</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>job</span><span class=p>:</span> <span class=n>Job</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=n>SubmittedJob</span><span class=p>:</span>
+<a id=line-74 name=line-74></a>    <span class=k>def</span><span class=w> </span><span class=nf>submit</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>job</span><span class=p>:</span> <span class=n>Job</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=n>SubmittedJob</span><span class=p>:</span>
 <a id=line-75 name=line-75></a><span class=w>        </span><span class=sd>&quot;&quot;&quot;</span>
 <a id=line-76 name=line-76></a><span class=sd>        Submit a job into HyperQueue.</span>
 <a id=line-77 name=line-77></a>
@@ -229,7 +229,7 @@
 <a id=line-86 name=line-86></a>        <span class=n>logging</span><span class=o>.</span><span class=n>info</span><span class=p>(</span><span class=sa>f</span><span class=s2>&quot;Submitted job </span><span class=si>{</span><span class=n>job_id</span><span class=si>}</span><span class=s2> with </span><span class=si>{</span><span class=n>task_count</span><span class=si>}</span><span class=s2> </span><span class=si>{</span><span class=n>pluralize</span><span class=p>(</span><span class=s1>&#39;task&#39;</span><span class=p>,</span><span class=w> </span><span class=n>task_count</span><span class=p>)</span><span class=si>}</span><span class=s2>&quot;</span><span class=p>)</span>
 <a id=line-87 name=line-87></a>        <span class=k>return</span> <span class=n>SubmittedJob</span><span class=p>(</span><span class=n>job</span><span class=o>=</span><span class=n>job</span><span class=p>,</span> <span class=nb>id</span><span class=o>=</span><span class=n>job_id</span><span class=p>)</span>
 <a id=line-88 name=line-88></a>
-<a id=line-89 name=line-89></a>    <span class=k>def</span> <span class=nf>wait_for_jobs</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>jobs</span><span class=p>:</span> <span class=n>Sequence</span><span class=p>[</span><span class=n>SubmittedJob</span><span class=p>],</span> <span class=n>raise_on_error</span><span class=o>=</span><span class=kc>True</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=nb>bool</span><span class=p>:</span>
+<a id=line-89 name=line-89></a>    <span class=k>def</span><span class=w> </span><span class=nf>wait_for_jobs</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>jobs</span><span class=p>:</span> <span class=n>Sequence</span><span class=p>[</span><span class=n>SubmittedJob</span><span class=p>],</span> <span class=n>raise_on_error</span><span class=o>=</span><span class=kc>True</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=nb>bool</span><span class=p>:</span>
 <a id=line-90 name=line-90></a><span class=w>        </span><span class=sd>&quot;&quot;&quot;Returns True if all tasks were successfully finished&quot;&quot;&quot;</span>
 <a id=line-91 name=line-91></a>
 <a id=line-92 name=line-92></a>        <span class=n>job_ids</span> <span class=o>=</span> <span class=nb>tuple</span><span class=p>(</span><span class=n>job</span><span class=o>.</span><span class=n>id</span> <span class=k>for</span> <span class=n>job</span> <span class=ow>in</span> <span class=n>jobs</span><span class=p>)</span>
@@ -247,11 +247,11 @@
 <a id=line-104 name=line-104></a>            <span class=k>raise</span> <span class=n>FailedJobsException</span><span class=p>(</span><span class=n>failed_tasks</span><span class=p>,</span> <span class=n>job_map</span><span class=p>)</span>
 <a id=line-105 name=line-105></a>        <span class=k>return</span> <span class=nb>len</span><span class=p>(</span><span class=n>failed_jobs</span><span class=p>)</span> <span class=o>==</span> <span class=mi>0</span>
 <a id=line-106 name=line-106></a>
-<a id=line-107 name=line-107></a>    <span class=k>def</span> <span class=nf>get_failed_tasks</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>job</span><span class=p>:</span> <span class=n>SubmittedJob</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=n>Dict</span><span class=p>[</span><span class=n>TaskId</span><span class=p>,</span> <span class=n>FailedTaskContext</span><span class=p>]:</span>
+<a id=line-107 name=line-107></a>    <span class=k>def</span><span class=w> </span><span class=nf>get_failed_tasks</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>job</span><span class=p>:</span> <span class=n>SubmittedJob</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=n>Dict</span><span class=p>[</span><span class=n>TaskId</span><span class=p>,</span> <span class=n>FailedTaskContext</span><span class=p>]:</span>
 <a id=line-108 name=line-108></a>        <span class=n>result</span> <span class=o>=</span> <span class=bp>self</span><span class=o>.</span><span class=n>connection</span><span class=o>.</span><span class=n>get_failed_tasks</span><span class=p>([</span><span class=n>job</span><span class=o>.</span><span class=n>id</span><span class=p>])</span>
 <a id=line-109 name=line-109></a>        <span class=k>return</span> <span class=n>result</span><span class=p>[</span><span class=n>job</span><span class=o>.</span><span class=n>id</span><span class=p>]</span>
 <a id=line-110 name=line-110></a>
-<a id=line-111 name=line-111></a>    <span class=k>def</span> <span class=nf>forget</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>job</span><span class=p>:</span> <span class=n>HasJobId</span><span class=p>):</span>
+<a id=line-111 name=line-111></a>    <span class=k>def</span><span class=w> </span><span class=nf>forget</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>job</span><span class=p>:</span> <span class=n>HasJobId</span><span class=p>):</span>
 <a id=line-112 name=line-112></a><span class=w>        </span><span class=sd>&quot;&quot;&quot;</span>
 <a id=line-113 name=line-113></a><span class=sd>        Forget a completed job to free up its resources from the server.</span>
 <a id=line-114 name=line-114></a>
@@ -262,10 +262,10 @@
 <a id=line-119 name=line-119></a>        <span class=n>logging</span><span class=o>.</span><span class=n>info</span><span class=p>(</span><span class=sa>f</span><span class=s2>&quot;Forgotten job </span><span class=si>{</span><span class=n>job_id</span><span class=si>}</span><span class=s2>&quot;</span><span class=p>)</span>
 <a id=line-120 name=line-120></a>
 <a id=line-121 name=line-121></a>
-<a id=line-122 name=line-122></a><span class=k>def</span> <span class=nf>create_progress_callback</span><span class=p>():</span>
+<a id=line-122 name=line-122></a><span class=k>def</span><span class=w> </span><span class=nf>create_progress_callback</span><span class=p>():</span>
 <a id=line-123 name=line-123></a>    <span class=n>bar</span> <span class=o>=</span> <span class=kc>None</span>
 <a id=line-124 name=line-124></a>
-<a id=line-125 name=line-125></a>    <span class=k>def</span> <span class=nf>cb</span><span class=p>(</span><span class=n>jobs</span><span class=p>):</span>
+<a id=line-125 name=line-125></a>    <span class=k>def</span><span class=w> </span><span class=nf>cb</span><span class=p>(</span><span class=n>jobs</span><span class=p>):</span>
 <a id=line-126 name=line-126></a>        <span class=k>nonlocal</span> <span class=n>bar</span>
 <a id=line-127 name=line-127></a>
 <a id=line-128 name=line-128></a>        <span class=k>if</span> <span class=n>bar</span> <span class=ow>is</span> <span class=kc>None</span><span class=p>:</span>
@@ -285,4 +285,4 @@
 <a id=line-142 name=line-142></a>            <span class=n>bar</span><span class=o>.</span><span class=n>update</span><span class=p>(</span><span class=n>delta</span><span class=p>)</span>
 <a id=line-143 name=line-143></a>
 <a id=line-144 name=line-144></a>    <span class=k>return</span> <span class=n>cb</span>
-</pre></div></td></tr></table></div><p class=footer> Generated by <a href=https://github.com/spirali/nedoc>nedoc</a> v0.10 at 2025-01-03 15:16 </p></div></div></body></html>
+</pre></div></td></tr></table></div><p class=footer> Generated by <a href=https://github.com/spirali/nedoc>nedoc</a> v0.10 at 2025-01-07 09:39 </p></div></div></body></html>

@@ -68,19 +68,19 @@
 <span class=normal>68</span>
 <span class=normal>69</span>
 <span class=normal>70</span>
-<span class=normal>71</span></pre></div></td><td class=code><div><pre><span></span><a id=line-1 name=line-1></a><span class=kn>from</span> <span class=nn>pathlib</span> <span class=kn>import</span> <span class=n>Path</span>
-<a id=line-2 name=line-2></a><span class=kn>from</span> <span class=nn>typing</span> <span class=kn>import</span> <span class=n>Dict</span><span class=p>,</span> <span class=n>Optional</span><span class=p>,</span> <span class=n>Sequence</span><span class=p>,</span> <span class=n>Union</span>
+<span class=normal>71</span></pre></div></td><td class=code><div><pre><span></span><a id=line-1 name=line-1></a><span class=kn>from</span><span class=w> </span><span class=nn>pathlib</span><span class=w> </span><span class=kn>import</span> <span class=n>Path</span>
+<a id=line-2 name=line-2></a><span class=kn>from</span><span class=w> </span><span class=nn>typing</span><span class=w> </span><span class=kn>import</span> <span class=n>Dict</span><span class=p>,</span> <span class=n>Optional</span><span class=p>,</span> <span class=n>Sequence</span><span class=p>,</span> <span class=n>Union</span>
 <a id=line-3 name=line-3></a>
-<a id=line-4 name=line-4></a><span class=kn>from</span> <span class=nn>..common</span> <span class=kn>import</span> <span class=n>GenericPath</span>
-<a id=line-5 name=line-5></a><span class=kn>from</span> <span class=nn>..ffi</span> <span class=kn>import</span> <span class=n>TaskId</span>
-<a id=line-6 name=line-6></a><span class=kn>from</span> <span class=nn>..ffi.protocol</span> <span class=kn>import</span> <span class=n>ResourceRequest</span>
-<a id=line-7 name=line-7></a><span class=kn>from</span> <span class=nn>..output</span> <span class=kn>import</span> <span class=n>Stdio</span><span class=p>,</span> <span class=n>StdioDef</span>
-<a id=line-8 name=line-8></a><span class=kn>from</span> <span class=nn>..validation</span> <span class=kn>import</span> <span class=n>ValidationException</span>
+<a id=line-4 name=line-4></a><span class=kn>from</span><span class=w> </span><span class=nn>..common</span><span class=w> </span><span class=kn>import</span> <span class=n>GenericPath</span>
+<a id=line-5 name=line-5></a><span class=kn>from</span><span class=w> </span><span class=nn>..ffi</span><span class=w> </span><span class=kn>import</span> <span class=n>TaskId</span>
+<a id=line-6 name=line-6></a><span class=kn>from</span><span class=w> </span><span class=nn>..ffi.protocol</span><span class=w> </span><span class=kn>import</span> <span class=n>ResourceRequest</span>
+<a id=line-7 name=line-7></a><span class=kn>from</span><span class=w> </span><span class=nn>..output</span><span class=w> </span><span class=kn>import</span> <span class=n>Stdio</span><span class=p>,</span> <span class=n>StdioDef</span>
+<a id=line-8 name=line-8></a><span class=kn>from</span><span class=w> </span><span class=nn>..validation</span><span class=w> </span><span class=kn>import</span> <span class=n>ValidationException</span>
 <a id=line-9 name=line-9></a>
 <a id=line-10 name=line-10></a><span class=n>EnvType</span> <span class=o>=</span> <span class=n>Dict</span><span class=p>[</span><span class=nb>str</span><span class=p>,</span> <span class=nb>str</span><span class=p>]</span>
 <a id=line-11 name=line-11></a>
 <a id=line-12 name=line-12></a>
-<a id=line-13 name=line-13></a><span class=k>def</span> <span class=nf>_make_ffi_requests</span><span class=p>(</span>
+<a id=line-13 name=line-13></a><span class=k>def</span><span class=w> </span><span class=nf>_make_ffi_requests</span><span class=p>(</span>
 <a id=line-14 name=line-14></a>    <span class=n>resources</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=n>Union</span><span class=p>[</span><span class=n>ResourceRequest</span><span class=p>,</span> <span class=n>Sequence</span><span class=p>[</span><span class=n>ResourceRequest</span><span class=p>]]],</span>
 <a id=line-15 name=line-15></a><span class=p>):</span>
 <a id=line-16 name=line-16></a>    <span class=k>if</span> <span class=n>resources</span> <span class=ow>is</span> <span class=kc>None</span><span class=p>:</span>
@@ -91,8 +91,8 @@
 <a id=line-21 name=line-21></a>        <span class=k>return</span> <span class=n>resources</span>
 <a id=line-22 name=line-22></a>
 <a id=line-23 name=line-23></a>
-<a id=line-24 name=line-24></a><span class=k>class</span> <span class=nc>Task</span><span class=p>:</span>
-<a id=line-25 name=line-25></a>    <span class=k>def</span> <span class=fm>__init__</span><span class=p>(</span>
+<a id=line-24 name=line-24></a><span class=k>class</span><span class=w> </span><span class=nc>Task</span><span class=p>:</span>
+<a id=line-25 name=line-25></a>    <span class=k>def</span><span class=w> </span><span class=fm>__init__</span><span class=p>(</span>
 <a id=line-26 name=line-26></a>        <span class=bp>self</span><span class=p>,</span>
 <a id=line-27 name=line-27></a>        <span class=n>task_id</span><span class=p>:</span> <span class=n>TaskId</span><span class=p>,</span>
 <a id=line-28 name=line-28></a>        <span class=n>dependencies</span><span class=p>:</span> <span class=n>Sequence</span><span class=p>[</span><span class=s2>&quot;Task&quot;</span><span class=p>]</span> <span class=o>=</span> <span class=p>(),</span>
@@ -116,7 +116,7 @@
 <a id=line-46 name=line-46></a>        <span class=bp>self</span><span class=o>.</span><span class=n>name</span> <span class=o>=</span> <span class=n>name</span>
 <a id=line-47 name=line-47></a>
 <a id=line-48 name=line-48></a>    <span class=nd>@property</span>
-<a id=line-49 name=line-49></a>    <span class=k>def</span> <span class=nf>label</span><span class=p>(</span><span class=bp>self</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=nb>str</span><span class=p>:</span>
+<a id=line-49 name=line-49></a>    <span class=k>def</span><span class=w> </span><span class=nf>label</span><span class=p>(</span><span class=bp>self</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=nb>str</span><span class=p>:</span>
 <a id=line-50 name=line-50></a><span class=w>        </span><span class=sd>&quot;&quot;&quot;</span>
 <a id=line-51 name=line-51></a><span class=sd>        Returns the label of the task.</span>
 <a id=line-52 name=line-52></a><span class=sd>        If the task has an assigned name, the label is equal to the name.</span>
@@ -124,11 +124,11 @@
 <a id=line-54 name=line-54></a><span class=sd>        &quot;&quot;&quot;</span>
 <a id=line-55 name=line-55></a>        <span class=k>return</span> <span class=bp>self</span><span class=o>.</span><span class=n>name</span> <span class=k>if</span> <span class=bp>self</span><span class=o>.</span><span class=n>name</span> <span class=ow>is</span> <span class=ow>not</span> <span class=kc>None</span> <span class=k>else</span> <span class=nb>str</span><span class=p>(</span><span class=bp>self</span><span class=o>.</span><span class=n>task_id</span><span class=p>)</span>
 <a id=line-56 name=line-56></a>
-<a id=line-57 name=line-57></a>    <span class=k>def</span> <span class=nf>_build</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>client</span><span class=p>):</span>
+<a id=line-57 name=line-57></a>    <span class=k>def</span><span class=w> </span><span class=nf>_build</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>client</span><span class=p>):</span>
 <a id=line-58 name=line-58></a>        <span class=k>raise</span> <span class=ne>NotImplementedError</span>
 <a id=line-59 name=line-59></a>
 <a id=line-60 name=line-60></a>
-<a id=line-61 name=line-61></a><span class=k>def</span> <span class=nf>build_stdio</span><span class=p>(</span><span class=n>stdio</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=n>Stdio</span><span class=p>],</span> <span class=n>stream</span><span class=p>:</span> <span class=nb>str</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=n>Optional</span><span class=p>[</span><span class=n>StdioDef</span><span class=p>]:</span>
+<a id=line-61 name=line-61></a><span class=k>def</span><span class=w> </span><span class=nf>build_stdio</span><span class=p>(</span><span class=n>stdio</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=n>Stdio</span><span class=p>],</span> <span class=n>stream</span><span class=p>:</span> <span class=nb>str</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=n>Optional</span><span class=p>[</span><span class=n>StdioDef</span><span class=p>]:</span>
 <a id=line-62 name=line-62></a>    <span class=k>if</span> <span class=nb>isinstance</span><span class=p>(</span><span class=n>stdio</span><span class=p>,</span> <span class=p>(</span><span class=nb>str</span><span class=p>,</span> <span class=n>Path</span><span class=p>)):</span>
 <a id=line-63 name=line-63></a>        <span class=k>return</span> <span class=n>StdioDef</span><span class=o>.</span><span class=n>from_path</span><span class=p>(</span><span class=n>stdio</span><span class=p>)</span>
 <a id=line-64 name=line-64></a>    <span class=k>elif</span> <span class=nb>isinstance</span><span class=p>(</span><span class=n>stdio</span><span class=p>,</span> <span class=n>StdioDef</span><span class=p>):</span>
@@ -139,4 +139,4 @@
 <a id=line-69 name=line-69></a>        <span class=k>raise</span> <span class=n>ValidationException</span><span class=p>(</span>
 <a id=line-70 name=line-70></a>            <span class=sa>f</span><span class=s2>&quot;Invalid value provided for `</span><span class=si>{</span><span class=n>stream</span><span class=si>}</span><span class=s2>`: </span><span class=si>{</span><span class=nb>type</span><span class=p>(</span><span class=n>stdio</span><span class=p>)</span><span class=si>}</span><span class=s2>. Expected str, Path or `StdioDef` or `None`.&quot;</span>
 <a id=line-71 name=line-71></a>        <span class=p>)</span>
-</pre></div></td></tr></table></div><p class=footer> Generated by <a href=https://github.com/spirali/nedoc>nedoc</a> v0.10 at 2025-01-03 15:16 </p></div></div></body></html>
+</pre></div></td></tr></table></div><p class=footer> Generated by <a href=https://github.com/spirali/nedoc>nedoc</a> v0.10 at 2025-01-07 09:39 </p></div></div></body></html>

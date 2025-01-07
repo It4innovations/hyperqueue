@@ -175,25 +175,25 @@
 <span class=normal>175</span>
 <span class=normal>176</span>
 <span class=normal>177</span>
-<span class=normal>178</span></pre></div></td><td class=code><div><pre><span></span><a id=line-1 name=line-1></a><span class=kn>import</span> <span class=nn>dataclasses</span>
-<a id=line-2 name=line-2></a><span class=kn>from</span> <span class=nn>pathlib</span> <span class=kn>import</span> <span class=n>Path</span>
-<a id=line-3 name=line-3></a><span class=kn>from</span> <span class=nn>typing</span> <span class=kn>import</span> <span class=n>Dict</span><span class=p>,</span> <span class=n>List</span><span class=p>,</span> <span class=n>Optional</span><span class=p>,</span> <span class=n>Sequence</span><span class=p>,</span> <span class=n>Union</span>
+<span class=normal>178</span></pre></div></td><td class=code><div><pre><span></span><a id=line-1 name=line-1></a><span class=kn>import</span><span class=w> </span><span class=nn>dataclasses</span>
+<a id=line-2 name=line-2></a><span class=kn>from</span><span class=w> </span><span class=nn>pathlib</span><span class=w> </span><span class=kn>import</span> <span class=n>Path</span>
+<a id=line-3 name=line-3></a><span class=kn>from</span><span class=w> </span><span class=nn>typing</span><span class=w> </span><span class=kn>import</span> <span class=n>Dict</span><span class=p>,</span> <span class=n>List</span><span class=p>,</span> <span class=n>Optional</span><span class=p>,</span> <span class=n>Sequence</span><span class=p>,</span> <span class=n>Union</span>
 <a id=line-4 name=line-4></a>
-<a id=line-5 name=line-5></a><span class=kn>from</span> <span class=nn>.common</span> <span class=kn>import</span> <span class=n>GenericPath</span>
-<a id=line-6 name=line-6></a><span class=kn>from</span> <span class=nn>.ffi</span> <span class=kn>import</span> <span class=n>JobId</span><span class=p>,</span> <span class=n>TaskId</span>
-<a id=line-7 name=line-7></a><span class=kn>from</span> <span class=nn>.ffi.protocol</span> <span class=kn>import</span> <span class=n>JobDescription</span><span class=p>,</span> <span class=n>ResourceRequest</span>
-<a id=line-8 name=line-8></a><span class=kn>from</span> <span class=nn>.output</span> <span class=kn>import</span> <span class=n>Stdio</span><span class=p>,</span> <span class=n>default_stderr</span><span class=p>,</span> <span class=n>default_stdout</span>
-<a id=line-9 name=line-9></a><span class=kn>from</span> <span class=nn>.task.function</span> <span class=kn>import</span> <span class=n>PythonFunction</span>
-<a id=line-10 name=line-10></a><span class=kn>from</span> <span class=nn>.task.program</span> <span class=kn>import</span> <span class=n>ExternalProgram</span><span class=p>,</span> <span class=n>ProgramArgs</span>
-<a id=line-11 name=line-11></a><span class=kn>from</span> <span class=nn>.task.task</span> <span class=kn>import</span> <span class=n>EnvType</span><span class=p>,</span> <span class=n>Task</span>
+<a id=line-5 name=line-5></a><span class=kn>from</span><span class=w> </span><span class=nn>.common</span><span class=w> </span><span class=kn>import</span> <span class=n>GenericPath</span>
+<a id=line-6 name=line-6></a><span class=kn>from</span><span class=w> </span><span class=nn>.ffi</span><span class=w> </span><span class=kn>import</span> <span class=n>JobId</span><span class=p>,</span> <span class=n>TaskId</span>
+<a id=line-7 name=line-7></a><span class=kn>from</span><span class=w> </span><span class=nn>.ffi.protocol</span><span class=w> </span><span class=kn>import</span> <span class=n>JobDescription</span><span class=p>,</span> <span class=n>ResourceRequest</span>
+<a id=line-8 name=line-8></a><span class=kn>from</span><span class=w> </span><span class=nn>.output</span><span class=w> </span><span class=kn>import</span> <span class=n>Stdio</span><span class=p>,</span> <span class=n>default_stderr</span><span class=p>,</span> <span class=n>default_stdout</span>
+<a id=line-9 name=line-9></a><span class=kn>from</span><span class=w> </span><span class=nn>.task.function</span><span class=w> </span><span class=kn>import</span> <span class=n>PythonFunction</span>
+<a id=line-10 name=line-10></a><span class=kn>from</span><span class=w> </span><span class=nn>.task.program</span><span class=w> </span><span class=kn>import</span> <span class=n>ExternalProgram</span><span class=p>,</span> <span class=n>ProgramArgs</span>
+<a id=line-11 name=line-11></a><span class=kn>from</span><span class=w> </span><span class=nn>.task.task</span><span class=w> </span><span class=kn>import</span> <span class=n>EnvType</span><span class=p>,</span> <span class=n>Task</span>
 <a id=line-12 name=line-12></a>
 <a id=line-13 name=line-13></a>
-<a id=line-14 name=line-14></a><span class=k>class</span> <span class=nc>Job</span><span class=p>:</span>
+<a id=line-14 name=line-14></a><span class=k>class</span><span class=w> </span><span class=nc>Job</span><span class=p>:</span>
 <a id=line-15 name=line-15></a><span class=w>    </span><span class=sd>&quot;&quot;&quot;</span>
 <a id=line-16 name=line-16></a><span class=sd>    Represents a HQ job.</span>
 <a id=line-17 name=line-17></a><span class=sd>    &quot;&quot;&quot;</span>
 <a id=line-18 name=line-18></a>
-<a id=line-19 name=line-19></a>    <span class=k>def</span> <span class=fm>__init__</span><span class=p>(</span>
+<a id=line-19 name=line-19></a>    <span class=k>def</span><span class=w> </span><span class=fm>__init__</span><span class=p>(</span>
 <a id=line-20 name=line-20></a>        <span class=bp>self</span><span class=p>,</span>
 <a id=line-21 name=line-21></a>        <span class=n>default_workdir</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=n>GenericPath</span><span class=p>]</span> <span class=o>=</span> <span class=kc>None</span><span class=p>,</span>
 <a id=line-22 name=line-22></a>        <span class=n>max_fails</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=nb>int</span><span class=p>]</span> <span class=o>=</span> <span class=mi>1</span><span class=p>,</span>
@@ -211,13 +211,13 @@
 <a id=line-34 name=line-34></a>        <span class=bp>self</span><span class=o>.</span><span class=n>default_workdir</span> <span class=o>=</span> <span class=n>Path</span><span class=p>(</span><span class=n>default_workdir</span><span class=p>)</span><span class=o>.</span><span class=n>resolve</span><span class=p>()</span> <span class=k>if</span> <span class=n>default_workdir</span> <span class=ow>is</span> <span class=ow>not</span> <span class=kc>None</span> <span class=k>else</span> <span class=n>default_workdir</span>
 <a id=line-35 name=line-35></a>        <span class=bp>self</span><span class=o>.</span><span class=n>default_env</span> <span class=o>=</span> <span class=n>default_env</span> <span class=ow>or</span> <span class=p>{}</span>
 <a id=line-36 name=line-36></a>
-<a id=line-37 name=line-37></a>    <span class=k>def</span> <span class=nf>task_by_id</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=nb>id</span><span class=p>:</span> <span class=n>TaskId</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=n>Optional</span><span class=p>[</span><span class=n>Task</span><span class=p>]:</span>
+<a id=line-37 name=line-37></a>    <span class=k>def</span><span class=w> </span><span class=nf>task_by_id</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=nb>id</span><span class=p>:</span> <span class=n>TaskId</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=n>Optional</span><span class=p>[</span><span class=n>Task</span><span class=p>]:</span>
 <a id=line-38 name=line-38></a><span class=w>        </span><span class=sd>&quot;&quot;&quot;</span>
 <a id=line-39 name=line-39></a><span class=sd>        Finds a task with the given ID.</span>
 <a id=line-40 name=line-40></a><span class=sd>        &quot;&quot;&quot;</span>
 <a id=line-41 name=line-41></a>        <span class=k>return</span> <span class=bp>self</span><span class=o>.</span><span class=n>task_map</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=nb>id</span><span class=p>)</span>
 <a id=line-42 name=line-42></a>
-<a id=line-43 name=line-43></a>    <span class=k>def</span> <span class=nf>program</span><span class=p>(</span>
+<a id=line-43 name=line-43></a>    <span class=k>def</span><span class=w> </span><span class=nf>program</span><span class=p>(</span>
 <a id=line-44 name=line-44></a>        <span class=bp>self</span><span class=p>,</span>
 <a id=line-45 name=line-45></a>        <span class=n>args</span><span class=p>:</span> <span class=n>ProgramArgs</span><span class=p>,</span>
 <a id=line-46 name=line-46></a>        <span class=o>*</span><span class=p>,</span>
@@ -267,7 +267,7 @@
 <a id=line-90 name=line-90></a>        <span class=bp>self</span><span class=o>.</span><span class=n>_add_task</span><span class=p>(</span><span class=n>task</span><span class=p>)</span>
 <a id=line-91 name=line-91></a>        <span class=k>return</span> <span class=n>task</span>
 <a id=line-92 name=line-92></a>
-<a id=line-93 name=line-93></a>    <span class=k>def</span> <span class=nf>function</span><span class=p>(</span>
+<a id=line-93 name=line-93></a>    <span class=k>def</span><span class=w> </span><span class=nf>function</span><span class=p>(</span>
 <a id=line-94 name=line-94></a>        <span class=bp>self</span><span class=p>,</span>
 <a id=line-95 name=line-95></a>        <span class=n>fn</span><span class=p>,</span>
 <a id=line-96 name=line-96></a>        <span class=o>*</span><span class=p>,</span>
@@ -315,11 +315,11 @@
 <a id=line-138 name=line-138></a>        <span class=bp>self</span><span class=o>.</span><span class=n>_add_task</span><span class=p>(</span><span class=n>task</span><span class=p>)</span>
 <a id=line-139 name=line-139></a>        <span class=k>return</span> <span class=n>task</span>
 <a id=line-140 name=line-140></a>
-<a id=line-141 name=line-141></a>    <span class=k>def</span> <span class=nf>_add_task</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>task</span><span class=p>:</span> <span class=n>Task</span><span class=p>):</span>
+<a id=line-141 name=line-141></a>    <span class=k>def</span><span class=w> </span><span class=nf>_add_task</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>task</span><span class=p>:</span> <span class=n>Task</span><span class=p>):</span>
 <a id=line-142 name=line-142></a>        <span class=bp>self</span><span class=o>.</span><span class=n>tasks</span><span class=o>.</span><span class=n>append</span><span class=p>(</span><span class=n>task</span><span class=p>)</span>
 <a id=line-143 name=line-143></a>        <span class=bp>self</span><span class=o>.</span><span class=n>task_map</span><span class=p>[</span><span class=n>task</span><span class=o>.</span><span class=n>task_id</span><span class=p>]</span> <span class=o>=</span> <span class=n>task</span>
 <a id=line-144 name=line-144></a>
-<a id=line-145 name=line-145></a>    <span class=k>def</span> <span class=nf>_build</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>client</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=n>JobDescription</span><span class=p>:</span>
+<a id=line-145 name=line-145></a>    <span class=k>def</span><span class=w> </span><span class=nf>_build</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>client</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=n>JobDescription</span><span class=p>:</span>
 <a id=line-146 name=line-146></a>        <span class=n>task_descriptions</span> <span class=o>=</span> <span class=p>[]</span>
 <a id=line-147 name=line-147></a>        <span class=k>for</span> <span class=n>task</span> <span class=ow>in</span> <span class=bp>self</span><span class=o>.</span><span class=n>tasks</span><span class=p>:</span>
 <a id=line-148 name=line-148></a>            <span class=n>task_descriptions</span><span class=o>.</span><span class=n>append</span><span class=p>(</span><span class=n>task</span><span class=o>.</span><span class=n>_build</span><span class=p>(</span><span class=n>client</span><span class=p>))</span>
@@ -327,7 +327,7 @@
 <a id=line-150 name=line-150></a>
 <a id=line-151 name=line-151></a>
 <a id=line-152 name=line-152></a><span class=nd>@dataclasses</span><span class=o>.</span><span class=n>dataclass</span>
-<a id=line-153 name=line-153></a><span class=k>class</span> <span class=nc>SubmittedJob</span><span class=p>:</span>
+<a id=line-153 name=line-153></a><span class=k>class</span><span class=w> </span><span class=nc>SubmittedJob</span><span class=p>:</span>
 <a id=line-154 name=line-154></a><span class=w>    </span><span class=sd>&quot;&quot;&quot;</span>
 <a id=line-155 name=line-155></a><span class=sd>    Successfully submitted job.</span>
 <a id=line-156 name=line-156></a><span class=sd>    &quot;&quot;&quot;</span>
@@ -339,7 +339,7 @@
 <a id=line-162 name=line-162></a><span class=n>HasJobId</span> <span class=o>=</span> <span class=n>Union</span><span class=p>[</span><span class=n>JobId</span><span class=p>,</span> <span class=n>SubmittedJob</span><span class=p>]</span>
 <a id=line-163 name=line-163></a>
 <a id=line-164 name=line-164></a>
-<a id=line-165 name=line-165></a><span class=k>def</span> <span class=nf>get_job_id</span><span class=p>(</span><span class=n>job</span><span class=p>:</span> <span class=n>HasJobId</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=n>JobId</span><span class=p>:</span>
+<a id=line-165 name=line-165></a><span class=k>def</span><span class=w> </span><span class=nf>get_job_id</span><span class=p>(</span><span class=n>job</span><span class=p>:</span> <span class=n>HasJobId</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=n>JobId</span><span class=p>:</span>
 <a id=line-166 name=line-166></a>    <span class=k>if</span> <span class=nb>isinstance</span><span class=p>(</span><span class=n>job</span><span class=p>,</span> <span class=n>SubmittedJob</span><span class=p>):</span>
 <a id=line-167 name=line-167></a>        <span class=k>return</span> <span class=n>job</span><span class=o>.</span><span class=n>id</span>
 <a id=line-168 name=line-168></a>    <span class=k>elif</span> <span class=nb>isinstance</span><span class=p>(</span><span class=n>job</span><span class=p>,</span> <span class=p>(</span><span class=n>JobId</span><span class=p>,</span> <span class=nb>int</span><span class=p>)):</span>
@@ -348,9 +348,9 @@
 <a id=line-171 name=line-171></a>        <span class=k>raise</span> <span class=ne>ValueError</span><span class=p>(</span><span class=sa>f</span><span class=s2>&quot;Invalid value of type </span><span class=si>{</span><span class=nb>type</span><span class=p>(</span><span class=n>job</span><span class=p>)</span><span class=si>}</span><span class=s2> passed to `get_job_id`&quot;</span><span class=p>)</span>
 <a id=line-172 name=line-172></a>
 <a id=line-173 name=line-173></a>
-<a id=line-174 name=line-174></a><span class=k>def</span> <span class=nf>merge_envs</span><span class=p>(</span><span class=n>default</span><span class=p>:</span> <span class=n>EnvType</span><span class=p>,</span> <span class=n>env</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=n>EnvType</span><span class=p>])</span> <span class=o>-&gt;</span> <span class=n>EnvType</span><span class=p>:</span>
+<a id=line-174 name=line-174></a><span class=k>def</span><span class=w> </span><span class=nf>merge_envs</span><span class=p>(</span><span class=n>default</span><span class=p>:</span> <span class=n>EnvType</span><span class=p>,</span> <span class=n>env</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=n>EnvType</span><span class=p>])</span> <span class=o>-&gt;</span> <span class=n>EnvType</span><span class=p>:</span>
 <a id=line-175 name=line-175></a>    <span class=n>environment</span> <span class=o>=</span> <span class=n>default</span><span class=o>.</span><span class=n>copy</span><span class=p>()</span>
 <a id=line-176 name=line-176></a>    <span class=k>if</span> <span class=n>env</span><span class=p>:</span>
 <a id=line-177 name=line-177></a>        <span class=n>environment</span><span class=o>.</span><span class=n>update</span><span class=p>(</span><span class=n>env</span><span class=p>)</span>
 <a id=line-178 name=line-178></a>    <span class=k>return</span> <span class=n>environment</span>
-</pre></div></td></tr></table></div><p class=footer> Generated by <a href=https://github.com/spirali/nedoc>nedoc</a> v0.10 at 2025-01-03 15:16 </p></div></div></body></html>
+</pre></div></td></tr></table></div><p class=footer> Generated by <a href=https://github.com/spirali/nedoc>nedoc</a> v0.10 at 2025-01-07 09:39 </p></div></div></body></html>

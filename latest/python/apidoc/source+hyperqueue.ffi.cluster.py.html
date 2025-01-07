@@ -23,30 +23,30 @@
 <span class=normal>23</span>
 <span class=normal>24</span>
 <span class=normal>25</span>
-<span class=normal>26</span></pre></div></td><td class=code><div><pre><span></span><a id=line-1 name=line-1></a><span class=kn>from</span> <span class=nn>typing</span> <span class=kn>import</span> <span class=n>Optional</span>
+<span class=normal>26</span></pre></div></td><td class=code><div><pre><span></span><a id=line-1 name=line-1></a><span class=kn>from</span><span class=w> </span><span class=nn>typing</span><span class=w> </span><span class=kn>import</span> <span class=n>Optional</span>
 <a id=line-2 name=line-2></a>
-<a id=line-3 name=line-3></a><span class=kn>from</span> <span class=nn>.</span> <span class=kn>import</span> <span class=n>ffi</span>
+<a id=line-3 name=line-3></a><span class=kn>from</span><span class=w> </span><span class=nn>.</span><span class=w> </span><span class=kn>import</span> <span class=n>ffi</span>
 <a id=line-4 name=line-4></a>
 <a id=line-5 name=line-5></a>
-<a id=line-6 name=line-6></a><span class=k>class</span> <span class=nc>HqClusterContext</span><span class=p>:</span>
+<a id=line-6 name=line-6></a><span class=k>class</span><span class=w> </span><span class=nc>HqClusterContext</span><span class=p>:</span>
 <a id=line-7 name=line-7></a><span class=w>    </span><span class=sd>&quot;&quot;&quot;</span>
 <a id=line-8 name=line-8></a><span class=sd>    Opaque class returned from `cluster_start`.</span>
 <a id=line-9 name=line-9></a><span class=sd>    Should be passed to FFI methods that require it.</span>
 <a id=line-10 name=line-10></a><span class=sd>    &quot;&quot;&quot;</span>
 <a id=line-11 name=line-11></a>
 <a id=line-12 name=line-12></a>
-<a id=line-13 name=line-13></a><span class=k>class</span> <span class=nc>Cluster</span><span class=p>:</span>
-<a id=line-14 name=line-14></a>    <span class=k>def</span> <span class=fm>__init__</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>directory</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=nb>str</span><span class=p>]</span> <span class=o>=</span> <span class=kc>None</span><span class=p>):</span>
+<a id=line-13 name=line-13></a><span class=k>class</span><span class=w> </span><span class=nc>Cluster</span><span class=p>:</span>
+<a id=line-14 name=line-14></a>    <span class=k>def</span><span class=w> </span><span class=fm>__init__</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>directory</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=nb>str</span><span class=p>]</span> <span class=o>=</span> <span class=kc>None</span><span class=p>):</span>
 <a id=line-15 name=line-15></a>        <span class=bp>self</span><span class=o>.</span><span class=n>directory</span> <span class=o>=</span> <span class=n>directory</span>
 <a id=line-16 name=line-16></a>        <span class=bp>self</span><span class=o>.</span><span class=n>ctx</span><span class=p>:</span> <span class=n>HqClusterContext</span> <span class=o>=</span> <span class=n>ffi</span><span class=o>.</span><span class=n>cluster_start</span><span class=p>(</span><span class=n>directory</span><span class=p>)</span>
 <a id=line-17 name=line-17></a>
-<a id=line-18 name=line-18></a>    <span class=k>def</span> <span class=nf>add_worker</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>cores</span><span class=p>:</span> <span class=nb>int</span><span class=p>):</span>
+<a id=line-18 name=line-18></a>    <span class=k>def</span><span class=w> </span><span class=nf>add_worker</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>cores</span><span class=p>:</span> <span class=nb>int</span><span class=p>):</span>
 <a id=line-19 name=line-19></a>        <span class=bp>self</span><span class=o>.</span><span class=n>ctx</span><span class=o>.</span><span class=n>add_worker</span><span class=p>(</span><span class=n>cores</span><span class=p>)</span>
 <a id=line-20 name=line-20></a>
 <a id=line-21 name=line-21></a>    <span class=nd>@property</span>
-<a id=line-22 name=line-22></a>    <span class=k>def</span> <span class=nf>server_dir</span><span class=p>(</span><span class=bp>self</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=nb>str</span><span class=p>:</span>
+<a id=line-22 name=line-22></a>    <span class=k>def</span><span class=w> </span><span class=nf>server_dir</span><span class=p>(</span><span class=bp>self</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=nb>str</span><span class=p>:</span>
 <a id=line-23 name=line-23></a>        <span class=k>return</span> <span class=bp>self</span><span class=o>.</span><span class=n>ctx</span><span class=o>.</span><span class=n>server_dir</span>
 <a id=line-24 name=line-24></a>
-<a id=line-25 name=line-25></a>    <span class=k>def</span> <span class=nf>stop</span><span class=p>(</span><span class=bp>self</span><span class=p>):</span>
+<a id=line-25 name=line-25></a>    <span class=k>def</span><span class=w> </span><span class=nf>stop</span><span class=p>(</span><span class=bp>self</span><span class=p>):</span>
 <a id=line-26 name=line-26></a>        <span class=k>return</span> <span class=bp>self</span><span class=o>.</span><span class=n>ctx</span><span class=o>.</span><span class=n>stop</span><span class=p>()</span>
-</pre></div></td></tr></table></div><p class=footer> Generated by <a href=https://github.com/spirali/nedoc>nedoc</a> v0.10 at 2025-01-03 15:16 </p></div></div></body></html>
+</pre></div></td></tr></table></div><p class=footer> Generated by <a href=https://github.com/spirali/nedoc>nedoc</a> v0.10 at 2025-01-07 09:39 </p></div></div></body></html>
