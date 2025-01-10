@@ -502,6 +502,10 @@ async fn refresh_queue_allocations(
     match result {
         Ok(mut status_map) => {
             let queue = get_or_return!(autoalloc.get_queue_mut(id));
+            log::debug!(
+                "Active allocations of queue {id} before update\n{:?}",
+                queue.active_allocations().collect::<Vec<_>>()
+            );
             for allocation_id in allocation_ids {
                 let status = status_map.remove(&allocation_id).unwrap_or_else(|| {
                     Ok(AllocationExternalStatus::Failed {
@@ -524,6 +528,10 @@ async fn refresh_queue_allocations(
                     }
                 }
             }
+            log::debug!(
+                "Active allocations of queue {id} after update\n{:?}",
+                queue.active_allocations().collect::<Vec<_>>()
+            );
         }
         Err(error) => {
             log::error!("Failed to get allocations status from queue {id}: {error:?}");
