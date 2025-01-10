@@ -394,7 +394,7 @@ async fn process_queue(
     let try_to_submit = {
         let queue = get_or_return!(autoalloc.get_queue_mut(id));
         if !queue.state().is_running() {
-            false
+            return;
         } else {
             let limiter = queue.limiter_mut();
 
@@ -846,6 +846,9 @@ async fn remove_inactive_directories(autoalloc: &mut AutoAllocState) {
 
 fn try_pause_queue(autoalloc: &mut AutoAllocState, id: QueueId) {
     let queue = get_or_return!(autoalloc.get_queue_mut(id));
+    if !queue.state().is_running() {
+        return;
+    }
     let limiter = queue.limiter();
 
     let status = limiter.submission_status();
