@@ -554,38 +554,38 @@ fn sync_allocation_status(
 
     let finished: Option<AllocationFinished> = {
         match sync_reason {
-            AllocationSyncReason::WorkedConnected(worker_id) => {
-                match &mut allocation.status {
-                    AllocationState::Queued => {
-                        allocation.status = AllocationState::Running {
-                            connected_workers: Set::from_iter([worker_id]),
-                            disconnected_workers: Default::default(),
-                            started_at: SystemTime::now(),
-                        };
-                        events.on_allocation_started(queue_id, allocation_id.to_string());
-                        None
+            AllocationSyncReason::WorkedConnected(worker_id) => match &mut allocation.status {
+                AllocationState::Queued => {
+                    allocation.status = AllocationState::Running {
+                        connected_workers: Set::from_iter([worker_id]),
+                        disconnected_workers: Default::default(),
+                        started_at: SystemTime::now(),
+                    };
+                    events.on_allocation_started(queue_id, allocation_id.to_string());
+                    None
+                }
+                AllocationState::Running {
+                    ref mut connected_workers,
+                    ..
+                } => {
+                    if allocation.target_worker_count == connected_workers.len() as u64 {
+                        log::warn!("Allocation {allocation_id} already has the expected number of workers, worker {worker_id} is not expected");
                     }
-                    AllocationState::Running {
-                        ref mut connected_workers,
-                        ..
-                    } => {
-                        if allocation.target_worker_count == connected_workers.len() as u64 {
-                            log::warn!("Allocation {allocation_id} already has the expected number of workers, worker {worker_id} is not expected");
-                        }
-                        if !connected_workers.insert(worker_id) {
-                            log::warn!("Allocation {allocation_id} already had worker {worker_id} connected");
-                        }
-                        None
-                    }
-                    AllocationState::Finished { .. } | AllocationState::Invalid { .. } => {
+                    if !connected_workers.insert(worker_id) {
                         log::warn!(
+                            "Allocation {allocation_id} already had worker {worker_id} connected"
+                        );
+                    }
+                    None
+                }
+                AllocationState::Finished { .. } | AllocationState::FinishedUnexpectedly { .. } => {
+                    log::warn!(
                             "Allocation {allocation_id} has status {:?} and does not expect new workers",
                             allocation.status
                         );
-                        None
-                    }
+                    None
                 }
-            }
+            },
             AllocationSyncReason::WorkerLost(worker_id, details) => {
                 match &mut allocation.status {
                     AllocationState::Queued => {
@@ -630,7 +630,7 @@ fn sync_allocation_status(
                         );
                         None
                     }
-                    AllocationState::Invalid { .. } => {
+                    AllocationState::FinishedUnexpectedly { .. } => {
                         log::warn!(
                             "Worker {worker_id} has disconnected from an invalid allocation {}",
                             allocation.id
@@ -673,7 +673,7 @@ fn sync_allocation_status(
                         // This is an unexpected situation.
                         let failed = matches!(status, AllocationExternalStatus::Failed { .. });
 
-                        allocation.status = AllocationState::Invalid {
+                        allocation.status = AllocationState::FinishedUnexpectedly {
                             connected_workers: Default::default(),
                             disconnected_workers: Default::default(),
                             started_at,
@@ -706,7 +706,7 @@ fn sync_allocation_status(
                         // This usually shouldn't happen, but we still try to deal with it.
                         let failed = matches!(status, AllocationExternalStatus::Failed { .. });
 
-                        allocation.status = AllocationState::Invalid {
+                        allocation.status = AllocationState::FinishedUnexpectedly {
                             connected_workers: std::mem::take(connected_workers),
                             disconnected_workers: std::mem::take(disconnected_workers),
                             started_at,
@@ -721,7 +721,8 @@ fn sync_allocation_status(
                         })
                     }
                     (
-                        AllocationState::Finished { .. } | AllocationState::Invalid { .. },
+                        AllocationState::Finished { .. }
+                        | AllocationState::FinishedUnexpectedly { .. },
                         status,
                     ) => {
                         // The allocation was already finished before, we do not expect any more

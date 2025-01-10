@@ -306,7 +306,7 @@ pub enum AllocationState {
         disconnected_workers: DisconnectedWorkers,
     },
     // Zero (or not enough) workers have connected, but the allocation has been finished.
-    Invalid {
+    FinishedUnexpectedly {
         connected_workers: Set<WorkerId>,
         disconnected_workers: DisconnectedWorkers,
         started_at: Option<SystemTime>,

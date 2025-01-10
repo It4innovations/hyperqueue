@@ -7,7 +7,7 @@ impl AllocationState {
                 disconnected_workers,
                 ..
             } => disconnected_workers.all_crashed(),
-            AllocationState::Invalid { failed, .. } => *failed,
+            AllocationState::FinishedUnexpectedly { failed, .. } => *failed,
             AllocationState::Queued | AllocationState::Running { .. } => false,
         }
     }

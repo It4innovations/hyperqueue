@@ -1016,7 +1016,7 @@ fn allocation_status_to_cell(status: &AllocationState) -> CellStruct {
     match status {
         AllocationState::Queued => "QUEUED".cell().foreground_color(Some(Color::Yellow)),
         AllocationState::Running { .. } => "RUNNING".cell().foreground_color(Some(Color::Blue)),
-        AllocationState::Finished { .. } | AllocationState::Invalid { .. } => {
+        AllocationState::Finished { .. } | AllocationState::FinishedUnexpectedly { .. } => {
             match status.is_failed() {
                 true => "FAILED".cell().foreground_color(Some(Color::Red)),
                 false => "FINISHED".cell().foreground_color(Some(Color::Green)),
@@ -1042,7 +1042,7 @@ fn allocation_times_from_alloc(allocation: &Allocation) -> AllocationTimes {
             started = Some(started_at);
             finished = Some(finished_at);
         }
-        AllocationState::Invalid {
+        AllocationState::FinishedUnexpectedly {
             started_at,
             finished_at,
             ..

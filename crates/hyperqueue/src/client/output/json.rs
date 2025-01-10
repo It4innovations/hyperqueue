@@ -454,7 +454,7 @@ fn format_allocation(allocation: Allocation) -> serde_json::Value {
     let status_name = match &status {
         AllocationState::Queued => "queued",
         AllocationState::Running { .. } => "running",
-        AllocationState::Finished { .. } | AllocationState::Invalid { .. } => {
+        AllocationState::Finished { .. } | AllocationState::FinishedUnexpectedly { .. } => {
             match status.is_failed() {
                 true => "failed",
                 false => "finished",
