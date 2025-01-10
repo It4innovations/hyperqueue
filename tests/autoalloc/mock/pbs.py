@@ -42,15 +42,18 @@ def adapt_pbs(handler: Manager) -> CommandHandler:
 
 
 class PbsManager(DefaultManager):
-    async def handle_status(self, input: MockInput) -> CommandResponse:
+    def parse_status_job_ids(self, input: MockInput) -> List[str]:
         job_ids = []
         args = input.arguments
         for index, arg in enumerate(args[:-1]):
             if arg == "-f":
                 job_ids.append(args[index + 1])
-
         if not job_ids:
             raise Exception(f"Did not find -f in arguments: {args}")
+        return job_ids
+
+    async def handle_status(self, input: MockInput) -> CommandResponse:
+        job_ids = self.parse_status_job_ids(input)
         for job_id in job_ids:
             assert job_id[0].isdigit()
 

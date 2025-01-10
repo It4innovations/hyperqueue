@@ -1014,7 +1014,7 @@ fn stdio_to_str(stdio: &StdioDef) -> &str {
 // Allocation
 fn allocation_status_to_cell(status: &AllocationState) -> CellStruct {
     match status {
-        AllocationState::Queued => "QUEUED".cell().foreground_color(Some(Color::Yellow)),
+        AllocationState::Queued { .. } => "QUEUED".cell().foreground_color(Some(Color::Yellow)),
         AllocationState::Running { .. } => "RUNNING".cell().foreground_color(Some(Color::Blue)),
         AllocationState::Finished { .. } | AllocationState::FinishedUnexpectedly { .. } => {
             match status.is_failed() {
@@ -1030,7 +1030,7 @@ fn allocation_times_from_alloc(allocation: &Allocation) -> AllocationTimes {
     let mut finished = None;
 
     match &allocation.status {
-        AllocationState::Queued => {}
+        AllocationState::Queued { .. } => {}
         AllocationState::Running { started_at, .. } => {
             started = Some(started_at);
         }

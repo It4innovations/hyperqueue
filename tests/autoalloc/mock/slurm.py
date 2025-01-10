@@ -1,6 +1,6 @@
 import datetime
 from subprocess import Popen
-from typing import Optional
+from typing import Optional, List
 
 from aiohttp.web_request import Request
 
@@ -50,9 +50,15 @@ def to_slurm_duration(duration: datetime.timedelta) -> str:
 
 
 class SlurmManager(DefaultManager):
-    async def handle_status(self, input: MockInput) -> CommandResponse:
+    def parse_status_job_ids(self, input: MockInput) -> List[str]:
         assert input.arguments[:2] == ["show", "job"]
         job_id = input.arguments[2]
+        return [job_id]
+
+    async def handle_status(self, input: MockInput) -> CommandResponse:
+        job_ids = self.parse_status_job_ids(input)
+        assert len(job_ids) == 1
+        job_id = job_ids[0]
 
         content = ""
         job_data = self.jobs[job_id]

@@ -42,3 +42,14 @@ pub const SUBMISSION_DELAYS: [Duration; 5] = [
     Duration::from_secs(30 * 60),
     Duration::from_secs(60 * 60),
 ];
+
+/// Maximum number of status errors that can be received for a queued allocation
+/// before that allocation will be assumed to be finished.
+pub const MAX_QUEUED_STATUS_ERROR_COUNT: u32 = 10;
+
+/// Maximum number of status errors that can be received for a running allocation
+/// before that allocation will be assumed to be finished.
+///
+/// We don't want to end running allocations too quickly, so we give a bit more leeway here than
+/// for queued allocations.
+pub const MAX_RUNNING_STATUS_ERROR_COUNT: u32 = 20;

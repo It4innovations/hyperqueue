@@ -17,7 +17,7 @@ from ..utils.wait import (
 )
 from .conftest import PBS_AVAILABLE, PBS_TIMEOUT, SLURM_TIMEOUT, pbs_test, slurm_test
 from .mock.handler import CommandHandler, CommandResponse, MockInput, response_error
-from .mock.manager import DefaultManager, JobData, Manager, WrappedManager
+from .mock.manager import JobData, Manager, WrappedManager, DefaultManager
 from .mock.mock import MockJobManager
 from .mock.pbs import PbsManager, adapt_pbs
 from .mock.slurm import SlurmManager, adapt_slurm
@@ -543,6 +543,32 @@ def test_refresh_allocation_fail_queued_job(hq_env: HqEnv, spec: ManagerSpec):
             JobData.failed(),
         )
         wait_for_alloc(hq_env, "FAILED", job_id)
+
+
+@all_managers
+def test_repeated_status_error(hq_env: HqEnv, spec: ManagerSpec):
+    """
+    Submit an allocation that will forever be returned as an error when trying to get its status.
+    After some time, that allocation should be removed, to allow new allocations to be started.
+    """
+    first_job = spec.manager.job_id(0)
+
+    class FailingStatusManager(WrappedManager):
+        async def handle_status(self, input: MockInput) -> CommandResponse:
+            job_ids = self.parse_status_job_ids(input)
+            if first_job in job_ids:
+                return response_error("Failed to get allocation status")
+            return await self.inner.handle_status(input)
+
+    with MockJobManager(hq_env, spec.adapt(FailingStatusManager(spec.manager))):
+        start_server_with_quick_refresh(hq_env)
+        prepare_tasks(hq_env)
+
+        add_queue(hq_env, manager=spec.manager_type(), backlog=1)
+        # Check that after many status failures, the job is deemed to be finished and a new one is
+        # queued.
+        wait_for_alloc(hq_env, "FAILED", first_job)
+        wait_for_alloc(hq_env, "QUEUED", spec.manager.job_id(1))
 
 
 def dry_run_cmd(spec: ManagerSpec) -> List[str]:

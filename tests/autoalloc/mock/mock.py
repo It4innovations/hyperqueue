@@ -29,8 +29,8 @@ def prepare_redirector(path: Path, port: int, key: str):
 
 class MockJobManager:
     """
-    Creates a mock job manager that intercepts job manager (PBS) in the given `hq_env` and passes
-    them to the given `handler`.
+    Creates a mock job manager that intercepts job manager (PBS/Slurm) in the given `hq_env` and
+    passes them to the given `handler`.
     """
 
     def __init__(

@@ -10,7 +10,8 @@ use tempfile::TempDir;
 use crate::common::manager::info::{ManagerInfo, ManagerType};
 use crate::common::rpc::RpcReceiver;
 use crate::server::autoalloc::config::{
-    get_refresh_timeout, get_status_check_interval, max_allocation_fails, MAX_SUBMISSION_FAILS,
+    get_refresh_timeout, get_status_check_interval, max_allocation_fails,
+    MAX_QUEUED_STATUS_ERROR_COUNT, MAX_RUNNING_STATUS_ERROR_COUNT, MAX_SUBMISSION_FAILS,
     SUBMISSION_DELAYS,
 };
 use crate::server::autoalloc::estimator::{
@@ -471,10 +472,10 @@ fn get_data_from_worker<'a>(
 async fn refresh_queue_allocations(
     events: &EventStreamer,
     autoalloc: &mut AutoAllocState,
-    id: QueueId,
+    queue_id: QueueId,
 ) {
-    log::debug!("Attempt to refresh allocations of queue {id}");
-    let queue = get_or_return!(autoalloc.get_queue_mut(id));
+    log::debug!("Attempt to refresh allocations of queue {queue_id}");
+    let queue = get_or_return!(autoalloc.get_queue_mut(queue_id));
     if !queue.limiter().can_perform_status_check() {
         log::debug!("Refresh attempt was rate limited");
         return;
@@ -497,13 +498,13 @@ async fn refresh_queue_allocations(
     queue.limiter_mut().on_status_attempt();
     let result = status_fut.await;
 
-    log::debug!("Allocations of {id} have been refreshed: {result:?}");
+    log::debug!("Allocations of queue {queue_id} have been refreshed: {result:?}");
 
     match result {
         Ok(mut status_map) => {
-            let queue = get_or_return!(autoalloc.get_queue_mut(id));
+            let queue = get_or_return!(autoalloc.get_queue_mut(queue_id));
             log::debug!(
-                "Active allocations of queue {id} before update\n{:?}",
+                "Active allocations of queue {queue_id} before update\n{:?}",
                 queue.active_allocations().collect::<Vec<_>>()
             );
             for allocation_id in allocation_ids {
@@ -517,25 +518,90 @@ async fn refresh_queue_allocations(
                     Ok(status) => {
                         sync_allocation_status(
                             events,
-                            id,
+                            queue_id,
                             queue,
                             &allocation_id,
                             AllocationSyncReason::AllocationExternalChange(status),
                         );
                     }
                     Err(error) => {
-                        log::warn!("Could not get status of allocation {allocation_id}: {error:?}")
+                        log::warn!("Could not get status of allocation {allocation_id}: {error:?}");
+
+                        // We failed to get a status of an allocation.
+                        // This can either be a transient error, or it can mean that the manager
+                        // will never give us a valid status ever again.
+                        // To avoid the latter situation, we count the number of status errors that
+                        // we saw, and if it reaches a threshold, we finish the allocation to let
+                        // autoalloc submit new allocations instead.
+                        if let Some(allocation) = queue.get_allocation_mut(&allocation_id) {
+                            increase_status_error_counter(events, allocation, queue_id);
+                        }
                     }
                 }
             }
             log::debug!(
-                "Active allocations of queue {id} after update\n{:?}",
+                "Active allocations of queue {queue_id} after update\n{:?}",
                 queue.active_allocations().collect::<Vec<_>>()
             );
         }
         Err(error) => {
-            log::error!("Failed to get allocations status from queue {id}: {error:?}");
+            log::error!("Failed to get allocations status from queue {queue_id}: {error:?}");
+            // We could not even communicate with the allocation manager.
+            // Pessimistically bump the status error counter for all active allocations of the queue
+            for allocation in queue.active_allocations_mut() {
+                increase_status_error_counter(events, allocation, queue_id);
+            }
         }
+    }
+}
+
+fn increase_status_error_counter(
+    events: &EventStreamer,
+    allocation: &mut Allocation,
+    queue_id: QueueId,
+) {
+    match &mut allocation.status {
+        AllocationState::Queued { status_error_count } => {
+            *status_error_count += 1;
+            if *status_error_count > MAX_QUEUED_STATUS_ERROR_COUNT {
+                log::debug!("Queued allocation {} received too many status errors. It is now considered to be finished",
+                allocation.id);
+                allocation.status = AllocationState::FinishedUnexpectedly {
+                    connected_workers: Default::default(),
+                    disconnected_workers: Default::default(),
+                    started_at: None,
+                    finished_at: SystemTime::now(),
+                    // The allocation did not receive any workers, and its
+                    // status check has repeatedly failed, so most likely
+                    // it has failed.
+                    failed: true,
+                };
+                events.on_allocation_finished(queue_id, allocation.id.clone());
+            }
+        }
+        AllocationState::Running {
+            status_error_count,
+            started_at,
+            connected_workers,
+            disconnected_workers,
+        } => {
+            *status_error_count += 1;
+            if *status_error_count > MAX_RUNNING_STATUS_ERROR_COUNT {
+                log::debug!("Running allocation {} received too many status errors. It is now considered to be finished", allocation.id);
+                allocation.status = AllocationState::FinishedUnexpectedly {
+                    connected_workers: std::mem::take(connected_workers),
+                    disconnected_workers: std::mem::take(disconnected_workers),
+                    started_at: Some(*started_at),
+                    finished_at: SystemTime::now(),
+                    // Hard to say what has happened, but since the
+                    // allocation has at least started, consider it to be a
+                    // success.
+                    failed: false,
+                };
+                events.on_allocation_finished(queue_id, allocation.id.clone());
+            }
+        }
+        AllocationState::Finished { .. } | AllocationState::FinishedUnexpectedly { .. } => {}
     }
 }
 
@@ -563,11 +629,12 @@ fn sync_allocation_status(
     let finished: Option<AllocationFinished> = {
         match sync_reason {
             AllocationSyncReason::WorkedConnected(worker_id) => match &mut allocation.status {
-                AllocationState::Queued => {
+                AllocationState::Queued { .. } => {
                     allocation.status = AllocationState::Running {
                         connected_workers: Set::from_iter([worker_id]),
                         disconnected_workers: Default::default(),
                         started_at: SystemTime::now(),
+                        status_error_count: 0,
                     };
                     events.on_allocation_started(queue_id, allocation_id.to_string());
                     None
@@ -596,7 +663,9 @@ fn sync_allocation_status(
             },
             AllocationSyncReason::WorkerLost(worker_id, details) => {
                 match &mut allocation.status {
-                    AllocationState::Queued => {
+                    AllocationState::Queued {
+                        status_error_count: _,
+                    } => {
                         log::warn!(
                             "Worker {worker_id} has disconnected before its allocation was registered as running!"
                         );
@@ -606,6 +675,7 @@ fn sync_allocation_status(
                         ref mut disconnected_workers,
                         ref mut connected_workers,
                         started_at,
+                        status_error_count: _,
                     } => {
                         if !connected_workers.remove(&worker_id) {
                             log::warn!("Worker {worker_id} has disconnected multiple times!");
@@ -649,12 +719,12 @@ fn sync_allocation_status(
             }
             AllocationSyncReason::AllocationExternalChange(status) => {
                 match (&mut allocation.status, status) {
-                    (AllocationState::Queued, AllocationExternalStatus::Queued)
+                    (AllocationState::Queued { .. }, AllocationExternalStatus::Queued)
                     | (AllocationState::Running { .. }, AllocationExternalStatus::Running) => {
                         // No change
                         None
                     }
-                    (AllocationState::Queued, AllocationExternalStatus::Running) => {
+                    (AllocationState::Queued { .. }, AllocationExternalStatus::Running) => {
                         // The allocation has started running. Usually, we will receive
                         // information about this by a worker being connected, but in theory this
                         // event can happen sooner (or the allocation can start, but the worker
@@ -663,11 +733,12 @@ fn sync_allocation_status(
                             started_at: SystemTime::now(),
                             connected_workers: Default::default(),
                             disconnected_workers: Default::default(),
+                            status_error_count: 0,
                         };
                         None
                     }
                     (
-                        AllocationState::Queued,
+                        AllocationState::Queued { .. },
                         ref status @ (AllocationExternalStatus::Finished {
                             finished_at,
                             started_at,
@@ -700,6 +771,7 @@ fn sync_allocation_status(
                             disconnected_workers,
                             started_at: _,
                             connected_workers,
+                            status_error_count: _,
                         },
                         ref status @ (AllocationExternalStatus::Finished {
                             started_at,
@@ -1677,6 +1749,27 @@ mod tests {
                 ))
             },
             move |_, _| async move { Ok(Some(AllocationExternalStatus::Queued)) },
+            |_, _| async move { Ok(()) },
+        )
+    }
+
+    fn fails_status_handler() -> Box<dyn QueueHandler> {
+        Handler::new(
+            WrappedRcRefCell::wrap(0),
+            move |state, _| async move {
+                let mut s = state.get_mut();
+                let id = *s;
+                *s += 1;
+                Ok(AllocationSubmissionResult::new(
+                    Ok(id.to_string()),
+                    Default::default(),
+                ))
+            },
+            move |_, alloc_id| async move {
+                Err(anyhow::anyhow!(
+                    "Cannot get status of allocation {alloc_id}"
+                ))
+            },
             |_, _| async move { Ok(()) },
         )
     }
