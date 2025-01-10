@@ -212,10 +212,16 @@ impl AllocationQueue {
 
     pub fn queued_allocations(&self) -> impl Iterator<Item = &Allocation> {
         self.all_allocations()
-            .filter(|alloc| matches!(alloc.status, AllocationState::Queued))
+            .filter(|alloc| matches!(alloc.status, AllocationState::Queued { .. }))
     }
+
     pub fn active_allocations(&self) -> impl Iterator<Item = &Allocation> {
         self.all_allocations().filter(|alloc| alloc.is_active())
+    }
+    pub fn active_allocations_mut(&mut self) -> impl Iterator<Item = &mut Allocation> {
+        self.allocations
+            .values_mut()
+            .filter(|alloc| alloc.is_active())
     }
 }
 
@@ -237,7 +243,9 @@ impl Allocation {
             id,
             target_worker_count,
             queued_at: SystemTime::now(),
-            status: AllocationState::Queued,
+            status: AllocationState::Queued {
+                status_error_count: 0,
+            },
             working_dir,
         }
     }
@@ -246,7 +254,7 @@ impl Allocation {
     pub fn is_active(&self) -> bool {
         matches!(
             self.status,
-            AllocationState::Queued | AllocationState::Running { .. }
+            AllocationState::Queued { .. } | AllocationState::Running { .. }
         )
     }
 
@@ -293,19 +301,26 @@ impl IntoIterator for DisconnectedWorkers {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AllocationState {
-    Queued,
+    /// The allocation was submitted, and it is waiting in the queue.
+    /// Once a worker connects to the allocation, it will be switched away from the Queued state.
+    /// However, it is possible that a worker never connects, and we encounter refresh errors that
+    /// will prevent this state to be ever changed, thus blocking other allocations.
+    Queued { status_error_count: u32 },
+    /// The same thing can happen for the running state, because it might never end if not enough
+    /// workers ever connect to it.
     Running {
         started_at: SystemTime,
         connected_workers: Set<WorkerId>,
         disconnected_workers: DisconnectedWorkers,
+        status_error_count: u32,
     },
-    // The allocation has finished by connecting and disconnecting the expected amount of workers.
+    /// The allocation has finished by connecting and disconnecting the expected amount of workers.
     Finished {
         started_at: SystemTime,
         finished_at: SystemTime,
         disconnected_workers: DisconnectedWorkers,
     },
-    // Zero (or not enough) workers have connected, but the allocation has been finished.
+    /// Zero (or not enough) workers have connected, but the allocation has been finished.
     FinishedUnexpectedly {
         connected_workers: Set<WorkerId>,
         disconnected_workers: DisconnectedWorkers,

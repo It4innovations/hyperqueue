@@ -452,7 +452,7 @@ fn filter_allocations(allocations: &mut Vec<Allocation>, filter: Option<Allocati
         allocations.retain(|allocation| {
             let status = &allocation.status;
             match filter {
-                AllocationStateFilter::Queued => matches!(status, AllocationState::Queued),
+                AllocationStateFilter::Queued => matches!(status, AllocationState::Queued { .. }),
                 AllocationStateFilter::Running => {
                     matches!(status, AllocationState::Running { .. })
                 }

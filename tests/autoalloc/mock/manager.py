@@ -3,7 +3,7 @@ import datetime
 import enum
 from abc import ABC
 from subprocess import Popen
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 from ...conftest import HqEnv
 from .handler import CommandResponse, MockInput, response, response_error
@@ -19,6 +19,9 @@ class Manager(ABC):
     async def handle_delete(self, input: MockInput) -> Optional[CommandResponse]:
         return response_error()
 
+    def parse_status_job_ids(self, input: MockInput) -> List[str]:
+        raise NotImplementedError()
+
 
 class WrappedManager(Manager):
     def __init__(self, inner: Manager):
@@ -32,6 +35,9 @@ class WrappedManager(Manager):
 
     async def handle_delete(self, input: MockInput) -> Optional[CommandResponse]:
         return await self.inner.handle_delete(input)
+
+    def parse_status_job_ids(self, input: MockInput) -> List[str]:
+        return self.inner.parse_status_job_ids(input)
 
 
 class JobStatus(enum.Enum):
