@@ -112,7 +112,13 @@ impl AutoAllocState {
 pub type QueueId = u32;
 
 pub enum AllocationQueueState {
+    /// The queue is being processed as normal.
     Running,
+    /// The queue is paused. Its allocations are still being refreshed, but no new allocations
+    /// will be submitted until the queue is resumed.
+    ///
+    /// A queue can be paused manually by a user, or automatically by autoalloc itself, after too
+    /// many submission/allocation failures.
     Paused,
 }
 

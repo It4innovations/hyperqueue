@@ -37,6 +37,8 @@ enum RefreshReason {
     NewJob(JobId),
 }
 
+/// This is the main autoalloc event loop, which periodically refreshes the autoalloc queue state
+/// and also reacts to external autoalloc messages.
 pub async fn autoalloc_process(
     state_ref: StateRef,
     events: EventStreamer,
@@ -60,11 +62,11 @@ pub async fn autoalloc_process(
             refresh_state(&state_ref, &events, &mut autoalloc, reason).await;
         }
     }
+    log::debug!("Ending autoalloc, stopping all allocations");
     stop_all_allocations(&autoalloc).await;
 }
 
 /// Reacts to auto allocation message and returns a queue that should be refreshed.
-/// If `None` is returned, all queues will be refreshed.
 async fn handle_message(
     autoalloc: &mut AutoAllocState,
     events: &EventStreamer,
@@ -146,7 +148,9 @@ async fn handle_message(
                     queue.pause();
                     Ok(())
                 }
-                None => Err(anyhow::anyhow!("Queue {id} not found")),
+                None => Err(anyhow::anyhow!(
+                    "Queue {id} that should have been paused was not found"
+                )),
             };
             response.respond(result);
             None
@@ -158,7 +162,9 @@ async fn handle_message(
                     queue.resume();
                     Ok(())
                 }
-                None => Err(anyhow::anyhow!("Queue {id} not found")),
+                None => Err(anyhow::anyhow!(
+                    "Queue {id} that should have been resumed was not found"
+                )),
             };
             response.respond(result);
             Some(RefreshReason::UpdateQueue(id))
@@ -477,7 +483,7 @@ async fn refresh_queue_allocations(
                             &allocation_id,
                             AllocationSyncReason::AllocationExternalChange(status),
                         ),
-                        _ => {}
+                        AllocationExternalStatus::Queued | AllocationExternalStatus::Running => {}
                     },
                     Err(error) => {
                         log::warn!("Could not get status of allocation {allocation_id}: {error:?}")
@@ -486,7 +492,7 @@ async fn refresh_queue_allocations(
             }
         }
         Err(error) => {
-            log::error!("Failed to get allocations status from queue {id}: {error:?}",);
+            log::error!("Failed to get allocations status from queue {id}: {error:?}");
         }
     }
 }
@@ -531,7 +537,7 @@ fn on_worker_connected(
                 log::warn!("Allocation {allocation_id} already had worker {worker_id} connected");
             }
         }
-        _ => {
+        AllocationState::Finished { .. } | AllocationState::Invalid { .. } => {
             log::warn!(
                 "Allocation {allocation_id} has status {:?} and does not expect new workers",
                 allocation.status
@@ -724,8 +730,14 @@ async fn queue_try_submit(
             None => u64::MAX,
         };
 
+        let max_allocs_to_spawn = info.backlog().saturating_sub(allocs_in_queue as u32);
+
+        log::debug!(
+            "Queue {queue_id} state: {allocs_in_queue} queued allocation(s), {active_workers} active worker(s), {max_workers_to_spawn} max. worker(s) to spawn, {max_allocs_to_spawn} allocation(s) to spawn"
+        );
+
         (
-            info.backlog().saturating_sub(allocs_in_queue as u32),
+            max_allocs_to_spawn,
             info.workers_per_alloc() as u64,
             task_state,
             max_workers_to_spawn,
@@ -750,7 +762,7 @@ async fn queue_try_submit(
         }
     }
 
-    log::debug!("Task state: {task_state:?}, max. workers to spawn: {max_workers_to_spawn}");
+    log::debug!("Task state: {task_state:?}");
 
     for _ in 0..max_allocs_to_spawn {
         // If there are no more waiting tasks, stop creating allocations
@@ -827,7 +839,7 @@ async fn remove_inactive_directories(autoalloc: &mut AutoAllocState) {
     });
     for (result, directory) in join_all(futures).await {
         if let Err(err) = result {
-            log::error!("Failed to remove stale allocation directory {directory:?}: {err:?}",);
+            log::error!("Failed to remove stale allocation directory {directory:?}: {err:?}");
         }
     }
 }
@@ -838,13 +850,12 @@ fn try_pause_queue(autoalloc: &mut AutoAllocState, id: QueueId) {
 
     let status = limiter.submission_status();
     match status {
-        RateLimiterStatus::TooManyFailedSubmissions
-        | RateLimiterStatus::TooManyFailedAllocations => {
-            if let RateLimiterStatus::TooManyFailedSubmissions = status {
-                log::error!("The queue {id} had too many failed submissions, it will be paused.");
-            } else {
-                log::error!("The queue {id} had too many failed allocations, it will be paused.");
-            }
+        RateLimiterStatus::TooManyFailedSubmissions => {
+            log::error!("The queue {id} had too many failed submissions, it will be paused.");
+            queue.pause();
+        }
+        RateLimiterStatus::TooManyFailedAllocations => {
+            log::error!("The queue {id} had too many failed allocations, it will be paused.");
             queue.pause();
         }
         RateLimiterStatus::Ok | RateLimiterStatus::Wait => (),
