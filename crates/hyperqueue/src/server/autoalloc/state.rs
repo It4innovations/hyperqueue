@@ -262,7 +262,7 @@ pub struct DisconnectedWorkers {
 }
 
 impl DisconnectedWorkers {
-    pub fn on_worker_lost(&mut self, worker_id: WorkerId, details: LostWorkerDetails) {
+    pub fn add_lost_worker(&mut self, worker_id: WorkerId, details: LostWorkerDetails) {
         self.workers.insert(worker_id, details);
     }
     pub fn count(&self) -> u64 {
