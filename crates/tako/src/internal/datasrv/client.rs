@@ -1,5 +1,5 @@
 use crate::internal::common::error::DsError;
-use crate::internal::datasrv::dataobj::DataId;
+use crate::internal::datasrv::dataobj::{DataId, DataInputId};
 use crate::internal::datasrv::messages::{
     DataObject, FromDataNodeLocalMessage, ToDataNodeLocalMessage,
 };
@@ -63,5 +63,16 @@ impl DataClient {
             return Err(DsError::GenericError("Invalid response".to_string()));
         }
         Ok(())
+    }
+
+    pub async fn get_input(&mut self, input_id: DataInputId) -> crate::Result<DataObject> {
+        let message = ToDataNodeLocalMessage::GetInput { input_id };
+        self.send_message(message).await?;
+        let message = self.read_message().await?;
+        if let FromDataNodeLocalMessage::DataObject(dataobj) = message {
+            Ok(dataobj)
+        } else {
+            Err(DsError::GenericError("Invalid response".to_string()))
+        }
     }
 }
