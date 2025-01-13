@@ -1,4 +1,4 @@
-## Dev
+## v0.21.0
 
 ### Breaking change
 * Pre-built HyperQueue releases available from our GitHub repository are now built with GLIBC `2.28`, instead of `2.17`. If you need to run HyperQueue on a system with an older GLIBC version, you might need to recompile it from source on your system. If you encounter any issues, please let us know.
