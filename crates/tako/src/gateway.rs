@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize, Serializer};
 
 use crate::internal::common::error::DsError;
+use crate::internal::datasrv::dataobj::DataObjectId;
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::WorkerOverview;
 use crate::internal::worker::configuration::WorkerConfiguration;
@@ -118,6 +119,8 @@ pub struct TaskConfiguration {
     pub shared_data_index: u32,
 
     pub task_deps: ThinVec<TaskId>,
+
+    pub dataobj_deps: ThinVec<DataObjectId>,
 
     /// Opaque data that is passed by the gateway user to task launchers.
     #[serde(with = "serde_bytes")]

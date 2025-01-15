@@ -4,14 +4,14 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use bstr::BString;
-use tako::Map;
-use tako::Set;
-use thin_vec::ThinVec;
-
+use tako::datasrv::DataObjectId;
 use tako::gateway::{
     FromGatewayMessage, NewTasksMessage, ResourceRequestVariants, SharedTaskConfiguration,
     TaskConfiguration, ToGatewayMessage,
 };
+use tako::Map;
+use tako::Set;
+use thin_vec::ThinVec;
 
 use crate::common::arraydef::IntArray;
 use crate::common::placeholders::{
@@ -99,7 +99,7 @@ pub(crate) fn validate_submit(
                 }
             }
             for task in tasks {
-                for dep_id in &task.dependencies {
+                for dep_id in &task.task_deps {
                     if *dep_id == task.id
                         || (!task_ids.contains(dep_id)
                             && !job
@@ -274,6 +274,7 @@ fn build_tasks_array(
         id: tako_id,
         shared_data_index: 0,
         task_deps: ThinVec::new(),
+        dataobj_deps: ThinVec::new(),
         body,
     };
 
@@ -377,14 +378,22 @@ fn build_tasks_graph(
         let shared_data_index = allocate_shared_data(&task.task_desc);
 
         let task_deps = task
-            .dependencies
+            .task_deps
             .iter()
             .map(|task_id| make_tako_id(job_id, *task_id))
             .collect();
+
+        let dataobj_deps = task
+            .dataobj_deps
+            .iter()
+            .map(|job_do_id| job_do_id.to_dataobj_id(job_id))
+            .collect();
+
         task_configs.push(TaskConfiguration {
             id: make_tako_id(job_id, task.id),
             shared_data_index,
             task_deps,
+            dataobj_deps,
             body,
         });
     }

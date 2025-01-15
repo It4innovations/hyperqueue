@@ -71,7 +71,7 @@ pub struct Task {
     pub state: TaskRuntimeState,
     consumers: Set<TaskId>,
     pub task_deps: ThinVec<TaskId>,
-    pub obj_deps: ThinVec<DataObjectId>,
+    pub dataobj_deps: ThinVec<DataObjectId>,
     pub flags: TaskFlags,
     pub configuration: Rc<TaskConfiguration>,
     pub scheduler_priority: Priority,
@@ -94,7 +94,7 @@ impl Task {
     pub fn new(
         id: TaskId,
         task_deps: ThinVec<TaskId>,
-        obj_deps: ThinVec<DataObjectId>,
+        dataobj_deps: ThinVec<DataObjectId>,
         configuration: Rc<TaskConfiguration>,
         body: Box<[u8]>,
     ) -> Self {
@@ -106,7 +106,7 @@ impl Task {
         Self {
             id,
             task_deps,
-            obj_deps,
+            dataobj_deps,
             flags,
             configuration,
             body,

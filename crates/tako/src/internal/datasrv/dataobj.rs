@@ -1,11 +1,12 @@
 use crate::{define_id_type, TaskId};
+use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 
 define_id_type!(DataId, u32);
 define_id_type!(DataInputId, u32);
 
-#[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
-pub(crate) struct DataObjectId {
+#[derive(Debug, Clone, Copy, Eq, Hash, PartialEq, Serialize, Deserialize)]
+pub struct DataObjectId {
     pub task_id: TaskId,
     pub data_id: DataId,
 }

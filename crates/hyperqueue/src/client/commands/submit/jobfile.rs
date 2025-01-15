@@ -92,7 +92,8 @@ fn build_task(tdef: TaskDef, max_id: &mut JobTaskId) -> TaskWithDependencies {
     TaskWithDependencies {
         id,
         task_desc: build_task_description(tdef.config),
-        dependencies: tdef.deps,
+        task_deps: tdef.deps,
+        dataobj_deps: tdef.data_deps,
     }
 }
 
