@@ -383,53 +383,17 @@ async fn start_server(
 
 #[cfg(test)]
 mod tests {
-    use tokio::sync::Notify;
-
     use crate::common::serverdir::{
         store_access_record, ConnectAccessRecordPart, FullAccessRecord, ServerDir, SYMLINK_PATH,
     };
-    use crate::server::bootstrap::{
-        get_client_session, get_server_status, initialize_server, ServerConfig,
-    };
+    use crate::server::bootstrap::get_server_status;
 
     use super::ServerStatus;
-    use crate::client::globalsettings::GlobalSettings;
-    use crate::client::output::cli::CliOutput;
     use crate::client::server::client_stop_server;
-    use crate::tests::utils::run_concurrent;
+    use crate::tests::server::run_hq_test;
     use crate::transfer::auth::generate_key;
-    use cli_table::ColorChoice;
-    use std::future::Future;
-    use std::path::Path;
     use std::sync::Arc;
-    use std::time::Duration;
     use tempfile::TempDir;
-
-    pub async fn init_test_server(
-        tmp_dir: &Path,
-    ) -> (impl Future<Output = anyhow::Result<()>>, Arc<Notify>) {
-        // Create global public with CliOutput
-        let gsettings = GlobalSettings::new(
-            tmp_dir.to_path_buf(),
-            Box::new(CliOutput::new(ColorChoice::Never)),
-        );
-        let server_cfg = ServerConfig {
-            worker_host: "localhost".to_string(),
-            client_host: "localhost".to_string(),
-            idle_timeout: None,
-            client_port: None,
-            worker_port: None,
-            journal_path: None,
-            journal_flush_period: Duration::from_secs(30),
-            worker_secret_key: None,
-            client_secret_key: None,
-            server_uid: None,
-        };
-        let (fut, notify, _, _) = initialize_server(&gsettings, server_cfg, 1.into(), 1, None)
-            .await
-            .unwrap();
-        (fut, notify)
-    }
 
     #[tokio::test]
     async fn test_status_empty_directory() {
@@ -491,21 +455,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_start_stop() {
-        let tmp_dir = TempDir::with_prefix("foo").unwrap().into_path();
-        let (fut, _) = init_test_server(&tmp_dir).await;
-        let (set, handle) = run_concurrent(fut, async {
-            let mut session = get_client_session(&tmp_dir).await.unwrap();
-            client_stop_server(session.connection()).await.unwrap();
+        run_hq_test(|mut server| async move {
+            server.do_not_notify();
+            let mut session = server.client().await;
+            client_stop_server(session.connection()).await?;
+            Ok(server)
         })
         .await;
-        set.run_until(handle).await.unwrap().unwrap();
     }
 
+    // Just a no-op test to check that the notify logic works.
     #[tokio::test]
     async fn test_stop_on_end_condition() {
-        let tmp_dir = TempDir::with_prefix("foo").unwrap().into_path();
-        let (fut, notify) = init_test_server(&tmp_dir).await;
-        notify.notify_one();
-        fut.await.unwrap();
+        run_hq_test(|server| async move { Ok(server) }).await;
     }
 }
