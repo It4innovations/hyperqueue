@@ -448,7 +448,6 @@ mod tests {
         );
         store_access_record(&record, server_dir.access_filename()).unwrap();
 
-        //let server_dir = ServerDir::open(&tmp_dir).unwrap();
         let res = get_server_status(&tmp_dir).await.unwrap();
         assert!(matches!(res, ServerStatus::Offline));
     }
