@@ -14,16 +14,12 @@ from .manager import Manager, JobId
 from ...conftest import HqEnv
 
 
-def to_pbs_time(time: datetime.datetime) -> str:
-    return time.strftime("%a %b %d %H:%M:%S %Y")
-
-
 class PbsCommandHandler(CommandHandler):
     def __init__(self, manager: Manager):
-        self.inner = manager
+        self.manager = manager
 
     def add_worker(self, hq_env: HqEnv, allocation_id: str) -> Popen:
-        self.inner.set_job_data(allocation_id, JobData.running())
+        self.manager.set_job_data(allocation_id, JobData.running())
 
         return hq_env.start_worker(
             env={"PBS_JOBID": allocation_id, "PBS_ENVIRONMENT": "1"},
@@ -41,19 +37,23 @@ class PbsCommandHandler(CommandHandler):
         else:
             raise Exception(f"Unknown PBS command {cmd}")
 
-    async def handle_submit(self, _input: CommandInput) -> CommandOutput:
-        job_id = self.inner.handle_submit()
+    async def handle_submit(self, input: CommandInput) -> CommandOutput:
+        job_id = await self.manager.handle_submit(input)
         return response(stdout=job_id)
 
     async def handle_status(self, input: CommandInput) -> CommandOutput:
         job_ids = parse_pbs_job_ids(input)
-        job_data = await self.inner.handle_status(job_ids)
+        job_data = await self.manager.handle_status(input, job_ids)
 
         return response(stdout=json.dumps({"Jobs": create_pbs_job_data(job_data)}))
 
     async def handle_delete(self, input: CommandInput) -> CommandOutput:
-        await self.inner.handle_delete(parse_pbs_job_ids(input)[0])
+        await self.manager.handle_delete(input, parse_pbs_job_ids(input)[0])
         return response()
+
+
+def to_pbs_time(time: datetime.datetime) -> str:
+    return time.strftime("%a %b %d %H:%M:%S %Y")
 
 
 def create_pbs_job_data(job_data: Dict[JobId, Optional[JobData]]):

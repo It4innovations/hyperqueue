@@ -4,6 +4,8 @@ import enum
 from abc import ABC
 from typing import List, Optional, Dict
 
+from .command import CommandInput
+
 JobId = str
 
 
@@ -67,13 +69,13 @@ class Manager(ABC):
     the raw command-line parameters.
     """
 
-    async def handle_submit(self) -> JobId:
+    async def handle_submit(self, input: CommandInput) -> JobId:
         raise NotImplementedError
 
-    async def handle_status(self, job_ids: List[JobId]) -> Dict[JobId, JobData]:
+    async def handle_status(self, input: CommandInput, job_ids: List[JobId]) -> Dict[JobId, JobData]:
         raise NotImplementedError
 
-    async def handle_delete(self, job_id: JobId):
+    async def handle_delete(self, input: CommandInput, job_id: JobId):
         raise NotImplementedError
 
     def set_job_data(self, job_id: str, status: Optional[JobData]):
@@ -84,14 +86,14 @@ class WrappedManager(Manager):
     def __init__(self, inner: Manager):
         self.inner = inner
 
-    async def handle_submit(self) -> JobId:
-        return await self.handle_submit()
+    async def handle_submit(self, input: CommandInput) -> JobId:
+        return await self.inner.handle_submit(input)
 
-    async def handle_status(self, job_ids: List[JobId]) -> Dict[JobId, JobData]:
-        return await self.handle_status(job_ids)
+    async def handle_status(self, input: CommandInput, job_ids: List[JobId]) -> Dict[JobId, JobData]:
+        return await self.inner.handle_status(input, job_ids)
 
-    async def handle_delete(self, job_id: JobId):
-        return await self.handle_delete(job_id)
+    async def handle_delete(self, input: CommandInput, job_id: JobId):
+        return await self.inner.handle_delete(input, job_id)
 
     def set_job_data(self, job_id: str, status: Optional[JobData]):
         return self.set_job_data(job_id, status)
@@ -117,7 +119,7 @@ class DefaultManager(Manager):
         self.jobs: Dict[str, Optional[JobData]] = {}
         self.deleted_jobs = set()
 
-    async def handle_submit(self) -> JobId:
+    async def handle_submit(self, input: CommandInput) -> JobId:
         # By default, create a new job
         job_id = self.job_id(self.job_counter)
         self.job_counter += 1
@@ -127,10 +129,10 @@ class DefaultManager(Manager):
             self.jobs[job_id] = JobData.queued()
         return job_id
 
-    async def handle_status(self, job_ids: List[JobId]) -> Dict[JobId, JobData]:
+    async def handle_status(self, input: CommandInput, job_ids: List[JobId]) -> Dict[JobId, JobData]:
         return {job_id: self.jobs.get(job_id) for job_id in self.jobs}
 
-    async def handle_delete(self, job_id: JobId):
+    async def handle_delete(self, input: CommandInput, job_id: JobId):
         assert job_id in self.jobs
         self.deleted_jobs.add(job_id)
 
