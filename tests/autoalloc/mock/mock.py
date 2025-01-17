@@ -9,22 +9,43 @@ from pathlib import Path
 from typing import Optional
 
 from aiohttp import web
-from jinja2 import Environment, FileSystemLoader
 
 from ...conftest import HqEnv
 from .handler import CommandHandler, CommandResponse, response, response_error
 
-TEMPLATE_DIR = Path(__file__).absolute().parent / "template"
-REDIRECTOR_TEMPLATE = "redirector.jinja"
-
 
 def prepare_redirector(path: Path, port: int, key: str):
-    env = Environment(loader=FileSystemLoader(TEMPLATE_DIR))
-    template = env.get_template(REDIRECTOR_TEMPLATE)
-    rendered = template.render(python=sys.executable, port=port, key=key)
+    """
+    This is a small Python program that intercepts command-line arguments and sends
+    them as a POST request to a localhost server at the specified `port`. It then reacts accordingly
+    based on the response, either print something to stdout or exit with the specified exit code.
+    """
+    python = sys.executable
+    redirector_code = f"""#!{python}
+
+import os.path
+import sys
+
+import requests
+
+PORT = {port}
+KEY = "{key}"
+
+arguments = sys.argv
+
+program = os.path.basename(arguments[0])
+response = requests.post(f"http://localhost:{{PORT}}/{{program}}", json={{
+    "arguments": arguments[1:],
+    "cwd": os.getcwd(),
+}}, headers={{"HQ_TEST_KEY": KEY}}).json()
+
+print(response["stdout"], flush=True)
+print(response["stderr"], file=sys.stderr, flush=True)
+exit(response["code"])
+"""
 
     with open(path, "w") as f:
-        f.write(rendered)
+        f.write(redirector_code)
 
 
 class MockJobManager:
