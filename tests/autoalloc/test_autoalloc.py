@@ -7,24 +7,15 @@ from typing import Dict, List, Literal, Optional, Tuple
 import pytest
 from inline_snapshot import snapshot
 
-from ..conftest import HqEnv, get_hq_binary
-from ..utils.wait import (
-    DEFAULT_TIMEOUT,
-    TimeoutException,
-    wait_for_job_state,
-    wait_for_worker_state,
-    wait_until,
-)
 from .conftest import PBS_AVAILABLE, PBS_TIMEOUT, SLURM_TIMEOUT, pbs_test, slurm_test
-from .mock.handler import CommandHandler, CommandResponse, MockInput, response_error
-from .mock.manager import JobData, Manager, WrappedManager, DefaultManager
+from .flavor import ManagerFlavor, PbsManagerFlavor, SlurmManagerFlavor, all_flavors
+from .mock.command import CommandOutput, CommandInput, response_error
+from .mock.manager import JobData, WrappedManager
 from .mock.mock import MockJobManager
-from .mock.pbs import PbsManager, adapt_pbs
 from .mock.slurm import SlurmManager, adapt_slurm
 from .utils import (
     ExtractSubmitScriptPath,
     ManagerQueue,
-    ManagerType,
     add_queue,
     extract_script_args,
     extract_script_commands,
@@ -33,61 +24,20 @@ from .utils import (
     remove_queue,
     resume_queue,
 )
+from ..conftest import HqEnv, get_hq_binary
+from ..utils.wait import (
+    DEFAULT_TIMEOUT,
+    TimeoutException,
+    wait_for_job_state,
+    wait_for_worker_state,
+    wait_until,
+)
 
 
-class ManagerSpec:
-    def __init__(self, manager: DefaultManager):
-        self.manager = manager
-
-    def manager_type(self) -> ManagerType:
-        raise NotImplementedError
-
-    def handler(self) -> CommandHandler:
-        return self.adapt(self.manager)
-
-    def adapt(self, manager: Manager) -> CommandHandler:
-        raise NotImplementedError
-
-
-class PbsManagerSpec(ManagerSpec):
-    def __init__(self):
-        super().__init__(PbsManager())
-
-    def manager_type(self) -> ManagerType:
-        return "pbs"
-
-    def adapt(self, manager: Manager) -> CommandHandler:
-        return adapt_pbs(manager)
-
-
-class SlurmManagerSpec(ManagerSpec):
-    def __init__(self):
-        super().__init__(SlurmManager())
-
-    def manager_type(self) -> ManagerType:
-        return "slurm"
-
-    def adapt(self, manager: Manager) -> CommandHandler:
-        return adapt_slurm(manager)
-
-
-# The following parametrization is a function to create a new instance of the manager specs per
-# each test
-def all_managers(fn):
-    return pytest.mark.parametrize(
-        "spec",
-        (
-            SlurmManagerSpec(),
-            PbsManagerSpec(),
-        ),
-        ids=["slurm", "pbs"],
-    )(fn)
-
-
-@all_managers
-def test_autoalloc_queue_list(hq_env: HqEnv, spec: ManagerSpec):
+@all_flavors
+def test_autoalloc_queue_list(hq_env: HqEnv, flavor: ManagerFlavor):
     hq_env.start_server()
-    add_queue(hq_env, manager=spec.manager_type(), name=None, backlog=5)
+    add_queue(hq_env, manager=flavor.manager_type(), name=None, backlog=5)
 
     table = hq_env.command(["alloc", "list"], as_table=True)
     table.check_columns_value(
@@ -100,12 +50,12 @@ def test_autoalloc_queue_list(hq_env: HqEnv, spec: ManagerSpec):
             "Name",
         ),
         0,
-        ("1", "5", "1", "1h", spec.manager_type().upper(), ""),
+        ("1", "5", "1", "1h", flavor.manager_type().upper(), ""),
     )
 
     add_queue(
         hq_env,
-        manager=spec.manager_type(),
+        manager=flavor.manager_type(),
         name="bar",
         backlog=1,
         workers_per_alloc=2,
@@ -115,12 +65,12 @@ def test_autoalloc_queue_list(hq_env: HqEnv, spec: ManagerSpec):
     table.check_columns_value(
         ("ID", "Backlog size", "Workers per alloc", "Timelimit", "Name", "Manager"),
         1,
-        ("2", "1", "2", "1h", "bar", spec.manager_type().upper()),
+        ("2", "1", "2", "1h", "bar", flavor.manager_type().upper()),
     )
 
 
-@all_managers
-def test_autoalloc_timelimit_hms(hq_env: HqEnv, spec: ManagerSpec):
+@all_flavors
+def test_autoalloc_timelimit_hms(hq_env: HqEnv, flavor: ManagerFlavor):
     hq_env.start_server()
     add_queue(hq_env, manager=spec.manager_type(), time_limit="01:10:15")
 
@@ -128,8 +78,8 @@ def test_autoalloc_timelimit_hms(hq_env: HqEnv, spec: ManagerSpec):
     info.check_column_value("Timelimit", 0, "1h 10m 15s")
 
 
-@all_managers
-def test_autoalloc_timelimit_human_format(hq_env: HqEnv, spec: ManagerSpec):
+@all_flavors
+def test_autoalloc_timelimit_human_format(hq_env: HqEnv, flavor: ManagerFlavor):
     hq_env.start_server()
     add_queue(hq_env, manager=spec.manager_type(), time_limit="3h 15m 10s")
 
@@ -137,8 +87,8 @@ def test_autoalloc_timelimit_human_format(hq_env: HqEnv, spec: ManagerSpec):
     info.check_column_value("Timelimit", 0, "3h 15m 10s")
 
 
-@all_managers
-def test_autoalloc_require_timelimit(hq_env: HqEnv, spec: ManagerSpec):
+@all_flavors
+def test_autoalloc_require_timelimit(hq_env: HqEnv, flavor: ManagerFlavor):
     hq_env.start_server()
     add_queue(
         hq_env,
@@ -148,8 +98,8 @@ def test_autoalloc_require_timelimit(hq_env: HqEnv, spec: ManagerSpec):
     )
 
 
-@all_managers
-def test_autoalloc_worker_time_limit_too_large(hq_env: HqEnv, spec: ManagerSpec):
+@all_flavors
+def test_autoalloc_worker_time_limit_too_large(hq_env: HqEnv, flavor: ManagerFlavor):
     hq_env.start_server()
     add_queue(
         hq_env,
@@ -185,8 +135,8 @@ def test_autoalloc_zero_backlog(hq_env: HqEnv):
     )
 
 
-@all_managers
-def test_add_queue(hq_env: HqEnv, spec: ManagerSpec):
+@all_flavors
+def test_add_queue(hq_env: HqEnv, flavor: ManagerFlavor):
     hq_env.start_server()
     output = add_queue(
         hq_env,
@@ -286,8 +236,8 @@ Submitted batch job {job_id}
         wait_for_alloc(hq_env, "QUEUED", job_id)
 
 
-@all_managers
-def test_queue_submit_success(hq_env: HqEnv, spec: ManagerSpec):
+@all_flavors
+def test_queue_submit_success(hq_env: HqEnv, flavor: ManagerFlavor):
     with MockJobManager(hq_env, spec.handler()):
         hq_env.start_server()
         prepare_tasks(hq_env)
@@ -296,8 +246,8 @@ def test_queue_submit_success(hq_env: HqEnv, spec: ManagerSpec):
         wait_for_alloc(hq_env, "QUEUED", "1.job")
 
 
-@all_managers
-def test_submit_time_request_equal_to_time_limit(hq_env: HqEnv, spec: ManagerSpec):
+@all_flavors
+def test_submit_time_request_equal_to_time_limit(hq_env: HqEnv, flavor: ManagerFlavor):
     with MockJobManager(hq_env, spec.handler()):
         hq_env.start_server()
         hq_env.command(["submit", "--time-request", "10m", "sleep", "1"])
@@ -352,8 +302,8 @@ def test_slurm_multinode_allocation(hq_env: HqEnv):
             )
 
 
-@all_managers
-def test_allocations_job_lifecycle(hq_env: HqEnv, spec: ManagerSpec):
+@all_flavors
+def test_allocations_job_lifecycle(hq_env: HqEnv, flavor: ManagerFlavor):
     with MockJobManager(hq_env, spec.handler()):
         hq_env.start_server()
         prepare_tasks(hq_env)
@@ -375,14 +325,51 @@ def test_allocations_job_lifecycle(hq_env: HqEnv, spec: ManagerSpec):
         wait_for_alloc(hq_env, "FAILED", job_id)
 
 
-@all_managers
-def test_check_submit_working_directory(hq_env: HqEnv, spec: ManagerSpec):
+@all_flavors
+def test_fill_backlog(hq_env: HqEnv, flavor: ManagerFlavor):
+    """Check that autoalloc fills the queue up to the specified backlog"""
+    with MockJobManager(hq_env, spec.handler()):
+        hq_env.start_server()
+        prepare_tasks(hq_env)
+
+        add_queue(hq_env, backlog=4, workers_per_alloc=2, manager=spec.manager_type())
+        for index in range(4):
+            wait_for_alloc(hq_env, "QUEUED", spec.manager.job_id(index))
+        table = hq_env.command(["alloc", "list"], as_table=True)
+        table.check_columns_value(
+            (
+                "ID",
+                "Backlog size",
+                "Workers per alloc",
+                "Timelimit",
+                "Manager",
+                "Name",
+            ),
+            0,
+            ("1", "5", "1", "1h", spec.manager_type().upper(), ""),
+        )
+
+        # Queued
+
+        # Started
+        worker = spec.manager.add_worker(hq_env, job_id)
+        wait_for_alloc(hq_env, "RUNNING", job_id)
+
+        # Finished
+        worker.kill()
+        worker.wait()
+        hq_env.check_process_exited(worker, expected_code="error")
+        wait_for_alloc(hq_env, "FAILED", job_id)
+
+
+@all_flavors
+def test_check_submit_working_directory(hq_env: HqEnv, flavor: ManagerFlavor):
     """Check that manager submit command is invoked from the autoalloc working directory"""
 
     queue = ManagerQueue()
 
     class Manager(WrappedManager):
-        async def handle_submit(self, input: MockInput):
+        async def handle_submit(self, input: CommandInput):
             queue.put(input.cwd)
             return await super().handle_submit(input)
 
@@ -396,8 +383,8 @@ def test_check_submit_working_directory(hq_env: HqEnv, spec: ManagerSpec):
         assert queue.get() == str(expected_cwd)
 
 
-@all_managers
-def test_cancel_jobs_on_server_stop(hq_env: HqEnv, spec: ManagerSpec):
+@all_flavors
+def test_cancel_jobs_on_server_stop(hq_env: HqEnv, flavor: ManagerFlavor):
     manager = spec.manager
     with MockJobManager(hq_env, spec.handler()):
         process = hq_env.start_server()
@@ -433,8 +420,8 @@ def test_cancel_jobs_on_server_stop(hq_env: HqEnv, spec: ManagerSpec):
         wait_until(lambda: expected_job_ids == manager.deleted_jobs)
 
 
-@all_managers
-def test_fail_on_remove_queue_with_running_jobs(hq_env: HqEnv, spec: ManagerSpec):
+@all_flavors
+def test_fail_on_remove_queue_with_running_jobs(hq_env: HqEnv, flavor: ManagerFlavor):
     manager = spec.manager
     with MockJobManager(hq_env, spec.handler()):
         hq_env.start_server()
@@ -463,8 +450,8 @@ def test_fail_on_remove_queue_with_running_jobs(hq_env: HqEnv, spec: ManagerSpec
         wait_for_alloc(hq_env, "RUNNING", job_id)
 
 
-@all_managers
-def test_cancel_active_jobs_on_forced_remove_queue(hq_env: HqEnv, spec: ManagerSpec):
+@all_flavors
+def test_cancel_active_jobs_on_forced_remove_queue(hq_env: HqEnv, flavor: ManagerFlavor):
     manager = spec.manager
     with MockJobManager(hq_env, spec.handler()):
         hq_env.start_server()
@@ -496,7 +483,7 @@ def test_cancel_active_jobs_on_forced_remove_queue(hq_env: HqEnv, spec: ManagerS
 
 
 def test_pbs_refresh_allocation_remove_queued_job(hq_env: HqEnv):
-    spec = PbsManagerSpec()
+    spec = PbsManagerFlavor()
     manager = spec.manager
     with MockJobManager(hq_env, spec.handler()):
         start_server_with_quick_refresh(hq_env)
@@ -511,8 +498,8 @@ def test_pbs_refresh_allocation_remove_queued_job(hq_env: HqEnv):
         wait_for_alloc(hq_env, "FAILED", job_id)
 
 
-@all_managers
-def test_refresh_allocation_finish_queued_job(hq_env: HqEnv, spec: ManagerSpec):
+@all_flavors
+def test_refresh_allocation_finish_queued_job(hq_env: HqEnv, flavor: ManagerFlavor):
     manager = spec.manager
     with MockJobManager(hq_env, spec.handler()):
         start_server_with_quick_refresh(hq_env)
@@ -528,8 +515,8 @@ def test_refresh_allocation_finish_queued_job(hq_env: HqEnv, spec: ManagerSpec):
         wait_for_alloc(hq_env, "FINISHED", job_id)
 
 
-@all_managers
-def test_refresh_allocation_fail_queued_job(hq_env: HqEnv, spec: ManagerSpec):
+@all_flavors
+def test_refresh_allocation_fail_queued_job(hq_env: HqEnv, flavor: ManagerFlavor):
     manager = spec.manager
     with MockJobManager(hq_env, spec.handler()):
         start_server_with_quick_refresh(hq_env)
@@ -545,8 +532,8 @@ def test_refresh_allocation_fail_queued_job(hq_env: HqEnv, spec: ManagerSpec):
         wait_for_alloc(hq_env, "FAILED", job_id)
 
 
-@all_managers
-def test_repeated_status_error(hq_env: HqEnv, spec: ManagerSpec):
+@all_flavors
+def test_repeated_status_error(hq_env: HqEnv, flavor: ManagerFlavor):
     """
     Submit an allocation that will forever be returned as an error when trying to get its status.
     After some time, that allocation should be removed, to allow new allocations to be started.
@@ -554,7 +541,7 @@ def test_repeated_status_error(hq_env: HqEnv, spec: ManagerSpec):
     first_job = spec.manager.job_id(0)
 
     class FailingStatusManager(WrappedManager):
-        async def handle_status(self, input: MockInput) -> CommandResponse:
+        async def handle_status(self, input: CommandInput) -> CommandOutput:
             job_ids = self.parse_status_job_ids(input)
             if first_job in job_ids:
                 return response_error("Failed to get allocation status")
@@ -571,7 +558,7 @@ def test_repeated_status_error(hq_env: HqEnv, spec: ManagerSpec):
         wait_for_alloc(hq_env, "QUEUED", spec.manager.job_id(1))
 
 
-def dry_run_cmd(spec: ManagerSpec) -> List[str]:
+def dry_run_cmd(flavor: ManagerFlavor) -> List[str]:
     return ["alloc", "dry-run", spec.manager_type(), "--time-limit", "1h"]
 
 
@@ -579,15 +566,15 @@ def dry_run_cmd(spec: ManagerSpec) -> List[str]:
 def test_pbs_dry_run_missing_qsub(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.command(
-        dry_run_cmd(PbsManagerSpec()),
+        dry_run_cmd(PbsManagerFlavor()),
         expect_fail="Could not submit allocation: qsub start failed",
     )
 
 
-@all_managers
-def test_dry_run_submit_error(hq_env: HqEnv, spec: ManagerSpec):
+@all_flavors
+def test_dry_run_submit_error(hq_env: HqEnv, flavor: ManagerFlavor):
     class Manager(WrappedManager):
-        async def handle_submit(self, _input: MockInput) -> CommandResponse:
+        async def handle_submit(self, _input: CommandInput) -> CommandOutput:
             return response_error(stderr="FOOBAR")
 
     with MockJobManager(hq_env, spec.adapt(Manager(spec.manager))):
@@ -595,10 +582,10 @@ def test_dry_run_submit_error(hq_env: HqEnv, spec: ManagerSpec):
         hq_env.command(dry_run_cmd(spec), expect_fail="Stderr: FOOBAR")
 
 
-@all_managers
-def test_dry_run_cancel_error(hq_env: HqEnv, spec: ManagerSpec):
+@all_flavors
+def test_dry_run_cancel_error(hq_env: HqEnv, flavor: ManagerFlavor):
     class Manager(WrappedManager):
-        async def handle_delete(self, _input: MockInput) -> CommandResponse:
+        async def handle_delete(self, _input: CommandInput) -> CommandOutput:
             return response_error()
 
     manager = Manager(spec.manager)
@@ -610,21 +597,21 @@ def test_dry_run_cancel_error(hq_env: HqEnv, spec: ManagerSpec):
         )
 
 
-@all_managers
-def test_dry_run_success(hq_env: HqEnv, spec: ManagerSpec):
+@all_flavors
+def test_dry_run_success(hq_env: HqEnv, flavor: ManagerFlavor):
     with MockJobManager(hq_env, spec.handler()):
         hq_env.start_server()
         hq_env.command(dry_run_cmd(spec))
 
 
-@all_managers
-def test_add_queue_dry_run_fail(hq_env: HqEnv, spec: ManagerSpec):
+@all_flavors
+def test_add_queue_dry_run_fail(hq_env: HqEnv, flavor: ManagerFlavor):
     class Manager(WrappedManager):
-        async def handle_submit(self, _input: MockInput) -> CommandResponse:
+        async def handle_submit(self, _input: CommandInput) -> CommandOutput:
             return response_error(stderr="FOOBAR")
 
     program = "qsub"
-    if isinstance(spec, SlurmManagerSpec):
+    if isinstance(spec, SlurmManagerFlavor):
         program = "sbatch"
     with MockJobManager(hq_env, spec.adapt(Manager(spec.manager))):
         hq_env.start_server()
@@ -636,8 +623,8 @@ def test_add_queue_dry_run_fail(hq_env: HqEnv, spec: ManagerSpec):
         )
 
 
-@all_managers
-def test_too_high_time_request(hq_env: HqEnv, spec: ManagerSpec):
+@all_flavors
+def test_too_high_time_request(hq_env: HqEnv, flavor: ManagerFlavor):
     with MockJobManager(hq_env, spec.handler()):
         start_server_with_quick_refresh(hq_env)
         hq_env.command(["submit", "--time-request", "1h", "sleep", "1"])
@@ -693,8 +680,8 @@ def parse_exec_line(script_path: str) -> WorkerExecLine:
     return WorkerExecLine(cmd=cmd, env=env)
 
 
-@all_managers
-def test_pass_cpu_and_resources_to_worker(hq_env: HqEnv, spec: ManagerSpec):
+@all_flavors
+def test_pass_cpu_and_resources_to_worker(hq_env: HqEnv, flavor: ManagerFlavor):
     queue = ManagerQueue()
     manager = ExtractSubmitScriptPath(queue, spec.manager)
 
@@ -728,8 +715,8 @@ def test_pass_cpu_and_resources_to_worker(hq_env: HqEnv, spec: ManagerSpec):
         )
 
 
-@all_managers
-def test_propagate_rust_log_env(hq_env: HqEnv, spec: ManagerSpec):
+@all_flavors
+def test_propagate_rust_log_env(hq_env: HqEnv, flavor: ManagerFlavor):
     queue = ManagerQueue()
     manager = ExtractSubmitScriptPath(queue, spec.manager)
 
@@ -747,8 +734,8 @@ def test_propagate_rust_log_env(hq_env: HqEnv, spec: ManagerSpec):
         assert line.env["RUST_LOG"] == "foo"
 
 
-@all_managers
-def test_pass_idle_timeout_to_worker(hq_env: HqEnv, spec: ManagerSpec):
+@all_flavors
+def test_pass_idle_timeout_to_worker(hq_env: HqEnv, flavor: ManagerFlavor):
     queue = ManagerQueue()
     manager = ExtractSubmitScriptPath(queue, spec.manager)
 
@@ -773,8 +760,8 @@ def test_pass_idle_timeout_to_worker(hq_env: HqEnv, spec: ManagerSpec):
         )
 
 
-@all_managers
-def test_pass_on_server_lost(hq_env: HqEnv, spec: ManagerSpec):
+@all_flavors
+def test_pass_on_server_lost(hq_env: HqEnv, flavor: ManagerFlavor):
     queue = ManagerQueue()
     manager = ExtractSubmitScriptPath(queue, spec.manager)
 
@@ -795,8 +782,8 @@ def test_pass_on_server_lost(hq_env: HqEnv, spec: ManagerSpec):
         )
 
 
-@all_managers
-def test_pass_worker_time_limit(hq_env: HqEnv, spec: ManagerSpec):
+@all_flavors
+def test_pass_worker_time_limit(hq_env: HqEnv, flavor: ManagerFlavor):
     queue = ManagerQueue()
     manager = ExtractSubmitScriptPath(queue, PbsManager())
 
@@ -813,8 +800,8 @@ def test_pass_worker_time_limit(hq_env: HqEnv, spec: ManagerSpec):
         )
 
 
-@all_managers
-def test_start_stop_cmd(hq_env: HqEnv, spec: ManagerSpec):
+@all_flavors
+def test_start_stop_cmd(hq_env: HqEnv, flavor: ManagerFlavor):
     queue = ManagerQueue()
     manager = ExtractSubmitScriptPath(queue, spec.manager)
 
@@ -853,8 +840,8 @@ def test_autoalloc_pause_resume_queue_status(hq_env: HqEnv):
     table.check_column_value("State", 0, "RUNNING")
 
 
-@all_managers
-def test_do_not_submit_from_paused_queue(hq_env: HqEnv, spec: ManagerSpec):
+@all_flavors
+def test_do_not_submit_from_paused_queue(hq_env: HqEnv, flavor: ManagerFlavor):
     with MockJobManager(hq_env, spec.handler()):
         hq_env.start_server()
 
