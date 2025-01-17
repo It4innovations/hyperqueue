@@ -1,17 +1,18 @@
+import sys
+
 import asyncio
 import logging
 import queue
 import random
 import string
-import sys
 import threading
+from aiohttp import web
 from pathlib import Path
 from typing import Optional
 
-from aiohttp import web
-
+from .command import CommandOutput, response_error, extract_mock_input, CommandHandler
+from .manager import ManagerException
 from ...conftest import HqEnv
-from .handler import CommandHandler, CommandResponse, response, response_error
 
 
 def prepare_redirector(path: Path, port: int, key: str):
@@ -113,10 +114,14 @@ class BackgroundServer:
             assert key == self.key
 
             logging.info(f"Received request: {request}, command: {command}")
-            resp = await self.handler.handle_command(request, command)
-            if resp is None:
-                resp = response()
-            assert isinstance(resp, CommandResponse)
+            input = await extract_mock_input(request, command)
+            try:
+                resp = await self.handler.handle_command(input)
+            except ManagerException as e:
+                # This exception should not be propagated within tests, and should be returned
+                # in stderr of the manager response instead.
+                resp = response_error(stderr=str(e))
+            assert isinstance(resp, CommandOutput)
 
             resp = {
                 "stdout": resp.stdout,
