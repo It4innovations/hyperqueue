@@ -54,7 +54,7 @@ source {options.init_script}
 source {venv_path}
 
 cd {workdir} || exit 1
-{sys.executable} -u {' '.join(sys.argv)}
+{sys.executable} -u {" ".join(sys.argv)}
 """
         alloc_dir.mkdir(parents=True, exist_ok=True)
         script_path = alloc_dir / "submit.sh"
