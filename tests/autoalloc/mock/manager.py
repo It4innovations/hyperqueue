@@ -2,42 +2,9 @@ import dataclasses
 import datetime
 import enum
 from abc import ABC
-from subprocess import Popen
-from typing import Dict, Optional, List
+from typing import List, Optional, Dict
 
-from ...conftest import HqEnv
-from .handler import CommandResponse, MockInput, response, response_error
-
-
-class Manager(ABC):
-    async def handle_submit(self, input: MockInput) -> CommandResponse:
-        return response_error()
-
-    async def handle_status(self, input: MockInput) -> CommandResponse:
-        return response_error()
-
-    async def handle_delete(self, input: MockInput) -> Optional[CommandResponse]:
-        return response_error()
-
-    def parse_status_job_ids(self, input: MockInput) -> List[str]:
-        raise NotImplementedError()
-
-
-class WrappedManager(Manager):
-    def __init__(self, inner: Manager):
-        self.inner = inner
-
-    async def handle_submit(self, input: MockInput) -> CommandResponse:
-        return await self.inner.handle_submit(input)
-
-    async def handle_status(self, input: MockInput) -> CommandResponse:
-        return await self.inner.handle_status(input)
-
-    async def handle_delete(self, input: MockInput) -> Optional[CommandResponse]:
-        return await self.inner.handle_delete(input)
-
-    def parse_status_job_ids(self, input: MockInput) -> List[str]:
-        return self.inner.parse_status_job_ids(input)
+JobId = str
 
 
 class JobStatus(enum.Enum):
@@ -92,6 +59,53 @@ class JobData:
     exit_code: Optional[int] = None
 
 
+class Manager(ABC):
+    """
+    Simulates the behavior of an allocation manager.
+    Ideally, it should be agnostic of the actual manager implementation (PBS/Slurm),
+    that's why it receives and returns domain information (e.g. job IDs), and not
+    the raw command-line parameters.
+    """
+
+    async def handle_submit(self) -> JobId:
+        raise NotImplementedError
+
+    async def handle_status(self, job_ids: List[JobId]) -> Dict[JobId, JobData]:
+        raise NotImplementedError
+
+    async def handle_delete(self, job_id: JobId):
+        raise NotImplementedError
+
+    def set_job_data(self, job_id: str, status: Optional[JobData]):
+        raise NotImplementedError
+
+
+class WrappedManager(Manager):
+    def __init__(self, inner: Manager):
+        self.inner = inner
+
+    async def handle_submit(self) -> JobId:
+        return await self.handle_submit()
+
+    async def handle_status(self, job_ids: List[JobId]) -> Dict[JobId, JobData]:
+        return await self.handle_status(job_ids)
+
+    async def handle_delete(self, job_id: JobId):
+        return await self.handle_delete(job_id)
+
+    def set_job_data(self, job_id: str, status: Optional[JobData]):
+        return self.set_job_data(job_id, status)
+
+
+class ManagerException(BaseException):
+    """
+    An exception that should be propagated as an error response from a manager,
+    and should not be thrown in tests.
+    """
+
+    pass
+
+
 def now() -> datetime.datetime:
     return datetime.datetime.now()
 
@@ -103,7 +117,7 @@ class DefaultManager(Manager):
         self.jobs: Dict[str, Optional[JobData]] = {}
         self.deleted_jobs = set()
 
-    async def handle_submit(self, _input: MockInput) -> CommandResponse:
+    async def handle_submit(self) -> JobId:
         # By default, create a new job
         job_id = self.job_id(self.job_counter)
         self.job_counter += 1
@@ -111,25 +125,17 @@ class DefaultManager(Manager):
         # The state of this job could already have been set before manually
         if job_id not in self.jobs:
             self.jobs[job_id] = JobData.queued()
-        return response(stdout=self.submit_response(job_id))
+        return job_id
 
-    async def handle_status(self, input: MockInput) -> CommandResponse:
-        raise NotImplementedError
+    async def handle_status(self, job_ids: List[JobId]) -> Dict[JobId, JobData]:
+        return {job_id: self.jobs.get(job_id) for job_id in self.jobs}
 
-    async def handle_delete(self, input: MockInput) -> Optional[CommandResponse]:
-        job_id = input.arguments[0]
+    async def handle_delete(self, job_id: JobId):
         assert job_id in self.jobs
         self.deleted_jobs.add(job_id)
-        return None
-
-    def job_id(self, index: int) -> str:
-        return f"{index + 1}.job"
 
     def set_job_data(self, job_id: str, status: Optional[JobData]):
         self.jobs[job_id] = status
 
-    def add_worker(self, hq_env: HqEnv, allocation_id: str) -> Popen:
-        raise NotImplementedError
-
-    def submit_response(self, job_id: str) -> str:
-        raise NotImplementedError
+    def job_id(self, index: int) -> str:
+        return f"{index + 1}.job"
