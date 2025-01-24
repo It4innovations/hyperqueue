@@ -61,7 +61,7 @@ class MockJobManager:
         handler: CommandHandler,
         mocked_commands=("qsub", "qstat", "qdel", "sbatch", "scontrol", "scancel"),
     ):
-        self.handler = handler
+        self.handler: CommandHandler = handler
 
         # Make sure that we're not communicating with a different test instance that could target
         # the same port.
@@ -83,6 +83,7 @@ class MockJobManager:
             self.hq_env.mock.redirect_program_to_binary(cmd, self.redirector_path)
 
         logging.debug(f"Wrote redirector to {self.redirector_path}")
+        return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         assert self.bg_server is not None
@@ -103,20 +104,31 @@ class BackgroundServer:
     """
 
     def __init__(self, handler: CommandHandler, key: str):
-        self.handler = handler
-        self.key = key
         self.exception_queue = queue.SimpleQueue()
-        self.start_signal = queue.SimpleQueue()
+
+        start_signal = queue.SimpleQueue()
+        self.thread = threading.Thread(target=self.run, args=(start_signal, self.exception_queue, key, handler))
+        self.thread.start()
+
+        # Receive data from server once it starts
+        (event_loop, stop_signal, port) = start_signal.get(timeout=5)
+        self.event_loop = event_loop
+        self.stop_signal = stop_signal
+        self.port = port
+        logging.info("Server started")
+
+    def run(self, start_signal: queue.SimpleQueue, exception_queue: queue.SimpleQueue, key: str, handler: CommandHandler):
+        stop_signal = asyncio.Queue()
 
         async def handle_request(request):
             command = request.match_info["cmd"]
-            key = request.headers["HQ_TEST_KEY"]
-            assert key == self.key
+            request_key = request.headers["HQ_TEST_KEY"]
+            assert request_key == key
 
             logging.info(f"Received request: {request}, command: {command}")
             input = await extract_mock_input(request, command)
             try:
-                resp = await self.handler.handle_command(input)
+                resp = await handler.handle_command(input)
             except ManagerException as e:
                 # This exception should not be propagated within tests, and should be returned
                 # in stderr of the manager response instead.
@@ -138,27 +150,16 @@ class BackgroundServer:
             try:
                 return await handler(request)
             except BaseException as e:
-                self.stop_signal.put_nowait(e)
+                stop_signal.put_nowait(e)
                 return response_error()
 
-        self.app = web.Application(middlewares=[handle_error])
-        self.app.add_routes(
+        app = web.Application(middlewares=[handle_error])
+        app.add_routes(
             [
                 web.post("/{cmd}", handle_request),
             ]
         )
 
-        self.thread = threading.Thread(target=self.run, args=(self.app,))
-        self.thread.start()
-
-        # Receive data from server once it starts
-        (event_loop, stop_signal, port) = self.start_signal.get(timeout=5)
-        self.event_loop = event_loop
-        self.stop_signal = stop_signal
-        self.port = port
-        logging.info("Server started")
-
-    def run(self, app):
         async def body():
             logging.info("Starting mock server")
             runner = web.AppRunner(app)
@@ -167,12 +168,10 @@ class BackgroundServer:
             site = web.TCPSite(runner, host="0.0.0.0", port=0)
             try:
                 await site.start()
-
                 port = runner.addresses[0][1]
                 logging.info(f"Mock server started on port {port}")
 
-                stop_signal = asyncio.Queue()
-                self.start_signal.put((asyncio.get_running_loop(), stop_signal, port))
+                start_signal.put((asyncio.get_running_loop(), stop_signal, port))
                 exc = await stop_signal.get()
                 if exc is not None:
                     raise exc
@@ -187,7 +186,7 @@ class BackgroundServer:
             loop.run_until_complete(body())
             loop.close()
         except BaseException as e:
-            self.exception_queue.put_nowait(e)
+            exception_queue.put_nowait(e)
 
     def stop(self):
         logging.info("Stopping server")
