@@ -15,7 +15,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use tako::datasrv::DataObjectId;
-use tako::gateway::{LostWorkerReason, ResourceRequestVariants};
+use tako::gateway::{LostWorkerReason, ResourceRequestVariants, TaskDataFlags};
 use tako::program::ProgramDefinition;
 use tako::worker::WorkerConfiguration;
 
@@ -110,30 +110,13 @@ impl TaskDescription {
     }
 }
 
-bitflags::bitflags! {
-    pub(crate) struct WorkerFlags: u32 {
-        // There is no "waiting" task for resources of this worker
-        // Therefore this worker should not cause balancing even it is underloaded
-        const PARKED = 0b00000001;
-        // The worker is in processed of being stopped. In the current implementation
-        // it is always the case when the user ask for stop
-        const STOPPING = 0b00000010;
-        // The server sent message ReservationOn to worker that causes
-        // that the worker will not be turned off because of idle timeout.
-        // This state induced by processing multi node tasks.
-        // It may occur when we are waiting for remaining workers for multi-node tasks
-        // and for non-master nodes of a multi-node tasks (because they will not receive any
-        // ComputeTask message).
-        const RESERVED = 0b00000100;
-    }
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TaskWithDependencies {
     pub id: JobTaskId,
     pub task_desc: TaskDescription,
     pub task_deps: Vec<JobTaskId>,
     pub dataobj_deps: Vec<JobDataObjectId>,
+    pub data_flags: TaskDataFlags,
 }
 
 impl TaskWithDependencies {

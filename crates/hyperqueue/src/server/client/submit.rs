@@ -7,7 +7,7 @@ use bstr::BString;
 use tako::datasrv::DataObjectId;
 use tako::gateway::{
     FromGatewayMessage, NewTasksMessage, ResourceRequestVariants, SharedTaskConfiguration,
-    TaskConfiguration, ToGatewayMessage,
+    TaskConfiguration, TaskDataFlags, ToGatewayMessage,
 };
 use tako::Map;
 use tako::Set;
@@ -322,6 +322,7 @@ fn build_tasks_array(
             time_limit: task_desc.time_limit,
             priority: task_desc.priority,
             crash_limit: task_desc.crash_limit,
+            data_flags: TaskDataFlags::empty(),
         }],
         adjust_instance_id: Default::default(),
     }
@@ -336,7 +337,7 @@ fn build_tasks_graph(
     let mut shared_data = vec![];
     let mut shared_data_map =
         Map::<(Cow<ResourceRequestVariants>, Option<Duration>, Priority), usize>::new();
-    let mut allocate_shared_data = |task: &TaskDescription| -> u32 {
+    let mut allocate_shared_data = |task: &TaskDescription, data_flags: TaskDataFlags| -> u32 {
         shared_data_map
             .get(&(
                 Cow::Borrowed(&task.resources),
@@ -360,6 +361,7 @@ fn build_tasks_graph(
                     time_limit: task.time_limit,
                     priority: task.priority,
                     crash_limit: task.crash_limit,
+                    data_flags,
                 });
                 index
             }) as u32
@@ -375,7 +377,7 @@ fn build_tasks_graph(
             submit_dir,
             stream_path,
         );
-        let shared_data_index = allocate_shared_data(&task.task_desc);
+        let shared_data_index = allocate_shared_data(&task.task_desc, task.data_flags);
 
         let task_deps = task
             .task_deps

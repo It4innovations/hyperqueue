@@ -10,6 +10,7 @@ use bstr::ByteSlice;
 use nix::libc;
 use tokio::process::Command;
 
+use crate::gateway::TaskDataFlags;
 use crate::internal::common::resources::map::ResourceMap;
 use crate::internal::worker::configuration::WorkerConfiguration;
 use crate::internal::worker::resources::map::ResourceLabelMap;
@@ -81,6 +82,10 @@ impl<'a> TaskBuildContext<'a> {
 
     pub fn resources(&self) -> &'a ResourceRequest {
         &self.task.resources.requests()[self.resource_index]
+    }
+
+    pub fn data_flags(&self) -> TaskDataFlags {
+        self.task.data_flags
     }
 
     pub fn n_resource_variants(&self) -> usize {

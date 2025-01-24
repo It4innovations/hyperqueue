@@ -11,7 +11,8 @@ use smallvec::SmallVec;
 use std::path::PathBuf;
 use std::time::Duration;
 use tako::datasrv::DataObjectId;
-use tako::gateway::{ResourceRequest, ResourceRequestEntries, ResourceRequestEntry};
+use tako::gateway::{ResourceRequest, ResourceRequestEntries, ResourceRequestEntry, TaskDataFlags};
+use tako::internal::server::task::TaskFlags;
 use tako::program::FileOnCloseBehavior;
 use tako::resources::{AllocationRequest, NumOfNodes, ResourceAmount};
 use tako::{Map, Priority};
@@ -193,9 +194,6 @@ pub struct TaskConfigDef {
     pub task_dir: bool,
 
     #[serde(default)]
-    pub keep_outputs: bool,
-
-    #[serde(default)]
     #[serde(deserialize_with = "deserialize_human_duration_opt")]
     pub time_limit: Option<Duration>,
 
@@ -210,7 +208,6 @@ pub struct TaskConfigDef {
 }
 
 #[derive(Deserialize, Debug)]
-#[serde(deny_unknown_fields)]
 pub struct TaskDef {
     pub id: Option<JobTaskId>,
 
@@ -222,6 +219,9 @@ pub struct TaskDef {
 
     #[serde(default)]
     pub data_deps: Vec<JobDataObjectId>,
+
+    #[serde(default)]
+    pub keep_outputs: bool,
 }
 
 fn deserialize_array_opt<'de, D>(deserializer: D) -> Result<Option<IntArray>, D::Error>

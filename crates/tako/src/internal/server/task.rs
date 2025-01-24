@@ -3,6 +3,7 @@ use std::rc::Rc;
 use std::time::Duration;
 use thin_vec::ThinVec;
 
+use crate::gateway::TaskDataFlags;
 use crate::internal::common::stablemap::ExtractKey;
 use crate::internal::common::Set;
 use crate::internal::datasrv::dataobj::DataObjectId;
@@ -63,6 +64,7 @@ pub struct TaskConfiguration {
     pub time_limit: Option<Duration>,
     pub n_outputs: u32,
     pub crash_limit: u32,
+    pub data_flags: TaskDataFlags,
 }
 
 #[cfg_attr(test, derive(Eq, PartialEq))]
@@ -235,6 +237,7 @@ impl Task {
             time_limit: self.configuration.time_limit,
             n_outputs: self.configuration.n_outputs,
             node_list,
+            data_flags: self.configuration.data_flags,
             body: self.body.clone(),
         })
     }

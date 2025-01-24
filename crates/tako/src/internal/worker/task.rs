@@ -1,3 +1,4 @@
+use crate::gateway::TaskDataFlags;
 use crate::internal::common::resources::Allocation;
 use crate::internal::common::stablemap::ExtractKey;
 use crate::internal::messages::worker::ComputeTaskMsg;
@@ -22,6 +23,7 @@ pub struct Task {
     pub n_outputs: u32,
     pub body: Box<[u8]>,
     pub node_list: Vec<WorkerId>, // Filled in multi-node tasks; otherwise empty
+    pub data_flags: TaskDataFlags,
 }
 
 impl Task {
@@ -36,6 +38,7 @@ impl Task {
             n_outputs: message.n_outputs,
             body: message.body,
             node_list: message.node_list,
+            data_flags: message.data_flags,
         }
     }
 

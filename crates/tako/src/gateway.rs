@@ -93,22 +93,29 @@ impl ResourceRequestVariants {
     }
 }
 
+bitflags::bitflags! {
+    #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+    #[serde(transparent)]
+    pub struct TaskDataFlags: u32 {
+        const KEEP_ALL_OUTPUTS = 0b00000001;
+    }
+}
+
 /// Task data that is often shared by multiple tasks.
-/// It is send out-of-band in NewTasksMessage to save bandwidth and allocations.
+/// It is sent out-of-band in NewTasksMessage to save bandwidth and allocations.
 #[derive(Deserialize, Serialize, Debug)]
 pub struct SharedTaskConfiguration {
     pub resources: ResourceRequestVariants,
 
-    #[serde(default)]
     pub n_outputs: u32,
 
-    #[serde(default)]
     pub time_limit: Option<Duration>,
 
-    #[serde(default)]
     pub priority: Priority,
 
     pub crash_limit: u32,
+
+    pub data_flags: TaskDataFlags,
 }
 
 /// Task data that is unique for each task.
