@@ -193,6 +193,9 @@ pub struct TaskConfigDef {
     pub task_dir: bool,
 
     #[serde(default)]
+    pub keep_outputs: bool,
+
+    #[serde(default)]
     #[serde(deserialize_with = "deserialize_human_duration_opt")]
     pub time_limit: Option<Duration>,
 

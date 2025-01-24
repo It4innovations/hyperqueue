@@ -35,6 +35,7 @@ bstr = { workspace = true }
 psutil = { workspace = true }
 byteorder = { workspace = true }
 thin-vec = { workspace = true }
+bitflags = { workspace = true }
 
 humantime = "2"
 num_cpus = "1"

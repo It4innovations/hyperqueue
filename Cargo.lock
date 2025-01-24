@@ -1039,6 +1039,7 @@ dependencies = [
  "anyhow",
  "atty",
  "bincode",
+ "bitflags 2.6.0",
  "bstr",
  "byteorder",
  "bytes",
