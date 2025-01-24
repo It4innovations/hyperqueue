@@ -1,7 +1,11 @@
 import dataclasses
 from abc import ABC
+from subprocess import Popen
+
 from aiohttp.web_request import Request
 from typing import List
+
+from ...conftest import HqEnv
 
 
 @dataclasses.dataclass
@@ -33,6 +37,9 @@ class CommandHandler(ABC):
     """
 
     async def handle_command(self, command: CommandInput) -> CommandOutput:
+        raise NotImplementedError
+
+    def add_worker(self, hq_env: HqEnv, allocation_id: str) -> Popen:
         raise NotImplementedError
 
 

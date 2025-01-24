@@ -1,8 +1,10 @@
 from queue import Queue
 from typing import List, Literal, Optional, Union
 
+from ..utils.wait import TimeoutException, wait_until, DEFAULT_TIMEOUT
+
 from ..conftest import HqEnv
-from .mock.handler import MockInput
+from .mock.command import CommandInput
 from .mock.manager import Manager, WrappedManager
 
 
@@ -78,7 +80,7 @@ def remove_queue(hq_env: HqEnv, queue_id: int, force=False, **kwargs):
     return hq_env.command(args, **kwargs)
 
 
-class ManagerQueue:
+class CommQueue:
     def __init__(self):
         self.queue = Queue()
 
@@ -90,14 +92,17 @@ class ManagerQueue:
 
 
 class ExtractSubmitScriptPath(WrappedManager):
-    def __init__(self, queue: ManagerQueue, inner: Manager):
+    def __init__(self, inner: Optional[Manager] = None):
         super().__init__(inner=inner)
-        self.queue = queue
+        self.queue = CommQueue()
 
-    async def handle_submit(self, input: MockInput):
+    async def handle_submit(self, input: CommandInput):
         script_path = input.arguments[0]
         self.queue.put(script_path)
         return await super().handle_submit(input)
+
+    def get_script_path(self) -> str:
+        return self.queue.get()
 
 
 def pause_queue(hq_env: HqEnv, queue_id: int, **kwargs):
@@ -108,3 +113,40 @@ def pause_queue(hq_env: HqEnv, queue_id: int, **kwargs):
 def resume_queue(hq_env: HqEnv, queue_id: int, **kwargs):
     args = ["alloc", "resume", str(queue_id)]
     return hq_env.command(args, **kwargs)
+
+
+def wait_for_alloc(hq_env: HqEnv, state: str, allocation_id: str, timeout=DEFAULT_TIMEOUT):
+    """
+    Wait until an allocation has the given `state`.
+    Assumes a single allocation queue.
+    """
+
+    last_table = None
+
+    def wait():
+        nonlocal last_table
+
+        last_table = hq_env.command(["alloc", "info", "1"], as_table=True)
+        for index in range(len(last_table)):
+            if (
+                last_table.get_column_value("ID")[index] == allocation_id
+                and last_table.get_column_value("State")[index] == state
+            ):
+                return True
+        return False
+
+    try:
+        wait_until(wait, timeout_s=timeout)
+    except TimeoutException as e:
+        if last_table is not None:
+            raise Exception(f"{e}, most recent table:\n{last_table}")
+        raise e
+
+
+def start_server_with_quick_refresh(hq_env: HqEnv, autoalloc_refresh_ms=100, autoalloc_status_check_ms=100):
+    hq_env.start_server(
+        env={
+            "HQ_AUTOALLOC_REFRESH_INTERVAL_MS": str(autoalloc_refresh_ms),
+            "HQ_AUTOALLOC_STATUS_CHECK_INTERVAL_MS": str(autoalloc_status_check_ms),
+        }
+    )
