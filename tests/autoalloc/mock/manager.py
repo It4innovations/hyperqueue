@@ -83,8 +83,8 @@ class Manager(ABC):
 
 
 class WrappedManager(Manager):
-    def __init__(self, inner: Manager):
-        self.inner = inner
+    def __init__(self, inner: Optional[Manager] = None):
+        self.inner = inner if inner is not None else DefaultManager()
 
     async def handle_submit(self, input: CommandInput) -> JobId:
         return await self.inner.handle_submit(input)
@@ -121,7 +121,7 @@ class DefaultManager(Manager):
 
     async def handle_submit(self, input: CommandInput) -> JobId:
         # By default, create a new job
-        job_id = self.job_id(self.job_counter)
+        job_id = default_job_id(self.job_counter)
         self.job_counter += 1
 
         # The state of this job could already have been set before manually
@@ -139,5 +139,6 @@ class DefaultManager(Manager):
     def set_job_data(self, job_id: str, status: Optional[JobData]):
         self.jobs[job_id] = status
 
-    def job_id(self, index: int) -> str:
-        return f"{index + 1}.job"
+
+def default_job_id(index: int = 0) -> str:
+    return f"{index + 1}.job"
