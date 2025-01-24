@@ -48,7 +48,9 @@ class PbsCommandHandler(CommandHandler):
         return response(stdout=json.dumps({"Jobs": create_pbs_job_data(job_data)}))
 
     async def handle_delete(self, input: CommandInput) -> CommandOutput:
-        await self.manager.handle_delete(input, parse_pbs_job_ids(input)[0])
+        assert len(input.arguments) == 1
+        job_id = input.arguments[0]
+        await self.manager.handle_delete(input, job_id)
         return response()
 
 
