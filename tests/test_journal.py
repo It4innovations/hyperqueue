@@ -3,8 +3,8 @@ import time
 from .test_events import read_events
 from .utils.cmd import python
 from .autoalloc.mock.mock import MockJobManager
-from .autoalloc.mock.slurm import SlurmManager, adapt_slurm
-from .autoalloc.utils import ManagerQueue, ExtractSubmitScriptPath, add_queue, remove_queue
+from .autoalloc.flavor import all_flavors, ManagerFlavor
+from .autoalloc.utils import add_queue, remove_queue
 from .conftest import HqEnv
 from .utils import wait_for_job_state
 import os
@@ -190,28 +190,26 @@ def test_restore_not_fully_written_log(hq_env: HqEnv, tmp_path):
     assert len(out) == 2
 
 
-def test_restore_queues(hq_env: HqEnv, tmp_path):
-    queue = ManagerQueue()
-    handler = ExtractSubmitScriptPath(queue, SlurmManager())
-
+@all_flavors
+def test_restore_queues(hq_env: HqEnv, tmp_path, flavor: ManagerFlavor):
     journal_path = os.path.join(tmp_path, "my.journal")
     hq_env.start_server(args=["--journal", journal_path])
 
-    with MockJobManager(hq_env, adapt_slurm(handler)):
+    with MockJobManager(hq_env, flavor.default_handler()):
         add_queue(
             hq_env,
-            manager="slurm",
+            manager=flavor.manager_type(),
             time_limit="3m",
             additional_args="--foo=bar a b --baz 42",
         )
         add_queue(
             hq_env,
-            manager="slurm",
+            manager=flavor.manager_type(),
             time_limit="2m",
         )
         add_queue(
             hq_env,
-            manager="slurm",
+            manager=flavor.manager_type(),
             time_limit="1m",
         )
         remove_queue(
@@ -230,7 +228,7 @@ def test_restore_queues(hq_env: HqEnv, tmp_path):
 
         add_queue(
             hq_env,
-            manager="slurm",
+            manager=flavor.manager_type(),
             time_limit="1m",
         )
         alloc_list3 = hq_env.command(["--output-mode=json", "alloc", "list"], as_json=True)

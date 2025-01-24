@@ -117,7 +117,9 @@ class BackgroundServer:
         self.port = port
         logging.info("Server started")
 
-    def run(self, start_signal: queue.SimpleQueue, exception_queue: queue.SimpleQueue, key: str, handler: CommandHandler):
+    def run(
+        self, start_signal: queue.SimpleQueue, exception_queue: queue.SimpleQueue, key: str, handler: CommandHandler
+    ):
         stop_signal = asyncio.Queue()
 
         async def handle_request(request):
