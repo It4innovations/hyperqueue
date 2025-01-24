@@ -120,7 +120,7 @@ class BackgroundServer:
     def run(
         self, start_signal: queue.SimpleQueue, exception_queue: queue.SimpleQueue, key: str, handler: CommandHandler
     ):
-        stop_signal = asyncio.Queue()
+        stop_signal: Optional[asyncio.Queue] = None
 
         async def handle_request(request):
             command = request.match_info["cmd"]
@@ -149,6 +149,7 @@ class BackgroundServer:
             """
             Make sure that if any exception is thrown, we propagate it to the tests.
             """
+            nonlocal stop_signal
             try:
                 return await handler(request)
             except BaseException as e:
@@ -163,6 +164,13 @@ class BackgroundServer:
         )
 
         async def body():
+            """
+            On Python <3.10, asyncio.Queue cannot be created outside an event loop.
+            That is why it is created in such a complicated way here.
+            """
+            nonlocal stop_signal
+            stop_signal = asyncio.Queue()
+
             logging.info("Starting mock server")
             runner = web.AppRunner(app)
             await runner.setup()
