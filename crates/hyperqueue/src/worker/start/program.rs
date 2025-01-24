@@ -24,7 +24,7 @@ use tako::resources::{
     NVIDIA_GPU_RESOURCE_NAME,
 };
 use tako::{format_comma_delimited, InstanceId};
-
+use tako::gateway::TaskDataFlags;
 use crate::common::env::{
     HQ_CPUS, HQ_ENTRY, HQ_ERROR_FILENAME, HQ_HOST_FILE, HQ_INSTANCE_ID, HQ_JOB_ID, HQ_NODE_FILE,
     HQ_NUM_NODES, HQ_PIN, HQ_SUBMIT_DIR, HQ_TASK_DIR, HQ_TASK_ID,
@@ -63,6 +63,9 @@ pub(super) fn build_program_task(
         stream_path,
         entry,
     } = shared;
+
+    let need_data_layer = build_ctx.data_flags().contains(TaskDataFlags::KEEP_ALL_OUTPUTS);
+    xxx()
 
     let (program, job_id, job_task_id, instance_id, task_dir): (
         ProgramDefinition,
