@@ -106,7 +106,7 @@ impl<T> StatefulTable<T> {
             let rows = self.items.iter().map(row_cell_mapper);
             let mut table = Table::new(rows, &columns.column_widths)
                 .block(body_block)
-                .highlight_style(styles::style_table_highlight())
+                .row_highlight_style(styles::style_table_highlight())
                 .style(table_style)
                 .highlight_symbol(HIGHLIGHT);
 
