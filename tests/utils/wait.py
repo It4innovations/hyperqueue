@@ -3,7 +3,7 @@ from typing import List, Union
 
 import psutil
 
-DEFAULT_TIMEOUT = 5
+DEFAULT_TIMEOUT = 10
 
 
 class TimeoutException(BaseException):
