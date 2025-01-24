@@ -41,11 +41,11 @@ num_cpus = "1"
 cli-table = { version = "0.4.6", default-features = false }
 atty = "0.2"
 serde-tuple-vec-map = "1"
-dirs = "5.0"
+dirs = "6"
 rmpv = { version = "1.0", features = ["with-serde"] }
 nom = "7.1"
 nom-supreme = { version = "0.8" }
-colored = "2"
+colored = "3"
 const_format = "0.2"
 textwrap = "0.16"
 # async-compression = { version = "0.4", features = ["tokio", "gzip"] }
@@ -54,13 +54,13 @@ chumsky = "0.9"
 toml = "0.8"
 signal-hook = "0.3"
 core_affinity = "0.8"
-itertools = "0.13.0"
+itertools = "0.14.0"
 lru = "0.12"
 
 # Dashboard
-ratatui = { version = "0.28", default-features = false, features = ["crossterm"], optional = true }
+ratatui = { version = "0.29", default-features = false, features = ["crossterm"], optional = true }
 crossterm = { version = "0.28", features = ["event-stream"], optional = true }
-unicode-width = { version = "0.1.5", optional = true }
+unicode-width = { version = "0.2", optional = true }
 
 # Tako
 tako = { path = "../tako" }

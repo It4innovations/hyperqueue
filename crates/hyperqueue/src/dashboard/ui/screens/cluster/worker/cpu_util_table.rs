@@ -72,7 +72,7 @@ pub fn render_cpu_util_table(
 
     let table = Table::new(rows, constraints)
         .block(body_block)
-        .highlight_style(styles::style_table_highlight())
+        .row_highlight_style(styles::style_table_highlight())
         .style(table_style);
 
     frame.render_widget(table, rect);
