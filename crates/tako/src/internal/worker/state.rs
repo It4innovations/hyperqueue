@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Instant;
@@ -52,7 +53,7 @@ pub struct WorkerState {
     pub(crate) reservation: bool, // If true, idle timeout is blocked
     pub(crate) last_task_finish_time: Instant,
 
-    pub(crate) lc_state: LocalCommState,
+    pub(crate) lc_state: RefCell<LocalCommState>,
     pub(crate) data_node_ref: DataNodeRef,
 
     resource_map: ResourceMap,
@@ -324,7 +325,7 @@ impl WorkerStateRef {
             last_task_finish_time: now,
             reservation: false,
             worker_addresses: Default::default(),
-            lc_state: LocalCommState::new(),
+            lc_state: RefCell::new(LocalCommState::new()),
             data_node_ref: DataNodeRef::new(),
         })
     }

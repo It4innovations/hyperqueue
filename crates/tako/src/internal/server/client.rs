@@ -43,7 +43,6 @@ fn create_task_configuration(
 
     TaskConfiguration {
         resources,
-        n_outputs: msg.n_outputs,
         time_limit: msg.time_limit,
         user_priority: msg.priority,
         crash_limit: msg.crash_limit,
@@ -168,10 +167,7 @@ fn handle_new_tasks(
     let configurations: Vec<_> = msg
         .shared_data
         .into_iter()
-        .map(|c| {
-            assert_eq!(c.n_outputs, 0); // TODO: Implementation for more outputs
-            Rc::new(create_task_configuration(core, c))
-        })
+        .map(|c| Rc::new(create_task_configuration(core, c)))
         .collect();
 
     for cfg in &configurations {

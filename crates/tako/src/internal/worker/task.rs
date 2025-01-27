@@ -20,7 +20,6 @@ pub struct Task {
 
     pub resources: crate::internal::common::resources::ResourceRequestVariants,
     pub time_limit: Option<Duration>,
-    pub n_outputs: u32,
     pub body: Box<[u8]>,
     pub node_list: Vec<WorkerId>, // Filled in multi-node tasks; otherwise empty
     pub data_flags: TaskDataFlags,
@@ -35,7 +34,6 @@ impl Task {
             instance_id: message.instance_id,
             resources: message.resources,
             time_limit: message.time_limit,
-            n_outputs: message.n_outputs,
             body: message.body,
             node_list: message.node_list,
             data_flags: message.data_flags,
@@ -96,6 +94,10 @@ impl Task {
             }
             _ => unreachable!(),
         }
+    }
+
+    pub fn need_data_layer(&self) -> bool {
+        self.data_flags.contains(TaskDataFlags::KEEP_ALL_OUTPUTS)
     }
 }
 

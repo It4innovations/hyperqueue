@@ -107,8 +107,6 @@ bitflags::bitflags! {
 pub struct SharedTaskConfiguration {
     pub resources: ResourceRequestVariants,
 
-    pub n_outputs: u32,
-
     pub time_limit: Option<Duration>,
 
     pub priority: Priority,

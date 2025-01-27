@@ -30,8 +30,6 @@ pub struct ComputeTaskMsg {
 
     pub resources: crate::internal::common::resources::ResourceRequestVariants,
     pub time_limit: Option<Duration>,
-    pub n_outputs: u32,
-
     pub node_list: Vec<WorkerId>,
 
     pub data_flags: TaskDataFlags,

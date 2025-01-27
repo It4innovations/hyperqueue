@@ -318,7 +318,6 @@ fn build_tasks_array(
         tasks,
         shared_data: vec![SharedTaskConfiguration {
             resources: task_desc.resources.clone(),
-            n_outputs: 0,
             time_limit: task_desc.time_limit,
             priority: task_desc.priority,
             crash_limit: task_desc.crash_limit,
@@ -357,7 +356,6 @@ fn build_tasks_graph(
                 );
                 shared_data.push(SharedTaskConfiguration {
                     resources: task.resources.clone(),
-                    n_outputs: 0,
                     time_limit: task.time_limit,
                     priority: task.priority,
                     crash_limit: task.crash_limit,

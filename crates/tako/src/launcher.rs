@@ -12,7 +12,9 @@ use tokio::process::Command;
 
 use crate::gateway::TaskDataFlags;
 use crate::internal::common::resources::map::ResourceMap;
+use crate::internal::server::worker::Worker;
 use crate::internal::worker::configuration::WorkerConfiguration;
+use crate::internal::worker::localcomm::Token;
 use crate::internal::worker::resources::map::ResourceLabelMap;
 use crate::internal::worker::state::WorkerState;
 use crate::internal::worker::task::Task;
@@ -73,6 +75,7 @@ pub struct TaskBuildContext<'a> {
     pub(crate) task: &'a Task,
     pub(crate) state: &'a WorkerState,
     pub(crate) resource_index: usize,
+    pub(crate) token: Option<Token>,
 }
 
 impl<'a> TaskBuildContext<'a> {
@@ -126,6 +129,10 @@ impl<'a> TaskBuildContext<'a> {
 
     pub fn get_resource_label_map(&self) -> &ResourceLabelMap {
         self.state.get_resource_label_map()
+    }
+
+    pub fn token(&self) -> Option<&Token> {
+        self.token.as_ref()
     }
 
     pub fn server_uid(&self) -> &str {

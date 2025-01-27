@@ -62,7 +62,6 @@ pub struct TaskConfiguration {
     pub resources: crate::internal::common::resources::ResourceRequestVariants,
     pub user_priority: Priority,
     pub time_limit: Option<Duration>,
-    pub n_outputs: u32,
     pub crash_limit: u32,
     pub data_flags: TaskDataFlags,
 }
@@ -235,7 +234,6 @@ impl Task {
             scheduler_priority: self.scheduler_priority,
             resources: self.configuration.resources.clone(),
             time_limit: self.configuration.time_limit,
-            n_outputs: self.configuration.n_outputs,
             node_list,
             data_flags: self.configuration.data_flags,
             body: self.body.clone(),
