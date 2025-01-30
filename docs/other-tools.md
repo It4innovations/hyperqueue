@@ -31,10 +31,10 @@ Below we also provide **opinionated**[^opinionated] descriptions of selected tas
 [GNU Parallel](https://www.gnu.org/software/parallel/) is a command-line utility for executing many tasks in parallel on a set of computational nodes. It does not offer many advanced task runtime features, but it does one thing well; it enables a parallelized and even distributed execution of a set of programs with a single command invocation. HyperQueue takes inspiration from this approach, as it offers a CLI that can be used to execute task graphs with many tasks and complex resource requirements with a single command.
 
 ## HyperShell
-[HyperShell](https://hypershell.readthedocs.io/en/latest/index.html) is primarily designed for
+[HyperShell](https://hypershell.readthedocs.io) is primarily designed for
 executing many homogeneous tasks using the command-line. It does introduce several useful features
 on top of [GNU Parallel](#gnu-parallel), such as automatic task re-execution when a task fails and storing the task state in a database, which enables users to observe the history of executed workflows. It also provides a simple autoscaling functionality that automatically submits allocations. However, tasks in HyperShell are strictly tied to allocations; by default, one task is submitted in a single
-allocation. It does provide the option to [bundle](https://hypershell.readthedocs.io/en/latest/api/submit.html) several tasks together, but users
+allocation. It does provide the option to [bundle](https://hypershell.readthedocs.io/cli/cluster.html) several tasks together, but users
 have to specify the maximum bundle size explicitly, which makes load balancing inflexible.
 HyperShell does not support task dependencies; therefore, it cannot be used to execute general
 task graphs.
