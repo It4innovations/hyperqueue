@@ -2,157 +2,157 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/</loc>
-         <lastmod>2025-01-24</lastmod>
+         <lastmod>2025-01-31</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/changelog/</loc>
-         <lastmod>2025-01-24</lastmod>
+         <lastmod>2025-01-31</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/cheatsheet/</loc>
-         <lastmod>2025-01-24</lastmod>
+         <lastmod>2025-01-31</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/faq/</loc>
-         <lastmod>2025-01-24</lastmod>
+         <lastmod>2025-01-31</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/installation/</loc>
-         <lastmod>2025-01-24</lastmod>
+         <lastmod>2025-01-31</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/other-tools/</loc>
-         <lastmod>2025-01-24</lastmod>
+         <lastmod>2025-01-31</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/quickstart/</loc>
-         <lastmod>2025-01-24</lastmod>
+         <lastmod>2025-01-31</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/cli/dashboard/</loc>
-         <lastmod>2025-01-24</lastmod>
+         <lastmod>2025-01-31</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/cli/output-mode/</loc>
-         <lastmod>2025-01-24</lastmod>
+         <lastmod>2025-01-31</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/cli/shortcuts/</loc>
-         <lastmod>2025-01-24</lastmod>
+         <lastmod>2025-01-31</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/deployment/</loc>
-         <lastmod>2025-01-24</lastmod>
+         <lastmod>2025-01-31</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/deployment/allocation/</loc>
-         <lastmod>2025-01-24</lastmod>
+         <lastmod>2025-01-31</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/deployment/cloud/</loc>
-         <lastmod>2025-01-24</lastmod>
+         <lastmod>2025-01-31</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/deployment/server/</loc>
-         <lastmod>2025-01-24</lastmod>
+         <lastmod>2025-01-31</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/deployment/worker/</loc>
-         <lastmod>2025-01-24</lastmod>
+         <lastmod>2025-01-31</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/examples/</loc>
-         <lastmod>2025-01-24</lastmod>
+         <lastmod>2025-01-31</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/examples/iterative-computation/</loc>
-         <lastmod>2025-01-24</lastmod>
+         <lastmod>2025-01-31</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/jobs/arrays/</loc>
-         <lastmod>2025-01-24</lastmod>
+         <lastmod>2025-01-31</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/jobs/cresources/</loc>
-         <lastmod>2025-01-24</lastmod>
+         <lastmod>2025-01-31</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/jobs/directives/</loc>
-         <lastmod>2025-01-24</lastmod>
+         <lastmod>2025-01-31</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/jobs/failure/</loc>
-         <lastmod>2025-01-24</lastmod>
+         <lastmod>2025-01-31</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/jobs/jobfile/</loc>
-         <lastmod>2025-01-24</lastmod>
+         <lastmod>2025-01-31</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/jobs/jobs/</loc>
-         <lastmod>2025-01-24</lastmod>
+         <lastmod>2025-01-31</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/jobs/multinode/</loc>
-         <lastmod>2025-01-24</lastmod>
+         <lastmod>2025-01-31</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/jobs/openjobs/</loc>
-         <lastmod>2025-01-24</lastmod>
+         <lastmod>2025-01-31</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/jobs/resources/</loc>
-         <lastmod>2025-01-24</lastmod>
+         <lastmod>2025-01-31</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/jobs/streaming/</loc>
-         <lastmod>2025-01-24</lastmod>
+         <lastmod>2025-01-31</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/python/</loc>
-         <lastmod>2025-01-24</lastmod>
+         <lastmod>2025-01-31</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/python/client/</loc>
-         <lastmod>2025-01-24</lastmod>
+         <lastmod>2025-01-31</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/python/dependencies/</loc>
-         <lastmod>2025-01-24</lastmod>
+         <lastmod>2025-01-31</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/python/submit/</loc>
-         <lastmod>2025-01-24</lastmod>
+         <lastmod>2025-01-31</lastmod>
          <changefreq>daily</changefreq>
     </url>
 </urlset>
