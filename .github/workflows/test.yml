@@ -125,3 +125,20 @@ jobs:
           maturin build --manifest-path crates/pyhq/Cargo.toml --out wheels
           WHEEL=`realpath wheels/*.whl`
           python -m pip install $WHEEL[all]
+
+  zero_worker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - uses: Swatinem/rust-cache@v2.7.0
+
+      - name: Build HyperQueue with the zero worker feature
+        run: cargo build --features zero-worker
