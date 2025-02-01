@@ -402,8 +402,9 @@ async fn create_task_future(
     _job_id: JobId,
     _job_task_id: JobTaskId,
     _instance_id: InstanceId,
-    _end_receiver: tokio::sync::oneshot::Receiver<StopReason>,
+    _end_receiver: Receiver<StopReason>,
     _task_dir: Option<TempDir>,
+    _stream_path: Option<PathBuf>,
 ) -> tako::Result<TaskResult> {
     Ok(TaskResult::Finished)
 }
