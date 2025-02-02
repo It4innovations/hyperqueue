@@ -46,7 +46,7 @@ pub struct WrappedDuration(Duration);
 
 impl<'a> FromPyObject<'a> for WrappedDuration {
     fn extract(object: &'a PyAny) -> PyResult<Self> {
-        if let Err(_) | Ok(false) = object.is_instance::<PyFloat>() {
+        if let Err(_) | Ok(false) = object.is_instance_of::<PyFloat>() {
             return Err(anyhow::anyhow!(
                 "Duration must be represented as a float containing the total amount of seconds."
             ))
