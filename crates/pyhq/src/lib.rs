@@ -8,14 +8,14 @@ use pyo3::{wrap_pyfunction, Py, PyResult, Python};
 use std::path::PathBuf;
 use tokio::runtime::Builder;
 
-use hyperqueue::transfer::connection::ClientSession;
+use ::hyperqueue::transfer::connection::ClientSession;
+use ::hyperqueue::HQ_VERSION;
 
 use crate::client::job::{forget_job_impl, FailedTaskMap};
 use crate::cluster::Cluster;
 use crate::utils::run_future;
 use client::job::{get_failed_tasks_impl, submit_job_impl, wait_for_jobs_impl, PyJobDescription};
 use client::server::{connect_to_server_impl, stop_server_impl};
-use hyperqueue::HQ_VERSION;
 
 mod client;
 pub mod cluster;
