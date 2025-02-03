@@ -1,3 +1,8 @@
+## Dev
+
+### Breaking change
+* The Python API now requires Python 3.9, up from Python 3.6.
+
 ## v0.21.0
 
 ### Breaking change
@@ -619,7 +624,7 @@ would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
   is `hq submit`, which is now a shortcut for `hq job submit`. Here is a table of changed commands:
 
   | **Previous command** | **New command**    |
-                |----------------------|--------------------|
+                      |----------------------|--------------------|
   | `hq jobs`            | `hq job list`    |
   | `hq job`             | `hq job info`    |
   | `hq resubmit`        | `hq job resubmit` |
@@ -735,7 +740,7 @@ would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
 
 * Generic resource management has been added. You can find out more in
   the [documentation](https://it4innovations.github.io/hyperqueue/stable/jobs/gresources/).
-  * HyperQueue can now automatically detect how many Nvidia GPUs are present on a worker node.
+    * HyperQueue can now automatically detect how many Nvidia GPUs are present on a worker node.
 * You can now submit a task array where each task will receive one element of a JSON array using
   `hq submit --from-json`. You can find out more in
   the [documentation](https://it4innovations.github.io/hyperqueue/stable/jobs/arrays/#json-array).
@@ -743,10 +748,10 @@ would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
 ### Changes
 
 * There have been a few slight CLI changes:
-  * `hq worker list` no longer has `--offline` and `--online` flags. It will now display only running
-    workers by default. If you want to show also offline workers, use the `--all` flag.
-  * `hq alloc add` no longer has a required `--queue/--partition` option. The PBS queue/Slurm partition
-    should now be passed as a trailing argument after `--`: `hq alloc add pbs -- -qqprod`.
+    * `hq worker list` no longer has `--offline` and `--online` flags. It will now display only running
+      workers by default. If you want to show also offline workers, use the `--all` flag.
+    * `hq alloc add` no longer has a required `--queue/--partition` option. The PBS queue/Slurm partition
+      should now be passed as a trailing argument after `--`: `hq alloc add pbs -- -qqprod`.
 * Server subdirectories generated for each run of the HyperQueue server are now named with a numeric ID instead of
   a date.
 * The documentation has been [rewritten](https://it4innovations.github.io/hyperqueue).

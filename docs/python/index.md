@@ -7,7 +7,7 @@ Python API covers all task definition including all options available through Jo
 You can find the HyperQueue Python API reference [here](apidoc).
 
 ## Requirements
-To use the Python API, you will need at least Python 3.6 and some dependencies that will be installed
+To use the Python API, you will need at least Python 3.9 and some dependencies that will be installed
 automatically using pip.
 
 ## Installation
