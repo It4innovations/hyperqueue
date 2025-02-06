@@ -74,10 +74,12 @@ impl Streamer {
                 stream_path.display()
             );
             if !stream_path.is_dir() {
-                return Err(HqError::GenericError(format!(
-                    "Stream path {} is not a directory.",
-                    stream_path.display()
-                )));
+                std::fs::create_dir_all(stream_path).map_err(|error| {
+                    HqError::GenericError(format!(
+                        "Cannot create stream directory {}: {error:?}",
+                        stream_path.display()
+                    ))
+                })?;
             }
             let (queue_sender, queue_receiver) = channel(STREAMER_BUFFER_SIZE);
             let stream = StreamDescriptor {
