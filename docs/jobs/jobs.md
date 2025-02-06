@@ -192,21 +192,21 @@ If no priority is specified, then each task will have priority `0`.
 ### Placeholders
 
 You can use special variables when setting certain job parameters ([working directory](#working-directory),
-[output](#output) paths, [log](streaming.md#redirecting-output-to-the-log) path). These variables, called
+[output](#output) paths, [stream](streaming.md#redirecting-task-output) path). These variables, called
 **Placeholders**, will be replaced by job or task-specific information before the job is executed.
 
 Placeholders are enclosed in curly braces (`{}`) and prefixed with a percent (`%`) sign.
 
 You can use the following placeholders:
 
-| Placeholder      | Will be replaced by                         | Available for                    |
-|------------------|---------------------------------------------|----------------------------------|
-| `%{JOB_ID}`      | Job ID                                      | `stdout`, `stderr`, `cwd`, `log` |
-| `%{TASK_ID}`     | Task ID                                     | `stdout`, `stderr`, `cwd`        |
-| `%{INSTANCE_ID}` | [Instance ID](failure.md#task-restart)      | `stdout`, `stderr`, `cwd`        |
-| `%{SUBMIT_DIR}`  | Directory from which the job was submitted. | `stdout`, `stderr`, `cwd`, `log` |
-| `%{CWD}`         | Working directory of the task.              | `stdout`, `stderr`               |
-| `%{SERVER_UID}`  | Unique server ID.                           | `stdout`, `stderr`, `cwd`, `log` |
+| Placeholder      | Will be replaced by                         | Available for                           |
+|------------------|---------------------------------------------|-----------------------------------------|
+| `%{JOB_ID}`      | Job ID                                      | `stdout`, `stderr`, `cwd`, `stream-dir` |
+| `%{TASK_ID}`     | Task ID                                     | `stdout`, `stderr`, `cwd`               |
+| `%{INSTANCE_ID}` | [Instance ID](failure.md#task-restart)      | `stdout`, `stderr`, `cwd`               |
+| `%{SUBMIT_DIR}`  | Directory from which the job was submitted. | `stdout`, `stderr`, `cwd`, `stream-dir` |
+| `%{CWD}`         | Working directory of the task.              | `stdout`, `stderr`                      |
+| `%{SERVER_UID}`  | Unique server ID.                           | `stdout`, `stderr`, `cwd`, `stream-dir` |
 
 `SERVER_UID` is a random string that is unique for each new server execution (each `hq server start` gets a separate
 value).
