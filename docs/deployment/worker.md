@@ -19,7 +19,7 @@ $ hq worker start
 ```
 
 Each worker will be assigned a unique ID that you can use in later commands to query information about the worker or to
-[stop](#stopping-worker) it.
+[stop](#stopping-workers) it.
 
 By default, the worker will try to connect to a server using the default [server directory](server.md#server-directory).
 If you want to connect to a different server, use the `--server-dir` option.
