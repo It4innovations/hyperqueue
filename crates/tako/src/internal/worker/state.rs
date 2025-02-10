@@ -3,11 +3,6 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Instant;
 
-use orion::aead::SecretKey;
-use rand::rngs::SmallRng;
-use rand::seq::SliceRandom;
-use rand::SeedableRng;
-
 use crate::internal::common::resources::map::ResourceMap;
 use crate::internal::common::resources::Allocation;
 use crate::internal::common::stablemap::StableMap;
@@ -29,6 +24,10 @@ use crate::internal::worker::task_comm::RunningTaskComm;
 use crate::launcher::TaskLauncher;
 use crate::TaskId;
 use crate::WorkerId;
+use orion::aead::SecretKey;
+use rand::rngs::SmallRng;
+use rand::seq::SliceRandom;
+use rand::SeedableRng;
 
 pub type TaskMap = StableMap<TaskId, Task>;
 

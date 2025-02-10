@@ -1,13 +1,14 @@
 use crate::internal::datasrv::datanode_connection_handler;
 use crate::internal::worker::state::WorkerStateRef;
 use crate::{Map, TaskId};
-use bstr::{BStr, BString, ByteSlice};
+use bstr::{BStr, BString, ByteSlice, ByteVec};
 use futures::StreamExt;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::borrow::{Borrow, Cow};
-use std::path::PathBuf;
+use std::os::unix::ffi::OsStrExt;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use tokio::net::{UnixListener, UnixStream};
 use tokio::task::spawn_local;
@@ -26,10 +27,7 @@ pub struct Token {
 
 impl Token {
     pub fn new() -> Self {
-        let raw_token = "hq0-"
-            .bytes()
-            .chain(rand::thread_rng().sample_iter(&Alphanumeric).take(12))
-            .collect();
+        let raw_token = new_raw_token();
         Token {
             raw_token: Rc::new(raw_token),
         }
@@ -50,7 +48,7 @@ pub(crate) struct LocalCommState {
     registered_tokens: Map<Token, Registration>,
 }
 
-fn new_token() -> BString {
+fn new_raw_token() -> BString {
     "hq0-"
         .bytes()
         .chain(rand::thread_rng().sample_iter(&Alphanumeric).take(12))
@@ -58,7 +56,15 @@ fn new_token() -> BString {
 }
 
 impl LocalCommState {
-    pub fn new(path: PathBuf) -> Self {
+    pub fn new() -> Self {
+        let path = {
+            let rnd_part: String = rand::thread_rng()
+                .sample_iter(&Alphanumeric)
+                .take(8)
+                .map(char::from)
+                .collect();
+            std::env::temp_dir().join(Path::new(&format!("hq-lc-{rnd_part}")))
+        };
         LocalCommState {
             unix_socket_path: path,
             registered_tokens: Map::new(),
@@ -84,14 +90,36 @@ impl LocalCommState {
         self.registered_tokens.get(token)
     }
 
-    pub fn data_access_string(&self, token: &Token) -> BString {
-        let mut out = BString::new();
-        self.out
+    pub fn data_access_key(&self, token: &Token) -> BString {
+        let mut out = self
+            .unix_socket_path
+            .as_os_str()
+            .as_bytes()
+            .as_bstr()
+            .to_owned();
+        out.push_byte(b':');
+        out.push_str(token.as_bstr());
+        out
     }
 
-    pub fn start(&self) -> crate::Result<()> {
-        let listener = UnixListener::bind(&self.unix_socket_path).unwrap();
-        spawn_local()
+    pub fn start(&self, state_ref: WorkerStateRef) -> crate::Result<()> {
+        let listener = UnixListener::bind(&self.unix_socket_path)?;
+        spawn_local(async move {
+            loop {
+                let socket = listener.accept().await;
+                let state_ref = state_ref.clone();
+                if let Ok((socket, _)) = socket {
+                    spawn_local(async move {
+                        if let Err(e) = handle_connection(state_ref, socket).await {
+                            log::error!("lc connection error: {}", e);
+                        }
+                    });
+                } else if let Err(e) = socket {
+                    log::error!("failed to accept lc connection: {e}");
+                };
+            }
+        });
+        Ok(())
     }
 }
 
