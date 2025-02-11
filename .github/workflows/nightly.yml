@@ -21,6 +21,7 @@ jobs:
   build-artifacts:
     needs: [ set-env ]
     uses: ./.github/workflows/build.yml
+    if: github.repository_owner == 'It4innovations'
     with:
       version: ${{ needs.set-env.outputs.version }}
   create-tag:

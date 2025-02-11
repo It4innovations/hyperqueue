@@ -12,6 +12,7 @@ concurrency: docs
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    if: github.repository_owner == 'It4innovations'
     steps:
       - uses: actions/checkout@v2
         with:
