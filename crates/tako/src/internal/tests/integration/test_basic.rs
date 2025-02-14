@@ -27,8 +27,8 @@ async fn test_submit_simple_task_ok() {
         let ids = handler
             .submit(
                 GraphBuilder::default()
-                    .task(TaskConfigBuilder::default().args(simple_args(&["/bin/hostname"])))
-                    .simple_task(&["/bin/hostname"])
+                    .simple_task(&["uname"])
+                    .simple_task(&["uname"])
                     .task(
                         TaskConfigBuilder::default()
                             .args(simple_args(&["bash", "-c", "echo 'hello'"]))
@@ -76,7 +76,7 @@ async fn test_submit_simple_task_fail() {
         assert!(result.is_failed(ids[0]));
 
         let ids = handler
-            .submit(GraphBuilder::singleton(simple_task(&["/bin/hostname"], 3)))
+            .submit(GraphBuilder::singleton(simple_task(&["uname"], 3)))
             .await;
         handler.wait(&ids).await.assert_all_finished();
     })

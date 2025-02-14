@@ -250,7 +250,7 @@ async fn test_force_compact() {
         handler
             .submit(
                 GB::default()
-                    .task(TC::default().args(simple_args(&["hostname"])).resources(rq))
+                    .task(TC::default().args(simple_args(&["uname"])).resources(rq))
                     .build(),
             )
             .await;
