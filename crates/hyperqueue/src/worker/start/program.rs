@@ -393,22 +393,6 @@ fn looks_like_bash_script(path: &Path) -> bool {
     path_has_extension(path, "sh")
 }
 
-/// Zero-worker mode measures pure overhead of HyperQueue.
-/// In this mode the task is not executed at all.
-#[cfg(feature = "zero-worker")]
-async fn create_task_future(
-    _streamer_ref: StreamerRef,
-    _program: ProgramDefinition,
-    _job_id: JobId,
-    _job_task_id: JobTaskId,
-    _instance_id: InstanceId,
-    _end_receiver: Receiver<StopReason>,
-    _task_dir: Option<TempDir>,
-    _stream_path: Option<PathBuf>,
-) -> tako::Result<TaskResult> {
-    Ok(TaskResult::Finished)
-}
-
 /// Provide a more detailed error message when a process fails to be spawned.
 fn map_spawn_error(error: std::io::Error, program: &ProgramDefinition) -> tako::Error {
     use std::fmt::Write;
@@ -504,7 +488,7 @@ fn check_error_filename(task_dir: TempDir) -> Option<tako::Error> {
     })
 }
 
-#[cfg(not(feature = "zero-worker"))]
+#[cfg(not(zero_worker))]
 #[allow(clippy::too_many_arguments)]
 async fn create_task_future(
     streamer_ref: StreamerRef,
@@ -587,6 +571,22 @@ async fn create_task_future(
         };
         handle_task_with_signals(task_fut, pid, job_id, job_task_id, end_receiver).await
     }
+}
+
+/// Zero-worker mode measures pure overhead of HyperQueue.
+/// In this mode the task is not executed at all.
+#[cfg(zero_worker)]
+async fn create_task_future(
+    _streamer_ref: StreamerRef,
+    _program: ProgramDefinition,
+    _job_id: JobId,
+    _job_task_id: JobTaskId,
+    _instance_id: InstanceId,
+    _end_receiver: Receiver<StopReason>,
+    _task_dir: Option<TempDir>,
+    _stream_path: Option<PathBuf>,
+) -> tako::Result<TaskResult> {
+    Ok(TaskResult::Finished)
 }
 
 async fn cleanup_task_file(result: Option<&TaskResult>, stdio: &StdioDef) {
