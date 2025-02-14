@@ -12,27 +12,22 @@ futures = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tokio-util = { workspace = true, features = ["codec"] }
 bytes = { workspace = true }
-byteorder = { workspace = true }
 smallvec = { workspace = true, features = ["serde"] }
 serde = { workspace = true, features = ["derive"] }
 serde_bytes = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 orion = { workspace = true }
-hex = { workspace = true }
 bincode = { workspace = true }
 log = { workspace = true }
 rand = { workspace = true, features = ["small_rng"] }
-gethostname = { workspace = true }
 tracing = { workspace = true }
 nix = { workspace = true }
 bstr = { workspace = true }
 psutil = { workspace = true }
 thin-vec = { workspace = true }
 
-
 hashbrown = { version = "0.15", features = ["serde", "inline-more"], default-features = false }
-tracing-subscriber = { version = "0.3", features = ["json"] }
 priority-queue = "2"
 bitflags = "2"
 fxhash = "0.2"

@@ -33,23 +33,18 @@ tempfile = { workspace = true }
 nix = { workspace = true }
 bstr = { workspace = true }
 psutil = { workspace = true }
-byteorder = { workspace = true }
 thin-vec = { workspace = true }
 
 humantime = "2"
 num_cpus = "1"
 cli-table = { version = "0.4.6", default-features = false }
 atty = "0.2"
-serde-tuple-vec-map = "1"
 dirs = "6"
-rmpv = { version = "1.0", features = ["with-serde"] }
 nom = "7.1"
 nom-supreme = { version = "0.8" }
 colored = "3"
 const_format = "0.2"
 textwrap = "0.16"
-# async-compression = { version = "0.4", features = ["tokio", "gzip"] }
-flate2 = { version = "1", features = ["default"] }
 chumsky = "0.9"
 toml = "0.8"
 signal-hook = "0.3"
