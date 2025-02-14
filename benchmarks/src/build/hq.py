@@ -104,13 +104,18 @@ def build_tag(config: BuildConfig, resolved_ref: str) -> Path:
 
         args = ["cargo", "build"]
         args += config.profile.flags()
+
+        rustflags = []
         if config.profile != Profile.Debug:
-            env["RUSTFLAGS"] = "-C target-cpu=native"
+            rustflags.extend(("-C", "target-cpu=native"))
         args += ["--no-default-features"]
         if config.jemalloc:
             args += ["--features", "jemalloc"]
         if config.zero_worker:
-            args += ["--features", "zero-worker"]
+            rustflags.extend(("--cfg", "zero_worker"))
+
+        if len(rustflags) > 0:
+            env["RUSTFLAGS"] = " ".join(rustflags)
 
         subprocess.run(args, env=env, check=True)
         built_binary = get_build_dir(config) / "hq"
