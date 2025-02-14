@@ -126,7 +126,7 @@ jobs:
           WHEEL=`realpath wheels/*.whl`
           python -m pip install $WHEEL[all]
 
-  zero_worker:
+  features:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
@@ -140,5 +140,8 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2.7.0
 
-      - name: Build HyperQueue with the zero worker feature
-        run: cargo build --features zero-worker
+      - name: Build HyperQueue with the zero worker mode
+        run: RUSTFLAGS="--cfg zero_worker" cargo build --workspace
+
+      - name: Build HyperQueue with all features enabled
+        run: cargo build --all-features --workspace
