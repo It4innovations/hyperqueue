@@ -70,8 +70,6 @@ criterion = { version = "0.3", features = ["html_reports"] }
 
 [features]
 default = ["jemalloc", "dashboard"]
-# Mode that does not execute tasks, useful for benchmarking HQ overhead
-zero-worker = []
 # Use the jemalloc allocator
 jemalloc = ["jemallocator"]
 # Enable the dashboard
@@ -84,3 +82,9 @@ harness = false
 # Workaround for Criterion (https://bheisler.github.io/criterion.rs/book/faq.html#cargo-bench-gives-unrecognized-option-errors-for-valid-command-line-options)
 [lib]
 bench = false
+
+# Pass RUSTFLAGS="--cfg zero_worker" to enable a mode that does not execute tasks
+# It is useful for benchmarking HQ overhead.
+# It is not a normal Cargo feature, because it would break building with `--all-features`.
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(zero_worker)'] }
