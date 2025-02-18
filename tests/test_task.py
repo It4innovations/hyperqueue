@@ -6,7 +6,7 @@ def test_task_list_single(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker()
 
-    hq_env.command(["submit", "--array=0-3", "--", "bash", "-c", "hostname"])
+    hq_env.command(["submit", "--array=0-3", "--", "bash", "-c", "uname"])
     wait_for_job_state(hq_env, 1, "FINISHED")
 
     r = hq_env.command(["task", "list", "1", "-v"], as_table=True)
@@ -20,10 +20,10 @@ def test_task_list_multi(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker()
 
-    hq_env.command(["submit", "--array=5-10", "--", "bash", "-c", "hostname"])
+    hq_env.command(["submit", "--array=5-10", "--", "bash", "-c", "uname"])
     wait_for_job_state(hq_env, 1, "FINISHED")
 
-    hq_env.command(["submit", "--array=0-3", "--", "bash", "-c", "hostname"])
+    hq_env.command(["submit", "--array=0-3", "--", "bash", "-c", "uname"])
     wait_for_job_state(hq_env, 2, "FINISHED")
 
     r = hq_env.command(["task", "list", "1-2", "-v"], as_table=True)
@@ -48,7 +48,7 @@ def test_task_info(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker()
 
-    hq_env.command(["submit", "--array=5-7", "--", "bash", "-c", "hostname"])
+    hq_env.command(["submit", "--array=5-7", "--", "bash", "-c", "uname"])
     wait_for_job_state(hq_env, 1, "FINISHED")
 
     r = hq_env.command(["task", "info", "1", "5"], as_table=True)
@@ -61,6 +61,6 @@ def test_task_info(hq_env: HqEnv):
     r = hq_env.command(["task", "info", "1", "4"])
     assert "WARN Task 4 not found" in r
 
-    hq_env.command(["submit", "--", "bash", "-c", "hostname"])
+    hq_env.command(["submit", "--", "bash", "-c", "uname"])
     r = hq_env.command(["task", "info", "last", "0"], as_table=True)
     assert r.get_row_value("Task ID") == "0"

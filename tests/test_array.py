@@ -196,8 +196,8 @@ def test_array_reporting_state_after_worker_lost(hq_env: HqEnv):
 def test_array_mix_with_simple_jobs(hq_env: HqEnv):
     hq_env.start_server()
     for i in range(100):
-        hq_env.command(["submit", "--array=1-4", "/bin/hostname"])
-        hq_env.command(["submit", "/bin/hostname"])
+        hq_env.command(["submit", "--array=1-4", "uname"])
+        hq_env.command(["submit", "uname"])
     hq_env.start_workers(1, cpus=2)
 
     wait_for_job_state(hq_env, list(range(1, 101)), "FINISHED")

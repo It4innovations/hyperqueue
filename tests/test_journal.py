@@ -14,7 +14,7 @@ def test_restore_fully_finished(hq_env: HqEnv, tmp_path):
     journal_path = os.path.join(tmp_path, "my.journal")
     hq_env.start_server(args=["--journal", journal_path])
     hq_env.start_worker()
-    hq_env.command(["submit", "--array=0-3", "--", "hostname"])
+    hq_env.command(["submit", "--array=0-3", "--", "uname"])
     hq_env.command(["submit", "--", "sleep", "0"])
     wait_for_job_state(hq_env, [1, 2], "FINISHED")
     hq_env.stop_server()
@@ -31,14 +31,14 @@ def test_restore_fully_finished(hq_env: HqEnv, tmp_path):
 def test_restore_waiting_task(hq_env: HqEnv, tmp_path):
     journal_path = os.path.join(tmp_path, "my.journal")
     hq_env.start_server(args=["--journal", journal_path])
-    hq_env.command(["submit", "--array=0-3", "--", "hostname"])
+    hq_env.command(["submit", "--array=0-3", "--", "uname"])
     hq_env.command(["submit", "--", "sleep", "0"])
     hq_env.stop_server()
 
     hq_env.start_server(args=["--journal", journal_path])
     table = hq_env.command(["job", "list"], as_table=True)
 
-    table.check_columns_value(["ID", "State", "Name"], 0, ["1", "WAITING", "hostname"])
+    table.check_columns_value(["ID", "State", "Name"], 0, ["1", "WAITING", "uname"])
     table.check_columns_value(["ID", "State", "Name"], 1, ["2", "WAITING", "sleep"])
 
     hq_env.start_worker()
@@ -143,7 +143,7 @@ def test_restore_partially_failed_task(hq_env: HqEnv, tmp_path):
 def test_restore_canceled(hq_env: HqEnv, tmp_path):
     journal_path = os.path.join(tmp_path, "my.journal")
     hq_env.start_server(args=["--journal", journal_path])
-    hq_env.command(["submit", "--array=0-3", "--", "hostname"])
+    hq_env.command(["submit", "--array=0-3", "--", "uname"])
     hq_env.command(["submit", "--", "sleep", "0"])
     hq_env.command(["job", "cancel", "all"])
     wait_for_job_state(hq_env, [1, 2], "CANCELED")
@@ -157,11 +157,11 @@ def test_restore_canceled(hq_env: HqEnv, tmp_path):
 def test_repeated_restore(hq_env: HqEnv, tmp_path):
     journal_path = os.path.join(tmp_path, "my.journal")
     hq_env.start_server(args=["--journal", journal_path])
-    hq_env.command(["submit", "--array=0-3", "--", "hostname"])
+    hq_env.command(["submit", "--array=0-3", "--", "uname"])
     hq_env.stop_server()
 
     hq_env.start_server(args=["--journal", journal_path])
-    hq_env.command(["submit", "--array=0-3", "--", "hostname"])
+    hq_env.command(["submit", "--array=0-3", "--", "uname"])
     time.sleep(1.0)
     hq_env.stop_server()
 
@@ -173,7 +173,7 @@ def test_repeated_restore(hq_env: HqEnv, tmp_path):
 def test_restore_not_fully_written_log(hq_env: HqEnv, tmp_path):
     journal_path = os.path.join(tmp_path, "my.journal")
     hq_env.start_server(args=["--journal", journal_path])
-    hq_env.command(["submit", "--array=0-3", "--", "hostname"])
+    hq_env.command(["submit", "--array=0-3", "--", "uname"])
     hq_env.stop_server()
 
     file_size = os.path.getsize(journal_path)
@@ -181,7 +181,7 @@ def test_restore_not_fully_written_log(hq_env: HqEnv, tmp_path):
         f.truncate(file_size - 1)
 
     hq_env.start_server(args=["--journal", journal_path])
-    hq_env.command(["submit", "--array=0-3", "--", "hostname"])
+    hq_env.command(["submit", "--array=0-3", "--", "uname"])
     time.sleep(1.0)
     hq_env.stop_server()
 
@@ -261,7 +261,7 @@ def test_restore_open_job_more_submits(hq_env: HqEnv, tmp_path):
     hq_env.start_server(args=["--journal", journal_path])
     hq_env.command(["job", "open"])
     for _ in range(3):
-        hq_env.command(["job", "submit", "--job=1", "--", "hostname"])
+        hq_env.command(["job", "submit", "--job=1", "--", "uname"])
     hq_env.stop_server()
     hq_env.start_server(args=["--journal", journal_path])
     table = hq_env.command(["job", "info", "1"], as_table=True)

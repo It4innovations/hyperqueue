@@ -29,7 +29,7 @@ def test_submit_empty_job(hq_env: HqEnv):
 def test_submit_simple(hq_env: HqEnv):
     (job, client) = prepare_job_client(hq_env)
 
-    job.program(args=["hostname"])
+    job.program(args=["uname"])
     submitted_job = client.submit(job)
 
     wait_for_job_state(hq_env, submitted_job.id, "FINISHED")
@@ -41,7 +41,7 @@ def test_submit_cwd(hq_env: HqEnv):
     cwd = Path(hq_env.server_dir) / "workdir"
     cwd.mkdir()
 
-    job.program(args=["hostname"], cwd=str(cwd))
+    job.program(args=["uname"], cwd=str(cwd))
     submitted_job = client.submit(job)
 
     wait_for_job_state(hq_env, submitted_job.id, "FINISHED")
@@ -97,7 +97,7 @@ def test_empty_stdio(hq_env: HqEnv):
 def test_stdio_rm_if_finished(hq_env: HqEnv):
     (job, client) = prepare_job_client(hq_env)
     job.program(
-        args="hostname",
+        args="uname",
         stdout=StdioDef.remove_if_finished(path="out"),
         stderr=StdioDef.remove_if_finished(path="err"),
     )
@@ -295,7 +295,7 @@ def test_resource_variants(hq_env: HqEnv):
 def test_job_forget(hq_env: HqEnv):
     (job, client) = prepare_job_client(hq_env)
 
-    job.program(args=bash("hostname"))
+    job.program(args=bash("uname"))
     submitted_job = client.submit(job)
     wait_for_job_state(hq_env, 1, "FINISHED")
 

@@ -7,7 +7,7 @@ from ..utils.wait import wait_for_job_list_count
 
 def test_forget_waiting_job(hq_env: HqEnv):
     hq_env.start_server()
-    hq_env.command(["submit", "hostname"])
+    hq_env.command(["submit", "uname"])
     forget_jobs(hq_env, "1", forgotten=0, ignored=1)
     hq_env.start_worker()
     wait_for_job_state(hq_env, 1, "FINISHED")
@@ -24,7 +24,7 @@ def test_forget_running_job(hq_env: HqEnv):
 
 def test_forget_finished_job(hq_env: HqEnv):
     hq_env.start_server()
-    hq_env.command(["submit", "hostname"])
+    hq_env.command(["submit", "uname"])
     hq_env.start_worker()
     wait_for_job_state(hq_env, 1, "FINISHED")
     forget_jobs(hq_env, "1", forgotten=1)
@@ -50,12 +50,12 @@ def test_forget_canceled_job(hq_env: HqEnv):
 
 def test_forget_multiple_jobs(hq_env: HqEnv):
     hq_env.start_server()
-    hq_env.command(["submit", "hostname"])
+    hq_env.command(["submit", "uname"])
     hq_env.command(["job", "cancel", "1"])
 
     hq_env.start_worker()
     for _ in range(5):
-        hq_env.command(["submit", "hostname"])
+        hq_env.command(["submit", "uname"])
     wait_for_job_state(hq_env, [2, 3, 4, 5, 6], "FINISHED")
 
     hq_env.command(["submit", "/non-existing"])

@@ -44,7 +44,7 @@ def test_task_resources_ignore_worker_without_resource(hq_env: HqEnv):
             "fairy=1",
             "--resource",
             "potato=1000_000",
-            "hostname",
+            "uname",
         ]
     )
 

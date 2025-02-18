@@ -24,7 +24,7 @@ def test_job_paths_prefilled_placeholders(hq_env: HqEnv):
     Checks that job paths are partially resolved after submit.
     """
     hq_env.start_server()
-    hq_env.command(["submit", "hostname"])
+    hq_env.command(["submit", "uname"])
     wait_for_job_state(hq_env, 1, "WAITING")
 
     table = hq_env.command(["job", "info", "1"], as_table=True)
@@ -36,7 +36,7 @@ def test_job_paths_prefilled_placeholders_resolvable_cwd(hq_env: HqEnv):
     Checks that job paths are partially resolved after submit.
     """
     hq_env.start_server()
-    hq_env.command(["submit", "--cwd", "/tmp/foo", "hostname"])
+    hq_env.command(["submit", "--cwd", "/tmp/foo", "uname"])
     wait_for_job_state(hq_env, 1, "WAITING")
 
     table = hq_env.command(["job", "info", "1"], as_table=True)
@@ -58,7 +58,7 @@ def test_job_paths_prefilled_placeholders_unresolvable_cwd(hq_env: HqEnv):
     Checks that job paths are partially resolved after submit.
     """
     hq_env.start_server()
-    hq_env.command(["submit", "--cwd", "/tmp/%{TASK_ID}", "hostname"])
+    hq_env.command(["submit", "--cwd", "/tmp/%{TASK_ID}", "uname"])
     wait_for_job_state(hq_env, 1, "WAITING")
 
     table = hq_env.command(["job", "info", "1"], as_table=True)
@@ -188,7 +188,7 @@ def test_server_uid_placeholder(hq_env: HqEnv, tmp_path):
 @pytest.mark.parametrize("channel", ("stdout", "stderr"))
 def test_warning_missing_placeholder_in_output(hq_env: HqEnv, channel: str):
     hq_env.start_server()
-    output = hq_env.command(["submit", "--array=1-4", f"--{channel}=foo", "/bin/hostname"])
+    output = hq_env.command(["submit", "--array=1-4", f"--{channel}=foo", "uname"])
     assert (
         f"You have submitted an array job, but the `{channel}` " + "path does not contain the task ID placeholder."
         in output
@@ -207,7 +207,7 @@ def test_missing_placeholder_in_output_present_in_cwd(hq_env: HqEnv, channel: st
             "task-%{TASK_ID}",
             f"--{channel}",
             "%{CWD}/foo",
-            "/bin/hostname",
+            "uname",
         ]
     )
     assert "path does not contain the task ID placeholder." not in output
@@ -227,7 +227,7 @@ def test_unknown_placeholder(hq_env: HqEnv):
             "--cwd",
             "%{BAR}",
             "--",
-            "hostname",
+            "uname",
         ]
     )
     assert "Found unknown placeholder `FOO` in log path" in output
