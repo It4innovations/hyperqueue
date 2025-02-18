@@ -179,7 +179,7 @@ def test_job_no_pin(hq_env: HqEnv):
 
 def test_job_show_pin_in_table(hq_env: HqEnv):
     hq_env.start_server()
-    hq_env.command(["submit", "--pin", "taskset", "--cpus", "2 compact!", "--", "hostname"])
+    hq_env.command(["submit", "--pin", "taskset", "--cpus", "2 compact!", "--", "uname"])
     hq_env.start_worker(cpus=2)
 
     wait_for_job_state(hq_env, 1, "FINISHED")

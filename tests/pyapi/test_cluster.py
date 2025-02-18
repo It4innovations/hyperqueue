@@ -24,7 +24,7 @@ def test_cluster_create_client():
     with LocalCluster() as cluster:
         client = cluster.client()
         job = Job()
-        job.program(["hostname"])
+        job.program(["uname"])
         client.submit(job)
 
 

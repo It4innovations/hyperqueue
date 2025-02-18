@@ -19,7 +19,7 @@ def test_worker_stream_events1(hq_env: HqEnv, tmp_path):
     with open(out_txt, "w") as out:
         p = subprocess.Popen([hq_bin, "--server-dir", hq_env.server_dir, "journal", "stream"], stdout=out)
     time.sleep(0.6)
-    hq_env.command(["submit", "--", "hostname"])
+    hq_env.command(["submit", "--", "uname"])
     time.sleep(0.6)
     assert not p.poll()
     hq_env.stop_server()
@@ -34,7 +34,7 @@ def test_worker_stream_events1(hq_env: HqEnv, tmp_path):
         assert events[1]["event"]["type"] == "job-created"
         assert events[1]["event"]["desc"]["name"] == "sleep"
         assert events[2]["event"]["type"] == "job-created"
-        assert events[2]["event"]["desc"]["name"] == "hostname"
+        assert events[2]["event"]["desc"]["name"] == "uname"
 
 
 def test_worker_stream_events2(hq_env: HqEnv, tmp_path):
@@ -47,7 +47,7 @@ def test_worker_stream_events2(hq_env: HqEnv, tmp_path):
     with open(out_txt, "w") as out:
         p = subprocess.Popen([hq_bin, "--server-dir", hq_env.server_dir, "journal", "stream"], stdout=out)
     time.sleep(0.6)
-    hq_env.command(["submit", "--", "hostname"])
+    hq_env.command(["submit", "--", "uname"])
     time.sleep(0.6)
     assert not p.poll()
     p.kill()
@@ -61,7 +61,7 @@ def test_worker_stream_events2(hq_env: HqEnv, tmp_path):
         assert events[1]["event"]["type"] == "job-created"
         assert events[1]["event"]["desc"]["name"] == "sleep"
         assert events[2]["event"]["type"] == "job-created"
-        assert events[2]["event"]["desc"]["name"] == "hostname"
+        assert events[2]["event"]["desc"]["name"] == "uname"
 
 
 def test_worker_connected_event(hq_env: HqEnv):

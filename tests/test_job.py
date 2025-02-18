@@ -274,13 +274,13 @@ def test_job_filters(hq_env: HqEnv):
 def test_job_list_hidden_jobs(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker()
-    hq_env.command(["submit", "hostname"])
+    hq_env.command(["submit", "uname"])
     wait_for_job_state(hq_env, 1, "FINISHED")
 
     output = hq_env.command(["job", "list"])
     assert "There is 1 job in total." in output
 
-    hq_env.command(["submit", "hostname"])
+    hq_env.command(["submit", "uname"])
     wait_for_job_state(hq_env, 2, "FINISHED")
 
     output = hq_env.command(["job", "list"])
@@ -350,7 +350,7 @@ def test_job_invalid(hq_env: HqEnv):
 
 def test_cancel_without_workers(hq_env: HqEnv):
     hq_env.start_server()
-    hq_env.command(["submit", "/bin/hostname"])
+    hq_env.command(["submit", "uname"])
     r = hq_env.command(["job", "cancel", "1"])
     assert "Job 1 canceled" in r
     table = list_jobs(hq_env)
@@ -381,7 +381,7 @@ def test_cancel_running(hq_env: HqEnv):
 def test_cancel_finished(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker(cpus=1)
-    hq_env.command(["submit", "hostname"])
+    hq_env.command(["submit", "uname"])
     hq_env.command(["submit", "/invalid"])
 
     wait_for_job_state(hq_env, [1, 2], ["FINISHED", "FAILED"])
@@ -399,7 +399,7 @@ def test_cancel_finished(hq_env: HqEnv):
 def test_cancel_last(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker(cpus=1)
-    hq_env.command(["submit", "hostname"])
+    hq_env.command(["submit", "uname"])
     hq_env.command(["submit", "/invalid"])
 
     wait_for_job_state(hq_env, [1, 2], ["FINISHED", "FAILED"])
@@ -411,7 +411,7 @@ def test_cancel_last(hq_env: HqEnv):
 def test_cancel_some(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.command(["submit", "sleep", "100"])
-    hq_env.command(["submit", "hostname"])
+    hq_env.command(["submit", "uname"])
     hq_env.command(["submit", "/invalid"])
 
     r = hq_env.command(["job", "cancel", "1-4"])
@@ -425,7 +425,7 @@ def test_cancel_some(hq_env: HqEnv):
 def test_cancel_all(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker(cpus=1)
-    hq_env.command(["submit", "hostname"])
+    hq_env.command(["submit", "uname"])
     hq_env.command(["submit", "/invalid"])
 
     wait_for_job_state(hq_env, [1, 2], ["FINISHED", "FAILED"])
@@ -1295,11 +1295,11 @@ def test_submit_job_opts_to_open_job(hq_env: HqEnv):
     hq_env.command(["job", "open"])
 
     hq_env.command(
-        ["submit", "--job=1", "--name=Abc", "--", "hostname"],
+        ["submit", "--job=1", "--name=Abc", "--", "uname"],
         expect_fail="Parameter --name is not allowed when submitting to an open job.",
     )
     hq_env.command(
-        ["submit", "--job=1", "--max-fails=12", "--", "hostname"],
+        ["submit", "--job=1", "--max-fails=12", "--", "uname"],
         expect_fail="Parameter --max-fails is not allowed when submitting to an open job.",
     )
 
@@ -1352,7 +1352,7 @@ def test_attach_to_open_job_array(hq_env: HqEnv):
 def test_job_list_keep_open_jobs(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.command(["job", "open"])
-    hq_env.command(["job", "submit", "--job=1", "--", "hostname"])
+    hq_env.command(["job", "submit", "--job=1", "--", "uname"])
     hq_env.command(["job", "cancel", "1"])
     table = hq_env.command(["job", "list"], as_table=True)
     assert len(table) == 1
