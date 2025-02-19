@@ -131,14 +131,14 @@ job.
 - **Time Limit** is the maximal running time of a task. If it is reached, the task will be terminated, and it will
   transition into the `Failed` [state](#task-state). This setting has no impact on scheduling.
 
-  This can serve as a sanity check to make sure that some task will not run indefinitely. You can set it with the
-  `--time-limit` option[^2]:
+    This can serve as a sanity check to make sure that some task will not run indefinitely. You can set it with the
+    `--time-limit` option[^2]:
 
     ```bash
     $ hq submit --time-limit=<duration> ...
     ```
 
-  !!! note
+    !!! note
 
         Time limit is counted separately for each task. If you set a time limit of `3 minutes` and create two tasks,
         where each will run for two minutes, the time limit will not be hit.
@@ -149,16 +149,16 @@ job.
   this
   task.
 
-  Time requests are only used during scheduling, where the server decides which worker should execute which task.
-  Once a task is scheduled and starts executing on a worker, the time request value will not have any effect.
+    Time requests are only used during scheduling, where the server decides which worker should execute which task.
+    Once a task is scheduled and starts executing on a worker, the time request value will not have any effect.
 
-  You can set the time request using the `--time-request` option[^2]:
+    You can set the time request using the `--time-request` option[^2]:
 
-     ```bash
-     $ hq submit --time-request=<duration> ...
-     ```
+    ```bash
+    $ hq submit --time-request=<duration> ...
+    ```
 
-  !!! note
+    !!! note
 
         Workers with an unknown remaining lifetime will be able to execute any task, disregarding its time request.
 
@@ -313,7 +313,7 @@ There are three ways of waiting until a job completes:
     $ hq submit --wait ...
     ```
 
-  !!! tip
+    !!! tip
 
         This method can be used for benchmarking the job duration.
 
@@ -327,14 +327,14 @@ There are three ways of waiting until a job completes:
 - **Interactive wait** If you want to interactively observe the status of a job (which is useful especially if it
   has [multiple tasks](arrays.md)), you can use the `hq job progress` command:
 
-  === "Submit and observe"
-  ```bash
-  $ hq submit --progress ...
-  ```
-  === "Observe an existing job[^1]"
-  ```bash
-  $ hq job progress <selector>
-  ```
+    === "Submit and observe"
+        ```bash
+        $ hq submit --progress ...
+        ```
+    === "Observe an existing job[^1]"
+        ```bash
+        $ hq job progress <selector>
+        ```
 
 ## Attaching standard input
 
@@ -390,11 +390,11 @@ $ hq submit --stdout="out.txt:rm-if-finished" /my-program
 The file will not be deleted if the task fails or is cancelled.
 
 !!! Note
-If you want to use the default `stdout`/`stderr` file path (and you don't want to look it up), you can also specify
-just the cleanup mode without the file path:
-```bash
-$ hq submit --stdout=":rm-if-finished" /my-program
-```
+    If you want to use the default `stdout`/`stderr` file path (and you don't want to look it up), you can also specify
+    just the cleanup mode without the file path:
+    ```bash
+    $ hq submit --stdout=":rm-if-finished" /my-program
+    ```
 
 ## Useful job commands
 
@@ -403,15 +403,15 @@ Here is a list of useful job commands:
 ### Display job table
 
 === "List queued and running jobs"
-```bash
-$ hq job list
-```
+    ```bash
+    $ hq job list
+    ```
 === "List all jobs"
-```bash
-$ hq job list --all
-```
+    ```bash
+    $ hq job list --all
+    ```
 === "List jobs by status"
-You can display only jobs having the selected [states](#job-state) by using the `--filter` flag:
+    You can display only jobs having the selected [states](#job-state) by using the `--filter` flag:
 
     ```bash
     $ hq job list --filter running,waiting
