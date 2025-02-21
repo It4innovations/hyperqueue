@@ -6,7 +6,6 @@ use bstr::BString;
 use chrono::{DateTime, Utc};
 use tako::Map;
 use tako::Set;
-use tako::datasrv::DataObjectId;
 use tako::gateway::{
     FromGatewayMessage, NewTasksMessage, ResourceRequestVariants, SharedTaskConfiguration,
     TaskConfiguration, TaskDataFlags, ToGatewayMessage,
@@ -376,16 +375,21 @@ fn build_tasks_graph(
         );
         let shared_data_index = allocate_shared_data(&task.task_desc, task.data_flags);
 
-        let task_deps = task
-            .task_deps
-            .iter()
-            .map(|task_id| make_tako_id(job_id, *task_id))
-            .collect();
+        let mut task_dep_ids: Set<JobTaskId> = task.task_deps.iter().copied().collect();
 
         let dataobj_deps = task
-            .dataobj_deps
+            .data_deps
             .iter()
-            .map(|job_do_id| job_do_id.to_dataobj_id(job_id))
+            .map(|job_do_id| {
+                // If we depend on data from a task, we need to depends on the whole task
+                task_dep_ids.insert(job_do_id.task_id);
+                job_do_id.to_dataobj_id(job_id)
+            })
+            .collect();
+
+        let task_deps = task_dep_ids
+            .into_iter()
+            .map(|task_id| make_tako_id(job_id, task_id))
             .collect();
 
         task_configs.push(TaskConfiguration {
