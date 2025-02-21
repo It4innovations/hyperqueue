@@ -85,21 +85,21 @@ fn build_task_description(cfg: TaskConfigDef) -> TaskDescription {
     }
 }
 
-fn build_task(tdef: TaskDef, max_id: &mut JobTaskId) -> TaskWithDependencies {
+fn build_task(
+    tdef: TaskDef,
+    max_id: &mut JobTaskId,
+    data_flags: TaskDataFlags,
+) -> TaskWithDependencies {
     let id = tdef.id.unwrap_or_else(|| {
         *max_id = JobTaskId::new(max_id.as_num() + 1);
         *max_id
     });
-    let mut data_flags = TaskDataFlags::empty();
-    if tdef.keep_outputs {
-        data_flags.insert(TaskDataFlags::KEEP_ALL_OUTPUTS);
-    }
     TaskWithDependencies {
         id,
         data_flags,
         task_desc: build_task_description(tdef.config),
         task_deps: tdef.deps,
-        dataobj_deps: tdef.data_deps,
+        data_deps: tdef.data_deps,
     }
 }
 
@@ -119,7 +119,10 @@ fn build_job_desc_array(array: ArrayDef) -> JobTaskDescription {
     }
 }
 
-fn build_job_desc_individual_tasks(tasks: Vec<TaskDef>) -> crate::Result<JobTaskDescription> {
+fn build_job_desc_individual_tasks(
+    tasks: Vec<TaskDef>,
+    data_flags: TaskDataFlags,
+) -> crate::Result<JobTaskDescription> {
     let mut max_id: JobTaskId = tasks
         .iter()
         .map(|t| t.id)
@@ -134,7 +137,7 @@ fn build_job_desc_individual_tasks(tasks: Vec<TaskDef>) -> crate::Result<JobTask
     let mut in_degrees = Map::new();
     let mut consumers: Map<JobTaskId, Vec<_>> = Map::new();
     for task in tasks {
-        let t = build_task(task, &mut max_id);
+        let t = build_task(task, &mut max_id, data_flags);
         if in_degrees.insert(t.id, t.task_deps.len()).is_some() {
             return Err(crate::Error::GenericError(format!(
                 "Task {} is defined multiple times",
@@ -183,7 +186,11 @@ fn build_job_submit(jdef: JobDef, job_id: Option<JobId>) -> crate::Result<Submit
     let task_desc = if let Some(array) = jdef.array {
         build_job_desc_array(array)
     } else {
-        build_job_desc_individual_tasks(jdef.tasks)?
+        let mut data_flags = TaskDataFlags::empty();
+        if jdef.data_layer {
+            data_flags.insert(TaskDataFlags::ENABLE_DATA_LAYER);
+        }
+        build_job_desc_individual_tasks(jdef.tasks, data_flags)?
     };
     Ok(SubmitRequest {
         job_desc: JobDescription {
