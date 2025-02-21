@@ -535,9 +535,8 @@ async fn create_task_future(
 
     log::trace!("Running command {:?}", command);
 
-    let mut child = tokio::task::spawn_blocking(move || command.spawn())
-        .await
-        .expect("Command spawning failed")
+    let mut child = command
+        .spawn()
         .map_err(|error| map_spawn_error(error, &program))?;
     let pid = match child.id() {
         Some(pid) => pid,
