@@ -64,3 +64,16 @@ def test_task_info(hq_env: HqEnv):
     hq_env.command(["submit", "--", "bash", "-c", "hostname"])
     r = hq_env.command(["task", "info", "last", "0"], as_table=True)
     assert r.get_row_value("Task ID") == "0"
+
+
+def test_long_running_task(hq_env: HqEnv):
+    """
+    We had a very nasty bug (https://github.com/It4innovations/hyperqueue/issues/820) where
+    tasks were getting killed when tokio periodically reaped blocking worker threads.
+    This is not a perfect test against that, but at least we can check that tasks can live longer
+    than ~15s...
+    """
+    hq_env.start_server()
+    hq_env.start_worker()
+    hq_env.command(["submit", "sleep", "20"])
+    wait_for_job_state(hq_env, 1, "FINISHED", timeout_s=30)
