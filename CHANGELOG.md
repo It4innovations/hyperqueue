@@ -3,6 +3,12 @@
 ### Breaking change
 * The Python API now requires Python 3.9, up from Python 3.6.
 
+## v0.21.1
+
+### Fixes
+
+* Fixes random task crashes. Details in #823.
+
 ## v0.21.0
 
 ### Breaking change
