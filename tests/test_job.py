@@ -1,20 +1,19 @@
 import os
 import signal
-import subprocess
 import time
 from datetime import datetime
 from os.path import isdir, isfile, join
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Optional
 
 import pytest
 
 from .conftest import HqEnv
 from .utils import wait_for_job_state
 from .utils.cmd import python
-from .utils.io import check_file_contents, read_file
+from .utils.io import check_file_contents, read_file, read_task_pid
 from .utils.job import default_task_output, list_jobs
-from .utils.wait import wait_for_pid_exit, wait_for_worker_state, wait_until
+from .utils.wait import wait_until
 
 
 def test_job_submit(hq_env: HqEnv):
@@ -435,88 +434,6 @@ def test_cancel_all(hq_env: HqEnv):
     r = hq_env.command(["job", "cancel", "all"]).splitlines()
     assert len(r) == 1
     assert "Job 3 canceled" in r[0]
-
-
-def test_cancel_terminate_process_children(hq_env: HqEnv):
-    def cancel(worker_process):
-        hq_env.command(["job", "cancel", "1"])
-        wait_for_job_state(hq_env, 1, "CANCELED")
-
-    check_child_process_exited(hq_env, cancel)
-
-
-def test_cancel_send_sigint(hq_env: HqEnv):
-    hq_env.start_server()
-    hq_env.start_worker()
-
-    hq_env.command(
-        [
-            "submit",
-            "--",
-            *python(
-                """
-import sys
-import time
-import signal
-
-def signal_handler(sig, frame):
-    print("sigint", flush=True)
-    sys.exit(0)
-
-signal.signal(signal.SIGINT, signal_handler)
-
-print("ready", flush=True)
-time.sleep(3600)
-"""
-            ),
-        ]
-    )
-    wait_for_job_state(hq_env, 1, "RUNNING")
-    wait_until(lambda: read_file(default_task_output()).strip() == "ready")
-
-    hq_env.command(["job", "cancel", "1"])
-    wait_for_job_state(hq_env, 1, "CANCELED")
-
-    wait_until(lambda: read_file(default_task_output()).splitlines(keepends=False)[1] == "sigint")
-
-
-def test_cancel_kill_if_sigint_fails(hq_env: HqEnv):
-    hq_env.start_server()
-    hq_env.start_worker()
-
-    hq_env.command(
-        [
-            "submit",
-            "--",
-            *python(
-                """
-import os
-import sys
-import time
-import signal
-
-def signal_handler(sig, frame):
-    print(os.getpid(), flush=True)
-    time.sleep(3600)
-
-signal.signal(signal.SIGINT, signal_handler)
-
-print("ready", flush=True)
-time.sleep(3600)
-"""
-            ),
-        ]
-    )
-    wait_for_job_state(hq_env, 1, "RUNNING")
-    wait_until(lambda: read_file(default_task_output()).strip() == "ready")
-
-    hq_env.command(["job", "cancel", "1"])
-    wait_for_job_state(hq_env, 1, "CANCELED")
-
-    wait_until(lambda: len(read_file(default_task_output()).splitlines()) == 2)
-
-    pid = int(read_file(default_task_output()).splitlines()[1])
-    wait_for_pid_exit(pid)
 
 
 def test_reporting_state_after_worker_lost(hq_env: HqEnv):
@@ -1113,71 +1030,6 @@ def test_crashing_job_by_files(hq_env: HqEnv):
     assert not os.path.exists("output.txt")
 
 
-def test_kill_task_when_worker_dies(hq_env: HqEnv):
-    hq_env.start_server()
-    hq_env.start_worker()
-
-    hq_env.command(
-        [
-            "submit",
-            "--",
-            *python(
-                """
-import os
-import time
-
-print(os.getpid(), flush=True)
-time.sleep(3600)
-"""
-            ),
-        ]
-    )
-    wait_for_job_state(hq_env, 1, "RUNNING")
-
-    def get_pid():
-        pid = read_file(default_task_output()).strip()
-        if not pid:
-            return None
-        return int(pid)
-
-    pid = wait_until(get_pid)
-
-    hq_env.kill_worker(1)
-
-    wait_for_pid_exit(pid)
-
-
-def test_kill_task_subprocess_when_worker_is_interrupted(hq_env: HqEnv):
-    def interrupt_worker(worker_process):
-        hq_env.kill_worker(1, signal=signal.SIGINT)
-
-    check_child_process_exited(hq_env, interrupt_worker)
-
-
-def test_kill_task_subprocess_when_worker_is_terminated(hq_env: HqEnv):
-    def terminate_worker(worker_process):
-        hq_env.kill_worker(1, signal=signal.SIGTERM)
-
-    check_child_process_exited(hq_env, terminate_worker)
-
-
-@pytest.mark.xfail
-def test_kill_task_subprocess_when_worker_is_killed(hq_env: HqEnv):
-    def terminate_worker(worker_process):
-        hq_env.kill_worker(1, signal=signal.SIGKILL)
-
-    check_child_process_exited(hq_env, terminate_worker)
-
-
-def test_kill_task_subprocess_when_worker_is_stopped(hq_env: HqEnv):
-    def stop_worker(worker_process):
-        hq_env.command(["worker", "stop", "1"])
-        wait_for_worker_state(hq_env, 1, "STOPPED")
-        hq_env.check_process_exited(worker_process)
-
-    check_child_process_exited(hq_env, stop_worker)
-
-
 def test_kill_task_report_signal(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker()
@@ -1196,9 +1048,7 @@ time.sleep(3600)
             ),
         ]
     )
-    wait_for_job_state(hq_env, 1, "RUNNING")
-    wait_until(lambda: len(read_file(default_task_output()).splitlines()) == 1)
-    pid = int(read_file(default_task_output()))
+    pid = read_task_pid(hq_env, 1)
     os.kill(pid, signal.SIGKILL)
 
     wait_for_job_state(hq_env, 1, "FAILED")
@@ -1216,43 +1066,6 @@ def test_fail_to_start_issue629(hq_env: HqEnv, tmpdir):
 
     hq_env.command(["submit", "--stdout=/dev/null/foo.txt", "ls"])
     wait_for_job_state(hq_env, 1, "FAILED")
-
-
-def check_child_process_exited(hq_env: HqEnv, stop_fn: Callable[[subprocess.Popen], None]):
-    """
-    Creates a task that spawns a child, and then calls `stop_fn`, which should kill either the task
-    or the worker. The function then checks that both the task process and its child have been killed.
-    """
-    hq_env.start_server()
-    worker_process = hq_env.start_worker()
-
-    hq_env.command(
-        [
-            "submit",
-            "--",
-            *python(
-                """
-import os
-import sys
-import time
-print(os.getpid(), flush=True)
-pid = os.fork()
-if pid > 0:
-    print(pid, flush=True)
-time.sleep(3600)
-"""
-            ),
-        ]
-    )
-    wait_for_job_state(hq_env, 1, "RUNNING")
-    wait_until(lambda: len(read_file(default_task_output()).splitlines()) == 2)
-    pids = [int(pid) for pid in read_file(default_task_output()).splitlines()]
-
-    stop_fn(worker_process)
-
-    parent, child = pids
-    wait_for_pid_exit(parent)
-    wait_for_pid_exit(child)
 
 
 def test_job_task_ids(hq_env: HqEnv):
