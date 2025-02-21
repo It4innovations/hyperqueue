@@ -1178,6 +1178,34 @@ def test_kill_task_subprocess_when_worker_is_stopped(hq_env: HqEnv):
     check_child_process_exited(hq_env, stop_worker)
 
 
+def test_kill_task_report_signal(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+
+    hq_env.command(
+        [
+            "submit",
+            "--",
+            *python(
+                """
+import os
+import time
+print(os.getpid(), flush=True)
+time.sleep(3600)
+"""
+            ),
+        ]
+    )
+    wait_for_job_state(hq_env, 1, "RUNNING")
+    wait_until(lambda: len(read_file(default_task_output()).splitlines()) == 1)
+    pid = int(read_file(default_task_output()))
+    os.kill(pid, signal.SIGKILL)
+
+    wait_for_job_state(hq_env, 1, "FAILED")
+    table = hq_env.command(["task", "info", "last", "0"], as_table=True)
+    table.check_row_value("Error", "Error: Program terminated with exit code -1. Received signal 9 (SIGKILL).")
+
+
 def test_fail_to_start_issue629(hq_env: HqEnv, tmpdir):
     """
     Regression test for https://github.com/It4innovations/hyperqueue/issues/629.

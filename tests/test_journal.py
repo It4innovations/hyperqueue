@@ -132,7 +132,7 @@ def test_restore_partially_failed_task(hq_env: HqEnv, tmp_path):
     assert stats["failed"] == 2
 
     out = hq_env.command(["--output-mode=json", "task", "info", "1", "0"], as_json=True)
-    assert out[0]["error"] == "Error: Program terminated with exit code 1"
+    assert out[0]["error"] == "Error: Program terminated with exit code 1."
 
     hq_env.start_worker(cpus=4)
     wait_for_job_state(hq_env, [1], "FAILED")

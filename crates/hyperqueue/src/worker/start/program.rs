@@ -510,9 +510,25 @@ async fn create_task_future(
                     return Err(e);
                 }
             }
-            Err(tako::Error::GenericError(format!(
-                "Program terminated with exit code {code}"
-            )))
+
+            let mut error_msg = format!("Program terminated with exit code {code}.");
+
+            #[cfg(target_os = "linux")]
+            {
+                use std::fmt::Write;
+                use std::os::unix::process::ExitStatusExt;
+
+                if let Some(signal) = status.signal() {
+                    write!(
+                        error_msg,
+                        " Received signal {signal} ({}).",
+                        signal_name(signal)
+                    )
+                    .unwrap();
+                }
+            }
+
+            Err(tako::Error::GenericError(error_msg))
         } else {
             Ok(TaskResult::Finished)
         }
@@ -569,6 +585,31 @@ async fn create_task_future(
             result
         };
         handle_task_with_signals(task_fut, pid, job_id, job_task_id, end_receiver).await
+    }
+}
+
+/// Provide a user-friendly name of a signal, for a subset of common signals.
+fn signal_name(signal: i32) -> &'static str {
+    match signal {
+        1 => "SIGHUP",
+        2 => "SIGINT",
+        3 => "SIGQUIT",
+        4 => "SIGILL",
+        5 => "SIGTRAP",
+        6 => "SIGABRT",
+        7 => "SIGBUS",
+        8 => "SIGFPE",
+        9 => "SIGKILL",
+        10 => "SIGUSR1",
+        11 => "SIGSEGV",
+        12 => "SIGUSR2",
+        13 => "SIGPIPE",
+        14 => "SIGALRM",
+        15 => "SIGTERM",
+        17 => "SIGCHLD",
+        18 => "SIGCONT",
+        19 => "SIGSTOP",
+        _ => "unknown",
     }
 }
 

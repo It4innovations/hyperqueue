@@ -90,13 +90,13 @@ def test_job_array_error_some(hq_env: HqEnv):
     assert table.header == ["Task ID", "Worker", "Error"]
 
     assert table.get_column_value("Task ID")[0] == "2"
-    assert table.get_column_value("Error")[0] == "Error: Program terminated with exit code 1"
+    assert table.get_column_value("Error")[0] == "Error: Program terminated with exit code 1."
 
     assert table.get_column_value("Task ID")[1] == "3"
-    assert table.get_column_value("Error")[1] == "Error: Program terminated with exit code 1"
+    assert table.get_column_value("Error")[1] == "Error: Program terminated with exit code 1."
 
     assert table.get_column_value("Task ID")[2] == "7"
-    assert table.get_column_value("Error")[2] == "Error: Program terminated with exit code 1"
+    assert table.get_column_value("Error")[2] == "Error: Program terminated with exit code 1."
 
     table = hq_env.command(["task", "list", "1"], as_table=True)
     for i, state in enumerate(
