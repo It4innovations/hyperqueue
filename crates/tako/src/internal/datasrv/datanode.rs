@@ -75,7 +75,8 @@ async fn datanode_message_handler(
             send_message(tx, FromDataNodeLocalMessage::Uploaded(data_id)).await?;
         }
         ToDataNodeLocalMessage::GetInput { input_id } => {
-            todo!()
+            // TODO: Translate InputId to DataObjectId
+            data_node_ref.get_mut().get_object(input_id)
         }
     }
     Ok(())

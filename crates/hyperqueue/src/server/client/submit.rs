@@ -384,7 +384,7 @@ fn build_tasks_graph(
             .collect();
 
         let dataobj_deps = task
-            .dataobj_deps
+            .data_deps
             .iter()
             .map(|job_do_id| job_do_id.to_dataobj_id(job_id))
             .collect();

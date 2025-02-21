@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Display, Formatter};
 
 #[derive(Serialize, Deserialize)]
-pub(crate) struct DataObject {
+pub struct DataObject {
     pub mime_type: String,
     #[serde(with = "serde_bytes")]
     pub data: Vec<u8>,

@@ -3,7 +3,6 @@ from .utils import wait_for_job_state
 from .utils.job import default_task_output
 
 
-
 def test_task_data_invalid_call(hq_env: HqEnv):
     hq_env.command(["task-data"])
 
@@ -13,7 +12,7 @@ def test_data_create_no_consumer(hq_env: HqEnv, tmp_path):
         """
 [[task]]
 id = 0
-command = ["bash", "-c", "echo $HQ_DATA_ACCESS"]
+command = ["bash", "-c", "set -e; echo 'abc' > test.txt; $HQ data put 1 test.txt"]
 keep_outputs = true
 """
     )
@@ -21,8 +20,27 @@ keep_outputs = true
     hq_env.start_worker()
     hq_env.command(["job", "submit-file", "job.toml"])
     wait_for_job_state(hq_env, 1, "FINISHED")
-    with open(default_task_output(1)) as f:
-        key = f.read()
-        path, token = key.rsplit(":", 1)
-        assert len(path) > 8
-        assert token.startswith("hq0-")
+
+
+def test_data_create_same_worker_consumer(hq_env: HqEnv, tmp_path):
+    tmp_path.joinpath("job.toml").write_text(
+        """
+data_layer = true
+        
+[[task]]
+id = 12
+command = ["bash", "-c", "set -e; echo 'abc' > test.txt; $HQ data put 3 test.txt"]
+
+[[task]]
+id = 13
+command = ["bash", "-c", "set -e; $HQ data get 0"]
+
+[[task.data_deps]]
+task_id = 12
+data_id = 3 
+"""
+    )
+    hq_env.start_server()
+    hq_env.start_worker()
+    hq_env.command(["job", "submit-file", "job.toml"])
+    wait_for_job_state(hq_env, 1, "FINISHED")

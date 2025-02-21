@@ -16,6 +16,7 @@ pub struct DataClient {
 
 impl DataClient {
     pub async fn connect(path: &Path, token: &BStr) -> crate::Result<Self> {
+        log::debug!("Creating local connection to: {}", path.display());
         let stream = UnixStream::connect(path).await?;
         let mut stream =
             crate::internal::worker::localcomm::make_protocol_builder().new_framed(stream);

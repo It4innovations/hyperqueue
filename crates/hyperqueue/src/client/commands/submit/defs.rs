@@ -219,9 +219,6 @@ pub struct TaskDef {
 
     #[serde(default)]
     pub data_deps: Vec<JobDataObjectId>,
-
-    #[serde(default)]
-    pub keep_outputs: bool,
 }
 
 fn deserialize_array_opt<'de, D>(deserializer: D) -> Result<Option<IntArray>, D::Error>
@@ -262,6 +259,9 @@ pub struct JobDef {
     pub array: Option<ArrayDef>,
 
     pub stream: Option<PathBuf>,
+
+    #[serde(default)]
+    pub data_layer: bool,
 }
 
 impl JobDef {
