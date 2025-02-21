@@ -124,7 +124,7 @@ pub struct TaskWithDependencies {
     pub id: JobTaskId,
     pub task_desc: TaskDescription,
     pub task_deps: Vec<JobTaskId>,
-    pub dataobj_deps: Vec<JobDataObjectId>,
+    pub data_deps: Vec<JobDataObjectId>,
     pub data_flags: TaskDataFlags,
 }
 
