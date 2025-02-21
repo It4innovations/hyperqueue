@@ -143,7 +143,7 @@ def test_get_failed_tasks(hq_env: HqEnv):
 
     errors = client.get_failed_tasks(job_id)
     assert len(errors) == 1
-    assert errors[1].error == "Error: Program terminated with exit code 1"
+    assert errors[1].error == "Error: Program terminated with exit code 1."
 
 
 def test_job_cpus_resources(hq_env: HqEnv):
