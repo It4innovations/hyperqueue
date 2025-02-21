@@ -1,3 +1,9 @@
+## v0.21.1
+
+### Fixes
+
+* Fixes random task crashes. Details in #823.
+
 ## v0.21.0
 
 ### Breaking change
