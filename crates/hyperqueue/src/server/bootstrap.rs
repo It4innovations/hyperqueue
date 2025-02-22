@@ -95,7 +95,7 @@ pub async fn get_client_session(server_directory: &Path) -> anyhow::Result<Clien
         format!(
             "No running instance of HQ found at {:?}.\n\
             Try to start the server: `hq server start{}` or use a different server directory.",
-            sd.access_filename(),
+            sd.directory(),
             server_dir_msg,
         )
     })?;
