@@ -2,11 +2,11 @@
 you to autonomously ask the job manager (PBS/Slurm) for computing resources and spawn HyperQueue [workers](worker.md)
 on the provided nodes.
 
-Using this mechanism, you can submit computations into HyperQueue without caring about the underlying PBS/Slurm jobs.
+Using this mechanism, you can submit computations into HyperQueue without caring about the underlying PBS/Slurm allocations.
 
 !!! Note "Job terminology"
 
-    It is common to use the term "job" for jobs created by an HPC job manager, such as PBS or Slurm, which are used to
+    It is common to use the term "job" for allocations created by an HPC job manager, such as PBS or Slurm, which are used to
     perform computations on HPC clusters. However, HyperQueue also uses the term "job" for [ensembles of tasks](../jobs/jobs.md).
 
     To differentiate between these two, we will refer to jobs created by PBS or Slurm as `allocations`. We will also refer
@@ -67,7 +67,7 @@ Format[^1]: **`--time-limit <duration>`**
 Sets the walltime of created allocations.
 
 This parameter is **required**, as HyperQueue must know the duration of the individual allocations.
-Make sure that you pass a  time limit that does not exceed the limit of the PBS/Slurm queue
+Make sure that you pass a time limit that does not exceed the limit of the PBS/Slurm queue
 that you intend to use, otherwise the allocation submissions will fail. You can use the
 [`dry-run` command](#dry-run-command) to debug this.
 
@@ -231,9 +231,9 @@ If the allocation was submitted successfully, it will be canceled immediately to
 
 ### Finding information about allocations
 - **[`Basic queue information`](#display-information-about-an-allocation-queue)** This command will
-show you details about allocations created by the automatic allocator.
+  show you details about allocations created by the automatic allocator.
 - **Extended logging** To get more information about what is happening inside the allocator, start the HyperQueue
-[server](server.md) with the following environment variable:
+  [server](server.md) with the following environment variable:
 
     ```bash
     $ RUST_LOG=hyperqueue::server::autoalloc=debug hq server start
@@ -242,8 +242,8 @@ show you details about allocations created by the automatic allocator.
     The log output of the server will then contain a detailed trace of allocator actions.
 
 - **Allocation files** Each time the allocator queues an allocation into the job manager, it will write the submitted
-bash script, allocation ID and `stdout` and `stderr` of the allocation to disk. You can find these files inside the
-server directory:
+  bash script, allocation ID and `stdout` and `stderr` of the allocation to disk. You can find these files inside the
+  server directory:
 
     ```bash
     $ ls <hq-server-dir>/hq-current/autoalloc/<queue-id>/<allocation-num>/
