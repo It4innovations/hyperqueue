@@ -1,3 +1,4 @@
+use crate::client::commands::duration_doc;
 use anyhow::bail;
 use chrono::Utc;
 use std::path::PathBuf;
@@ -19,6 +20,7 @@ use crate::client::globalsettings::GlobalSettings;
 use crate::client::utils::{passthrough_parser, PassThroughArgument};
 use crate::common::manager::info::{ManagerInfo, WORKER_EXTRA_MANAGER_KEY};
 use crate::common::utils::network::get_hostname;
+use crate::common::utils::time::parse_hms_or_human_time;
 use crate::common::utils::time::parse_human_time;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
@@ -79,7 +81,8 @@ pub struct SharedWorkerStartOpts {
     /// Examples:{n}
     /// - `--resource gpus=[0,1,2,3]`{n}
     /// - `--resource "memory=sum(1024)"`
-    #[arg(long, action = clap::ArgAction::Append, value_parser = passthrough_parser(parse_resource_definition))]
+    #[arg(long, action = clap::ArgAction::Append, value_parser = passthrough_parser(parse_resource_definition)
+    )]
     pub resource: Vec<PassThroughArgument<ResourceDescriptorItem>>,
 
     /// Manual configuration of worker's group
@@ -97,8 +100,11 @@ pub struct SharedWorkerStartOpts {
     #[arg(long = "no-hyper-threading")]
     pub no_hyper_threading: bool,
 
-    /// Duration after which will an idle worker automatically stop
-    #[arg(long, value_parser = parse_human_time)]
+    #[arg(
+        long,
+        value_parser = parse_hms_or_human_time,
+        help = duration_doc!("Duration after which will an idle worker automatically stop.")
+    )]
     pub idle_timeout: Option<Duration>,
 
     /// How often should the worker send its overview status (e.g. HW usage, task status)
@@ -112,12 +118,19 @@ pub struct WorkerStartOpts {
     #[clap(flatten)]
     shared: SharedWorkerStartOpts,
 
-    /// How often should the worker announce its existence to the server.
-    #[arg(long, default_value = "8s", value_parser = parse_human_time)]
+    #[arg(
+        long,
+        default_value = "8s",
+        value_parser = parse_hms_or_human_time,
+        help = duration_doc!("How often should the worker announce its existence to the server.")
+    )]
     pub heartbeat: Duration,
 
-    /// Worker time limit. Worker exits after given time.
-    #[arg(long, value_parser = parse_human_time)]
+    #[arg(
+        long,
+        value_parser = parse_hms_or_human_time,
+        help = duration_doc!("Worker time limit. Worker exits after given time.")
+    )]
     pub time_limit: Option<Duration>,
 
     /// What HPC job manager should be used by the worker.

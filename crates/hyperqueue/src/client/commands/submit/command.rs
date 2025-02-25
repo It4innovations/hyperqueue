@@ -1,22 +1,10 @@
+use crate::client::commands::duration_doc;
 use std::collections::BTreeSet;
 use std::io::{BufRead, Read};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::Duration;
 use std::{fs, io};
-
-use anyhow::{anyhow, bail};
-use bstr::BString;
-use chumsky::primitive::{filter, just};
-use chumsky::text::TextParser;
-use chumsky::Parser as ChumskyParser;
-use clap::{ArgMatches, Parser};
-use smallvec::smallvec;
-use tako::gateway::{
-    ResourceRequest, ResourceRequestEntries, ResourceRequestEntry, ResourceRequestVariants,
-};
-use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
-use tako::resources::{AllocationRequest, NumOfNodes, ResourceAmount, CPU_RESOURCE_NAME};
 
 use super::directives::parse_hq_directives;
 use crate::client::commands::submit::directives::parse_hq_directives_from_file;
@@ -32,7 +20,7 @@ use crate::common::placeholders::{
 };
 use crate::common::utils::fs::get_current_dir;
 use crate::common::utils::str::pluralize;
-use crate::common::utils::time::parse_human_time;
+use crate::common::utils::time::parse_hms_or_human_time;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
     FromClientMessage, IdSelector, JobDescription, JobSubmitDescription, JobTaskDescription,
@@ -40,6 +28,18 @@ use crate::transfer::messages::{
     ToClientMessage,
 };
 use crate::{rpc_call, JobId, JobTaskCount, Map};
+use anyhow::{anyhow, bail};
+use bstr::BString;
+use chumsky::primitive::{filter, just};
+use chumsky::text::TextParser;
+use chumsky::Parser as ChumskyParser;
+use clap::{ArgMatches, Parser};
+use smallvec::smallvec;
+use tako::gateway::{
+    ResourceRequest, ResourceRequestEntries, ResourceRequestEntry, ResourceRequestVariants,
+};
+use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
+use tako::resources::{AllocationRequest, NumOfNodes, ResourceAmount, CPU_RESOURCE_NAME};
 
 const SUBMIT_ARRAY_LIMIT: JobTaskCount = 999;
 pub const DEFAULT_CRASH_LIMIT: u32 = 5;
@@ -222,8 +222,12 @@ pub struct SubmitJobTaskConfOpts {
     #[arg(long, action = clap::ArgAction::Append, value_parser = parse_resource_request)]
     resource: Vec<(String, AllocationRequest)>,
 
-    /// Minimal lifetime of the worker needed to start the job
-    #[arg(long, value_parser = parse_human_time, default_value = "0ms")]
+    #[arg(
+        long,
+        value_parser = parse_hms_or_human_time,
+        default_value = "0ms",
+        help = duration_doc!("Minimal lifetime of the worker needed to start the job")
+    )]
     time_request: Duration,
 
     /// Pin the job to the cores specified in `--cpus`.
@@ -279,8 +283,11 @@ pub struct SubmitJobTaskConfOpts {
     #[arg(long, default_value_t = 0)]
     priority: tako::Priority,
 
-    #[arg(long, value_parser = parse_human_time)]
-    /// Time limit per task. E.g. --time-limit=10min
+    #[arg(
+        long,
+        value_parser = parse_hms_or_human_time,
+        help = duration_doc!("Time limit per task. E.g. --time-limit=10min")
+    )]
     time_limit: Option<Duration>,
 
     /// Stream the output of tasks into this log file.
