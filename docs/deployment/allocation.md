@@ -20,8 +20,7 @@ Each allocation queue has a set of [parameters](#parameters). You can use them t
 allocation, but for start you can simply use the defaults. However, you will almost certainly need to specify some
 credentials to be able to ask for computing resources using PBS/Slurm.
 
-To create a new allocation queue, use the following command and pass any required credentials (queue/partition name,
-account ID, etc.) after `--`. These trailing arguments will then be passed directly to `qsub`/`sbatch`:
+To create a new allocation queue, you can use the following command. Any trailing arguments (passed after `--`) will be passed verbatim directly to `qsub`/`sbatch` when requesting a new allocation.
 
 === "PBS"
 
@@ -38,12 +37,13 @@ account ID, etc.) after `--`. These trailing arguments will then be passed direc
 !!! tip
 
     Make sure that a HyperQueue server is running when you execute this command. Allocation queues are not persistent,
-    so you have to set them up each time you (re)start the server.
+    so you have to set them up each time you (re)start the server (unless you use [journaling](server.md#resuming-stoppedcrashed-server)).
+
+The HyperQueue automatic allocator decides the number of nodes that will be requested and also the walltime of the allocation. Other parameters, such as project credentials, account ID, queue/partition name or the number of requested CPU or GPU cores per node have to be specified manually by the user using the trailing arguments.
 
 !!! warning
 
-    Do not pass the number of nodes that should be allocated or the allocation walltime using these trailing arguments.
-    These parameters are configured using other means, see [below](#parameters).
+    The corollary of the paragraph above is that you **should not** pass the number of nodes that should be allocated or the allocation walltime in the trailing arguments. Instead, you can specify various [parameters](#parameters) that tell the automatic allocator how to configure these options.
 
 Once the queue is created, HyperQueue will start asking for allocations in order to provide computing resources
 (HyperQueue workers). The exact behavior of the automatic allocation process is described [below](#behavior). You can
@@ -90,7 +90,7 @@ How many allocations should be queued (waiting to be started) in PBS/Slurm at an
 Format: `--workers-per-alloc <count>`
 
 How many workers should be requested in each allocation. This corresponds to the number of requested nodes, as the allocator
-will always create a single worker per node.
+will always create a single worker per node in a single allocation request.
 
 #### Max worker count
 Format: `--max-worker-count <count>`
