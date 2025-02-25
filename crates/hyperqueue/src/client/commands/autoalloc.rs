@@ -1,3 +1,4 @@
+use crate::client::commands::duration_doc;
 use std::time::Duration;
 
 use clap::Parser;
@@ -81,8 +82,12 @@ struct SharedQueueOpts {
     #[arg(long, short, default_value_t = 1, value_parser = parse_backlog)]
     backlog: u32,
 
-    /// Time limit (walltime) of PBS/Slurm allocations
-    #[arg(long, short('t'), value_parser = parse_hms_or_human_time)]
+    #[arg(
+        long,
+        short('t'),
+        value_parser = parse_hms_or_human_time,
+        help = duration_doc!("Time limit (walltime) of PBS/Slurm allocations.")
+    )]
     time_limit: Duration,
 
     /// How many workers (nodes) should be spawned in each allocation
@@ -122,13 +127,17 @@ struct SharedQueueOpts {
     #[arg(long)]
     worker_stop_cmd: Option<String>,
 
-    /// Time limit after which workers in the submitted allocations will be stopped.
-    /// By default, it is set to the time limit of the allocation.
-    /// However, if you want the workers to be stopped sooner, for example to give `worker_stop_cmd`
-    /// more time to execute before the allocation is killed, you can lower the worker time limit.
-    ///
-    /// The limit must not be larger than the allocation time limit.
-    #[arg(long, value_parser = parse_hms_or_human_time)]
+    #[arg(
+        long,
+        value_parser = parse_hms_or_human_time,
+        help = duration_doc!(r#"
+Time limit after which workers in the submitted allocations will be stopped.
+By default, it is set to the time limit of the allocation.
+However, if you want the workers to be stopped sooner, for example to give `worker_stop_cmd`
+more time to execute before the allocation is killed, you can lower the worker time limit.
+
+The limit must not be larger than the allocation time limit."#)
+    )]
     worker_time_limit: Option<Duration>,
 
     /// Additional arguments passed to the submit command

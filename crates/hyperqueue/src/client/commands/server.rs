@@ -1,10 +1,11 @@
+use crate::client::commands::duration_doc;
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::server::client_stop_server;
 use crate::common::serverdir::{
     load_access_record, store_access_record, ConnectAccessRecordPart, FullAccessRecord,
 };
 use crate::common::utils::network::get_hostname;
-use crate::common::utils::time::parse_human_time;
+use crate::common::utils::time::parse_hms_or_human_time;
 use crate::server::bootstrap::{
     generate_server_uid, get_client_session, init_hq_server, ServerConfig,
 };
@@ -73,8 +74,11 @@ struct ServerStartOpts {
     #[arg(long)]
     host: Option<String>,
 
-    /// Duration after which will an idle worker automatically stop
-    #[arg(long, value_parser = parse_human_time)]
+    #[arg(
+        long,
+        value_parser = parse_hms_or_human_time,
+        help = duration_doc!("Duration after which will an idle worker automatically stop.")
+    )]
     idle_timeout: Option<Duration>,
 
     /// Port for client connections (used e.g. for `hq submit`)
@@ -89,8 +93,12 @@ struct ServerStartOpts {
     #[arg(long)]
     journal: Option<PathBuf>,
 
-    #[arg(long, value_parser = parse_human_time, default_value = "30s")]
-    /// Configure how often should be the journal written, default: 30s
+    #[arg(
+        long,
+        value_parser = parse_hms_or_human_time,
+        default_value = "30s",
+        help = duration_doc!("Configure how often should be the journal written.")
+    )]
     journal_flush_period: Duration,
 
     /// Path to access file that is used for configuration of secret keys and ports
