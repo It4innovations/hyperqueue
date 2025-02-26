@@ -1,5 +1,5 @@
 use crate::internal::common::resources::ResourceDescriptor;
-use crate::internal::messages::worker::TaskFinishedMsg;
+use crate::internal::messages::worker::{TaskFinishedMsg, TaskOutput};
 use crate::internal::scheduler::state::SchedulerState;
 use crate::internal::server::core::Core;
 use crate::internal::server::reactor::{
@@ -13,6 +13,7 @@ use crate::internal::worker::configuration::OverviewConfiguration;
 use crate::resources::ResourceMap;
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
 use crate::{TaskId, WorkerId};
+use std::process::Output;
 use std::time::{Duration, Instant};
 
 pub fn create_test_worker_config(
@@ -134,12 +135,24 @@ pub fn finish_on_worker<W: Into<WorkerId>, T: Into<TaskId>>(
     task_id: T,
     worker_id: W,
 ) {
+    finish_on_worker_with_data(core, task_id, worker_id, Vec::new());
+}
+
+pub fn finish_on_worker_with_data<W: Into<WorkerId>, T: Into<TaskId>>(
+    core: &mut Core,
+    task_id: T,
+    worker_id: W,
+    outputs: Vec<TaskOutput>,
+) {
     let mut comm = TestComm::default();
     on_task_finished(
         core,
         &mut comm,
         worker_id.into(),
-        TaskFinishedMsg { id: task_id.into() },
+        TaskFinishedMsg {
+            id: task_id.into(),
+            outputs,
+        },
     );
 }
 
@@ -148,11 +161,20 @@ pub fn start_and_finish_on_worker<W: Into<WorkerId>, T: Into<TaskId>>(
     task_id: T,
     worker_id: W,
 ) {
+    start_and_finish_on_worker_with_data(core, task_id, worker_id, Vec::new());
+}
+
+pub fn start_and_finish_on_worker_with_data<W: Into<WorkerId>, T: Into<TaskId>>(
+    core: &mut Core,
+    task_id: T,
+    worker_id: W,
+    outputs: Vec<TaskOutput>,
+) {
     let task_id = task_id.into();
     let worker_id = worker_id.into();
 
     start_on_worker(core, task_id, worker_id);
-    finish_on_worker(core, task_id, worker_id);
+    finish_on_worker_with_data(core, task_id, worker_id, outputs);
 }
 
 pub(crate) fn create_test_scheduler() -> SchedulerState {

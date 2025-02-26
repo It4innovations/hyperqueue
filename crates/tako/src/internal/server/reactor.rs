@@ -1,3 +1,4 @@
+use crate::datasrv::{DataId, DataObjectId};
 use crate::gateway::LostWorkerReason;
 use crate::internal::common::{Map, Set};
 use crate::internal::messages::common::TaskFailInfo;
@@ -7,11 +8,14 @@ use crate::internal::messages::worker::{
 };
 use crate::internal::server::comm::Comm;
 use crate::internal::server::core::Core;
+use crate::internal::server::dataobj::{DataObjectHandle, RefCount};
 use crate::internal::server::task::{FinishInfo, WaitingInfo};
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::worker::Worker;
 use crate::internal::server::workermap::WorkerMap;
 use crate::{TaskId, WorkerId};
+use hashbrown::HashMap;
+use std::fmt::Write;
 
 pub(crate) fn on_new_worker(core: &mut Core, comm: &mut impl Comm, worker: Worker) {
     comm.broadcast_worker_message(&ToWorkerMessage::NewWorker(NewWorkerMsg {
@@ -149,8 +153,6 @@ pub(crate) fn on_remove_worker(
                 message: format!(
                     "Task was running on a worker that was lost; the task has occurred {count} times in this situation and limit was reached."
                 ),
-                data_type: "".to_string(),
-                error_data: vec![],
             },
         );
     }
@@ -259,10 +261,11 @@ pub(crate) fn on_task_finished(
     worker_id: WorkerId,
     msg: TaskFinishedMsg,
 ) {
+    let task_id = msg.id;
     {
         let (tasks, workers) = core.split_tasks_workers_mut();
         if let Some(task) = tasks.find_task_mut(msg.id) {
-            log::debug!("Task id={} finished on worker={}", task.id, worker_id);
+            log::debug!("Task id={} finished on worker={}", task_id, worker_id);
 
             assert!(task.is_assigned_or_stolen_from(worker_id));
 
@@ -293,34 +296,84 @@ pub(crate) fn on_task_finished(
 
             task.state = TaskRuntimeState::Finished(FinishInfo {});
             comm.ask_for_scheduling();
-            comm.send_client_task_finished(task.id);
+            comm.send_client_task_finished(task_id);
         } else {
-            log::debug!("Unknown task finished id={}", msg.id);
+            log::debug!("Unknown task finished id={}", task_id);
             return;
         }
     }
 
-    // TODO: benchmark vec vs set
-    let consumers: Set<TaskId> = {
+    let consumers: Vec<TaskId> = {
         let task = core.get_task(msg.id);
-        task.get_consumers().clone()
+        task.get_consumers().iter().copied().collect()
     };
+
+    let output_ids_set: Set<DataId> = msg.outputs.iter().map(|o| o.id).collect();
+    let mut missing_inputs: Map<TaskId, Vec<DataId>> = Map::new();
+
+    let mut data_ref_counts: Map<DataId, RefCount> = Map::new();
 
     for consumer in consumers {
         let id = {
             let t = core.get_task_mut(consumer);
+            for obj_id in &t.data_deps {
+                let data_id = obj_id.data_id;
+                if obj_id.task_id == task_id {
+                    if !output_ids_set.contains(&data_id) {
+                        let data_list = missing_inputs.entry(consumer).or_default();
+                        data_list.push(data_id);
+                    } else {
+                        let cs = data_ref_counts.entry(data_id).or_insert(0);
+                        *cs += 1;
+                    }
+                }
+            }
             if t.decrease_unfinished_deps() {
                 t.id
             } else {
                 continue;
             }
         };
-
         core.add_ready_to_assign(id);
         comm.ask_for_scheduling();
     }
+
     unregister_as_consumer(core, comm, msg.id);
     remove_task_if_possible(core, comm, msg.id);
+
+    let mut remove_objects = Vec::new();
+    for data in msg.outputs {
+        let obj_id = DataObjectId::new(task_id, data.id);
+        if let Some(ref_count) = data_ref_counts.get(&data.id) {
+            core.add_data_object(DataObjectHandle::new(
+                obj_id, worker_id, data.size, *ref_count,
+            ));
+        } else {
+            remove_objects.push(obj_id);
+        }
+    }
+
+    if !remove_objects.is_empty() {
+        comm.send_worker_message(
+            worker_id,
+            &ToWorkerMessage::RemoveDataObjects(remove_objects),
+        );
+    }
+
+    for (dep_task_id, missing_data_ids) in missing_inputs {
+        let mut message = format!(
+            "Task {task_id} did not produced expected output(s): {}",
+            missing_data_ids[0]
+        );
+        const LIMIT: usize = 16;
+        for data_id in missing_data_ids.iter().skip(1).take(LIMIT - 1) {
+            write!(&mut message, ", {data_id}").unwrap();
+        }
+        if missing_data_ids.len() > LIMIT {
+            message.write_str(", ...").unwrap();
+        }
+        fail_task_helper(core, comm, None, dep_task_id, TaskFailInfo { message })
+    }
 }
 
 pub(crate) fn on_steal_response(
@@ -548,8 +601,32 @@ pub(crate) fn on_cancel_tasks(
 }
 
 fn unregister_as_consumer(core: &mut Core, comm: &mut impl Comm, task_id: TaskId) {
-    let inputs: Vec<TaskId> = core.get_task(task_id).task_deps.iter().copied().collect();
-    for input_id in inputs {
+    let input_tasks: Vec<TaskId> = {
+        let (tasks, data_objects) = core.split_tasks_data_objects_mut();
+        let task = tasks.get_task(task_id);
+        if !task.data_deps.is_empty() {
+            let mut obj_to_remove: Map<WorkerId, Vec<DataObjectId>> = Map::new();
+            for task_dep in &task.data_deps {
+                if let Some(ref mut data_obj) = data_objects.find_data_object_mut(*task_dep) {
+                    if data_obj.decrease_ref_count() {
+                        log::debug!("DataObjects {task_dep} has not consumers, so it is removed");
+                        for worker_id in data_obj.placement() {
+                            obj_to_remove.entry(worker_id).or_default().push(*task_dep);
+                        }
+                        data_objects.remove_object(*task_dep);
+                    }
+                }
+            }
+            for (worker_id, data_obj_ids) in obj_to_remove {
+                comm.send_worker_message(
+                    worker_id,
+                    &ToWorkerMessage::RemoveDataObjects(data_obj_ids),
+                );
+            }
+        }
+        task.task_deps.iter().copied().collect()
+    };
+    for input_id in input_tasks {
         let input = core.get_task_mut(input_id);
         assert!(input.remove_consumer(task_id));
         remove_task_if_possible(core, comm, input_id);
