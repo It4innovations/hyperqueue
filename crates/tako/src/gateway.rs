@@ -96,6 +96,7 @@ impl ResourceRequestVariants {
 
 bitflags::bitflags! {
     #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+    #[cfg_attr(test, derive(Eq, PartialEq))]
     #[serde(transparent)]
     pub struct TaskDataFlags: u32 {
         const ENABLE_DATA_LAYER = 0b00000001;
@@ -126,6 +127,9 @@ pub struct TaskConfiguration {
 
     pub task_deps: ThinVec<TaskId>,
 
+    /// If this task depends on a data object produced by a task X
+    /// then X has to be also in task_deps, it is a responsibility of the caller
+    /// to maintain the invariant.
     pub dataobj_deps: ThinVec<DataObjectId>,
 
     /// Opaque data that is passed by the gateway user to task launchers.

@@ -44,7 +44,7 @@ impl DataClient {
             None => {
                 return Err(DsError::GenericError(
                     "Unexpected end of stream".to_string(),
-                ))
+                ));
             }
         })
     }

@@ -127,7 +127,7 @@ macro_rules! define_id_type {
         impl ::std::fmt::Display for $name {
             #[inline]
             fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-                self.0.fmt(f)
+                std::fmt::Display::fmt(&self.0, f)
             }
         }
 
