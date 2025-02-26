@@ -1,3 +1,4 @@
+use crate::gateway::TaskDataFlags;
 use crate::internal::common::resources::ResourceRequestVariants;
 use crate::internal::messages::worker::{
     ComputeTaskMsg, NewWorkerMsg, ToWorkerMessage, WorkerResourceCounts,
@@ -78,8 +79,9 @@ fn create_dummy_compute_msg(task_id: TaskId) -> ComputeTaskMsg {
         scheduler_priority: 0,
         resources: Default::default(),
         time_limit: None,
-        n_outputs: 0,
         node_list: vec![],
+        data_deps: vec![],
+        data_flags: TaskDataFlags::empty(),
         body: Default::default(),
     }
 }
