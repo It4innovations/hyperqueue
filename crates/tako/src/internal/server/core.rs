@@ -3,11 +3,14 @@ use std::time::Duration;
 
 use orion::aead::SecretKey;
 
+use crate::datasrv::DataObjectId;
 use crate::gateway::ServerInfo;
 use crate::internal::common::resources::map::{ResourceIdAllocator, ResourceMap};
 use crate::internal::common::resources::{ResourceId, ResourceRequestVariants};
 use crate::internal::common::{Set, WrappedRcRefCell};
 use crate::internal::scheduler::multinode::MultiNodeQueue;
+use crate::internal::server::dataobj::DataObjectHandle;
+use crate::internal::server::dataobjmap::DataObjectMap;
 use crate::internal::server::rpc::ConnectionDescriptor;
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::taskmap::TaskMap;
@@ -24,6 +27,7 @@ pub struct Core {
     tasks: TaskMap,
     workers: WorkerMap,
     worker_groups: Map<String, WorkerGroup>,
+    data_objects: DataObjectMap,
 
     /* Scheduler items */
     parked_resources: Set<WorkerResources>, // Resources of workers that has flag NOTHING_TO_LOAD
@@ -82,6 +86,11 @@ impl Core {
     #[inline]
     pub fn split_tasks_workers_mut(&mut self) -> (&mut TaskMap, &mut WorkerMap) {
         (&mut self.tasks, &mut self.workers)
+    }
+
+    #[inline]
+    pub fn split_tasks_data_objects_mut(&mut self) -> (&mut TaskMap, &mut DataObjectMap) {
+        (&mut self.tasks, &mut self.data_objects)
     }
 
     pub fn new_worker_id(&mut self) -> WorkerId {
@@ -267,6 +276,15 @@ impl Core {
         !self.workers.is_empty()
     }
 
+    pub(crate) fn add_data_object(&mut self, data_obj: DataObjectHandle) {
+        self.data_objects.insert(data_obj);
+    }
+
+    #[inline(always)]
+    pub fn data_objects(&self) -> &DataObjectMap {
+        &self.data_objects
+    }
+
     pub fn add_task(&mut self, task: Task) {
         let is_ready = task.is_ready();
         let task_id = task.id;
@@ -406,6 +424,10 @@ impl Core {
                 assert!(self.parked_resources.contains(&worker.resources));
             }
             worker.sanity_check(&self.tasks);
+        }
+
+        for data in self.data_objects.iter() {
+            assert!(data.ref_count() > 0);
         }
 
         for task_id in self.tasks.task_ids() {

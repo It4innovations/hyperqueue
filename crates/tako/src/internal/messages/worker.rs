@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-use crate::datasrv::DataObjectId;
+use crate::datasrv::{DataId, DataObjectId};
 use crate::gateway::TaskDataFlags;
 use crate::hwstats::WorkerHwStateMessage;
 use crate::internal::common::resources::{ResourceAmount, ResourceIndex};
@@ -76,12 +76,20 @@ pub enum ToWorkerMessage {
     /// if it is **disabled** on the worker.
     /// If the worker has already enabled overview interval, then this does nothing.
     SetOverviewIntervalOverride(Option<Duration>),
+    RemoveDataObjects(Vec<DataObjectId>),
     Stop,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct TaskOutput {
+    pub id: DataId,
+    pub size: usize,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TaskFinishedMsg {
     pub id: TaskId,
+    pub outputs: Vec<TaskOutput>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -143,7 +151,6 @@ pub enum WorkerStopReason {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-//#[serde(tag = "op")]
 pub enum FromWorkerMessage {
     TaskFinished(TaskFinishedMsg),
     TaskFailed(TaskFailedMsg),
@@ -152,4 +159,5 @@ pub enum FromWorkerMessage {
     Overview(WorkerOverview),
     Heartbeat,
     Stop(WorkerStopReason),
+    PlacementQuery(DataObjectId),
 }
