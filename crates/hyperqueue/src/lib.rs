@@ -47,8 +47,8 @@ pub const DEFAULT_WORKER_GROUP_NAME: &str = "default";
 
 // Reexports
 pub use tako;
-use tako::datasrv::{DataId, DataObjectId};
 pub use tako::WrappedRcRefCell;
+use tako::datasrv::{DataId, DataObjectId};
 
 pub const HQ_VERSION: &str = {
     match option_env!("HQ_BUILD_VERSION") {

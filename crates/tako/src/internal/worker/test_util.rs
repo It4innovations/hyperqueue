@@ -1,3 +1,5 @@
+use crate::datasrv::DataObjectId;
+use crate::gateway::TaskDataFlags;
 use crate::internal::common::Map;
 use crate::internal::common::resources::{Allocation, ResourceRequest, ResourceRequestVariants};
 use crate::internal::messages::worker::ComputeTaskMsg;
@@ -5,7 +7,7 @@ use crate::internal::server::workerload::WorkerResources;
 use crate::internal::tests::utils::resources::cpus_compact;
 use crate::internal::worker::rqueue::ResourceWaitQueue;
 use crate::internal::worker::state::TaskMap;
-use crate::internal::worker::task::Task;
+use crate::internal::worker::task::{Task, TaskState};
 use crate::{InstanceId, Priority, TaskId, WorkerId};
 use smallvec::smallvec;
 use std::rc::Rc;
@@ -17,6 +19,9 @@ pub struct WorkerTaskBuilder {
     resources: Vec<ResourceRequest>,
     user_priority: Priority,
     server_priority: Priority,
+    data_deps: Vec<DataObjectId>,
+    data_flags: TaskDataFlags,
+    task_state: TaskState,
 }
 
 impl WorkerTaskBuilder {
@@ -27,6 +32,9 @@ impl WorkerTaskBuilder {
             resources: Vec::new(),
             user_priority: 0,
             server_priority: 0,
+            data_deps: Vec::new(),
+            data_flags: TaskDataFlags::empty(),
+            task_state: TaskState::Waiting(0),
         }
     }
     pub fn resources(mut self, resources: ResourceRequest) -> Self {
@@ -51,17 +59,21 @@ impl WorkerTaskBuilder {
             self.resources.into()
         });
 
-        Task::new(ComputeTaskMsg {
-            id: self.task_id,
-            instance_id: self.instance_id,
-            user_priority: self.user_priority,
-            scheduler_priority: self.server_priority,
-            resources,
-            time_limit: None,
-            n_outputs: 0,
-            node_list: vec![],
-            body: Default::default(),
-        })
+        Task::new(
+            ComputeTaskMsg {
+                id: self.task_id,
+                instance_id: self.instance_id,
+                user_priority: self.user_priority,
+                scheduler_priority: self.server_priority,
+                resources,
+                time_limit: None,
+                node_list: vec![],
+                data_deps: self.data_deps,
+                data_flags: self.data_flags,
+                body: Default::default(),
+            },
+            self.task_state,
+        )
     }
 }
 

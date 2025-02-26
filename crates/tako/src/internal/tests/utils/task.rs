@@ -1,25 +1,26 @@
 use super::resources::ResBuilder;
 use crate::datasrv::{DataId, DataObjectId};
+use crate::gateway::TaskDataFlags;
 use crate::internal::common::resources::{
     NumOfNodes, ResourceAmount, ResourceId, ResourceRequestVariants,
 };
 use crate::internal::messages::worker::TaskRunningMsg;
 use crate::internal::server::task::{Task, TaskConfiguration};
 use crate::resources::ResourceRequest;
-use crate::{Priority, TaskId};
+use crate::{Priority, Set, TaskId};
 use smallvec::SmallVec;
 use std::rc::Rc;
 use thin_vec::ThinVec;
 
 pub struct TaskBuilder {
     id: TaskId,
-    task_deps: ThinVec<TaskId>,
+    task_deps: Set<TaskId>,
     data_deps: ThinVec<DataObjectId>,
-    n_outputs: u32,
     finished_resources: Vec<ResourceRequest>,
     resources_builder: ResBuilder,
     user_priority: Priority,
     crash_limit: u32,
+    data_flags: TaskDataFlags,
 }
 
 impl TaskBuilder {
@@ -28,11 +29,11 @@ impl TaskBuilder {
             id: id.into(),
             task_deps: Default::default(),
             data_deps: Default::default(),
-            n_outputs: 0,
             finished_resources: vec![],
             resources_builder: Default::default(),
             user_priority: 0,
             crash_limit: 5,
+            data_flags: TaskDataFlags::empty(),
         }
     }
 
@@ -52,12 +53,8 @@ impl TaskBuilder {
     }
 
     pub fn data_dep(mut self, task: &Task, data_id: DataId) -> TaskBuilder {
+        self.task_deps.insert(task.id);
         self.data_deps.push(DataObjectId::new(task.id, data_id));
-        self
-    }
-
-    pub fn outputs(mut self, value: u32) -> TaskBuilder {
-        self.n_outputs = value;
         self
     }
 
@@ -107,14 +104,14 @@ impl TaskBuilder {
         let resources = ResourceRequestVariants::new(resources);
         Task::new(
             self.id,
-            self.task_deps,
+            self.task_deps.into_iter().collect(),
             self.data_deps,
             Rc::new(TaskConfiguration {
                 resources,
-                n_outputs: self.n_outputs,
                 time_limit: None,
                 user_priority: self.user_priority,
                 crash_limit: self.crash_limit,
+                data_flags: self.data_flags,
             }),
             Default::default(),
         )
@@ -122,14 +119,11 @@ impl TaskBuilder {
 }
 
 pub fn task<T: Into<TaskId>>(id: T) -> Task {
-    TaskBuilder::new(id.into()).outputs(1).build()
+    TaskBuilder::new(id.into()).build()
 }
 
-pub fn task_with_deps<T: Into<TaskId>>(id: T, deps: &[&Task], n_outputs: u32) -> Task {
-    TaskBuilder::new(id.into())
-        .simple_deps(deps)
-        .outputs(n_outputs)
-        .build()
+pub fn task_with_deps<T: Into<TaskId>>(id: T, deps: &[&Task]) -> Task {
+    TaskBuilder::new(id.into()).simple_deps(deps).build()
 }
 
 pub fn task_running_msg<T: Into<TaskId>>(task_id: T) -> TaskRunningMsg {
