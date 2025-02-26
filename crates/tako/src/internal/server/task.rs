@@ -351,10 +351,10 @@ mod tests {
     fn task_recursive_consumers() {
         let mut core = Core::default();
         let a = task::task(0);
-        let b = task_with_deps(1, &[&a], 1);
-        let c = task_with_deps(2, &[&b], 1);
-        let d = task_with_deps(3, &[&b], 1);
-        let e = task_with_deps(4, &[&c, &d], 1);
+        let b = task_with_deps(1, &[&a]);
+        let c = task_with_deps(2, &[&b]);
+        let d = task_with_deps(3, &[&b]);
+        let e = task_with_deps(4, &[&c, &d]);
 
         let expected_ids = vec![b.id, c.id, d.id, e.id];
         submit_test_tasks(&mut core, vec![a, b, c, d, e]);

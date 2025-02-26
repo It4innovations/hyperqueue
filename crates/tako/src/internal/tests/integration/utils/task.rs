@@ -10,7 +10,7 @@ use thin_vec::ThinVec;
 use crate::TaskId;
 use crate::gateway::{
     ResourceRequest, ResourceRequestEntry, ResourceRequestVariants, SharedTaskConfiguration,
-    TaskConfiguration,
+    TaskConfiguration, TaskDataFlags,
 };
 use crate::internal::common::Map;
 use crate::internal::common::resources::NumOfNodes;
@@ -112,10 +112,10 @@ pub fn build_task_def_from_config(
                 min_time,
             }],
         },
-        n_outputs: 0,
         time_limit,
         priority: 0,
         crash_limit: 5,
+        data_flags: TaskDataFlags::empty(),
     };
     (
         TaskConfiguration {
