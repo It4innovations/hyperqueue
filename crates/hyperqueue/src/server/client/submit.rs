@@ -4,12 +4,12 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use bstr::BString;
+use tako::Map;
+use tako::Set;
 use tako::gateway::{
     FromGatewayMessage, NewTasksMessage, ResourceRequestVariants, SharedTaskConfiguration,
     TaskConfiguration, TaskDataFlags, ToGatewayMessage,
 };
-use tako::Map;
-use tako::Set;
 use thin_vec::ThinVec;
 
 use crate::common::arraydef::IntArray;

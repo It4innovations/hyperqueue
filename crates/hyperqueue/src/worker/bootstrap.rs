@@ -3,15 +3,15 @@ use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use signal_hook::consts::{SIGINT, SIGTERM, SIGTSTP};
 use signal_hook::iterator::Signals;
 use tako::Error as DsError;
 use tokio::net::lookup_host;
 use tokio::sync::Notify;
 
-use tako::worker::{run_worker, WorkerConfiguration};
 use tako::WorkerId;
+use tako::worker::{WorkerConfiguration, run_worker};
 
 use crate::common::manager::info::{ManagerInfo, ManagerType};
 use crate::common::manager::{pbs, slurm};
