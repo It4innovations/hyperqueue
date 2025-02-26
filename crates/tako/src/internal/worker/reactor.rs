@@ -1,3 +1,4 @@
+use crate::TaskId;
 use crate::gateway::TaskDataFlags;
 use crate::internal::common::resources::Allocation;
 use crate::internal::messages::common::TaskFailInfo;
@@ -6,7 +7,6 @@ use crate::internal::worker::localcomm::{Registration, Token};
 use crate::internal::worker::state::{WorkerState, WorkerStateRef};
 use crate::internal::worker::task_comm::RunningTaskComm;
 use crate::launcher::{TaskBuildContext, TaskFuture, TaskLaunchData, TaskResult};
-use crate::TaskId;
 use bstr::{BString, ByteSlice};
 use futures::future::Either;
 use std::rc::Rc;
