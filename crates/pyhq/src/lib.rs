@@ -5,7 +5,7 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use pyo3::types::PyModule;
-use pyo3::{FromPyObject, PyAny, pyclass, pyfunction, pymethods, pymodule};
+use pyo3::{Bound, FromPyObject, PyAny, pyclass, pyfunction, pymethods, pymodule};
 use pyo3::{Py, PyResult, Python, wrap_pyfunction};
 use std::path::PathBuf;
 use tokio::runtime::Builder;
@@ -70,7 +70,7 @@ fn wait_for_jobs(
     py: Python,
     ctx: ClientContextPtr,
     job_ids: Vec<PyJobId>,
-    progress_callback: &PyAny,
+    progress_callback: &Bound<'_, PyAny>,
 ) -> PyResult<Vec<PyJobId>> {
     wait_for_jobs_impl(py, ctx, job_ids, progress_callback)
 }
@@ -116,11 +116,11 @@ fn cluster_start(_py: Python, path: Option<String>) -> PyResult<HqClusterContext
 }
 
 #[pymodule]
-fn hyperqueue(_py: Python, m: &PyModule) -> PyResult<()> {
+fn hyperqueue(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Use a single-threaded Tokio runtime for all Rust async operations
     let mut builder = Builder::new_current_thread();
     builder.enable_all();
-    pyo3_asyncio::tokio::init(builder);
+    pyo3_async_runtimes::tokio::init(builder);
 
     // Common
     m.add_function(wrap_pyfunction!(get_hq_version, m)?)?;

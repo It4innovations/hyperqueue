@@ -9,7 +9,12 @@ pub(crate) trait ToPyError {
 impl ToPyError for HqError {
     fn to_py(self) -> PyErr {
         Python::with_gil(|py| {
-            PyErr::from_value(PyException::new_err(format!("{self:?}")).value(py))
+            PyErr::from_value_bound(
+                PyException::new_err(format!("{self:?}"))
+                    .value_bound(py)
+                    .clone()
+                    .into_any(),
+            )
         })
     }
 }

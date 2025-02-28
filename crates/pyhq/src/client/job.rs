@@ -1,3 +1,6 @@
+use crate::marshal::{FromPy, WrappedDuration};
+use crate::utils::error::ToPyResult;
+use crate::{ClientContextPtr, FromPyObject, PyJobId, PyTaskId, borrow_mut, run_future};
 use hyperqueue::client::commands::submit::command::{
     DEFAULT_CRASH_LIMIT, DEFAULT_STDERR_PATH, DEFAULT_STDOUT_PATH,
 };
@@ -16,18 +19,15 @@ use hyperqueue::transfer::messages::{
 };
 use hyperqueue::{JobTaskCount, Set, rpc_call, tako};
 use pyo3::exceptions::PyException;
+use pyo3::prelude::PyAnyMethods;
 use pyo3::types::PyTuple;
-use pyo3::{IntoPy, PyAny, PyResult, Python};
+use pyo3::{Bound, IntoPy, PyAny, PyResult, Python};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tako::gateway::{ResourceRequestEntries, ResourceRequestEntry, ResourceRequestVariants};
 use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
 use tako::resources::{AllocationRequest, NumOfNodes, ResourceAmount};
-
-use crate::marshal::{FromPy, WrappedDuration};
-use crate::utils::error::ToPyResult;
-use crate::{ClientContextPtr, FromPyObject, PyJobId, PyTaskId, borrow_mut, run_future};
 
 #[derive(Debug, FromPyObject)]
 enum AllocationValue {
@@ -247,7 +247,7 @@ pub fn wait_for_jobs_impl(
     py: Python,
     ctx: ClientContextPtr,
     job_ids: Vec<PyJobId>,
-    callback: &PyAny,
+    callback: &Bound<'_, PyAny>,
 ) -> PyResult<Vec<PyJobId>> {
     run_future(async move {
         let mut remaining_job_ids: Set<PyJobId> = job_ids.iter().copied().collect();
@@ -289,7 +289,7 @@ pub fn wait_for_jobs_impl(
                     (job.id.into(), status)
                 })
                 .collect();
-            let args = PyTuple::new(py, &[status.into_py(py)]);
+            let args = PyTuple::new_bound(py, &[status.into_py(py)]);
             callback.call1(args)?;
 
             if remaining_job_ids.is_empty() {
