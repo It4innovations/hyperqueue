@@ -694,17 +694,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dict_derive"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8412843e5f647d71346cdfd2bfb7351d6a2b8fbf65185ac47d19baa8bc0737e5"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
 name = "dirs"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1589,7 +1578,6 @@ name = "pyhq"
 version = "0.21.0"
 dependencies = [
  "anyhow",
- "dict_derive",
  "hyperqueue",
  "log",
  "pyo3",

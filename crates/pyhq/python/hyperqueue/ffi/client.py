@@ -39,15 +39,9 @@ class ClientConnection:
 
     def get_failed_tasks(self, job_ids: Sequence[JobId]) -> TaskFailureMap:
         jobs = ffi.get_failed_tasks(self.ctx, job_ids)
-        # TODO: use a class directly, keep in dicts or use TypedDict
         return {
             job_id: {
-                task_id: FailedTaskContext(
-                    error=data["error"],
-                    cwd=data["cwd"],
-                    stdout=data["stdout"],
-                    stderr=data["stderr"],
-                )
+                task_id: FailedTaskContext(**data)
                 for (task_id, data) in task_data.items()
             }
             for (job_id, task_data) in jobs.items()

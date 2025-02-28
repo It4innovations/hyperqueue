@@ -21,7 +21,7 @@ use hyperqueue::{JobTaskCount, Set, rpc_call, tako};
 use pyo3::exceptions::PyException;
 use pyo3::prelude::PyAnyMethods;
 use pyo3::types::PyTuple;
-use pyo3::{Bound, IntoPy, PyAny, PyResult, Python};
+use pyo3::{Bound, IntoPyObject, PyAny, PyResult, Python};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -233,7 +233,7 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<H
     })
 }
 
-#[derive(dict_derive::IntoPyObject)]
+#[derive(IntoPyObject)]
 pub struct JobWaitStatus {
     finished: u64,
     failed: u64,
@@ -289,7 +289,7 @@ pub fn wait_for_jobs_impl(
                     (job.id.into(), status)
                 })
                 .collect();
-            let args = PyTuple::new_bound(py, &[status.into_py(py)]);
+            let args = PyTuple::new(py, &[status.into_pyobject(py)?])?;
             callback.call1(args)?;
 
             if remaining_job_ids.is_empty() {
@@ -309,7 +309,7 @@ pub fn wait_for_jobs_impl(
     })
 }
 
-#[derive(dict_derive::IntoPyObject)]
+#[derive(IntoPyObject)]
 pub struct FailedTaskContext {
     stdout: Option<String>,
     stderr: Option<String>,
