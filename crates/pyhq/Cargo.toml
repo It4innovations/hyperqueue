@@ -26,9 +26,9 @@ anyhow = { workspace = true }
 log = { workspace = true }
 tempfile = { workspace = true }
 
-pyo3 = { version = "0.18.0", features = ["extension-module", "abi3", "abi3-py39", "anyhow", "serde"] }
-pyo3-asyncio = { version = "0.18.0", features = ["tokio-runtime", "attributes"] }
-pythonize = "0.18.0"
+pyo3 = { version = "0.19", features = ["extension-module", "abi3", "abi3-py39", "anyhow", "serde"] }
+pyo3-asyncio = { version = "0.19", features = ["tokio-runtime", "attributes"] }
+pythonize = "0.19"
 dict_derive = "0.6.0"
 termcolor = "1.1"
 
