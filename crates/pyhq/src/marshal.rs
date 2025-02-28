@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use pyo3::types::{PyFloat, PyInt};
 use pyo3::{Bound, FromPyObject, PyAny, PyResult};
-use pythonize::depythonize_bound;
+use pythonize::depythonize;
 use serde::de::DeserializeOwned;
 
 /// Wrapper type that implements deserialization from Python type using `serde::DeserializeOwned`.
@@ -37,8 +37,6 @@ where
     T: DeserializeOwned,
 {
     fn extract_bound(obj: &Bound<'source, PyAny>) -> PyResult<Self> {
-        depythonize_bound(obj.clone())
-            .map(|v| FromPy(v))
-            .map_err(|e| e.into())
+        depythonize(obj).map(|v| FromPy(v)).map_err(|e| e.into())
     }
 }

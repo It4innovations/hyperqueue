@@ -4,14 +4,14 @@
 // Temporarily allow this lint before we update pyo3.
 #![allow(unsafe_op_in_unsafe_fn)]
 
+use ::hyperqueue::HQ_VERSION;
+use ::hyperqueue::transfer::connection::ClientSession;
 use pyo3::types::PyModule;
+use pyo3::types::PyModuleMethods;
 use pyo3::{Bound, FromPyObject, PyAny, pyclass, pyfunction, pymethods, pymodule};
 use pyo3::{Py, PyResult, Python, wrap_pyfunction};
 use std::path::PathBuf;
 use tokio::runtime::Builder;
-
-use ::hyperqueue::HQ_VERSION;
-use ::hyperqueue::transfer::connection::ClientSession;
 
 use crate::client::job::{FailedTaskMap, forget_job_impl};
 use crate::cluster::Cluster;
@@ -43,6 +43,7 @@ fn get_hq_version() -> String {
 }
 
 #[pyfunction]
+#[pyo3(signature = (directory))]
 fn connect_to_server(py: Python, directory: Option<String>) -> PyResult<ClientContextPtr> {
     connect_to_server_impl(py, directory)
 }
@@ -109,6 +110,7 @@ impl HqClusterContext {
 }
 
 #[pyfunction]
+#[pyo3(signature = (path))]
 fn cluster_start(_py: Python, path: Option<String>) -> PyResult<HqClusterContext> {
     let path: Option<PathBuf> = path.map(|p| p.into());
     let cluster = Cluster::start(path)?;
