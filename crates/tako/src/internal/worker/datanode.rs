@@ -4,6 +4,7 @@ use crate::internal::datasrv::dataobj::{DataObjectId, InputMap};
 use crate::internal::datasrv::messages::{
     DataObject, FromDataNodeLocalMessage, ToDataNodeLocalMessage,
 };
+use crate::internal::messages::worker::TaskOutput;
 use crate::internal::worker::localcomm::make_protocol_builder;
 use crate::internal::worker::state::{WorkerState, WorkerStateRef};
 use crate::{Map, Priority, PriorityTuple, Set, TaskId, WorkerId, WrappedRcRefCell};
@@ -97,11 +98,23 @@ async fn datanode_message_handler(
             data_id,
             data_object,
         } => {
-            state_ref
-                .get_mut()
-                .data_node
-                .put_object(DataObjectId::new(task_id, data_id), Rc::new(data_object))?;
-            send_message(tx, FromDataNodeLocalMessage::Uploaded(data_id)).await?;
+            let message = {
+                let mut state = state_ref.get_mut();
+                let (tasks, data_node) = state.tasks_and_datanode();
+                if let Some(task) = tasks.find_mut(&task_id) {
+                    let size = data_object.data.len();
+                    // Put into datanode has to be before "add_output", because it checks
+                    // that the output is not already there
+                    data_node
+                        .put_object(DataObjectId::new(task_id, data_id), Rc::new(data_object))?;
+                    task.add_output(TaskOutput { data_id, size });
+                    FromDataNodeLocalMessage::Uploaded(data_id)
+                } else {
+                    log::debug!("Task {} not found", task_id);
+                    FromDataNodeLocalMessage::Error(format!("Task {task_id} is no longer active"))
+                }
+            };
+            send_message(tx, message).await?;
         }
         ToDataNodeLocalMessage::GetInput { input_id } => {
             if let Some(data_id) = input_map

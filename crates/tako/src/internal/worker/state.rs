@@ -18,7 +18,7 @@ use crate::internal::common::stablemap::StableMap;
 use crate::internal::common::{Map, Set, WrappedRcRefCell};
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{
-    FromWorkerMessage, NewWorkerMsg, StealResponse, TaskFailedMsg, TaskFinishedMsg,
+    FromWorkerMessage, NewWorkerMsg, StealResponse, TaskFailedMsg, TaskFinishedMsg, TaskOutput,
 };
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::comm::WorkerComm;
@@ -83,6 +83,10 @@ impl WorkerState {
         self.tasks.find(&task_id)
     }
 
+    pub fn tasks_and_datanode(&mut self) -> (&mut TaskMap, &mut DataNode) {
+        (&mut self.tasks, &mut self.data_node)
+    }
+
     #[inline]
     pub fn get_task_mut(&mut self, task_id: TaskId) -> &mut Task {
         self.tasks.get_mut(&task_id)
@@ -145,8 +149,8 @@ impl WorkerState {
         task_id: TaskId,
         just_finished: bool,
         keep_outputs: bool,
-    ) -> Vec<DataId> {
-        let output_ids = match self.tasks.remove(&task_id).unwrap().state {
+    ) -> Vec<TaskOutput> {
+        let outputs = match self.tasks.remove(&task_id).unwrap().state {
             TaskState::Waiting(x) => {
                 log::debug!("Removing waiting task id={}", task_id);
                 assert!(!just_finished);
@@ -176,7 +180,7 @@ impl WorkerState {
             self.comm.notify_worker_is_empty();
         }
         self.reset_idle_timer();
-        output_ids
+        outputs
     }
 
     pub fn get_worker_address(&self, worker_id: WorkerId) -> Option<&String> {

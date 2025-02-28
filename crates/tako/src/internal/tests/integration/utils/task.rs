@@ -7,15 +7,15 @@ use derive_builder::Builder;
 use smallvec::smallvec;
 use thin_vec::ThinVec;
 
-use crate::TaskId;
 use crate::gateway::{
     ResourceRequest, ResourceRequestEntry, ResourceRequestVariants, SharedTaskConfiguration,
-    TaskConfiguration,
+    TaskConfiguration, TaskDataFlags,
 };
-use crate::internal::common::Map;
 use crate::internal::common::resources::NumOfNodes;
+use crate::internal::common::Map;
 use crate::program::{ProgramDefinition, StdioDef};
 use crate::resources::{AllocationRequest, ResourceAmount};
+use crate::TaskId;
 
 pub struct GraphBuilder {
     id_counter: u64,
@@ -111,10 +111,10 @@ pub fn build_task_def_from_config(
                 min_time,
             }],
         },
-        n_outputs: 0,
         time_limit,
         priority: 0,
         crash_limit: 5,
+        data_flags: TaskDataFlags::empty(),
     };
     (
         TaskConfiguration {

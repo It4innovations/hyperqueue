@@ -74,9 +74,15 @@ pub enum ToWorkerMessage {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
+pub struct TaskOutput {
+    pub data_id: DataId,
+    pub size: usize,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
 pub struct TaskFinishedMsg {
     pub id: TaskId,
-    pub output_ids: Vec<DataId>,
+    pub output_ids: Vec<TaskOutput>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]

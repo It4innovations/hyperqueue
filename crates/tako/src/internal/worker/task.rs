@@ -3,7 +3,7 @@ use crate::gateway::TaskDataFlags;
 use crate::internal::common::resources::Allocation;
 use crate::internal::common::stablemap::ExtractKey;
 use crate::internal::datasrv::messages::DataObject;
-use crate::internal::messages::worker::ComputeTaskMsg;
+use crate::internal::messages::worker::{ComputeTaskMsg, TaskOutput};
 use crate::internal::worker::state::WorkerState;
 use crate::internal::worker::task_comm::RunningTaskComm;
 use crate::{InstanceId, Map, Priority, TaskId, WorkerId};
@@ -13,7 +13,7 @@ use std::time::Duration;
 pub(crate) struct RunningState {
     pub comm: RunningTaskComm,
     pub allocation: Rc<Allocation>,
-    pub outputs: Vec<DataId>,
+    pub outputs: Vec<TaskOutput>,
 }
 
 pub enum TaskState {
@@ -110,6 +110,15 @@ impl Task {
 
     pub fn need_data_layer(&self) -> bool {
         self.data_flags.contains(TaskDataFlags::ENABLE_DATA_LAYER)
+    }
+
+    pub fn add_output(&mut self, task_output: TaskOutput) {
+        match &mut self.state {
+            TaskState::Waiting(_) => {
+                panic!("Task is not in valid state");
+            }
+            TaskState::Running(s) => s.outputs.push(task_output),
+        }
     }
 }
 

@@ -24,7 +24,7 @@ use crate::internal::tests::utils::schedule::{
 };
 use crate::internal::tests::utils::shared::{res_kind_groups, res_kind_sum};
 use crate::internal::tests::utils::sorted_vec;
-use crate::internal::tests::utils::task::{TaskBuilder, task, task_running_msg, task_with_deps};
+use crate::internal::tests::utils::task::{task, task_running_msg, task_with_deps, TaskBuilder};
 use crate::internal::tests::utils::workflows::{submit_example_1, submit_example_3};
 use crate::internal::tests::utils::{env, schedule};
 use crate::internal::worker::configuration::OverviewConfiguration;
@@ -142,7 +142,7 @@ fn test_submit_jobs() {
     //new_workers(&mut core, &mut comm, vec![1]);
 
     let t1 = task(501);
-    let t2 = task_with_deps(502, &[&t1], 1);
+    let t2 = task_with_deps(502, &[&t1]);
     on_new_tasks(&mut core, &mut comm, vec![t2, t1]);
 
     comm.check_need_scheduling();
@@ -156,9 +156,9 @@ fn test_submit_jobs() {
     check_task_consumers_exact(t1, &[t2]);
 
     let t3 = task(604);
-    let t4 = task_with_deps(602, &[t1, &t3], 1);
-    let t5 = task_with_deps(603, &[&t3], 1);
-    let t6 = task_with_deps(601, &[&t3, &t4, &t5, t2], 1);
+    let t4 = task_with_deps(602, &[t1, &t3]);
+    let t5 = task_with_deps(603, &[&t3]);
+    let t6 = task_with_deps(601, &[&t3, &t4, &t5, t2]);
 
     on_new_tasks(&mut core, &mut comm, vec![t6, t3, t4, t5]);
     comm.check_need_scheduling();
@@ -180,6 +180,13 @@ fn test_submit_jobs() {
     assert_eq!(t6.get_unfinished_deps(), 4);
 }
 
+fn no_data_task_finished(task_id: u64) -> TaskFinishedMsg {
+    TaskFinishedMsg {
+        id: task_id.into(),
+        output_ids: vec![],
+    }
+}
+
 #[test]
 fn test_assignments_and_finish() {
     let mut core = Core::default();
@@ -191,12 +198,12 @@ fn test_assignments_and_finish() {
           t3[k]   t7[k]
     */
 
-    let t1 = TaskBuilder::new(11).user_priority(12).outputs(1).build();
+    let t1 = TaskBuilder::new(11).user_priority(12).build();
     let t2 = task(12);
-    let t3 = task_with_deps(13, &[&t1, &t2], 1);
+    let t3 = task_with_deps(13, &[&t1, &t2]);
     let t4 = task(14);
     let t5 = task(15);
-    let t7 = task_with_deps(17, &[&t4], 1);
+    let t7 = task_with_deps(17, &[&t4]);
 
     let (id1, id2, id3, id5, id7) = (t1.id, t2.id, t3.id, t5.id, t7.id);
 
@@ -250,12 +257,7 @@ fn test_assignments_and_finish() {
     assert!(core.get_task(15.into()).is_assigned());
 
     // FINISH TASK WITHOUT CONSUMERS & KEEP FLAG
-    on_task_finished(
-        &mut core,
-        &mut comm,
-        100.into(),
-        TaskFinishedMsg { id: 15.into() },
-    );
+    on_task_finished(&mut core, &mut comm, 100.into(), no_data_task_finished(15));
 
     assert!(core.find_task(15.into()).is_none());
     check_worker_tasks_exact(&core, 100, &[id1]);
@@ -271,12 +273,7 @@ fn test_assignments_and_finish() {
     // FINISHED TASK WITH CONSUMERS
     assert!(core.get_task(12.into()).is_assigned());
 
-    on_task_finished(
-        &mut core,
-        &mut comm,
-        101.into(),
-        TaskFinishedMsg { id: 12.into() },
-    );
+    on_task_finished(&mut core, &mut comm, 101.into(), no_data_task_finished(12));
 
     assert!(core.get_task(12.into()).is_finished());
     check_worker_tasks_exact(&core, 100, &[id1]);
@@ -289,12 +286,7 @@ fn test_assignments_and_finish() {
 
     assert!(core.find_task(12.into()).is_some());
 
-    on_task_finished(
-        &mut core,
-        &mut comm,
-        100.into(),
-        TaskFinishedMsg { id: 11.into() },
-    );
+    on_task_finished(&mut core, &mut comm, 100.into(), no_data_task_finished(11));
 
     comm.check_need_scheduling();
 
@@ -311,12 +303,7 @@ fn test_assignments_and_finish() {
     comm.emptiness_check();
     core.sanity_check();
 
-    on_task_finished(
-        &mut core,
-        &mut comm,
-        101.into(),
-        TaskFinishedMsg { id: 13.into() },
-    );
+    on_task_finished(&mut core, &mut comm, 101.into(), no_data_task_finished(13));
 
     comm.check_need_scheduling();
 
@@ -348,8 +335,6 @@ fn test_running_task_on_error() {
         13.into(),
         TaskFailInfo {
             message: "".to_string(),
-            data_type: "".to_string(),
-            error_data: vec![],
         },
     );
     assert!(!worker_has_task(&core, 102, 13));
@@ -471,17 +456,12 @@ fn finish_unassigned_task() {
 fn finish_task_without_outputs() {
     let mut core = Core::default();
     create_test_workers(&mut core, &[1]);
-    let t1 = task_with_deps(1, &[], 0);
+    let t1 = task_with_deps(1, &[]);
     submit_test_tasks(&mut core, vec![t1]);
     start_on_worker(&mut core, 1, 100);
 
     let mut comm = create_test_comm();
-    on_task_finished(
-        &mut core,
-        &mut comm,
-        100.into(),
-        TaskFinishedMsg { id: 1.into() },
-    );
+    on_task_finished(&mut core, &mut comm, 100.into(), no_data_task_finished(1));
     comm.check_need_scheduling();
     assert_eq!(comm.take_client_task_finished(1)[0], TaskId::new(1));
     comm.emptiness_check();
@@ -670,8 +650,6 @@ fn test_task_mn_fail() {
         1.into(),
         TaskFailInfo {
             message: "".to_string(),
-            data_type: "".to_string(),
-            error_data: vec![],
         },
     );
     core.sanity_check();
@@ -680,12 +658,11 @@ fn test_task_mn_fail() {
     comm.emptiness_check();
     assert!(core.find_task(1.into()).is_none());
     for w in &[100, 101, 102, 103] {
-        assert!(
-            core.get_worker_map()
-                .get_worker((*w).into())
-                .mn_task()
-                .is_none()
-        );
+        assert!(core
+            .get_worker_map()
+            .get_worker((*w).into())
+            .mn_task()
+            .is_none());
     }
 }
 
@@ -799,12 +776,7 @@ fn test_finished_before_steal_response() {
     assert!(worker_has_task(&core, 102, 1));
 
     let mut comm = create_test_comm();
-    on_task_finished(
-        &mut core,
-        &mut comm,
-        101.into(),
-        TaskFinishedMsg { id: 1.into() },
-    );
+    on_task_finished(&mut core, &mut comm, 101.into(), no_data_task_finished(1));
 
     comm.check_need_scheduling();
     assert_eq!(comm.take_client_task_finished(1)[0], TaskId::new(1));
@@ -887,12 +859,7 @@ fn test_after_cancel_messages() {
     cancel_tasks(&mut core, &[1, 2, 3, 4]);
 
     let mut comm = create_test_comm();
-    on_task_finished(
-        &mut core,
-        &mut comm,
-        101.into(),
-        TaskFinishedMsg { id: 1.into() },
-    );
+    on_task_finished(&mut core, &mut comm, 101.into(), no_data_task_finished(1));
     comm.emptiness_check();
 
     on_steal_response(
@@ -922,8 +889,6 @@ fn test_after_cancel_messages() {
         3.into(),
         TaskFailInfo {
             message: "".to_string(),
-            data_type: "".to_string(),
-            error_data: vec![],
         },
     );
     comm.emptiness_check();
@@ -1127,13 +1092,29 @@ fn test_worker_groups() {
 }
 
 #[test]
-fn test_data_deps() {
-    todo!(); // This should fail, because of impplied task deps are not implemented, bit it does not fail?!?
+fn test_data_deps_no_output() {
+    let mut core = Core::default();
+    create_test_workers(&mut core, &[4]);
+    let t1 = TaskBuilder::new(1).build();
+    let t2 = TaskBuilder::new(2).data_dep(&t1, 11.into()).build();
+    submit_test_tasks(&mut core, vec![t1, t2]);
+    start_and_finish_on_worker(&mut core, 1, 100);
+
+    core.sanity_check();
+    todo!() // THIS SHOULD FAIL
+}
+
+#[test]
+fn test_data_deps_basic() {
     let mut core = Core::default();
     let t1 = TaskBuilder::new(1).build();
     let t2 = TaskBuilder::new(2).data_dep(&t1, 0.into()).build();
-    let t3 = TaskBuilder::new(3).data_dep(&t2, 123.into()).build();
+    let t3 = TaskBuilder::new(3)
+        .data_dep(&t2, 123.into())
+        .data_dep(&t2, 478.into())
+        .build();
     submit_test_tasks(&mut core, vec![t1, t2, t3]);
+    assert_eq!(core.get_task(2.into()).task_deps, [TaskId::new(1)]);
     core.assert_waiting(&[2, 3]);
     core.assert_ready(&[1]);
     create_test_workers(&mut core, &[4]);

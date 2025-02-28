@@ -139,11 +139,26 @@ pub fn finish_on_worker<W: Into<WorkerId>, T: Into<TaskId>>(
         core,
         &mut comm,
         worker_id.into(),
-        TaskFinishedMsg { id: task_id.into() },
+        TaskFinishedMsg {
+            id: task_id.into(),
+            output_ids: vec![],
+        },
     );
 }
 
 pub fn start_and_finish_on_worker<W: Into<WorkerId>, T: Into<TaskId>>(
+    core: &mut Core,
+    task_id: T,
+    worker_id: W,
+) {
+    let task_id = task_id.into();
+    let worker_id = worker_id.into();
+
+    start_on_worker(core, task_id, worker_id);
+    finish_on_worker(core, task_id, worker_id);
+}
+
+pub fn start_and_finish_on_worker_with_data<W: Into<WorkerId>, T: Into<TaskId>>(
     core: &mut Core,
     task_id: T,
     worker_id: W,

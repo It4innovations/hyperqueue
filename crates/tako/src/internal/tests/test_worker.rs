@@ -1,9 +1,10 @@
+use crate::gateway::TaskDataFlags;
 use crate::internal::common::resources::ResourceRequestVariants;
 use crate::internal::messages::worker::{
     ComputeTaskMsg, NewWorkerMsg, ToWorkerMessage, WorkerResourceCounts,
 };
 use crate::internal::server::workerload::WorkerResources;
-use crate::internal::tests::utils::resources::{ResourceRequestBuilder, ra_builder};
+use crate::internal::tests::utils::resources::{ra_builder, ResourceRequestBuilder};
 use crate::internal::worker::comm::WorkerComm;
 use crate::internal::worker::configuration::OverviewConfiguration;
 use crate::internal::worker::rpc::process_worker_message;
@@ -78,8 +79,9 @@ fn create_dummy_compute_msg(task_id: TaskId) -> ComputeTaskMsg {
         scheduler_priority: 0,
         resources: Default::default(),
         time_limit: None,
-        n_outputs: 0,
         node_list: vec![],
+        data_deps: vec![],
+        data_flags: TaskDataFlags::empty(),
         body: Default::default(),
     }
 }
@@ -229,12 +231,10 @@ fn test_worker_other_workers() {
     assert_eq!(state.ready_task_queue.worker_resources()[&wr2], t);
 
     process_worker_message(&mut state, ToWorkerMessage::LostWorker(30.into()));
-    assert!(
-        state
-            .ready_task_queue
-            .worker_resources()
-            .get(&wr1)
-            .is_none()
-    );
+    assert!(state
+        .ready_task_queue
+        .worker_resources()
+        .get(&wr1)
+        .is_none());
     assert_eq!(state.ready_task_queue.worker_resources()[&wr2], t);
 }

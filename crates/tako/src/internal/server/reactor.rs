@@ -1,3 +1,4 @@
+use crate::datasrv::{DataId, DataObjectId};
 use crate::gateway::LostWorkerReason;
 use crate::internal::common::{Map, Set};
 use crate::internal::messages::common::TaskFailInfo;
@@ -12,6 +13,7 @@ use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::worker::Worker;
 use crate::internal::server::workermap::WorkerMap;
 use crate::{TaskId, WorkerId};
+use std::fmt::Write;
 
 pub(crate) fn on_new_worker(core: &mut Core, comm: &mut impl Comm, worker: Worker) {
     comm.broadcast_worker_message(&ToWorkerMessage::NewWorker(NewWorkerMsg {
@@ -149,8 +151,6 @@ pub(crate) fn on_remove_worker(
                 message: format!(
                     "Task was running on a worker that was lost; the task has occurred {count} times in this situation and limit was reached."
                 ),
-                data_type: "".to_string(),
-                error_data: vec![],
             },
         );
     }
@@ -259,10 +259,11 @@ pub(crate) fn on_task_finished(
     worker_id: WorkerId,
     msg: TaskFinishedMsg,
 ) {
+    let task_id = msg.id;
     {
         let (tasks, workers) = core.split_tasks_workers_mut();
         if let Some(task) = tasks.find_task_mut(msg.id) {
-            log::debug!("Task id={} finished on worker={}", task.id, worker_id);
+            log::debug!("Task id={} finished on worker={}", task_id, worker_id);
 
             assert!(task.is_assigned_or_stolen_from(worker_id));
 
@@ -293,38 +294,67 @@ pub(crate) fn on_task_finished(
 
             task.state = TaskRuntimeState::Finished(FinishInfo {});
             comm.ask_for_scheduling();
-            comm.send_client_task_finished(task.id);
+            comm.send_client_task_finished(task_id);
         } else {
-            log::debug!("Unknown task finished id={}", msg.id);
+            log::debug!("Unknown task finished id={}", task_id);
             return;
         }
     }
 
-    if !msg.output_ids.is_empty() {
-        // TODO: Register output ids
-        // TODO: Register size of output
-        todo!()
-    }
-
-    // TODO: benchmark vec vs set
-    let consumers: Set<TaskId> = {
+    let consumers: Vec<TaskId> = {
         let task = core.get_task(msg.id);
-        task.get_consumers().clone()
+        task.get_consumers().iter().copied().collect()
     };
+
+    let output_ids_set: Set<DataId> = msg.output_ids.iter().map(|o| o.data_id).collect();
+    let mut missing_inputs: Map<TaskId, Vec<DataId>> = Map::new();
+
+    let mut data_consumers: Map<DataId, Set<TaskId>> = Map::new();
 
     for consumer in consumers {
         let id = {
             let t = core.get_task_mut(consumer);
+            for obj_id in &t.data_deps {
+                let data_id = obj_id.data_id;
+                if obj_id.task_id == task_id {
+                    if !output_ids_set.contains(&data_id) {
+                        let data_list = missing_inputs.entry(consumer).or_default();
+                        data_list.push(data_id);
+                    } else {
+                        let cs = data_consumers.entry(data_id).or_default();
+                        cs.insert(consumer);
+                    }
+                }
+            }
             if t.decrease_unfinished_deps() {
                 t.id
             } else {
                 continue;
             }
         };
-
         core.add_ready_to_assign(id);
         comm.ask_for_scheduling();
     }
+
+    for data_id in output_ids_set {
+        todo!() // TODO register outputs
+    }
+
+    for (dep_task_id, missing_data_ids) in missing_inputs {
+        let mut message = format!(
+            "Task {task_id} did not produced outputs: {}",
+            missing_data_ids[0]
+        );
+        const LIMIT: usize = 16;
+        for data_id in missing_data_ids.iter().skip(1).take(LIMIT - 1) {
+            write!(&mut message, ", {data_id}").unwrap();
+        }
+        if missing_data_ids.len() > 1 {
+            message.write_str(", ...").unwrap();
+        }
+        fail_task_helper(core, comm, None, dep_task_id, TaskFailInfo { message })
+    }
+
     unregister_as_consumer(core, comm, msg.id);
     remove_task_if_possible(core, comm, msg.id);
 }
