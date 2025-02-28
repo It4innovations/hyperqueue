@@ -1,6 +1,8 @@
 // This lint is currently buggy and doesn't work properly with procedural macros (#[pyfunction]).
 // Re-check in version 1.65.0.
 #![allow(clippy::borrow_deref_ref)]
+// Temporarily allow this lint before we update pyo3.
+#![allow(unsafe_op_in_unsafe_fn)]
 
 use pyo3::types::PyModule;
 use pyo3::{FromPyObject, PyAny, pyclass, pyfunction, pymethods, pymodule};
