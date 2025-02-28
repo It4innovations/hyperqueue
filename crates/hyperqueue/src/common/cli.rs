@@ -7,6 +7,7 @@ use clap_complete::Shell;
 use tako::WorkerId;
 
 use crate::client::commands::autoalloc::AutoAllocOpts;
+use crate::client::commands::doc::DocOpts;
 use crate::client::commands::job::{
     JobCancelOpts, JobCatOpts, JobCloseOpts, JobForgetOpts, JobInfoOpts, JobListOpts,
     JobTaskIdsOpts,
@@ -203,6 +204,8 @@ pub enum SubCommand {
     /// Start the HyperQueue CLI dashboard
     #[cfg(feature = "dashboard")]
     Dashboard(DashboardOpts),
+    /// Display a link to or open HyperQueue documentation.
+    Doc(DocOpts),
     /// Generate shell completion script
     GenerateCompletion(GenerateCompletionOpts),
 }

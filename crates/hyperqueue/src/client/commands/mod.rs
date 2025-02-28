@@ -1,4 +1,5 @@
 pub mod autoalloc;
+pub mod doc;
 pub mod job;
 pub mod journal;
 pub mod outputlog;

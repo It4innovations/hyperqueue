@@ -51,6 +51,7 @@ signal-hook = "0.3"
 core_affinity = "0.8"
 itertools = "0.14.0"
 lru = "0.12"
+open = "5"
 
 # Dashboard
 ratatui = { version = "0.29", default-features = false, features = ["crossterm"], optional = true }

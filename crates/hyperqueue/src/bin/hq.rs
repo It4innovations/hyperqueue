@@ -8,6 +8,7 @@ use std::panic::PanicHookInfo;
 
 use hyperqueue::HQ_VERSION;
 use hyperqueue::client::commands::autoalloc::command_autoalloc;
+use hyperqueue::client::commands::doc::command_doc;
 use hyperqueue::client::commands::job::{
     JobCancelOpts, JobCatOpts, JobCloseOpts, JobForgetOpts, JobInfoOpts, JobListOpts,
     JobTaskIdsOpts, cancel_job, close_job, forget_job, output_job_cat, output_job_detail,
@@ -500,6 +501,7 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::AutoAlloc(opts) => command_autoalloc(&gsettings, opts).await,
         SubCommand::Journal(opts) => command_journal(&gsettings, opts).await,
         SubCommand::GenerateCompletion(opts) => generate_completion(opts),
+        SubCommand::Doc(opts) => command_doc(opts),
     };
 
     if let Err(e) = result {
