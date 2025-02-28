@@ -12,7 +12,7 @@ resolver = "2"
 
 [workspace.package]
 rust-version = "1.85.0"
-edition = "2021"
+edition = "2024"
 authors = ["Ada Böhm <ada@kreatrix.org>", "Jakub Beránek <berykubik@gmail.com>"]
 
 [workspace.dependencies]
