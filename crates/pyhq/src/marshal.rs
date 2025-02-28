@@ -4,8 +4,8 @@ use std::ops::{Deref, DerefMut};
 use std::time::Duration;
 
 use pyo3::types::{PyFloat, PyInt};
-use pyo3::{FromPyObject, PyAny, PyResult};
-use pythonize::depythonize;
+use pyo3::{Bound, FromPyObject, PyAny, PyResult};
+use pythonize::depythonize_bound;
 use serde::de::DeserializeOwned;
 
 /// Wrapper type that implements deserialization from Python type using `serde::DeserializeOwned`.
@@ -36,8 +36,10 @@ impl<'source, T> FromPyObject<'source> for FromPy<T>
 where
     T: DeserializeOwned,
 {
-    fn extract(obj: &'source PyAny) -> PyResult<Self> {
-        depythonize(obj).map(|v| FromPy(v)).map_err(|e| e.into())
+    fn extract_bound(obj: &Bound<'source, PyAny>) -> PyResult<Self> {
+        depythonize_bound(obj.clone())
+            .map(|v| FromPy(v))
+            .map_err(|e| e.into())
     }
 }
 
