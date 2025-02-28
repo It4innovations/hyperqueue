@@ -8,7 +8,7 @@ from ..output import StdioDef
 class ResourceRequest:
     n_nodes: int = 0
     resources: Dict[str, Union[int, float, str]] = dataclasses.field(default_factory=dict)
-    min_time: Optional[float] = None
+    min_time: Optional[datetime.timedelta] = None
 
     def __init__(
         self,
@@ -23,7 +23,7 @@ class ResourceRequest:
             resources = {}
         resources["cpus"] = cpus
         self.resources = resources
-        self.min_time = min_time.total_seconds() if min_time is not None else None
+        self.min_time = min_time
 
     def __repr__(self):
         return f"<ResourceRequest n_nodes={self.n_nodes} resources={self.resources} min_time={self.min_time}>"

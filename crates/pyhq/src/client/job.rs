@@ -1,4 +1,4 @@
-use crate::marshal::{FromPy, WrappedDuration};
+use crate::marshal::FromPy;
 use crate::utils::error::ToPyResult;
 use crate::{ClientContextPtr, FromPyObject, PyJobId, PyTaskId, borrow_mut, run_future};
 use hyperqueue::client::commands::submit::command::{
@@ -40,7 +40,7 @@ enum AllocationValue {
 pub struct ResourceRequestDescription {
     n_nodes: NumOfNodes,
     resources: HashMap<String, AllocationValue>,
-    min_time: Option<WrappedDuration>,
+    min_time: Option<Duration>,
 }
 
 #[derive(Debug, FromPyObject)]
