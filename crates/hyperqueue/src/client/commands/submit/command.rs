@@ -801,16 +801,16 @@ fn warn_array_task_count(opts: &JobSubmitOpts, task_count: u32) {
         return;
     }
 
-    let is_path_some =
-        |path: Option<&StdioDefInput>| -> bool { path.map_or(true, |x| x.path().is_some()) };
+    let has_output =
+        |path: Option<&StdioDefInput>| -> bool { path.is_none_or(|x| x.path().is_some()) };
 
     let mut task_files = 0;
     let mut active_dirs = Vec::new();
-    if is_path_some(opts.conf.stdout.as_ref()) {
+    if has_output(opts.conf.stdout.as_ref()) {
         task_files += task_count;
         active_dirs.push("stdout");
     }
-    if is_path_some(opts.conf.stderr.as_ref()) {
+    if has_output(opts.conf.stderr.as_ref()) {
         task_files += task_count;
         active_dirs.push("stderr");
     }
