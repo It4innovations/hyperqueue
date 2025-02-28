@@ -45,16 +45,7 @@
 <span class=normal>45</span>
 <span class=normal>46</span>
 <span class=normal>47</span>
-<span class=normal>48</span>
-<span class=normal>49</span>
-<span class=normal>50</span>
-<span class=normal>51</span>
-<span class=normal>52</span>
-<span class=normal>53</span>
-<span class=normal>54</span>
-<span class=normal>55</span>
-<span class=normal>56</span>
-<span class=normal>57</span></pre></div></td><td class=code><div><pre><span></span><a id=line-1 name=line-1></a><span class=kn>import</span><span class=w> </span><span class=nn>dataclasses</span>
+<span class=normal>48</span></pre></div></td><td class=code><div><pre><span></span><a id=line-1 name=line-1></a><span class=kn>import</span><span class=w> </span><span class=nn>dataclasses</span>
 <a id=line-2 name=line-2></a><span class=kn>from</span><span class=w> </span><span class=nn>typing</span><span class=w> </span><span class=kn>import</span> <span class=n>Dict</span><span class=p>,</span> <span class=n>List</span><span class=p>,</span> <span class=n>Optional</span><span class=p>,</span> <span class=n>Sequence</span>
 <a id=line-3 name=line-3></a>
 <a id=line-4 name=line-4></a><span class=kn>from</span><span class=w> </span><span class=nn>.</span><span class=w> </span><span class=kn>import</span> <span class=n>JobId</span><span class=p>,</span> <span class=n>TaskId</span><span class=p>,</span> <span class=n>ffi</span>
@@ -95,20 +86,11 @@
 <a id=line-39 name=line-39></a>
 <a id=line-40 name=line-40></a>    <span class=k>def</span><span class=w> </span><span class=nf>get_failed_tasks</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>job_ids</span><span class=p>:</span> <span class=n>Sequence</span><span class=p>[</span><span class=n>JobId</span><span class=p>])</span> <span class=o>-&gt;</span> <span class=n>TaskFailureMap</span><span class=p>:</span>
 <a id=line-41 name=line-41></a>        <span class=n>jobs</span> <span class=o>=</span> <span class=n>ffi</span><span class=o>.</span><span class=n>get_failed_tasks</span><span class=p>(</span><span class=bp>self</span><span class=o>.</span><span class=n>ctx</span><span class=p>,</span> <span class=n>job_ids</span><span class=p>)</span>
-<a id=line-42 name=line-42></a>        <span class=c1># TODO: use a class directly, keep in dicts or use TypedDict</span>
-<a id=line-43 name=line-43></a>        <span class=k>return</span> <span class=p>{</span>
-<a id=line-44 name=line-44></a>            <span class=n>job_id</span><span class=p>:</span> <span class=p>{</span>
-<a id=line-45 name=line-45></a>                <span class=n>task_id</span><span class=p>:</span> <span class=n>FailedTaskContext</span><span class=p>(</span>
-<a id=line-46 name=line-46></a>                    <span class=n>error</span><span class=o>=</span><span class=n>data</span><span class=p>[</span><span class=s2>&quot;error&quot;</span><span class=p>],</span>
-<a id=line-47 name=line-47></a>                    <span class=n>cwd</span><span class=o>=</span><span class=n>data</span><span class=p>[</span><span class=s2>&quot;cwd&quot;</span><span class=p>],</span>
-<a id=line-48 name=line-48></a>                    <span class=n>stdout</span><span class=o>=</span><span class=n>data</span><span class=p>[</span><span class=s2>&quot;stdout&quot;</span><span class=p>],</span>
-<a id=line-49 name=line-49></a>                    <span class=n>stderr</span><span class=o>=</span><span class=n>data</span><span class=p>[</span><span class=s2>&quot;stderr&quot;</span><span class=p>],</span>
-<a id=line-50 name=line-50></a>                <span class=p>)</span>
-<a id=line-51 name=line-51></a>                <span class=k>for</span> <span class=p>(</span><span class=n>task_id</span><span class=p>,</span> <span class=n>data</span><span class=p>)</span> <span class=ow>in</span> <span class=n>task_data</span><span class=o>.</span><span class=n>items</span><span class=p>()</span>
-<a id=line-52 name=line-52></a>            <span class=p>}</span>
-<a id=line-53 name=line-53></a>            <span class=k>for</span> <span class=p>(</span><span class=n>job_id</span><span class=p>,</span> <span class=n>task_data</span><span class=p>)</span> <span class=ow>in</span> <span class=n>jobs</span><span class=o>.</span><span class=n>items</span><span class=p>()</span>
-<a id=line-54 name=line-54></a>        <span class=p>}</span>
-<a id=line-55 name=line-55></a>
-<a id=line-56 name=line-56></a>    <span class=k>def</span><span class=w> </span><span class=nf>forget_job</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>job_id</span><span class=p>:</span> <span class=n>JobId</span><span class=p>):</span>
-<a id=line-57 name=line-57></a>        <span class=k>return</span> <span class=n>ffi</span><span class=o>.</span><span class=n>forget_job</span><span class=p>(</span><span class=bp>self</span><span class=o>.</span><span class=n>ctx</span><span class=p>,</span> <span class=n>job_id</span><span class=p>)</span>
-</pre></div></td></tr></table></div><p class=footer> Generated by <a href=https://github.com/spirali/nedoc>nedoc</a> v0.10 at 2025-02-28 15:50 </p></div></div></body></html>
+<a id=line-42 name=line-42></a>        <span class=k>return</span> <span class=p>{</span>
+<a id=line-43 name=line-43></a>            <span class=n>job_id</span><span class=p>:</span> <span class=p>{</span><span class=n>task_id</span><span class=p>:</span> <span class=n>FailedTaskContext</span><span class=p>(</span><span class=o>**</span><span class=n>data</span><span class=p>)</span> <span class=k>for</span> <span class=p>(</span><span class=n>task_id</span><span class=p>,</span> <span class=n>data</span><span class=p>)</span> <span class=ow>in</span> <span class=n>task_data</span><span class=o>.</span><span class=n>items</span><span class=p>()}</span>
+<a id=line-44 name=line-44></a>            <span class=k>for</span> <span class=p>(</span><span class=n>job_id</span><span class=p>,</span> <span class=n>task_data</span><span class=p>)</span> <span class=ow>in</span> <span class=n>jobs</span><span class=o>.</span><span class=n>items</span><span class=p>()</span>
+<a id=line-45 name=line-45></a>        <span class=p>}</span>
+<a id=line-46 name=line-46></a>
+<a id=line-47 name=line-47></a>    <span class=k>def</span><span class=w> </span><span class=nf>forget_job</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>job_id</span><span class=p>:</span> <span class=n>JobId</span><span class=p>):</span>
+<a id=line-48 name=line-48></a>        <span class=k>return</span> <span class=n>ffi</span><span class=o>.</span><span class=n>forget_job</span><span class=p>(</span><span class=bp>self</span><span class=o>.</span><span class=n>ctx</span><span class=p>,</span> <span class=n>job_id</span><span class=p>)</span>
+</pre></div></td></tr></table></div><p class=footer> Generated by <a href=https://github.com/spirali/nedoc>nedoc</a> v0.10 at 2025-02-28 16:38 </p></div></div></body></html>
