@@ -1,5 +1,9 @@
 ## Dev
 
+### New features
+
+* Added `hq doc` command for accessing documentation about various HQ features from the command-line.
+
 ### Breaking change
 * The Python API now requires Python 3.9, up from Python 3.6.
 
