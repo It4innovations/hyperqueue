@@ -204,7 +204,7 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<H
                                 })
                             })
                             .collect::<anyhow::Result<ResourceRequestEntries>>()?,
-                        min_time: rq.min_time.map(|v| v.into()).unwrap_or_default(),
+                        min_time: rq.min_time.unwrap_or_default(),
                     })
                 })
                 .collect::<anyhow::Result<_>>()?,
