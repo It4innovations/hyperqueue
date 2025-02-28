@@ -1,8 +1,8 @@
+use crate::internal::common::Set;
 use crate::internal::common::resources::{
     ResourceAmount, ResourceIndex, ResourceLabel, ResourceUnits,
 };
 use crate::internal::common::utils::has_unique_elements;
-use crate::internal::common::Set;
 use serde::{Deserialize, Serialize};
 
 use thiserror::Error;
@@ -146,9 +146,11 @@ impl ResourceDescriptorKind {
             ResourceDescriptorKind::List { values } => vec![values.clone()],
             ResourceDescriptorKind::Groups { groups } => groups.clone(),
             ResourceDescriptorKind::Range { start, end } => {
-                vec![(start.as_num()..=end.as_num())
-                    .map(|v| v.to_string())
-                    .collect::<Vec<_>>()]
+                vec![
+                    (start.as_num()..=end.as_num())
+                        .map(|v| v.to_string())
+                        .collect::<Vec<_>>(),
+                ]
             }
             ResourceDescriptorKind::Sum { .. } => Vec::new(),
         }

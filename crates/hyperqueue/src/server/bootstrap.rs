@@ -4,35 +4,35 @@ use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::Arc;
 
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use tokio::net::TcpListener;
 use tokio::sync::Notify;
 use tokio::task::LocalSet;
 
+use crate::HQ_VERSION;
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::error::HqError;
 use crate::common::serverdir::{
-    default_server_directory, ConnectAccessRecordPart, FullAccessRecord, ServerDir, SYMLINK_PATH,
+    ConnectAccessRecordPart, FullAccessRecord, SYMLINK_PATH, ServerDir, default_server_directory,
 };
-use crate::server::autoalloc::{create_autoalloc_service, QueueId};
+use crate::server::Senders;
+use crate::server::autoalloc::{QueueId, create_autoalloc_service};
 use crate::server::backend::Backend;
-use crate::server::event::journal::start_event_streaming;
 use crate::server::event::journal::JournalWriter;
+use crate::server::event::journal::start_event_streaming;
 use crate::server::event::streamer::EventStreamer;
 use crate::server::restore::StateRestorer;
 use crate::server::state::StateRef;
-use crate::server::Senders;
 use crate::transfer::auth::generate_key;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::ServerInfo;
-use crate::HQ_VERSION;
 use chrono::Utc;
 use orion::kdf::SecretKey;
-use rand::distributions::Alphanumeric;
 use rand::Rng;
+use rand::distributions::Alphanumeric;
 use std::time::Duration;
-use tako::gateway::{FromGatewayMessage, ToGatewayMessage};
 use tako::WorkerId;
+use tako::gateway::{FromGatewayMessage, ToGatewayMessage};
 
 enum ServerStatus {
     Offline,
@@ -384,7 +384,7 @@ async fn start_server(
 #[cfg(test)]
 mod tests {
     use crate::common::serverdir::{
-        store_access_record, ConnectAccessRecordPart, FullAccessRecord, ServerDir, SYMLINK_PATH,
+        ConnectAccessRecordPart, FullAccessRecord, SYMLINK_PATH, ServerDir, store_access_record,
     };
     use crate::server::bootstrap::get_server_status;
 

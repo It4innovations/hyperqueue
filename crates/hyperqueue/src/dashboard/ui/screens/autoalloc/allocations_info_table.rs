@@ -1,5 +1,5 @@
 use crate::dashboard::data::timelines::alloc_timeline::{
-    get_allocation_status, AllocationInfo, AllocationStatus,
+    AllocationInfo, AllocationStatus, get_allocation_status,
 };
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};

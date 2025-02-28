@@ -10,9 +10,8 @@ use tempfile::TempDir;
 use crate::common::manager::info::{ManagerInfo, ManagerType};
 use crate::common::rpc::RpcReceiver;
 use crate::server::autoalloc::config::{
-    get_refresh_timeout, get_status_check_interval, max_allocation_fails,
     MAX_QUEUED_STATUS_ERROR_COUNT, MAX_RUNNING_STATUS_ERROR_COUNT, MAX_SUBMISSION_FAILS,
-    SUBMISSION_DELAYS,
+    SUBMISSION_DELAYS, get_refresh_timeout, get_status_check_interval, max_allocation_fails,
 };
 use crate::server::autoalloc::estimator::{
     can_worker_execute_job, count_active_workers, get_server_task_state,
@@ -29,7 +28,7 @@ use crate::server::autoalloc::{Allocation, AllocationId, AutoAllocResult, QueueI
 use crate::server::event::streamer::EventStreamer;
 use crate::server::state::StateRef;
 use crate::transfer::messages::{AllocationQueueParams, QueueData, QueueState};
-use crate::{get_or_return, JobId};
+use crate::{JobId, get_or_return};
 
 #[derive(Copy, Clone)]
 enum RefreshReason {
@@ -564,8 +563,10 @@ fn increase_status_error_counter(
         AllocationState::Queued { status_error_count } => {
             *status_error_count += 1;
             if *status_error_count > MAX_QUEUED_STATUS_ERROR_COUNT {
-                log::debug!("Queued allocation {} received too many status errors. It is now considered to be finished",
-                allocation.id);
+                log::debug!(
+                    "Queued allocation {} received too many status errors. It is now considered to be finished",
+                    allocation.id
+                );
                 allocation.status = AllocationState::FinishedUnexpectedly {
                     connected_workers: Default::default(),
                     disconnected_workers: Default::default(),
@@ -587,7 +588,10 @@ fn increase_status_error_counter(
         } => {
             *status_error_count += 1;
             if *status_error_count > MAX_RUNNING_STATUS_ERROR_COUNT {
-                log::debug!("Running allocation {} received too many status errors. It is now considered to be finished", allocation.id);
+                log::debug!(
+                    "Running allocation {} received too many status errors. It is now considered to be finished",
+                    allocation.id
+                );
                 allocation.status = AllocationState::FinishedUnexpectedly {
                     connected_workers: std::mem::take(connected_workers),
                     disconnected_workers: std::mem::take(disconnected_workers),
@@ -643,7 +647,9 @@ fn sync_allocation_status(
                     connected_workers, ..
                 } => {
                     if allocation.target_worker_count == connected_workers.len() as u64 {
-                        log::warn!("Allocation {allocation_id} already has the expected number of workers, worker {worker_id} is not expected");
+                        log::warn!(
+                            "Allocation {allocation_id} already has the expected number of workers, worker {worker_id} is not expected"
+                        );
                     }
                     if !connected_workers.insert(worker_id) {
                         log::warn!(
@@ -654,9 +660,9 @@ fn sync_allocation_status(
                 }
                 AllocationState::Finished { .. } | AllocationState::FinishedUnexpectedly { .. } => {
                     log::warn!(
-                            "Allocation {allocation_id} has status {:?} and does not expect new workers",
-                            allocation.status
-                        );
+                        "Allocation {allocation_id} has status {:?} and does not expect new workers",
+                        allocation.status
+                    );
                     None
                 }
             },
@@ -806,13 +812,17 @@ fn sync_allocation_status(
                     ) => {
                         // The allocation was already finished before, we do not expect any more
                         // status updates.
-                        log::debug!("Unexpected external allocation {allocation_id} status {status:?}, the allocation was already finished before.");
+                        log::debug!(
+                            "Unexpected external allocation {allocation_id} status {status:?}, the allocation was already finished before."
+                        );
                         None
                     }
                     (AllocationState::Running { .. }, AllocationExternalStatus::Queued) => {
                         // A nonsensical transform that should not ever happen. But the allocation
                         // manager can have weird caching, so we at least log something.
-                        log::debug!("Unexpected external allocation {allocation_id} status queued, the allocation was already running.");
+                        log::debug!(
+                            "Unexpected external allocation {allocation_id} status queued, the allocation was already running."
+                        );
                         None
                     }
                 }
@@ -921,7 +931,9 @@ async fn queue_try_submit(
                 let working_dir = submission_result.working_dir().to_path_buf();
                 match submission_result.into_id() {
                     Ok(allocation_id) => {
-                        log::info!("Queued {workers_to_spawn} worker(s) into queue {queue_id}: allocation ID {allocation_id}");
+                        log::info!(
+                            "Queued {workers_to_spawn} worker(s) into queue {queue_id}: allocation ID {allocation_id}"
+                        );
                         events.on_allocation_queued(
                             queue_id,
                             allocation_id.clone(),
@@ -1015,12 +1027,12 @@ mod tests {
     use anyhow::anyhow;
     use derive_builder::Builder;
     use smallvec::smallvec;
+    use tako::WorkerId;
     use tako::gateway::{
         LostWorkerReason, ResourceRequest, ResourceRequestEntry, ResourceRequestVariants,
     };
     use tako::program::ProgramDefinition;
-    use tako::resources::{AllocationRequest, TimeRequest, CPU_RESOURCE_NAME};
-    use tako::WorkerId;
+    use tako::resources::{AllocationRequest, CPU_RESOURCE_NAME, TimeRequest};
     use tako::{Map, Set, WrappedRcRefCell};
     use tempfile::TempDir;
 
@@ -1028,8 +1040,8 @@ mod tests {
     use crate::common::manager::info::ManagerType;
     use crate::common::utils::time::mock_time::MockTime;
     use crate::server::autoalloc::process::{
-        queue_try_submit, refresh_state, sync_allocation_status, AllocationSyncReason,
-        RefreshReason,
+        AllocationSyncReason, RefreshReason, queue_try_submit, refresh_state,
+        sync_allocation_status,
     };
     use crate::server::autoalloc::queue::{
         AllocationExternalStatus, AllocationStatusMap, AllocationSubmissionResult, QueueHandler,
@@ -1074,9 +1086,11 @@ mod tests {
 
         let allocations = get_allocations(&state, queue_id);
         assert_eq!(allocations.len(), 4);
-        assert!(allocations
-            .iter()
-            .all(|alloc| alloc.target_worker_count == 2));
+        assert!(
+            allocations
+                .iter()
+                .all(|alloc| alloc.target_worker_count == 2)
+        );
     }
 
     #[tokio::test]
@@ -1117,9 +1131,11 @@ mod tests {
         queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
         on_worker_added(&s, queue_id, &mut state, "foo", 0);
 
-        assert!(get_allocations(&state, queue_id)
-            .iter()
-            .all(|alloc| !alloc.is_running()));
+        assert!(
+            get_allocations(&state, queue_id)
+                .iter()
+                .all(|alloc| !alloc.is_running())
+        );
     }
 
     #[tokio::test]
@@ -1627,14 +1643,14 @@ mod tests {
     }
 
     impl<
-            State: 'static,
-            ScheduleFn: 'static + Fn(WrappedRcRefCell<State>, u64) -> ScheduleFnFut,
-            ScheduleFnFut: Future<Output = AutoAllocResult<AllocationSubmissionResult>>,
-            StatusFn: 'static + Fn(WrappedRcRefCell<State>, AllocationId) -> StatusFnFut,
-            StatusFnFut: Future<Output = AutoAllocResult<Option<AllocationExternalStatus>>>,
-            RemoveFn: 'static + Fn(WrappedRcRefCell<State>, AllocationId) -> RemoveFnFut,
-            RemoveFnFut: Future<Output = AutoAllocResult<()>>,
-        > Handler<ScheduleFn, StatusFn, RemoveFn, State>
+        State: 'static,
+        ScheduleFn: 'static + Fn(WrappedRcRefCell<State>, u64) -> ScheduleFnFut,
+        ScheduleFnFut: Future<Output = AutoAllocResult<AllocationSubmissionResult>>,
+        StatusFn: 'static + Fn(WrappedRcRefCell<State>, AllocationId) -> StatusFnFut,
+        StatusFnFut: Future<Output = AutoAllocResult<Option<AllocationExternalStatus>>>,
+        RemoveFn: 'static + Fn(WrappedRcRefCell<State>, AllocationId) -> RemoveFnFut,
+        RemoveFnFut: Future<Output = AutoAllocResult<()>>,
+    > Handler<ScheduleFn, StatusFn, RemoveFn, State>
     {
         fn new(
             custom_state: WrappedRcRefCell<State>,
@@ -1652,14 +1668,14 @@ mod tests {
     }
 
     impl<
-            State: 'static,
-            ScheduleFn: 'static + Fn(WrappedRcRefCell<State>, u64) -> ScheduleFnFut,
-            ScheduleFnFut: Future<Output = AutoAllocResult<AllocationSubmissionResult>>,
-            StatusFn: 'static + Fn(WrappedRcRefCell<State>, AllocationId) -> StatusFnFut,
-            StatusFnFut: Future<Output = AutoAllocResult<Option<AllocationExternalStatus>>>,
-            RemoveFn: 'static + Fn(WrappedRcRefCell<State>, AllocationId) -> RemoveFnFut,
-            RemoveFnFut: Future<Output = AutoAllocResult<()>>,
-        > QueueHandler for Handler<ScheduleFn, StatusFn, RemoveFn, State>
+        State: 'static,
+        ScheduleFn: 'static + Fn(WrappedRcRefCell<State>, u64) -> ScheduleFnFut,
+        ScheduleFnFut: Future<Output = AutoAllocResult<AllocationSubmissionResult>>,
+        StatusFn: 'static + Fn(WrappedRcRefCell<State>, AllocationId) -> StatusFnFut,
+        StatusFnFut: Future<Output = AutoAllocResult<Option<AllocationExternalStatus>>>,
+        RemoveFn: 'static + Fn(WrappedRcRefCell<State>, AllocationId) -> RemoveFnFut,
+        RemoveFnFut: Future<Output = AutoAllocResult<()>>,
+    > QueueHandler for Handler<ScheduleFn, StatusFn, RemoveFn, State>
     {
         fn submit_allocation(
             &mut self,

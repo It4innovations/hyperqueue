@@ -1,7 +1,7 @@
+use crate::TaskId;
 use crate::internal::common::{Map, Set};
 use crate::internal::server::task::Task;
 use crate::internal::server::taskmap::TaskMap;
-use crate::TaskId;
 
 pub fn compute_b_level_metric(tasks: &mut TaskMap) {
     crawl(tasks, |t| t.get_consumers());
@@ -45,11 +45,11 @@ fn crawl<F1: Fn(&Task) -> &Set<TaskId>>(tasks: &mut TaskMap, predecessor_fn: F1)
 
 #[cfg(test)]
 mod tests {
+    use crate::TaskId;
     use crate::internal::common::index::ItemId;
     use crate::internal::scheduler::metrics::compute_b_level_metric;
     use crate::internal::server::core::Core;
     use crate::internal::tests::utils::workflows::submit_example_2;
-    use crate::TaskId;
 
     #[test]
     fn b_level_simple_graph() {

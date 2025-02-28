@@ -2,15 +2,15 @@ use ratatui::layout::{Constraint, Rect};
 use ratatui::style::{Color, Style};
 use ratatui::widgets::{Cell, Row};
 
-use tako::gateway::LostWorkerReason;
 use tako::WorkerId;
+use tako::gateway::LostWorkerReason;
 
-use crate::dashboard::data::timelines::worker_timeline::{WorkerDisconnectInfo, WorkerStatus};
 use crate::dashboard::data::DashboardData;
+use crate::dashboard::data::timelines::worker_timeline::{WorkerDisconnectInfo, WorkerStatus};
 use crate::dashboard::ui::styles::table_style_selected;
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::progressbar::{
-    get_progress_bar_color, render_progress_bar_at, ProgressPrintStyle,
+    ProgressPrintStyle, get_progress_bar_color, render_progress_bar_at,
 };
 use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};
 use crate::dashboard::utils::{get_average_cpu_usage_for_worker, get_memory_usage_pct};

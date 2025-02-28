@@ -3,11 +3,11 @@ use std::future::Future;
 
 use tokio::task::{JoinHandle, LocalSet};
 
-use crate::common::parser::{consume_all, NomResult};
+use crate::HQ_VERSION;
+use crate::common::parser::{NomResult, consume_all};
 use crate::common::parser2::CharParser;
 use crate::server::state::StateRef;
 use crate::transfer::messages::ServerInfo;
-use crate::HQ_VERSION;
 
 pub fn check_parse_error<F: FnMut(&str) -> NomResult<O>, O>(
     parser: F,

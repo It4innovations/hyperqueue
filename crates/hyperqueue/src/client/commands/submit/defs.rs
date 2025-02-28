@@ -113,7 +113,10 @@ impl<'de> Deserialize<'de> for StdioDefInput {
             type Value = StdioDefInput;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-                write!(formatter, "a string containing file path or a structure with two attributes (`path` and `on_close`)")
+                write!(
+                    formatter,
+                    "a string containing file path or a structure with two attributes (`path` and `on_close`)"
+                )
             }
 
             fn visit_map<A>(self, map: A) -> Result<Self::Value, A::Error>

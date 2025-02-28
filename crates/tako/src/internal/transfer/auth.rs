@@ -3,14 +3,14 @@ use std::time::Duration;
 
 use bincode::{DefaultOptions, Options};
 use bytes::Bytes;
-use futures::stream::{SplitSink, SplitStream};
 use futures::StreamExt;
+use futures::stream::{SplitSink, SplitStream};
 use futures::{Sink, SinkExt};
 use orion::aead::streaming::{Nonce, StreamOpener, StreamSealer, StreamTag};
 use orion::kdf::SecretKey;
 use orion::util::secure_rand_bytes;
-use serde::de::DeserializeOwned;
 use serde::Deserialize;
+use serde::de::DeserializeOwned;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::time::timeout;

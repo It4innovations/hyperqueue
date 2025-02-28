@@ -7,7 +7,7 @@ use crate::internal::tests::integration::utils::api::{
     wait_for_task_start, wait_for_worker_connected, wait_for_worker_lost, wait_for_worker_overview,
 };
 use crate::internal::tests::integration::utils::server::run_test;
-use crate::internal::tests::integration::utils::task::{simple_task, GraphBuilder};
+use crate::internal::tests::integration::utils::task::{GraphBuilder, simple_task};
 use crate::try_wait_for_msg;
 
 use super::utils::server::ServerConfigBuilder;

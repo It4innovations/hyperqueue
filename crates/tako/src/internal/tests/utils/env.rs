@@ -1,8 +1,8 @@
 use crate::gateway::LostWorkerReason;
+use crate::internal::common::Map;
 use crate::internal::common::index::ItemId;
 use crate::internal::common::resources::ResourceDescriptor;
 use crate::internal::common::utils::format_comma_delimited;
-use crate::internal::common::Map;
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{ToWorkerMessage, WorkerOverview};
 use crate::internal::scheduler::state::SchedulerState;

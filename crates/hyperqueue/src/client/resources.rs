@@ -1,11 +1,11 @@
+use chumsky::Parser;
 use chumsky::primitive::{choice, filter, just};
 use chumsky::text::TextParser;
-use chumsky::Parser;
 
 use tako::resources::AllocationRequest;
 
 use crate::common::parser2::{
-    all_consuming, parse_exact_string, parse_resource_amount, CharParser, ParseError,
+    CharParser, ParseError, all_consuming, parse_exact_string, parse_resource_amount,
 };
 use crate::worker::parser::{is_valid_resource_char, is_valid_starting_resource_char};
 

@@ -2,17 +2,17 @@ use std::time::{Duration, Instant};
 
 use tokio::time::sleep;
 
+use crate::WorkerId;
 use crate::internal::tests::integration::utils::api::{
     wait_for_task_start, wait_for_worker_overview, wait_for_workers_overview,
 };
 use crate::internal::tests::integration::utils::server::run_test;
 use crate::internal::tests::integration::utils::task::ResourceRequestConfigBuilder as RR;
 use crate::internal::tests::integration::utils::task::{
-    simple_args, simple_task, GraphBuilder as GB, GraphBuilder, TaskConfigBuilder as TC,
+    GraphBuilder as GB, GraphBuilder, TaskConfigBuilder as TC, simple_args, simple_task,
 };
 use crate::internal::tests::integration::utils::worker::WorkerConfigBuilder as WC;
 use crate::resources::ResourceDescriptor;
-use crate::WorkerId;
 
 #[tokio::test]
 async fn test_submit_2_sleeps_on_1() {

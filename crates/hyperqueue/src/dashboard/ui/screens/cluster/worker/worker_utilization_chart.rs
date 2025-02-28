@@ -1,8 +1,8 @@
 use ratatui::layout::Rect;
 use ratatui::style::Color;
 
-use tako::worker::WorkerOverview;
 use tako::WorkerId;
+use tako::worker::WorkerOverview;
 
 use crate::dashboard::data::DashboardData;
 use crate::dashboard::data::{ItemWithTime, TimeRange};

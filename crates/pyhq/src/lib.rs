@@ -3,18 +3,18 @@
 #![allow(clippy::borrow_deref_ref)]
 
 use pyo3::types::PyModule;
-use pyo3::{pyclass, pyfunction, pymethods, pymodule, FromPyObject, PyAny};
-use pyo3::{wrap_pyfunction, Py, PyResult, Python};
+use pyo3::{FromPyObject, PyAny, pyclass, pyfunction, pymethods, pymodule};
+use pyo3::{Py, PyResult, Python, wrap_pyfunction};
 use std::path::PathBuf;
 use tokio::runtime::Builder;
 
-use ::hyperqueue::transfer::connection::ClientSession;
 use ::hyperqueue::HQ_VERSION;
+use ::hyperqueue::transfer::connection::ClientSession;
 
-use crate::client::job::{forget_job_impl, FailedTaskMap};
+use crate::client::job::{FailedTaskMap, forget_job_impl};
 use crate::cluster::Cluster;
 use crate::utils::run_future;
-use client::job::{get_failed_tasks_impl, submit_job_impl, wait_for_jobs_impl, PyJobDescription};
+use client::job::{PyJobDescription, get_failed_tasks_impl, submit_job_impl, wait_for_jobs_impl};
 use client::server::{connect_to_server_impl, stop_server_impl};
 
 mod client;

@@ -5,11 +5,11 @@ use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::WorkerOverview;
 use crate::internal::worker::configuration::WorkerConfiguration;
 use crate::resources::{
-    AllocationRequest, NumOfNodes, ResourceAmount, ResourceDescriptor, CPU_RESOURCE_NAME,
+    AllocationRequest, CPU_RESOURCE_NAME, NumOfNodes, ResourceAmount, ResourceDescriptor,
 };
 use crate::task::SerializedTaskContext;
 use crate::{InstanceId, Map, Priority, TaskId, WorkerId};
-use smallvec::{smallvec, SmallVec};
+use smallvec::{SmallVec, smallvec};
 use std::time::Duration;
 use thin_vec::ThinVec;
 

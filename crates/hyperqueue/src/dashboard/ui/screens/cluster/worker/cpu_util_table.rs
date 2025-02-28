@@ -8,7 +8,7 @@ use tako::hwstats::MemoryStats;
 use crate::dashboard::ui::styles;
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::progressbar::{
-    get_progress_bar_color, render_progress_bar_at, ProgressPrintStyle,
+    ProgressPrintStyle, get_progress_bar_color, render_progress_bar_at,
 };
 use crate::dashboard::utils::calculate_average;
 

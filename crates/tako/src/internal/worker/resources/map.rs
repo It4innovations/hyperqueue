@@ -1,9 +1,9 @@
+use crate::Map;
 use crate::internal::common::index::IndexVec;
 use crate::internal::common::resources::ResourceId;
 use crate::resources::{
     ResourceDescriptor, ResourceDescriptorKind, ResourceIndex, ResourceLabel, ResourceMap,
 };
-use crate::Map;
 use std::borrow::Cow;
 
 /// Maps resource indices to string labels.

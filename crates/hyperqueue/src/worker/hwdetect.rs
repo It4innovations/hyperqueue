@@ -1,22 +1,22 @@
 use anyhow::anyhow;
+use nom::Parser;
 use nom::character::complete::{newline, satisfy, space0};
 use nom::combinator::{map, map_res, opt};
 use nom::multi::{many1, separated_list1};
 use nom::sequence::{preceded, terminated, tuple};
-use nom::Parser;
 use nom_supreme::tag::complete::tag;
 
 use tako::hwstats::GpuFamily;
 use tako::internal::has_unique_elements;
 use tako::resources::{
+    AMD_GPU_RESOURCE_NAME, FRACTIONS_PER_UNIT, MEM_RESOURCE_NAME, NVIDIA_GPU_RESOURCE_NAME,
     ResourceAmount, ResourceDescriptorItem, ResourceDescriptorKind, ResourceFractions,
-    ResourceIndex, ResourceLabel, AMD_GPU_RESOURCE_NAME, FRACTIONS_PER_UNIT, MEM_RESOURCE_NAME,
-    NVIDIA_GPU_RESOURCE_NAME,
+    ResourceIndex, ResourceLabel,
 };
-use tako::{format_comma_delimited, Set};
+use tako::{Set, format_comma_delimited};
 
 use crate::common::format::human_size;
-use crate::common::parser::{consume_all, p_u32, NomResult};
+use crate::common::parser::{NomResult, consume_all, p_u32};
 
 pub fn detect_cpus() -> anyhow::Result<ResourceDescriptorKind> {
     read_linux_numa()

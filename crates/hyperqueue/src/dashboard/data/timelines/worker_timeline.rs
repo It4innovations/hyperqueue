@@ -1,13 +1,13 @@
+use crate::WorkerId;
+use crate::dashboard::data::Time;
 use crate::dashboard::data::time_based_vec::{ItemWithTime, TimeBasedVec};
 use crate::dashboard::data::time_interval::TimeRange;
-use crate::dashboard::data::Time;
-use crate::server::event::payload::EventPayload;
 use crate::server::event::Event;
-use crate::WorkerId;
+use crate::server::event::payload::EventPayload;
 use std::time::SystemTime;
+use tako::Map;
 use tako::gateway::LostWorkerReason;
 use tako::worker::{WorkerConfiguration, WorkerOverview};
-use tako::Map;
 
 #[derive(Clone)]
 pub struct WorkerDisconnectInfo {

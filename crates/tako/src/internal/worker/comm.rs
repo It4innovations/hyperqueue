@@ -2,8 +2,8 @@ use crate::comm::serialize;
 use crate::internal::messages::worker::FromWorkerMessage;
 use bytes::Bytes;
 use std::rc::Rc;
-use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::Notify;
+use tokio::sync::mpsc::UnboundedSender;
 
 pub struct RealWorkerComm {
     sender: Option<UnboundedSender<Bytes>>,
@@ -48,8 +48,8 @@ impl WorkerComm {
                     }
                 } else {
                     log::debug!(
-            "Attempting to send a message to server, but server has already disconnected"
-            );
+                        "Attempting to send a message to server, but server has already disconnected"
+                    );
                 }
             }
             #[cfg(test)]

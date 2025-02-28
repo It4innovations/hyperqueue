@@ -1,7 +1,7 @@
 use crate::gateway::WorkerTypeQuery;
 use crate::internal::scheduler::query::compute_new_worker_query;
 use crate::internal::server::core::Core;
-use crate::internal::tests::utils::env::{create_test_comm, TestEnv};
+use crate::internal::tests::utils::env::{TestEnv, create_test_comm};
 use crate::internal::tests::utils::schedule::{
     create_test_scheduler, create_test_workers, submit_test_tasks,
 };

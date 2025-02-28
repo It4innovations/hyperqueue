@@ -65,9 +65,11 @@ pub(crate) async fn process_client_message(
         ),
         FromGatewayMessage::ServerInfo => {
             let core = core_ref.get();
-            assert!(client_sender
-                .send(ToGatewayMessage::ServerInfo(core.get_server_info()))
-                .is_ok());
+            assert!(
+                client_sender
+                    .send(ToGatewayMessage::ServerInfo(core.get_server_info()))
+                    .is_ok()
+            );
             None
         }
         FromGatewayMessage::GetTaskInfo(request) => {
@@ -94,11 +96,13 @@ pub(crate) async fn process_client_message(
                     }
                 })
                 .collect();
-            assert!(client_sender
-                .send(ToGatewayMessage::TaskInfo(TasksInfoResponse {
-                    tasks: task_infos
-                }))
-                .is_ok());
+            assert!(
+                client_sender
+                    .send(ToGatewayMessage::TaskInfo(TasksInfoResponse {
+                        tasks: task_infos
+                    }))
+                    .is_ok()
+            );
             None
         }
         FromGatewayMessage::CancelTasks(msg) => {
@@ -107,12 +111,14 @@ pub(crate) async fn process_client_message(
             let mut comm = comm_ref.get_mut();
             let (cancelled_tasks, already_finished) =
                 on_cancel_tasks(&mut core, &mut *comm, &msg.tasks);
-            assert!(client_sender
-                .send(ToGatewayMessage::CancelTasksResponse(CancelTasksResponse {
-                    cancelled_tasks,
-                    already_finished
-                }))
-                .is_ok());
+            assert!(
+                client_sender
+                    .send(ToGatewayMessage::CancelTasksResponse(CancelTasksResponse {
+                        cancelled_tasks,
+                        already_finished
+                    }))
+                    .is_ok()
+            );
             None
         }
         FromGatewayMessage::StopWorker(msg) => {
@@ -145,9 +151,11 @@ pub(crate) async fn process_client_message(
                 let core = core_ref.get();
                 compute_new_worker_query(&core, &msg.worker_queries)
             };
-            assert!(client_sender
-                .send(ToGatewayMessage::NewWorkerAllocationQueryResponse(response))
-                .is_ok());
+            assert!(
+                client_sender
+                    .send(ToGatewayMessage::NewWorkerAllocationQueryResponse(response))
+                    .is_ok()
+            );
             None
         }
     }
@@ -201,10 +209,12 @@ fn handle_new_tasks(
     }
     on_new_tasks(core, comm, tasks);
 
-    assert!(client_sender
-        .send(ToGatewayMessage::NewTasksResponse(NewTasksResponse {
-            n_waiting_for_workers: 0 // TODO
-        }))
-        .is_ok());
+    assert!(
+        client_sender
+            .send(ToGatewayMessage::NewTasksResponse(NewTasksResponse {
+                n_waiting_for_workers: 0 // TODO
+            }))
+            .is_ok()
+    );
     None
 }

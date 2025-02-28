@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use tako::resources::{
-    ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind, CPU_RESOURCE_NAME,
+    CPU_RESOURCE_NAME, ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind,
 };
 use tako::worker::{ServerLostPolicy, WorkerConfiguration};
 use tako::{Map, Set};
@@ -16,8 +16,9 @@ use tako::internal::worker::configuration::OverviewConfiguration;
 use tempfile::TempDir;
 use tokio::time::sleep;
 
+use crate::WorkerId;
 use crate::client::globalsettings::GlobalSettings;
-use crate::client::utils::{passthrough_parser, PassThroughArgument};
+use crate::client::utils::{PassThroughArgument, passthrough_parser};
 use crate::common::manager::info::{ManagerInfo, WORKER_EXTRA_MANAGER_KEY};
 use crate::common::utils::network::get_hostname;
 use crate::common::utils::time::parse_hms_or_human_time;
@@ -31,11 +32,10 @@ use crate::worker::bootstrap::{
     finalize_configuration, initialize_worker, try_get_pbs_info, try_get_slurm_info,
 };
 use crate::worker::hwdetect::{
-    detect_additional_resources, detect_cpus, prune_hyper_threading, GPU_ENVIRONMENTS,
+    GPU_ENVIRONMENTS, detect_additional_resources, detect_cpus, prune_hyper_threading,
 };
 use crate::worker::parser::{parse_cpu_definition, parse_resource_definition};
-use crate::WorkerId;
-use crate::{rpc_call, DEFAULT_WORKER_GROUP_NAME};
+use crate::{DEFAULT_WORKER_GROUP_NAME, rpc_call};
 
 // How often to send overview status to the server
 const DEFAULT_OVERVIEW_INTERVAL: Duration = Duration::from_secs(5);

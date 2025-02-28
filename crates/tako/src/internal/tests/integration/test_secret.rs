@@ -1,5 +1,5 @@
 use crate::internal::tests::integration::utils::server::ServerConfigBuilder;
-use crate::internal::tests::integration::utils::server::{run_test, ServerSecretKey};
+use crate::internal::tests::integration::utils::server::{ServerSecretKey, run_test};
 use crate::internal::tests::integration::utils::worker::{WorkerConfigBuilder, WorkerSecretKey};
 use crate::internal::tests::utils::expect_error_message;
 use orion::auth::SecretKey;

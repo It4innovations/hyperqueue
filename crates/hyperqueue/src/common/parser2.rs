@@ -5,7 +5,7 @@ use chumsky::text::ident;
 use chumsky::{Error, Parser, Span};
 use colored::Color;
 use std::ops::Range;
-use tako::resources::{ResourceAmount, FRACTIONS_MAX_DIGITS};
+use tako::resources::{FRACTIONS_MAX_DIGITS, ResourceAmount};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ParseError {

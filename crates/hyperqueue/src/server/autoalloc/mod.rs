@@ -15,7 +15,7 @@ pub type AutoAllocResult<T> = anyhow::Result<T>;
 
 pub use process::try_submit_allocation;
 pub use queue::QueueInfo;
-pub use service::{create_autoalloc_service, AutoAllocService, LostWorkerDetails};
+pub use service::{AutoAllocService, LostWorkerDetails, create_autoalloc_service};
 pub use state::{Allocation, AllocationId, AllocationState, QueueId};
 
 #[cfg(test)]

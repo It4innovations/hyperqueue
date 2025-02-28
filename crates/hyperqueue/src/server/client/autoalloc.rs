@@ -1,6 +1,6 @@
 use crate::common::serverdir::ServerDir;
-use crate::server::autoalloc::try_submit_allocation;
 use crate::server::Senders;
+use crate::server::autoalloc::try_submit_allocation;
 use crate::transfer::messages::{
     AutoAllocListResponse, AutoAllocRequest, AutoAllocResponse, ToClientMessage,
 };

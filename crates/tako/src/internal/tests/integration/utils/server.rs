@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use derive_builder::Builder;
 use orion::auth::SecretKey;
-use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use tokio::task::{JoinHandle, LocalSet};
 use tokio::time::timeout;
 
@@ -17,9 +17,9 @@ use crate::internal::common::{Map, Set};
 use crate::internal::server::client::process_client_message;
 use crate::internal::server::comm::CommSenderRef;
 use crate::internal::server::core::CoreRef;
-use crate::internal::tests::integration::utils::api::{wait_for_tasks, TaskWaitResultMap};
+use crate::internal::tests::integration::utils::api::{TaskWaitResultMap, wait_for_tasks};
 use crate::internal::tests::integration::utils::worker::{
-    start_worker, WorkerContext, WorkerHandle,
+    WorkerContext, WorkerHandle, start_worker,
 };
 use crate::{TaskId, WorkerId};
 

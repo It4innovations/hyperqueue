@@ -7,7 +7,7 @@ use tako::resources::{
 };
 
 use crate::common::parser2::{
-    all_consuming, parse_exact_string, parse_resource_amount, parse_u32, CharParser, ParseError,
+    CharParser, ParseError, all_consuming, parse_exact_string, parse_resource_amount, parse_u32,
 };
 
 pub fn parse_cpu_definition(input: &str) -> anyhow::Result<ResourceDescriptorKind> {

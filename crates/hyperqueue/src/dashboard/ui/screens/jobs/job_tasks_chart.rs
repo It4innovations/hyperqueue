@@ -1,10 +1,10 @@
+use crate::JobId;
 use crate::dashboard::data::timelines::job_timeline::DashboardTaskState;
 use crate::dashboard::data::{DashboardData, ItemWithTime, TimeRange};
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::chart::{
-    create_chart, create_dataset, generate_dataset_entries, generate_time_data, RangeSteps,
+    RangeSteps, create_chart, create_dataset, generate_dataset_entries, generate_time_data,
 };
-use crate::JobId;
 use ratatui::layout::Rect;
 use ratatui::style::Color;
 use std::time::SystemTime;

@@ -3,12 +3,14 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use orion::aead::SecretKey;
+use rand::SeedableRng;
 use rand::rngs::SmallRng;
 use rand::seq::SliceRandom;
-use rand::SeedableRng;
 
-use crate::internal::common::resources::map::ResourceMap;
+use crate::TaskId;
+use crate::WorkerId;
 use crate::internal::common::resources::Allocation;
+use crate::internal::common::resources::map::ResourceMap;
 use crate::internal::common::stablemap::StableMap;
 use crate::internal::common::{Map, Set, WrappedRcRefCell};
 use crate::internal::messages::common::TaskFailInfo;
@@ -24,8 +26,6 @@ use crate::internal::worker::rqueue::ResourceWaitQueue;
 use crate::internal::worker::task::{Task, TaskState};
 use crate::internal::worker::task_comm::RunningTaskComm;
 use crate::launcher::TaskLauncher;
-use crate::TaskId;
-use crate::WorkerId;
 
 pub type TaskMap = StableMap<TaskId, Task>;
 
@@ -268,10 +268,11 @@ impl WorkerState {
             &other_worker.address
         );
         assert_ne!(self.worker_id, other_worker.worker_id); // We should not receive message about ourselves
-        assert!(self
-            .worker_addresses
-            .insert(other_worker.worker_id, other_worker.address)
-            .is_none());
+        assert!(
+            self.worker_addresses
+                .insert(other_worker.worker_id, other_worker.address)
+                .is_none()
+        );
 
         let resources = WorkerResources::from_transport(other_worker.resources);
         self.ready_task_queue

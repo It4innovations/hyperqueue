@@ -1,6 +1,6 @@
+use crate::Map;
 use crate::hwstats::{GpuCollectionStats, GpuStats};
 use crate::internal::common::error::DsError;
-use crate::Map;
 use std::process::Command;
 
 /// Parses compute and memory utilization of AMD GPUs using `rocm-smi`.

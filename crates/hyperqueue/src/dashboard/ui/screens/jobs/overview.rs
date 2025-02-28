@@ -5,15 +5,15 @@ use crossterm::event::{KeyCode, KeyEvent};
 use std::default::Default;
 use std::time::SystemTime;
 
-use crate::dashboard::data::timelines::job_timeline::TaskInfo;
 use crate::dashboard::data::DashboardData;
+use crate::dashboard::data::timelines::job_timeline::TaskInfo;
 
 use crate::dashboard::ui::screens::jobs::jobs_table::JobsTable;
 use crate::dashboard::ui::widgets::tasks_table::TasksTable;
 
+use crate::JobTaskId;
 use crate::dashboard::ui::screens::jobs::job_info_display::JobInfoTable;
 use crate::dashboard::ui::screens::jobs::job_tasks_chart::JobTaskChart;
-use crate::JobTaskId;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use tako::WorkerId;
 

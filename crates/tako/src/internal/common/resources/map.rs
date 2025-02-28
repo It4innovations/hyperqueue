@@ -1,5 +1,5 @@
-use crate::internal::common::resources::ResourceId;
 use crate::internal::common::Map;
+use crate::internal::common::resources::ResourceId;
 
 pub const CPU_RESOURCE_ID: ResourceId = ResourceId(0);
 

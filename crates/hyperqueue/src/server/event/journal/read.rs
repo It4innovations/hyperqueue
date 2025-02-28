@@ -1,7 +1,7 @@
+use crate::HQ_VERSION;
 use crate::common::serialization::SerializationConfig;
 use crate::server::event::journal::HQ_JOURNAL_HEADER;
 use crate::server::event::{Event, EventSerializationConfig};
-use crate::HQ_VERSION;
 use anyhow::{anyhow, bail};
 use bincode::Options;
 use std::fs::File;
@@ -79,9 +79,9 @@ impl Iterator for &mut JournalReader {
 
 #[cfg(test)]
 mod tests {
+    use crate::server::event::Event;
     use crate::server::event::journal::{JournalReader, JournalWriter};
     use crate::server::event::payload::EventPayload;
-    use crate::server::event::Event;
     use chrono::Utc;
     use std::fs::{File, OpenOptions};
     use std::io::Write;

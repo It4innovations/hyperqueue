@@ -7,10 +7,10 @@ use nom::error::{ErrorKind, FromExternalError, ParseError};
 use nom::multi::many0;
 use nom::sequence::tuple;
 use nom::{AsChar, IResult, InputLength, Parser};
+use nom_supreme::ParserExt;
 use nom_supreme::error::{BaseErrorKind, ErrorTree, Expectation, StackContext};
 use nom_supreme::final_parser::{ByteOffset, RecreateContext};
 use nom_supreme::tag::TagError;
-use nom_supreme::ParserExt;
 
 const CONTEXT_INTEGER: &str = "integer";
 

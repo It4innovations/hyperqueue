@@ -1,8 +1,8 @@
 use std::rc::Rc;
 
 use bytes::Bytes;
-use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::Notify;
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::gateway::{
     LostWorkerMessage, LostWorkerReason, NewWorkerMessage, TaskFailedMessage, TaskState,
@@ -84,7 +84,9 @@ impl CommSender {
 
     pub fn remove_worker(&mut self, worker_id: WorkerId) {
         if self.panic_on_worker_lost {
-            panic!("Worker lost while server is running in testing mode with flag '--panic-on-worker-lost'");
+            panic!(
+                "Worker lost while server is running in testing mode with flag '--panic-on-worker-lost'"
+            );
         }
         assert!(self.workers.remove(&worker_id).is_some());
     }

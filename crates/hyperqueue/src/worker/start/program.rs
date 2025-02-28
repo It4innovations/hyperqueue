@@ -6,8 +6,8 @@ use std::process::ExitStatus;
 use std::time::Duration;
 
 use bstr::{BStr, BString, ByteSlice};
-use futures::future::Either;
 use futures::TryFutureExt;
+use futures::future::Either;
 use nix::sys::signal;
 use nix::sys::signal::Signal;
 use tempfile::TempDir;
@@ -16,21 +16,21 @@ use tokio::sync::oneshot::Receiver;
 
 use tako::comm::serialize;
 use tako::launcher::{
-    command_from_definitions, StopReason, TaskBuildContext, TaskLaunchData, TaskResult,
+    StopReason, TaskBuildContext, TaskLaunchData, TaskResult, command_from_definitions,
 };
 use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
 use tako::resources::{
-    Allocation, ResourceAllocation, AMD_GPU_RESOURCE_NAME, CPU_RESOURCE_ID, CPU_RESOURCE_NAME,
-    NVIDIA_GPU_RESOURCE_NAME,
+    AMD_GPU_RESOURCE_NAME, Allocation, CPU_RESOURCE_ID, CPU_RESOURCE_NAME,
+    NVIDIA_GPU_RESOURCE_NAME, ResourceAllocation,
 };
-use tako::{format_comma_delimited, InstanceId};
+use tako::{InstanceId, format_comma_delimited};
 
 use crate::common::env::{
     HQ_CPUS, HQ_ENTRY, HQ_ERROR_FILENAME, HQ_HOST_FILE, HQ_INSTANCE_ID, HQ_JOB_ID, HQ_NODE_FILE,
     HQ_NUM_NODES, HQ_PIN, HQ_SUBMIT_DIR, HQ_TASK_DIR, HQ_TASK_ID,
 };
 use crate::common::placeholders::{
-    fill_placeholders_in_paths, CompletePlaceholderCtx, ResolvablePaths,
+    CompletePlaceholderCtx, ResolvablePaths, fill_placeholders_in_paths,
 };
 use crate::common::utils::fs::{bytes_to_path, is_implicit_path, path_has_extension};
 use crate::transfer::messages::{PinMode, TaskKindProgram};

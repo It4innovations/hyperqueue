@@ -7,8 +7,8 @@ use tokio::task::LocalSet;
 
 use hyperqueue::worker::bootstrap::{finalize_configuration, initialize_worker};
 use tako::resources::{
-    ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind, ResourceIndex,
-    CPU_RESOURCE_NAME,
+    CPU_RESOURCE_NAME, ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind,
+    ResourceIndex,
 };
 use tako::worker::ServerLostPolicy;
 use tako::worker::WorkerConfiguration;

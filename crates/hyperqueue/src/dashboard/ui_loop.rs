@@ -8,11 +8,11 @@ use std::time::SystemTime;
 use tokio::time::Duration;
 
 use crate::client::globalsettings::GlobalSettings;
+use crate::dashboard::DEFAULT_LIVE_DURATION;
 use crate::dashboard::data::DashboardData;
-use crate::dashboard::data::{create_data_fetch_process, TimeMode, TimeRange};
+use crate::dashboard::data::{TimeMode, TimeRange, create_data_fetch_process};
 use crate::dashboard::ui::screens::root_screen::RootScreen;
 use crate::dashboard::ui::terminal::initialize_terminal;
-use crate::dashboard::DEFAULT_LIVE_DURATION;
 use crate::server::bootstrap::get_client_session;
 use crate::server::event::Event;
 

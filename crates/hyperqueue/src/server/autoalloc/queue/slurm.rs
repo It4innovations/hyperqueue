@@ -14,12 +14,12 @@ use crate::common::manager::slurm::{
 };
 use crate::common::utils::time::local_to_system_time;
 use crate::server::autoalloc::queue::common::{
-    build_worker_args, create_allocation_dir, create_command, format_allocation_name,
-    submit_script, wrap_worker_cmd, ExternalHandler,
+    ExternalHandler, build_worker_args, create_allocation_dir, create_command,
+    format_allocation_name, submit_script, wrap_worker_cmd,
 };
 use crate::server::autoalloc::queue::{
-    common, AllocationExternalStatus, AllocationStatusMap, AllocationSubmissionResult,
-    QueueHandler, SubmitMode,
+    AllocationExternalStatus, AllocationStatusMap, AllocationSubmissionResult, QueueHandler,
+    SubmitMode, common,
 };
 use crate::server::autoalloc::{Allocation, AllocationId, AutoAllocResult, QueueId, QueueInfo};
 

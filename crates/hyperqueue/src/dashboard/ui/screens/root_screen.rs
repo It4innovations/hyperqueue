@@ -1,17 +1,17 @@
+use crate::dashboard::DEFAULT_LIVE_DURATION;
 use crate::dashboard::data::{DashboardData, TimeRange};
 use crate::dashboard::ui::screen::Screen;
 use crate::dashboard::ui::screens::autoalloc::AutoAllocScreen;
 use crate::dashboard::ui::screens::cluster::WorkerOverviewScreen;
 use crate::dashboard::ui::screens::jobs::JobScreen;
 use crate::dashboard::ui::terminal::{DashboardFrame, DashboardTerminal};
-use crate::dashboard::DEFAULT_LIVE_DURATION;
 use chrono::Local;
 use crossterm::event::{KeyCode, KeyEvent};
+use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Direction, Flex, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Borders, Paragraph, Tabs, Wrap};
-use ratatui::Frame;
 use std::fmt::Write;
 use std::ops::ControlFlow;
 use std::time::Duration;
@@ -223,8 +223,9 @@ fn render_timeline(data: &DashboardData, rect: Rect, frame: &mut Frame) {
         true => "[stream]",
         false => "[replay]",
     };
-    let mut text = format!("{mode}\n<{KEY_TIMELINE_SOONER}> -{offset}m, <{KEY_TIMELINE_LATER}> +{offset}m, <{KEY_TIMELINE_ZOOM_IN}> zoom in, <{KEY_TIMELINE_ZOOM_OUT}> zoom out",
-                           offset= offset_duration(data).as_secs() / 60
+    let mut text = format!(
+        "{mode}\n<{KEY_TIMELINE_SOONER}> -{offset}m, <{KEY_TIMELINE_LATER}> +{offset}m, <{KEY_TIMELINE_ZOOM_IN}> zoom in, <{KEY_TIMELINE_ZOOM_OUT}> zoom out",
+        offset = offset_duration(data).as_secs() / 60
     );
     if !data.is_live_time_mode() && data.stream_enabled() {
         write!(text, "\n<{KEY_TIMELINE_LIVE}> live view").unwrap();

@@ -1,8 +1,8 @@
 use std::ops::{Deref, DerefMut};
 
+use crate::WorkerId;
 use crate::internal::common::Map;
 use crate::internal::server::worker::Worker;
-use crate::WorkerId;
 
 #[derive(Default, Debug)]
 pub struct WorkerMap {

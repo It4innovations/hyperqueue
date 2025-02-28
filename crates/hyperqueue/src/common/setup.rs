@@ -1,5 +1,5 @@
-use env_logger::fmt::style::{AnsiColor, Color, Style};
 use env_logger::DEFAULT_FILTER_ENV;
+use env_logger::fmt::style::{AnsiColor, Color, Style};
 use log::LevelFilter;
 use std::io::Write;
 

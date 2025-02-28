@@ -249,12 +249,12 @@ mod tests {
     use std::path::{Path, PathBuf};
     use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
 
+    use crate::Map;
     use crate::common::env::{HQ_INSTANCE_ID, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
     use crate::common::placeholders::{
-        fill_placeholders_after_submit, fill_placeholders_in_paths, parse_resolvable_string,
-        CompletePlaceholderCtx, ResolvablePaths, StringPart,
+        CompletePlaceholderCtx, ResolvablePaths, StringPart, fill_placeholders_after_submit,
+        fill_placeholders_in_paths, parse_resolvable_string,
     };
-    use crate::Map;
 
     #[test]
     fn test_parse_empty_string() {
