@@ -13,10 +13,10 @@ use crate::client::globalsettings::GlobalSettings;
 use crate::client::resources::{parse_allocation_request, parse_resource_request};
 use crate::common::arraydef::IntArray;
 use crate::common::cli::OptsWithMatches;
-use crate::common::parser2::{all_consuming, CharParser, ParseError};
+use crate::common::parser2::{CharParser, ParseError, all_consuming};
 use crate::common::placeholders::{
-    get_unknown_placeholders, parse_resolvable_string, StringPart, CWD_PLACEHOLDER,
-    JOB_ID_PLACEHOLDER, TASK_ID_PLACEHOLDER,
+    CWD_PLACEHOLDER, JOB_ID_PLACEHOLDER, StringPart, TASK_ID_PLACEHOLDER, get_unknown_placeholders,
+    parse_resolvable_string,
 };
 use crate::common::utils::fs::get_current_dir;
 use crate::common::utils::str::pluralize;
@@ -27,19 +27,19 @@ use crate::transfer::messages::{
     PinMode, SubmitRequest, SubmitResponse, TaskDescription, TaskKind, TaskKindProgram,
     ToClientMessage,
 };
-use crate::{rpc_call, JobId, JobTaskCount, Map};
+use crate::{JobId, JobTaskCount, Map, rpc_call};
 use anyhow::{anyhow, bail};
 use bstr::BString;
+use chumsky::Parser as ChumskyParser;
 use chumsky::primitive::{filter, just};
 use chumsky::text::TextParser;
-use chumsky::Parser as ChumskyParser;
 use clap::{ArgMatches, Parser};
 use smallvec::smallvec;
 use tako::gateway::{
     ResourceRequest, ResourceRequestEntries, ResourceRequestEntry, ResourceRequestVariants,
 };
 use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
-use tako::resources::{AllocationRequest, NumOfNodes, ResourceAmount, CPU_RESOURCE_NAME};
+use tako::resources::{AllocationRequest, CPU_RESOURCE_NAME, NumOfNodes, ResourceAmount};
 
 const SUBMIT_ARRAY_LIMIT: JobTaskCount = 999;
 pub const DEFAULT_CRASH_LIMIT: u32 = 5;
@@ -848,8 +848,13 @@ fn warn_missing_task_id(opts: &JobSubmitOpts, task_count: u32) {
                 placeholders.contains(&StringPart::Placeholder(TASK_ID_PLACEHOLDER));
             let path_has_cwd = placeholders.contains(&StringPart::Placeholder(CWD_PLACEHOLDER));
             if !path_has_task_id && (!path_has_cwd || !cwd_has_task_id) {
-                log::warn!("You have submitted an array job, but the `{}` path does not contain the task ID placeholder.\n\
-        Individual tasks might thus overwrite the file. Consider adding `%{{{}}}` to the `--{}` value.", stream, TASK_ID_PLACEHOLDER, stream);
+                log::warn!(
+                    "You have submitted an array job, but the `{}` path does not contain the task ID placeholder.\n\
+        Individual tasks might thus overwrite the file. Consider adding `%{{{}}}` to the `--{}` value.",
+                    stream,
+                    TASK_ID_PLACEHOLDER,
+                    stream
+                );
             }
         }
     };
@@ -963,7 +968,7 @@ fn make_entries_from_json(filename: &Path) -> anyhow::Result<Vec<BString>> {
 #[cfg(test)]
 mod tests {
     use crate::client::commands::submit::command::{
-        parse_stdio_def, stdio_def_parser, StdioDefInput,
+        StdioDefInput, parse_stdio_def, stdio_def_parser,
     };
     use crate::common::parser2::all_consuming;
     use crate::tests::utils::expect_parser_error;

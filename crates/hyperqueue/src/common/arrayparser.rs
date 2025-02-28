@@ -1,9 +1,9 @@
-use crate::common::arraydef::{IntArray, IntRange};
-use crate::common::parser2::{all_consuming, parse_u32, CharParser, ParseError};
 use crate::Set;
+use crate::common::arraydef::{IntArray, IntRange};
+use crate::common::parser2::{CharParser, ParseError, all_consuming, parse_u32};
+use chumsky::Parser;
 use chumsky::primitive::just;
 use chumsky::text::TextParser;
-use chumsky::Parser;
 
 /// Parse integer range in the format n[-end][:step].
 fn parse_range() -> impl CharParser<IntRange> {

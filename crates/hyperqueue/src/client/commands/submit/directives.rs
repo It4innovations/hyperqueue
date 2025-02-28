@@ -14,7 +14,7 @@ use nom::sequence::{preceded, terminated, tuple};
 
 use crate::client::commands::submit::SubmitJobTaskConfOpts;
 use crate::common::cli::OptsWithMatches;
-use crate::common::parser::{consume_all, NomResult};
+use crate::common::parser::{NomResult, consume_all};
 use crate::common::utils::fs::read_at_most;
 
 const MAX_PREFIX_OF_SUBMIT_SCRIPT: usize = 32 * 1024; // 32KiB

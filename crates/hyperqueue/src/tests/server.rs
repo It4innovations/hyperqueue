@@ -1,8 +1,8 @@
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::output::cli::CliOutput;
-use crate::server::bootstrap::{get_client_session, initialize_server, ServerConfig};
-use crate::server::state::StateRef;
 use crate::server::Senders;
+use crate::server::bootstrap::{ServerConfig, get_client_session, initialize_server};
+use crate::server::state::StateRef;
 use crate::transfer::connection::ClientSession;
 use cli_table::ColorChoice;
 use std::future::Future;

@@ -1,9 +1,9 @@
+use crate::Map;
 use crate::internal::common::resources::amount::FRACTIONS_PER_UNIT;
 use crate::internal::common::resources::{ResourceId, ResourceVec};
 use crate::resources::{
     Allocation, ResourceAllocation, ResourceAmount, ResourceFractions, ResourceIndex, ResourceUnits,
 };
-use crate::Map;
 use smallvec::SmallVec;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -188,9 +188,9 @@ impl ConciseFreeResources {
 
 #[cfg(test)]
 mod tests {
+    use crate::Map;
     use crate::internal::worker::resources::concise::{ConciseFreeResources, ConciseResourceState};
     use crate::resources::ResourceUnits;
-    use crate::Map;
 
     impl ConciseFreeResources {
         pub fn new_simple(counts: &[ResourceUnits]) -> Self {

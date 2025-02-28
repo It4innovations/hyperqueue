@@ -8,11 +8,11 @@ use orion::kdf::SecretKey;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::common::error::error;
+use crate::HQ_VERSION;
 use crate::common::error::HqError::VersionError;
+use crate::common::error::error;
 use crate::common::utils::fs::{absolute_path, create_symlink};
 use crate::transfer::auth::{deserialize_key, serialize_key};
-use crate::HQ_VERSION;
 
 #[derive(Clone)]
 pub struct ServerDir {
@@ -292,8 +292,8 @@ pub fn load_client_access_file<P: AsRef<Path>>(path: P) -> crate::Result<ClientA
 #[cfg(test)]
 mod tests {
     use crate::common::serverdir::{
-        create_new_server_dir, load_client_access_file, load_worker_access_file,
-        store_access_record, ConnectAccessRecordPart, FullAccessRecord,
+        ConnectAccessRecordPart, FullAccessRecord, create_new_server_dir, load_client_access_file,
+        load_worker_access_file, store_access_record,
     };
     use crate::transfer::auth::generate_key;
     use std::fs::DirEntry;
@@ -354,10 +354,12 @@ mod tests {
         assert_eq!(created.file_name().unwrap().to_str().unwrap(), "005");
 
         let entry: Result<Vec<DirEntry>, _> = std::fs::read_dir(&path).unwrap().collect();
-        assert!(entry
-            .unwrap()
-            .into_iter()
-            .any(|p| p.file_name().to_str() == Some("005")));
+        assert!(
+            entry
+                .unwrap()
+                .into_iter()
+                .any(|p| p.file_name().to_str() == Some("005"))
+        );
     }
 
     #[test]

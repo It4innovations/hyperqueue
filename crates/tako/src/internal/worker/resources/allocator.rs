@@ -332,7 +332,7 @@ mod tests {
         ResourceDescriptor, ResourceDescriptorKind,
     };
     use crate::internal::common::resources::{Allocation, ResourceId, ResourceRequestVariants};
-    use crate::internal::tests::utils::resources::{cpus_compact, ResBuilder};
+    use crate::internal::tests::utils::resources::{ResBuilder, cpus_compact};
     use crate::internal::tests::utils::shared::res_allocator_from_descriptor;
     use crate::internal::tests::utils::sorted_vec;
     use crate::internal::worker::resources::allocator::ResourceAllocator;
@@ -447,13 +447,15 @@ mod tests {
         let rq = ResBuilder::default().add(0, 3).add(1, 1).finish();
 
         assert!(ResourceAllocator::compute_witness(&pools, &free, &rq, [].iter()).is_none());
-        assert!(ResourceAllocator::compute_witness(
-            &pools,
-            &free,
-            &rq,
-            [Rc::new(Allocation::new_simple(&[1]))].iter()
-        )
-        .is_none());
+        assert!(
+            ResourceAllocator::compute_witness(
+                &pools,
+                &free,
+                &rq,
+                [Rc::new(Allocation::new_simple(&[1]))].iter()
+            )
+            .is_none()
+        );
         assert_eq!(
             ResourceAllocator::compute_witness(
                 &pools,

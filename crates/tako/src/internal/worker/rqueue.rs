@@ -1,5 +1,5 @@
-use crate::internal::common::resources::{Allocation, ResourceRequestVariants};
 use crate::internal::common::Map;
+use crate::internal::common::resources::{Allocation, ResourceRequestVariants};
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::resources::allocator::ResourceAllocator;
 use crate::internal::worker::state::TaskMap;
@@ -47,11 +47,12 @@ impl ResourceWaitQueue {
     }
 
     pub fn new_worker(&mut self, worker_id: WorkerId, resources: WorkerResources) {
-        assert!(self
-            .worker_resources
-            .entry(resources)
-            .or_default()
-            .insert(worker_id));
+        assert!(
+            self.worker_resources
+                .entry(resources)
+                .or_default()
+                .insert(worker_id)
+        );
         self.recompute_resource_priorities();
     }
 
@@ -187,10 +188,10 @@ mod tests {
     use crate::internal::common::resources::{
         ResourceDescriptor, ResourceRequest, ResourceRequestVariants,
     };
-    use crate::internal::tests::utils::resources::{cpus_compact, ResourceRequestBuilder};
-    use crate::internal::tests::utils::resources::{ra_builder, ResBuilder};
+    use crate::internal::tests::utils::resources::{ResBuilder, ra_builder};
+    use crate::internal::tests::utils::resources::{ResourceRequestBuilder, cpus_compact};
     use crate::internal::worker::rqueue::ResourceWaitQueue;
-    use crate::internal::worker::test_util::{worker_task, WorkerTaskBuilder};
+    use crate::internal::worker::test_util::{WorkerTaskBuilder, worker_task};
     use std::ops::Deref;
     use std::time::Duration;
 

@@ -1,5 +1,5 @@
-use crate::dashboard::data::timelines::alloc_timeline::AllocationQueueInfo;
 use crate::dashboard::data::DashboardData;
+use crate::dashboard::data::timelines::alloc_timeline::AllocationQueueInfo;
 use crate::dashboard::ui::screen::Screen;
 use crate::dashboard::ui::screens::autoalloc::alloc_timeline_chart::AllocationsChart;
 use crate::dashboard::ui::screens::autoalloc::allocations_info_table::AllocationInfoTable;

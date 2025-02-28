@@ -6,15 +6,15 @@ use std::time::Duration;
 
 use orion::aead::SecretKey;
 use tokio::net::TcpListener;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::Notify;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
+use crate::WorkerId;
 use crate::gateway::{ErrorResponse, FromGatewayMessage, ToGatewayMessage};
 use crate::internal::scheduler::state::scheduler_loop;
 use crate::internal::server::client::process_client_message;
 use crate::internal::server::comm::CommSenderRef;
 use crate::internal::server::core::{CoreRef, CustomConnectionHandler};
-use crate::WorkerId;
 
 pub struct ServerRef {
     core_ref: CoreRef,

@@ -4,24 +4,24 @@ use std::time::Duration;
 use criterion::measurement::WallTime;
 use criterion::{BatchSize, BenchmarkGroup, BenchmarkId, Criterion};
 use smallvec::smallvec;
+use tako::ItemId;
 use tako::internal::messages::worker::ComputeTaskMsg;
 use tako::internal::tests::utils::shared::res_allocator_from_descriptor;
 use tako::internal::worker::comm::WorkerComm;
 use tako::internal::worker::rqueue::ResourceWaitQueue;
 use tako::launcher::{StopReason, TaskBuildContext, TaskLaunchData, TaskLauncher, TaskResult};
 use tako::resources::{
-    AllocationRequest, ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind,
-    ResourceRequest, ResourceRequestEntry, ResourceRequestVariants, TimeRequest, CPU_RESOURCE_NAME,
-    NVIDIA_GPU_RESOURCE_NAME,
+    AllocationRequest, CPU_RESOURCE_NAME, NVIDIA_GPU_RESOURCE_NAME, ResourceDescriptor,
+    ResourceDescriptorItem, ResourceDescriptorKind, ResourceRequest, ResourceRequestEntry,
+    ResourceRequestVariants, TimeRequest,
 };
-use tako::ItemId;
-use tokio::sync::mpsc::unbounded_channel;
 use tokio::sync::Notify;
+use tokio::sync::mpsc::unbounded_channel;
 
+use tako::TaskId;
 use tako::internal::worker::state::{TaskMap, WorkerStateRef};
 use tako::internal::worker::task::Task;
 use tako::resources::ResourceAmount;
-use tako::TaskId;
 
 use crate::create_worker;
 

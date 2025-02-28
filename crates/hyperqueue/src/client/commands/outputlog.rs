@@ -1,7 +1,7 @@
+use crate::JobId;
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::arraydef::IntArray;
 use crate::stream::reader::outputlog::OutputLog;
-use crate::JobId;
 use clap::Parser;
 use std::path::PathBuf;
 

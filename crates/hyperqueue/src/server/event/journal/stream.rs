@@ -1,10 +1,10 @@
+use crate::JobId;
 use crate::common::utils::str::pluralize;
+use crate::server::event::Event;
+use crate::server::event::journal::JournalReader;
 use crate::server::event::journal::prune::prune_journal;
 use crate::server::event::journal::write::JournalWriter;
-use crate::server::event::journal::JournalReader;
 use crate::server::event::payload::EventPayload;
-use crate::server::event::Event;
-use crate::JobId;
 use std::ffi::OsString;
 use std::fs::{remove_file, rename};
 use std::future::Future;

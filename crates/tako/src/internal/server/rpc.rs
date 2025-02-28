@@ -9,6 +9,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::time::timeout;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
+use crate::WorkerId;
 use crate::comm::{ConnectionRegistration, RegisterWorker};
 use crate::gateway::LostWorkerReason;
 use crate::internal::common::error::DsError;
@@ -29,7 +30,6 @@ use crate::internal::transfer::auth::{
 };
 use crate::internal::transfer::transport::make_protocol_builder;
 use crate::internal::worker::configuration::sync_worker_configuration;
-use crate::WorkerId;
 
 pub struct ConnectionDescriptor {
     pub address: std::net::SocketAddr,

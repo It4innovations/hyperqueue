@@ -5,12 +5,12 @@ use std::sync::Arc;
 use futures::{Sink, SinkExt, Stream, StreamExt};
 use orion::kdf::SecretKey;
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{mpsc, Notify};
+use tokio::sync::{Notify, mpsc};
 
 use tako::gateway::{CancelTasks, FromGatewayMessage, StopWorkerRequest, ToGatewayMessage};
 use tako::{Set, TaskGroup};
 
-use crate::client::status::{job_status, Status};
+use crate::client::status::{Status, job_status};
 use crate::common::serverdir::ServerDir;
 use crate::server::event::Event;
 use crate::server::job::JobTaskCounters;
@@ -22,14 +22,14 @@ use crate::transfer::messages::{
     WorkerListResponse,
 };
 use crate::transfer::messages::{ForgetJobResponse, WaitForJobsResponse};
-use crate::{unwrap_tako_id, JobId, JobTaskCount, WorkerId};
+use crate::{JobId, JobTaskCount, WorkerId, unwrap_tako_id};
 
 pub mod autoalloc;
 mod submit;
 
 use crate::common::error::HqError;
-use crate::server::client::submit::handle_open_job;
 use crate::server::Senders;
+use crate::server::client::submit::handle_open_job;
 pub(crate) use submit::{submit_job_desc, validate_submit};
 
 pub async fn handle_client_connections(

@@ -9,7 +9,7 @@ use crate::transfer::messages::{
     AllocationQueueParams, JobDescription, JobSubmitDescription, SubmitRequest,
 };
 use crate::worker::start::RunningTaskContext;
-use crate::{make_tako_id, unwrap_tako_id, JobId, JobTaskId, Map};
+use crate::{JobId, JobTaskId, Map, make_tako_id, unwrap_tako_id};
 use std::path::Path;
 use tako::gateway::NewTasksMessage;
 use tako::{ItemId, WorkerId};

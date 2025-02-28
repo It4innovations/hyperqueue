@@ -1,5 +1,5 @@
-use crate::dashboard::data::time_interval::TimeRange;
 use crate::dashboard::data::Time;
+use crate::dashboard::data::time_interval::TimeRange;
 
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub struct ItemWithTime<T> {

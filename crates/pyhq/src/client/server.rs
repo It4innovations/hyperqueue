@@ -6,7 +6,7 @@ use hyperqueue::server::bootstrap::get_client_session;
 use hyperqueue::transfer::messages::FromClientMessage;
 
 use crate::utils::error::ToPyResult;
-use crate::{borrow_mut, run_future, ClientContextPtr, HqClientContext};
+use crate::{ClientContextPtr, HqClientContext, borrow_mut, run_future};
 
 pub(crate) fn connect_to_server_impl(
     py: Python,

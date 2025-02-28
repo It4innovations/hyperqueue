@@ -2,8 +2,8 @@ use std::time::{Duration, SystemTime};
 
 use anyhow::anyhow;
 use chrono::TimeZone;
-use chumsky::prelude::just;
 use chumsky::Parser;
+use chumsky::prelude::just;
 
 // Allows specifying humantime format (2h, 3m, etc.)
 pub fn parse_human_time(text: &str) -> anyhow::Result<Duration> {
@@ -55,7 +55,7 @@ pub fn now_monotonic() -> std::time::Instant {
     std::time::Instant::now()
 }
 
-use crate::common::parser2::{all_consuming, parse_u32, CharParser, ParseError};
+use crate::common::parser2::{CharParser, ParseError, all_consuming, parse_u32};
 #[cfg(test)]
 pub use mock_time::now_monotonic;
 
@@ -95,7 +95,7 @@ pub mod mock_time {
 
 #[cfg(test)]
 mod tests {
-    use crate::common::parser2::{all_consuming, CharParser};
+    use crate::common::parser2::{CharParser, all_consuming};
     use crate::common::utils::time::parse_hms_time_inner;
     use crate::tests::utils::expect_parser_error;
 

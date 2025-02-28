@@ -3,7 +3,7 @@
 use crate::internal::messages::worker::ToWorkerMessage;
 use crate::internal::server::core::Core;
 use crate::internal::server::task::Task;
-use crate::internal::tests::utils::env::{create_test_comm, TestComm, TestEnv};
+use crate::internal::tests::utils::env::{TestComm, TestEnv, create_test_comm};
 use crate::internal::tests::utils::resources::ResBuilder;
 use crate::internal::tests::utils::schedule::{
     create_test_scheduler, create_test_worker, create_test_worker_config, create_test_workers,

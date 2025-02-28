@@ -1,14 +1,14 @@
+use crate::JobId;
 use crate::common::serialization::Serialized;
 use crate::server::autoalloc::AllocationId;
 use crate::server::autoalloc::QueueId;
 use crate::transfer::messages::{AllocationQueueParams, JobDescription, SubmitRequest};
-use crate::JobId;
 use crate::{JobTaskId, WorkerId};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use tako::gateway::LostWorkerReason;
 use tako::worker::{WorkerConfiguration, WorkerOverview};
-use tako::{static_assert_size, InstanceId};
+use tako::{InstanceId, static_assert_size};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum EventPayload {

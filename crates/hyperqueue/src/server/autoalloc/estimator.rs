@@ -1,10 +1,10 @@
-use crate::server::autoalloc::state::AllocationQueue;
+use crate::JobId;
 use crate::server::autoalloc::QueueInfo;
+use crate::server::autoalloc::state::AllocationQueue;
 use crate::server::job::Job;
 use crate::server::state::State;
 use crate::server::worker::Worker;
 use crate::transfer::messages::{JobTaskDescription, TaskDescription};
-use crate::JobId;
 use std::time::Duration;
 use tako::Map;
 

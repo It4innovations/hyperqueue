@@ -4,7 +4,7 @@ use ratatui::style::Color;
 use crate::dashboard::data::{DashboardData, TimeRange};
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::chart::{
-    create_chart, create_dataset, get_time_as_secs, y_axis_steps, RangeSteps,
+    RangeSteps, create_chart, create_dataset, get_time_as_secs, y_axis_steps,
 };
 
 #[derive(Default)]

@@ -3,7 +3,7 @@ use hyperqueue::client::commands::submit::command::{
 };
 use hyperqueue::client::output::resolve_task_paths;
 use hyperqueue::client::resources::parse_allocation_request;
-use hyperqueue::client::status::{is_terminated, Status};
+use hyperqueue::client::status::{Status, is_terminated};
 use hyperqueue::common::arraydef::IntArray;
 use hyperqueue::common::utils::fs::get_current_dir;
 use hyperqueue::server::job::JobTaskState;
@@ -14,7 +14,7 @@ use hyperqueue::transfer::messages::{
     TaskKind, TaskKindProgram, TaskSelector, TaskStatusSelector, TaskWithDependencies,
     ToClientMessage,
 };
-use hyperqueue::{rpc_call, tako, JobTaskCount, Set};
+use hyperqueue::{JobTaskCount, Set, rpc_call, tako};
 use pyo3::exceptions::PyException;
 use pyo3::types::PyTuple;
 use pyo3::{IntoPy, PyAny, PyResult, Python};
@@ -27,7 +27,7 @@ use tako::resources::{AllocationRequest, NumOfNodes, ResourceAmount};
 
 use crate::marshal::{FromPy, WrappedDuration};
 use crate::utils::error::ToPyResult;
-use crate::{borrow_mut, run_future, ClientContextPtr, FromPyObject, PyJobId, PyTaskId};
+use crate::{ClientContextPtr, FromPyObject, PyJobId, PyTaskId, borrow_mut, run_future};
 
 #[derive(Debug, FromPyObject)]
 enum AllocationValue {

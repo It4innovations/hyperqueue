@@ -57,7 +57,7 @@ pub fn unwrap_tako_id(tako_task_id: TakoTaskId) -> (JobId, JobTaskId) {
 
 #[cfg(test)]
 mod test {
-    use crate::{make_tako_id, unwrap_tako_id, JobId, JobTaskId};
+    use crate::{JobId, JobTaskId, make_tako_id, unwrap_tako_id};
 
     #[test]
     fn test_make_tako_id() {

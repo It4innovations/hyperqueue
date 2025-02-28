@@ -4,18 +4,18 @@ use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 
 use orion::kdf::SecretKey;
-use tako::gateway::{FromGatewayMessage, ToGatewayMessage};
 use tako::WorkerId;
-use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
+use tako::gateway::{FromGatewayMessage, ToGatewayMessage};
+use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 use tokio::sync::oneshot;
 use tokio::time::Duration;
 
+use crate::WrappedRcRefCell;
 use crate::common::error::error;
+use crate::server::Senders;
 use crate::server::autoalloc::AutoAllocService;
 use crate::server::event::streamer::EventStreamer;
 use crate::server::state::StateRef;
-use crate::server::Senders;
-use crate::WrappedRcRefCell;
 
 struct InnerBackend {
     tako_sender: UnboundedSender<FromGatewayMessage>,

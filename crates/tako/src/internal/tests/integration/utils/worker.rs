@@ -19,11 +19,11 @@ use tokio::io::AsyncWriteExt;
 use tokio::sync::Notify;
 use tokio::task::LocalSet;
 
+use crate::WorkerId;
 use crate::internal::worker::rpc::run_worker;
-use crate::launcher::{command_from_definitions, TaskLaunchData, TaskLauncher};
+use crate::launcher::{TaskLaunchData, TaskLauncher, command_from_definitions};
 use crate::resources::ResourceDescriptorItem;
 use crate::worker::ServerLostPolicy;
-use crate::WorkerId;
 
 pub enum WorkerSecretKey {
     Server,

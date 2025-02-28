@@ -1,13 +1,13 @@
 use std::rc::Rc;
+use tako::ItemId;
 use tako::internal::server::core::Core;
 use tako::internal::server::task::{Task, TaskConfiguration};
 use tako::internal::server::worker::Worker;
 use tako::resources::{
-    ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind, CPU_RESOURCE_NAME,
+    CPU_RESOURCE_NAME, ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind,
 };
 use tako::worker::ServerLostPolicy;
 use tako::worker::WorkerConfiguration;
-use tako::ItemId;
 use tako::{TaskId, WorkerId};
 
 pub fn create_task(id: TaskId) -> Task {

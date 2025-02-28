@@ -1,9 +1,9 @@
 use crate::common::format::human_duration;
 use crate::dashboard::data::timelines::job_timeline::{DashboardTaskState, TaskInfo};
 
+use crate::JobTaskId;
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};
-use crate::JobTaskId;
 use chrono::{DateTime, Local};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Rect};

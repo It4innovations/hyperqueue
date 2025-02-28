@@ -1,9 +1,9 @@
 use std::fmt;
 
-use crate::internal::common::resources::map::ResourceMap;
-use crate::internal::common::resources::TimeRequest;
-use crate::internal::common::resources::{ResourceRequest, ResourceRequestVariants};
 use crate::internal::common::Set;
+use crate::internal::common::resources::TimeRequest;
+use crate::internal::common::resources::map::ResourceMap;
+use crate::internal::common::resources::{ResourceRequest, ResourceRequestVariants};
 use crate::internal::messages::worker::ToWorkerMessage;
 use crate::internal::server::comm::Comm;
 use crate::internal::server::task::Task;

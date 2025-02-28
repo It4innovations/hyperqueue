@@ -3,19 +3,19 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tako::Map;
 
+use tako::WorkerId;
 use tako::gateway::LostWorkerReason;
 use tako::worker::WorkerConfiguration;
-use tako::WorkerId;
 
+use crate::JobId;
 use crate::common::manager::info::{GetManagerInfo, ManagerInfo};
-use crate::common::rpc::{initiate_request, make_rpc_queue, ResponseToken, RpcSender};
+use crate::common::rpc::{ResponseToken, RpcSender, initiate_request, make_rpc_queue};
 use crate::server::autoalloc::process::autoalloc_process;
 use crate::server::autoalloc::state::AutoAllocState;
 use crate::server::autoalloc::{Allocation, QueueId};
 use crate::server::event::streamer::EventStreamer;
 use crate::server::state::StateRef;
 use crate::transfer::messages::{AllocationQueueParams, QueueData};
-use crate::JobId;
 
 #[derive(Debug)]
 pub enum AutoAllocMessage {
@@ -168,9 +168,9 @@ pub fn create_autoalloc_service(
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use crate::common::rpc::{make_rpc_queue, RpcReceiver};
-    use crate::server::autoalloc::service::AutoAllocMessage;
+    use crate::common::rpc::{RpcReceiver, make_rpc_queue};
     use crate::server::autoalloc::AutoAllocService;
+    use crate::server::autoalloc::service::AutoAllocMessage;
 
     pub fn test_alloc_service() -> (AutoAllocService, RpcReceiver<AutoAllocMessage>) {
         let (tx, rx) = make_rpc_queue();

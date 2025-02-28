@@ -1,19 +1,19 @@
 #![cfg(test)]
 
-use crate::internal::common::index::ItemId;
+use crate::TaskId;
 use crate::internal::common::Set;
+use crate::internal::common::index::ItemId;
 use crate::internal::messages::worker::{StealResponse, StealResponseMsg, ToWorkerMessage};
 use crate::internal::server::core::Core;
 use crate::internal::server::reactor::on_steal_response;
 use crate::internal::server::task::Task;
-use crate::internal::tests::utils::env::{create_test_comm, TestEnv};
+use crate::internal::tests::utils::env::{TestEnv, create_test_comm};
 use crate::internal::tests::utils::schedule::{
     create_test_scheduler, create_test_workers, finish_on_worker, submit_test_tasks,
 };
-use crate::internal::tests::utils::task::task;
 use crate::internal::tests::utils::task::TaskBuilder;
+use crate::internal::tests::utils::task::task;
 use crate::resources::{ResourceAmount, ResourceDescriptorItem, ResourceUnits};
-use crate::TaskId;
 use std::time::Duration;
 
 #[test]
@@ -526,13 +526,14 @@ fn test_generic_resource_assign2() {
                 .len(),
         100
     );
-    assert!(rt
-        .core()
-        .get_worker_by_id(100.into())
-        .unwrap()
-        .sn_tasks()
-        .iter()
-        .all(|task_id| task_id.as_num() < 50));
+    assert!(
+        rt.core()
+            .get_worker_by_id(100.into())
+            .unwrap()
+            .sn_tasks()
+            .iter()
+            .all(|task_id| task_id.as_num() < 50)
+    );
 
     assert!(!rt.worker(100).is_parked());
     assert!(rt.worker(101).is_parked());

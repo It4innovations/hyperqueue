@@ -1,6 +1,6 @@
+use crate::TaskId;
 use crate::internal::common::stablemap::StableMap;
 use crate::internal::server::task::Task;
-use crate::TaskId;
 
 #[derive(Default, Debug)]
 pub struct TaskMap {

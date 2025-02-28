@@ -1,5 +1,5 @@
 use crate::client::commands::submit::command::{
-    send_submit_request, DEFAULT_STDERR_PATH, DEFAULT_STDOUT_PATH,
+    DEFAULT_STDERR_PATH, DEFAULT_STDOUT_PATH, send_submit_request,
 };
 use crate::client::commands::submit::defs::{
     ArrayDef, JobDef, StdioDefFull, StdioDefInput, TaskDef,

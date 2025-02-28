@@ -2,9 +2,9 @@ use chrono::{DateTime, Utc};
 use tako::gateway::LostWorkerReason;
 use tako::worker::WorkerConfiguration;
 
+use crate::WorkerId;
 use crate::server::worker::WorkerState::Offline;
 use crate::transfer::messages::{WorkerExitInfo, WorkerInfo};
-use crate::WorkerId;
 
 #[derive(Default)]
 pub struct ConnectedWorkerData {

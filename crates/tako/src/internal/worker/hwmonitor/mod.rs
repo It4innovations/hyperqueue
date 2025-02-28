@@ -1,5 +1,5 @@
-use crate::hwstats::{CpuStats, GpuFamily, MemoryStats, NetworkStats, WorkerHwState};
 use crate::Set;
+use crate::hwstats::{CpuStats, GpuFamily, MemoryStats, NetworkStats, WorkerHwState};
 use psutil::cpu::CpuPercentCollector;
 use psutil::network::NetIoCountersCollector;
 use std::time::SystemTime;

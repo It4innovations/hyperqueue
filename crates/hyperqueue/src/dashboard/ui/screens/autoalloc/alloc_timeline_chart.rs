@@ -4,8 +4,8 @@ use ratatui::layout::Rect;
 use ratatui::widgets::canvas::{Canvas, Context, Painter, Shape};
 use tako::Map;
 
-use crate::dashboard::data::timelines::alloc_timeline::{get_allocation_status, AllocationStatus};
 use crate::dashboard::data::DashboardData;
+use crate::dashboard::data::timelines::alloc_timeline::{AllocationStatus, get_allocation_status};
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::server::autoalloc::{AllocationId, QueueId};
 use chrono::{DateTime, Local};

@@ -17,15 +17,15 @@ use crate::common::arraydef::IntArray;
 use crate::common::placeholders::{
     fill_placeholders_after_submit, fill_placeholders_log, normalize_path,
 };
+use crate::server::Senders;
 use crate::server::job::Job;
 use crate::server::state::{State, StateRef};
-use crate::server::Senders;
 use crate::transfer::messages::{
     JobDescription, JobSubmitDescription, JobTaskDescription, OpenJobResponse, SubmitRequest,
     SubmitResponse, TaskBuildDescription, TaskDescription, TaskIdSelector, TaskKind,
     TaskKindProgram, TaskSelector, TaskStatusSelector, TaskWithDependencies, ToClientMessage,
 };
-use crate::{make_tako_id, JobId, JobTaskCount, JobTaskId, Priority, TakoTaskId};
+use crate::{JobId, JobTaskCount, JobTaskId, Priority, TakoTaskId, make_tako_id};
 
 fn create_new_task_message(
     job_id: JobId,
@@ -425,12 +425,12 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::Arc;
     use std::time::Duration;
+    use tako::Priority;
     use tako::gateway::{
         NewTasksMessage, ResourceRequest, ResourceRequestEntry, ResourceRequestVariants,
     };
     use tako::program::ProgramDefinition;
-    use tako::resources::{AllocationRequest, ResourceAmount, CPU_RESOURCE_NAME};
-    use tako::Priority;
+    use tako::resources::{AllocationRequest, CPU_RESOURCE_NAME, ResourceAmount};
 
     #[test]
     fn test_build_graph_deduplicate_shared_confs() {

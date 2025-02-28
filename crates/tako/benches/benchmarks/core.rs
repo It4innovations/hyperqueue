@@ -1,7 +1,7 @@
 use criterion::measurement::WallTime;
-use criterion::{black_box, BatchSize, BenchmarkGroup, BenchmarkId, Criterion};
-use tako::internal::server::core::Core;
+use criterion::{BatchSize, BenchmarkGroup, BenchmarkId, Criterion, black_box};
 use tako::ItemId;
+use tako::internal::server::core::Core;
 
 use tako::Set;
 use tako::TaskId;

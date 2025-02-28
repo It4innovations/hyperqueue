@@ -1,6 +1,6 @@
 pub mod cli;
 mod common;
-pub use common::{resolve_task_paths, Verbosity, VerbosityFlag};
+pub use common::{Verbosity, VerbosityFlag, resolve_task_paths};
 pub mod json;
 pub mod outputs;
 pub mod quiet;

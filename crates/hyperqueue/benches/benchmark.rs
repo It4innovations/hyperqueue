@@ -1,5 +1,5 @@
 use criterion::measurement::WallTime;
-use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
+use criterion::{BenchmarkGroup, Criterion, criterion_group, criterion_main};
 use hyperqueue::common::placeholders::{has_placeholders, parse_resolvable_string};
 
 fn bench_parse_placeholder(c: &mut BenchmarkGroup<WallTime>) {

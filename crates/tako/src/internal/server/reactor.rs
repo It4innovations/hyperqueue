@@ -141,16 +141,18 @@ pub(crate) fn on_remove_worker(
         let count = core.get_task(task_id).crash_counter;
         log::debug!("Task {} reached crash limit {}", task_id, count);
         fail_task_helper(
-                core,
-                comm,
-                None,
-                task_id,
-                TaskFailInfo {
-                    message: format!("Task was running on a worker that was lost; the task has occurred {count} times in this situation and limit was reached."),
-                    data_type: "".to_string(),
-                    error_data: vec![],
-                },
-            );
+            core,
+            comm,
+            None,
+            task_id,
+            TaskFailInfo {
+                message: format!(
+                    "Task was running on a worker that was lost; the task has occurred {count} times in this situation and limit was reached."
+                ),
+                data_type: "".to_string(),
+                error_data: vec![],
+            },
+        );
     }
 
     comm.send_client_worker_lost(worker_id, running_tasks, reason);
