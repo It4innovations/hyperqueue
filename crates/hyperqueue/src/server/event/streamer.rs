@@ -1,8 +1,8 @@
 use crate::common::serialization::Serialized;
 use crate::server::autoalloc::{AllocationId, QueueId};
-use crate::server::event::Event;
 use crate::server::event::journal::{EventStreamMessage, EventStreamSender};
 use crate::server::event::payload::EventPayload;
+use crate::server::event::Event;
 use crate::transfer::messages::{AllocationQueueParams, JobDescription, SubmitRequest};
 use crate::{JobId, JobTaskId, WorkerId};
 use chrono::{DateTime, Utc};
@@ -59,15 +59,13 @@ impl EventStreamer {
     #[inline]
     pub fn on_overview_received(&self, worker_overview: WorkerOverview, persist_event: bool) {
         self.send_event(
-            EventPayload::WorkerOverviewReceived(worker_overview),
+            Box::new(EventPayload::WorkerOverviewReceived(worker_overview)),
             None,
             if persist_event {
                 ForwardMode::StreamAndPersist
             } else {
                 ForwardMode::Stream
             },
-        );
-    }
 
     pub fn on_job_opened(&self, job_id: JobId, job_desc: JobDescription) {
         self.send_event(

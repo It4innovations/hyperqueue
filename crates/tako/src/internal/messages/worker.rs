@@ -1,6 +1,3 @@
-use serde::{Deserialize, Serialize};
-use std::time::Duration;
-
 use crate::datasrv::{DataId, DataObjectId};
 use crate::gateway::TaskDataFlags;
 use crate::hwstats::WorkerHwStateMessage;
@@ -10,6 +7,9 @@ use crate::resources::ResourceFractions;
 use crate::task::SerializedTaskContext;
 use crate::{InstanceId, Priority};
 use crate::{TaskId, WorkerId};
+use serde::{Deserialize, Serialize};
+use std::time::Duration;
+use thin_vec::ThinVec;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WorkerRegistrationResponse {
@@ -137,10 +137,26 @@ pub struct TaskResourceAllocation {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DataObjectOverview {
+    pub id: DataObjectId,
+    pub size: usize,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DataNodeOverview {
+    pub objects: Vec<DataObjectOverview>,
+    pub total_downloaded_count: u32,
+    pub total_uploaded_count: u32,
+    pub total_downloaded_bytes: usize,
+    pub total_uploaded_bytes: usize,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WorkerOverview {
     pub id: WorkerId,
     pub running_tasks: Vec<(TaskId, TaskResourceAllocation)>,
     pub hw_state: Option<WorkerHwStateMessage>,
+    pub data_node: DataNodeOverview,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

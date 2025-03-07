@@ -430,8 +430,10 @@ pub(crate) fn process_worker_message(state: &mut WorkerState, message: ToWorkerM
                 state.cancel_task(task_id);
             }
         }
-        ToWorkerMessage::RemoveDataObjects(_) => {
-            todo!()
+        ToWorkerMessage::RemoveDataObjects(dataobj_ids) => {
+            for dataobj_id in dataobj_ids {
+                state.data_node.remove_object(dataobj_id);
+            }
         }
         ToWorkerMessage::NewWorker(msg) => {
             state.new_worker(msg);
@@ -540,7 +542,6 @@ async fn send_overview_loop(state_ref: WorkerStateRef) -> crate::Result<()> {
             let _ = trigger_tx.send(()).await;
             if let Some(hw_state) = overview_rx.recv().await {
                 let mut worker_state = state_ref.get_mut();
-
                 let message = FromWorkerMessage::Overview(WorkerOverview {
                     id: worker_state.worker_id,
                     running_tasks: worker_state
@@ -560,6 +561,7 @@ async fn send_overview_loop(state_ref: WorkerStateRef) -> crate::Result<()> {
                         })
                         .collect(),
                     hw_state: Some(WorkerHwStateMessage { state: hw_state }),
+                    data_node: worker_state.data_node.get_overview(),
                 });
                 worker_state.comm().send_message_to_server(message);
             }
