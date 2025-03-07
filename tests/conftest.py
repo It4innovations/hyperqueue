@@ -177,7 +177,7 @@ class HqEnv(Env):
         on_server_lost="stop",
         server_dir=None,
         work_dir: Optional[str] = None,
-        final_check: bool = False,
+        final_check: bool = True,
         hostname=None,
     ) -> subprocess.Popen:
         self.id_counter += 1

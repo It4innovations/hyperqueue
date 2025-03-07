@@ -17,7 +17,7 @@ pub enum EventPayload {
     /// Worker has disconnected from the server
     WorkerLost(WorkerId, LostWorkerReason),
     /// Worker has proactively send its overview (task status and HW utilization report) to the server
-    WorkerOverviewReceived(WorkerOverview),
+    WorkerOverviewReceived(Box<WorkerOverview>),
     /// A Job was submitted by the user -- full information to reconstruct the job;
     ///  it will be only stored into file, not held in memory
     ///  Vec<u8> is serialized SubmitRequest; the main reason is avoiding duplication of SubmitRequest
@@ -76,4 +76,4 @@ pub enum EventPayload {
 }
 
 // Keep the size of the event structure in check
-static_assert_size!(EventPayload, 176);
+static_assert_size!(EventPayload, 40);
