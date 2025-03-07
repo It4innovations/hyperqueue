@@ -209,6 +209,7 @@ pub struct TaskConfigDef {
 }
 
 #[derive(Deserialize, Debug)]
+#[serde(deny_unknown_fields)]
 pub struct TaskDef {
     pub id: Option<JobTaskId>,
 
