@@ -88,7 +88,8 @@ def test_slurm_queue_sbatch_additional_output(hq_env: HqEnv):
     class Handler(SlurmCommandHandler):
         async def handle_submit(self, input: CommandInput) -> CommandOutput:
             output = await super().handle_submit(input)
-            return response(f"""
+            return response(
+                f"""
 No reservation for this job
 --> Verifying valid submit host (login)...OK
 --> Verifying valid jobname...OK
@@ -96,7 +97,8 @@ No reservation for this job
 --> Verifying access to desired queue (normal)...OK
 --> Checking available allocation...OK
 {output.stdout}
-""")
+"""
+            )
 
     with MockJobManager(hq_env, Handler(DefaultManager())):
         hq_env.start_server()

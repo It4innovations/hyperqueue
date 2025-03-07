@@ -64,6 +64,14 @@ def test_worker_stream_events2(hq_env: HqEnv, tmp_path):
         assert events[2]["event"]["desc"]["name"] == "uname"
 
 
+def test_worker_stream_history_only(hq_env: HqEnv, tmp_path):
+    journal = tmp_path.joinpath("test.journal")
+    hq_env.start_server(args=["--journal", journal])
+    r = hq_env.command(["journal", "stream", "--history-only"])
+    msg = json.loads(r)
+    assert msg["event"]["type"] == "server-start"
+
+
 def test_worker_connected_event(hq_env: HqEnv):
     def body():
         hq_env.start_worker()
@@ -154,21 +162,21 @@ def test_worker_capture_amd_gpu_state(hq_env: HqEnv):
         with hq_env.mock.mock_program_with_code(
             "rocm-smi",
             """
-import json
-data = {
-    "card0": {
-        "GPU use (%)": "1.5",
-        "GPU memory use (%)": "12.5",
-        "PCI Bus": "FOOBAR1"
-    },
-    "card1": {
-        "GPU use (%)": "12.5",
-        "GPU memory use (%)": "64.0",
-        "PCI Bus": "FOOBAR2"
+    import json
+    data = {
+        "card0": {
+            "GPU use (%)": "1.5",
+            "GPU memory use (%)": "12.5",
+            "PCI Bus": "FOOBAR1"
+        },
+        "card1": {
+            "GPU use (%)": "12.5",
+            "GPU memory use (%)": "64.0",
+            "PCI Bus": "FOOBAR2"
+        }
     }
-}
-print(json.dumps(data))
-        """,
+    print(json.dumps(data))
+            """,
         ):
             hq_env.start_worker(args=["--overview-interval", "10ms", "--resource", "gpus/amd=[0]"])
             wait_for_worker_state(hq_env, 1, "RUNNING")
