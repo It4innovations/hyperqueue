@@ -185,6 +185,7 @@ pub async fn client_rpc_loop<
                         senders.events.replay_journal(tx1);
                         stream_history_events(&mut tx, rx1).await;
                         if let Some((rx2, listener_id)) = live {
+                            let _ = tx.send(ToClientMessage::EventLiveBoundary).await;
                             stream_events(&mut tx, &mut rx, rx2).await;
                             senders.events.unregister_listener(listener_id);
                         }

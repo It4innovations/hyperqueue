@@ -41,6 +41,7 @@ pub enum FromClientMessage {
     // This command switches the connection into streaming connection,
     // it will no longer reacts to any other client messages
     // and client will only receive ToClientMessage::Event
+    // or ToClientMessage::EventLiveBoundary
     StreamEvents(StreamEvents),
     PruneJournal,
     FlushJournal,
@@ -348,6 +349,9 @@ pub enum ToClientMessage {
     Error(String),
     ServerInfo(ServerInfo),
     Event(Event),
+    // This indicates in live event streaming when old events where
+    // old streamed, and now we are getting new ones
+    EventLiveBoundary,
     Finished, // Generic response, now used only for journal pruning/flushing
 }
 
