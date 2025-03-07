@@ -4,7 +4,7 @@ use crate::internal::datasrv::dataobj::{DataObjectId, InputMap};
 use crate::internal::datasrv::messages::{
     DataObject, FromDataNodeLocalMessage, ToDataNodeLocalMessage,
 };
-use crate::internal::messages::worker::TaskOutput;
+use crate::internal::messages::worker::{DataNodeOverview, DataObjectOverview, TaskOutput};
 use crate::internal::worker::localcomm::make_protocol_builder;
 use crate::internal::worker::state::{WorkerState, WorkerStateRef};
 use crate::{Map, Priority, PriorityTuple, Set, TaskId, WorkerId, WrappedRcRefCell};
@@ -71,6 +71,13 @@ impl DataNode {
         }
     }
 
+    pub fn remove_object(&mut self, data_object_id: DataObjectId) {
+        log::debug!("Removing data object {:?}", data_object_id);
+        if self.store.remove(&data_object_id).is_none() {
+            log::debug!("Data object {} not found", data_object_id);
+        }
+    }
+
     fn is_downloading(&self, data_object_id: DataObjectId) -> bool {
         self.running_downloads.contains_key(&data_object_id)
             || self.download_queue.get(&data_object_id).is_some()
@@ -83,6 +90,24 @@ impl DataNode {
         log::debug!("Scheduling data object download {data_object_id}");
         self.download_queue.push(data_object_id, priority_tuple);
         self.notify_downloader.notify_one();
+    }
+
+    pub fn get_overview(&self) -> DataNodeOverview {
+        let objects = self
+            .store
+            .iter()
+            .map(|(id, obj)| DataObjectOverview {
+                id: *id,
+                size: obj.data.len(),
+            })
+            .collect();
+        DataNodeOverview {
+            objects,
+            total_downloaded_count: 0,
+            total_uploaded_count: 0,
+            total_downloaded_bytes: 0,
+            total_uploaded_bytes: 0,
+        }
     }
 }
 

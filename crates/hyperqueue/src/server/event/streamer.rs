@@ -42,7 +42,9 @@ impl EventStreamer {
 
     #[inline]
     pub fn on_overview_received(&self, worker_overview: WorkerOverview) {
-        self.send_event(EventPayload::WorkerOverviewReceived(worker_overview));
+        self.send_event(EventPayload::WorkerOverviewReceived(Box::new(
+            worker_overview,
+        )));
     }
 
     pub fn on_job_opened(&self, job_id: JobId, job_desc: JobDescription) {
