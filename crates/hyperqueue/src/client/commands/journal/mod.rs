@@ -6,7 +6,7 @@ use crate::common::utils::str::pluralize;
 use crate::rpc_call;
 use crate::server::bootstrap::get_client_session;
 use crate::server::event::journal::JournalReader;
-use crate::transfer::messages::{FromClientMessage, ToClientMessage};
+use crate::transfer::messages::{FromClientMessage, StreamEvents, ToClientMessage};
 use anyhow::anyhow;
 use clap::{Parser, ValueHint};
 use std::io::{BufWriter, Write};
@@ -25,8 +25,8 @@ enum JournalCommand {
     /// Events will be exported to `stdout`, you can redirect it e.g. to a file.
     Export(ExportOpts),
 
-    /// Live stream events from the server.
-    Stream,
+    /// Stream events from a running server.
+    Stream(StreamOpts),
 
     /// Connect to a server and remove completed tasks and non-active workers from journal
     Prune,
@@ -43,20 +43,30 @@ struct ExportOpts {
     journal: PathBuf,
 }
 
+#[derive(Parser)]
+struct StreamOpts {
+    /// If enabled, server terminates the connection when all currents events
+    /// are sent.
+    #[arg(long)]
+    history_only: bool,
+}
+
 pub async fn command_journal(gsettings: &GlobalSettings, opts: JournalOpts) -> anyhow::Result<()> {
     match opts.command {
         JournalCommand::Export(opts) => export_json(opts),
-        JournalCommand::Stream => stream_json(gsettings).await,
+        JournalCommand::Stream(opts) => stream_json(gsettings, opts).await,
         JournalCommand::Prune => prune_journal(gsettings).await,
         JournalCommand::Flush => flush_journal(gsettings).await,
     }
 }
 
-async fn stream_json(gsettings: &GlobalSettings) -> anyhow::Result<()> {
+async fn stream_json(gsettings: &GlobalSettings, opts: StreamOpts) -> anyhow::Result<()> {
     let mut connection = get_client_session(gsettings.server_directory()).await?;
     connection
         .connection()
-        .send(FromClientMessage::StreamEvents)
+        .send(FromClientMessage::StreamEvents(StreamEvents {
+            history_only: opts.history_only,
+        }))
         .await?;
     let stdout = std::io::stdout();
     let stdout = stdout.lock();
