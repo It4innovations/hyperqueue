@@ -75,14 +75,9 @@ async fn handle_client(
     Ok(())
 }
 
-async fn stream_events<
-    Tx: Sink<ToClientMessage, Error = HqError> + Unpin + 'static,
-    Rx: Stream<Item = crate::Result<FromClientMessage>> + Unpin,
->(
+async fn stream_history_events<Tx: Sink<ToClientMessage, Error = HqError> + Unpin + 'static>(
     tx: &mut Tx,
-    rx: &mut Rx,
     mut history: mpsc::UnboundedReceiver<Event>,
-    mut current: mpsc::UnboundedReceiver<Event>,
 ) {
     log::debug!("Resending history started");
     while let Some(e) = history.recv().await {
@@ -90,6 +85,16 @@ async fn stream_events<
             return;
         }
     }
+}
+
+async fn stream_events<
+    Tx: Sink<ToClientMessage, Error = HqError> + Unpin + 'static,
+    Rx: Stream<Item = crate::Result<FromClientMessage>> + Unpin,
+>(
+    tx: &mut Tx,
+    rx: &mut Rx,
+    mut current: mpsc::UnboundedReceiver<Event>,
+) {
     log::debug!("History streaming completed");
     loop {
         let r = tokio::select! {
@@ -164,18 +169,25 @@ pub async fn client_rpc_loop<
                     FromClientMessage::CloseJob(msg) => {
                         handle_job_close(&state_ref, senders, &msg.selector).await
                     }
-                    FromClientMessage::StreamEvents => {
+                    FromClientMessage::StreamEvents(msg) => {
                         log::debug!("Start streaming events to client");
                         /* We create two event queues, one for historic events and one for live events
                         So while historic events are loaded from the file and streamed, live events are already
                         collected and sent immediately the historic events are sent */
                         let (tx1, rx1) = mpsc::unbounded_channel::<Event>();
-                        let (tx2, rx2) = mpsc::unbounded_channel::<Event>();
-                        let listener_id = senders.events.register_listener(tx1, tx2);
-
-                        stream_events(&mut tx, &mut rx, rx1, rx2).await;
-
-                        senders.events.unregister_listener(listener_id);
+                        let live = if !msg.history_only {
+                            let (tx2, rx2) = mpsc::unbounded_channel::<Event>();
+                            let listener_id = senders.events.register_listener(tx2);
+                            Some((rx2, listener_id))
+                        } else {
+                            None
+                        };
+                        senders.events.replay_journal(tx1);
+                        stream_history_events(&mut tx, rx1).await;
+                        if let Some((rx2, listener_id)) = live {
+                            stream_events(&mut tx, &mut rx, rx2).await;
+                            senders.events.unregister_listener(listener_id);
+                        }
                         break;
                     }
                     FromClientMessage::ServerInfo => {

@@ -1,6 +1,6 @@
 use crate::server::event::Event;
 use crate::transfer::connection::ClientSession;
-use crate::transfer::messages::{FromClientMessage, ToClientMessage};
+use crate::transfer::messages::{FromClientMessage, StreamEvents, ToClientMessage};
 use std::time::Duration;
 use tokio::sync::mpsc::Sender;
 
@@ -10,7 +10,9 @@ pub async fn create_data_fetch_process(
 ) -> anyhow::Result<()> {
     session
         .connection()
-        .send(FromClientMessage::StreamEvents)
+        .send(FromClientMessage::StreamEvents(StreamEvents {
+            history_only: false,
+        }))
         .await?;
 
     const CAPACITY: usize = 1024;

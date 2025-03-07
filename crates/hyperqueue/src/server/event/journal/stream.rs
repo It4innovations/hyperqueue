@@ -15,7 +15,7 @@ use tokio::sync::mpsc;
 
 pub enum EventStreamMessage {
     Event(Event),
-    RegisterListener(mpsc::UnboundedSender<Event>),
+    ReplayJournal(mpsc::UnboundedSender<Event>),
     PruneJournal {
         callback: tokio::sync::oneshot::Sender<()>,
         live_jobs: Set<JobId>,
@@ -88,7 +88,7 @@ async fn streaming_process(
                             break
                         }
                     }
-                    Some(EventStreamMessage::RegisterListener(tx)) => {
+                    Some(EventStreamMessage::ReplayJournal(tx)) => {
                         /* We are blocking the thread here, but it is intended.
                            But we are blocking just a thread managing log file, not the whole HQ
                            And while this read is performed, we cannot allow modification of the file,
