@@ -35,16 +35,21 @@ pub async fn create_data_fetch_process(
                 let Some(message) = message else { break; };
 
                 let message = message?;
-                let ToClientMessage::Event(event) = message else {
-                    return Err(anyhow::anyhow!(
-                        "Dashboard received unexpected message {message:?}"
-                    ));
+                match message {
+                    ToClientMessage::Event(event) => {
+                        events.push(event);
+                        if events.len() == CAPACITY {
+                            sender.send(events).await?;
+                            events = Vec::with_capacity(CAPACITY);
+                        }
+                    },
+                    ToClientMessage::EventLiveBoundary => {
+                        /* Do nothing */
+                    }
+                    _ => {
+                        return Err(anyhow::anyhow!("Dashboard received unexpected message {message:?}"));
+                    }
                 };
-                events.push(event);
-                if events.len() == CAPACITY {
-                    sender.send(events).await?;
-                    events = Vec::with_capacity(CAPACITY);
-                }
             }
         }
     }

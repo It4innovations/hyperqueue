@@ -71,11 +71,15 @@ async fn stream_json(gsettings: &GlobalSettings, live_events: bool) -> anyhow::R
     let mut stdout = BufWriter::new(stdout);
     while let Some(event) = connection.connection().receive().await {
         let event = event?;
-        if let ToClientMessage::Event(e) = event {
-            writeln!(stdout, "{}", format_event(e))?;
-            stdout.flush()?;
-        } else {
-            anyhow::bail!("Invalid message receive, not ToClientMessage::Event");
+        match event {
+            ToClientMessage::Event(e) => {
+                writeln!(stdout, "{}", format_event(e))?;
+                stdout.flush()?;
+            }
+            ToClientMessage::EventLiveBoundary => { /* Do nothing */ }
+            _ => {
+                anyhow::bail!("Invalid message receive, not ToClientMessage::Event");
+            }
         }
     }
     Ok(())
