@@ -493,6 +493,9 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Task(TaskOpts {
             subcmd: TaskCommand::List(opts),
         }) => command_task_list(&gsettings, opts).await,
+        SubCommand::Task(TaskOpts {
+            subcmd: TaskCommand::Info(opts),
+        }) => command_task_info(&gsettings, opts).await,
         SubCommand::Data(opts) => command_task_data(&gsettings, opts).await,
         #[cfg(feature = "dashboard")]
         SubCommand::Dashboard(opts) => command_dashboard_start(&gsettings, opts).await,
