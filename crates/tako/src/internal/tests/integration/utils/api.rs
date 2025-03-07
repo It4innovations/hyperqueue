@@ -19,8 +19,8 @@ pub async fn wait_for_worker_overview(
     wait_for_msg!(handler, ToGatewayMessage::WorkerOverview(WorkerOverview {
         id,
         running_tasks,
-        hw_state
-    }) if id == worker_id => WorkerOverview { id, running_tasks, hw_state })
+        hw_state, data_node
+    }) if id == worker_id => WorkerOverview { id, running_tasks, hw_state, data_node})
 }
 pub async fn wait_for_workers_overview(
     handler: &mut ServerHandle,
@@ -35,8 +35,8 @@ pub async fn wait_for_workers_overview(
         let overview = wait_for_msg!(handler, ToGatewayMessage::WorkerOverview(WorkerOverview {
             id,
             running_tasks,
-            hw_state
-        }) if worker_ids.contains(&id) => WorkerOverview { id, running_tasks, hw_state });
+            hw_state,data_node
+        }) if worker_ids.contains(&id) => WorkerOverview { id, running_tasks, hw_state, data_node});
         worker_ids.remove(&overview.id);
         worker_map.insert(overview.id, overview);
     }

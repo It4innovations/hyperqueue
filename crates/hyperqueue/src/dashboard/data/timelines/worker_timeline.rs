@@ -68,7 +68,7 @@ impl WorkerTimeline {
                     if let Some(worker) = self.workers.get_mut(&overview.id) {
                         worker
                             .worker_overviews
-                            .push(event.time.into(), overview.clone());
+                            .push(event.time.into(), *overview.clone());
                     }
                 }
                 _ => {}
