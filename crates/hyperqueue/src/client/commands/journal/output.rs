@@ -1,6 +1,6 @@
 use crate::client::output::json::format_datetime;
-use crate::server::event::Event;
 use crate::server::event::payload::EventPayload;
+use crate::server::event::Event;
 use crate::transfer::messages::{JobDescription, SubmitRequest};
 use serde_json::json;
 use tako::worker::WorkerOverview;
@@ -24,11 +24,18 @@ fn format_payload(event: EventPayload) -> serde_json::Value {
             "id": id,
             "reason": reason
         }),
-        EventPayload::WorkerOverviewReceived(WorkerOverview { id, hw_state, .. }) => {
+        EventPayload::WorkerOverviewReceived(overview) => {
+            let WorkerOverview {
+                id,
+                hw_state,
+                data_node,
+                ..
+            } = *overview;
             json!({
                 "type": "worker-overview",
                 "id": id,
-                "hw-state": hw_state
+                "hw-state": hw_state,
+                "data-node": data_node,
             })
         }
         EventPayload::AllocationQueueCreated(id, _params) => {

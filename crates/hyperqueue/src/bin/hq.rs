@@ -561,6 +561,9 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Task(TaskOpts {
             subcmd: TaskCommand::List(opts),
         }) => command_task_list(&gsettings, opts).await,
+        SubCommand::Task(TaskOpts {
+            subcmd: TaskCommand::Info(opts),
+        }) => command_task_info(&gsettings, opts).await,
         SubCommand::Data(opts) => command_task_data(&gsettings, opts).await,
 >>>>>>> 1108743b (Local object exchange)
         #[cfg(feature = "dashboard")]
