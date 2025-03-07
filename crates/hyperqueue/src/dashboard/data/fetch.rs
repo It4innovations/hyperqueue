@@ -1,6 +1,6 @@
 use crate::server::event::Event;
 use crate::transfer::connection::ClientSession;
-use crate::transfer::messages::{FromClientMessage, ToClientMessage};
+use crate::transfer::messages::{FromClientMessage, StreamEvents, ToClientMessage};
 use std::time::Duration;
 use tokio::sync::mpsc::Sender;
 
@@ -10,7 +10,9 @@ pub async fn create_data_fetch_process(
 ) -> anyhow::Result<()> {
     session
         .connection()
-        .send(FromClientMessage::StreamEvents)
+        .send(FromClientMessage::StreamEvents(StreamEvents {
+            history_only: false,
+        }))
         .await?;
 
     const CAPACITY: usize = 1024;
@@ -33,16 +35,21 @@ pub async fn create_data_fetch_process(
                 let Some(message) = message else { break; };
 
                 let message = message?;
-                let ToClientMessage::Event(event) = message else {
-                    return Err(anyhow::anyhow!(
-                        "Dashboard received unexpected message {message:?}"
-                    ));
+                match message {
+                    ToClientMessage::Event(event) => {
+                        events.push(event);
+                        if events.len() == CAPACITY {
+                            sender.send(events).await?;
+                            events = Vec::with_capacity(CAPACITY);
+                        }
+                    },
+                    ToClientMessage::EventLiveBoundary => {
+                        /* Do nothing */
+                    }
+                    _ => {
+                        return Err(anyhow::anyhow!("Dashboard received unexpected message {message:?}"));
+                    }
                 };
-                events.push(event);
-                if events.len() == CAPACITY {
-                    sender.send(events).await?;
-                    events = Vec::with_capacity(CAPACITY);
-                }
             }
         }
     }

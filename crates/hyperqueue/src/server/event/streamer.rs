@@ -169,11 +169,19 @@ impl EventStreamer {
         });
     }
 
-    pub fn register_listener(
-        &self,
-        history_sender: mpsc::UnboundedSender<Event>,
-        current_sender: mpsc::UnboundedSender<Event>,
-    ) -> u32 {
+    pub fn replay_journal(&self, history_sender: mpsc::UnboundedSender<Event>) {
+        let inner = self.inner.get();
+        if let Some(ref streamer) = inner.storage_sender {
+            if streamer
+                .send(EventStreamMessage::ReplayJournal(history_sender))
+                .is_err()
+            {
+                log::error!("Event streaming queue has been closed.");
+            }
+        }
+    }
+
+    pub fn register_listener(&self, current_sender: mpsc::UnboundedSender<Event>) -> u32 {
         let mut inner = self.inner.get_mut();
         let listener_id = inner
             .client_listeners
@@ -183,14 +191,6 @@ impl EventStreamer {
             .unwrap_or(0)
             + 1;
         inner.client_listeners.push((current_sender, listener_id));
-        if let Some(ref streamer) = inner.storage_sender {
-            if streamer
-                .send(EventStreamMessage::RegisterListener(history_sender))
-                .is_err()
-            {
-                log::error!("Event streaming queue has been closed.");
-            }
-        }
         listener_id
     }
 

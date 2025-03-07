@@ -41,7 +41,8 @@ pub enum FromClientMessage {
     // This command switches the connection into streaming connection,
     // it will no longer reacts to any other client messages
     // and client will only receive ToClientMessage::Event
-    StreamEvents,
+    // or ToClientMessage::EventLiveBoundary
+    StreamEvents(StreamEvents),
     PruneJournal,
     FlushJournal,
 }
@@ -84,6 +85,11 @@ pub struct TaskKindProgram {
     pub program: ProgramDefinition,
     pub pin_mode: PinMode,
     pub task_dir: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct StreamEvents {
+    pub history_only: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -343,6 +349,9 @@ pub enum ToClientMessage {
     Error(String),
     ServerInfo(ServerInfo),
     Event(Event),
+    // This indicates in live event streaming when old events where
+    // old streamed, and now we are getting new ones
+    EventLiveBoundary,
     Finished, // Generic response, now used only for journal pruning/flushing
 }
 
