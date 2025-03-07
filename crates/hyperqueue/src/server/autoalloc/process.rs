@@ -127,7 +127,7 @@ async fn handle_message(
                     "Worker {id} disconnected to an unknown allocation {}",
                     manager_info.allocation_id
                 );
-                None
+                Some(RefreshReason::UpdateAllQueues)
             }
         }
         AutoAllocMessage::JobCreated(id) => {
