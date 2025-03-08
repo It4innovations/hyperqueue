@@ -983,6 +983,10 @@ impl Output for CliOutput {
             job_id.to_string().color(colored::Color::Green),
         );
     }
+
+    fn print_empty(&self) {
+        println!()
+    }
 }
 
 struct AllocationTimes {
