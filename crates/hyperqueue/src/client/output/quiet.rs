@@ -161,6 +161,8 @@ impl Output for Quiet {
     }
 
     fn print_explanation(&self, _task_id: TaskId, _explanation: &TaskExplanation) {}
+
+    fn finalize_output(&self) {}
 }
 
 fn format_status(status: &Status) -> &str {

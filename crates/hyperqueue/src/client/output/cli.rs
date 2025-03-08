@@ -1177,6 +1177,8 @@ impl Output for CliOutput {
         output_file(&path);
         Ok(())
     }
+
+    fn finalize_output(&self) {}
 }
 
 struct AllocationTimes {
