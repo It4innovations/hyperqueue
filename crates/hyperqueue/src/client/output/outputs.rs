@@ -99,4 +99,7 @@ pub trait Output {
     fn print_error(&self, error: anyhow::Error);
 
     fn print_explanation(&self, task_id: TaskId, explanation: &TaskExplanation);
+
+    /// Finish the output.
+    fn finalize_output(&self);
 }

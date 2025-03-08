@@ -6,6 +6,7 @@ from typing import List
 import iso8601
 from schema import Schema
 
+from ..autoalloc.utils import add_queue
 from ..conftest import HqEnv
 from ..utils import wait_for_job_state
 from ..utils.job import default_task_output
@@ -289,3 +290,11 @@ def test_print_job_summary(hq_env: HqEnv):
         }
     )
     schema.validate(output)
+
+
+def test_add_queue_json_output_nonempty(hq_env: HqEnv):
+    hq_env.start_server()
+    output = add_queue(
+        hq_env, manager="slurm", additional_hq_args=["--output-mode", "json"], ignore_stderr=True, as_json=True
+    )
+    assert output == {}

@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::path::Path;
 use std::time::Duration;
@@ -31,10 +32,14 @@ use tako::server::TaskExplanation;
 use tako::{JobId, JobTaskId};
 
 #[derive(Default)]
-pub struct JsonOutput;
+pub struct JsonOutput {
+    /// Has something been printed?
+    printed: Cell<bool>,
+}
 
 impl JsonOutput {
     fn print(&self, data: serde_json::Value) {
+        self.printed.set(true);
         println!(
             "{}",
             serde_json::to_string_pretty(&data).expect("Could not format JSON")
@@ -265,6 +270,14 @@ impl Output for JsonOutput {
 
     fn print_explanation(&self, task_id: TaskId, explanation: &TaskExplanation) {
         self.print(json!({ "task_id": task_id, "explanation": explanation }));
+    }
+
+    fn finalize_output(&self) {
+        // If we are ending and nothing has been printed, we would produce invalid JSON output
+        // (nothing). Therefore, we just print an empty object in that case.
+        if !self.printed.get() {
+            self.print(json!({}));
+        }
     }
 }
 
