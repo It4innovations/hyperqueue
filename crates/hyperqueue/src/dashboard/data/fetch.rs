@@ -11,7 +11,7 @@ pub async fn create_data_fetch_process(
     session
         .connection()
         .send(FromClientMessage::StreamEvents(StreamEvents {
-            history_only: false,
+            live_events: true,
         }))
         .await?;
 

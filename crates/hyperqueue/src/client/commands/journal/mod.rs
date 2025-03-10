@@ -25,8 +25,13 @@ enum JournalCommand {
     /// Events will be exported to `stdout`, you can redirect it e.g. to a file.
     Export(ExportOpts),
 
-    /// Stream events from a running server.
-    Stream(StreamOpts),
+    /// Stream events from a running server, it first replays old events
+    /// then it waits for new live events.
+    Stream,
+
+    /// Stream events from a running server, it replays old events
+    /// after that it terminates the connection.
+    Replay,
 
     /// Connect to a server and remove completed tasks and non-active workers from journal
     Prune,
@@ -43,29 +48,22 @@ struct ExportOpts {
     journal: PathBuf,
 }
 
-#[derive(Parser)]
-struct StreamOpts {
-    /// If enabled, server terminates the connection when all currents events
-    /// are sent.
-    #[arg(long)]
-    history_only: bool,
-}
-
 pub async fn command_journal(gsettings: &GlobalSettings, opts: JournalOpts) -> anyhow::Result<()> {
     match opts.command {
         JournalCommand::Export(opts) => export_json(opts),
-        JournalCommand::Stream(opts) => stream_json(gsettings, opts).await,
+        JournalCommand::Replay => stream_json(gsettings, false).await,
+        JournalCommand::Stream => stream_json(gsettings, true).await,
         JournalCommand::Prune => prune_journal(gsettings).await,
         JournalCommand::Flush => flush_journal(gsettings).await,
     }
 }
 
-async fn stream_json(gsettings: &GlobalSettings, opts: StreamOpts) -> anyhow::Result<()> {
+async fn stream_json(gsettings: &GlobalSettings, live_events: bool) -> anyhow::Result<()> {
     let mut connection = get_client_session(gsettings.server_directory()).await?;
     connection
         .connection()
         .send(FromClientMessage::StreamEvents(StreamEvents {
-            history_only: opts.history_only,
+            live_events,
         }))
         .await?;
     let stdout = std::io::stdout();
