@@ -88,7 +88,7 @@ pub struct TaskKindProgram {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct StreamEvents {
-    pub history_only: bool,
+    pub live_events: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

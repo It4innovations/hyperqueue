@@ -175,7 +175,7 @@ pub async fn client_rpc_loop<
                         So while historic events are loaded from the file and streamed, live events are already
                         collected and sent immediately the historic events are sent */
                         let (tx1, rx1) = mpsc::unbounded_channel::<Event>();
-                        let live = if !msg.history_only {
+                        let live = if msg.live_events {
                             let (tx2, rx2) = mpsc::unbounded_channel::<Event>();
                             let listener_id = senders.events.register_listener(tx2);
                             Some((rx2, listener_id))
