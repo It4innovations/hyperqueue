@@ -1,5 +1,4 @@
-use crate::datasrv::{DataInputId, DataObjectId};
-use crate::internal::datasrv::dataobj::InputMap;
+use crate::datasrv::DataObjectId;
 use crate::internal::worker::datanode::datanode_connection_handler;
 use crate::internal::worker::state::WorkerStateRef;
 use crate::{Map, TaskId};
@@ -8,8 +7,7 @@ use futures::StreamExt;
 use rand::Rng;
 use rand::distr::Alphanumeric;
 use serde::{Deserialize, Serialize};
-use std::borrow::{Borrow, Cow};
-use std::future::Future;
+use std::borrow::Borrow;
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -39,7 +37,7 @@ impl Token {
         }
     }
     pub fn as_bstr(&self) -> &BStr {
-        &self.raw_token.as_bstr()
+        self.raw_token.as_bstr()
     }
 }
 

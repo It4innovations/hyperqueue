@@ -1,12 +1,10 @@
-use crate::datasrv::{DataId, DataObjectId};
+use crate::datasrv::DataObjectId;
 use crate::gateway::TaskDataFlags;
 use crate::internal::common::resources::Allocation;
 use crate::internal::common::stablemap::ExtractKey;
-use crate::internal::datasrv::messages::DataObject;
 use crate::internal::messages::worker::{ComputeTaskMsg, TaskOutput};
-use crate::internal::worker::state::WorkerState;
 use crate::internal::worker::task_comm::RunningTaskComm;
-use crate::{InstanceId, Map, Priority, TaskId, WorkerId};
+use crate::{InstanceId, Priority, TaskId, WorkerId};
 use std::rc::Rc;
 use std::time::Duration;
 
