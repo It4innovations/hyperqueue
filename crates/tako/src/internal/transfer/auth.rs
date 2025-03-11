@@ -1,16 +1,17 @@
+use std::borrow::Cow;
 use std::sync::Arc;
 use std::time::Duration;
 
 use bincode::{DefaultOptions, Options};
 use bytes::Bytes;
-use futures::StreamExt;
 use futures::stream::{SplitSink, SplitStream};
+use futures::StreamExt;
 use futures::{Sink, SinkExt};
 use orion::aead::streaming::{Nonce, StreamOpener, StreamSealer, StreamTag};
 use orion::kdf::SecretKey;
 use orion::util::secure_rand_bytes;
-use serde::Deserialize;
 use serde::de::DeserializeOwned;
+use serde::Deserialize;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::time::timeout;
@@ -24,21 +25,21 @@ use crate::internal::messages::auth::{
 
 const CHALLENGE_LENGTH: usize = 16;
 
-pub(crate) struct Authenticator {
+pub(crate) struct Authenticator<'a> {
     pub(crate) protocol: u32,
-    pub(crate) my_role: String,
-    pub(crate) peer_role: String,
+    pub(crate) my_role: &'a str,
+    pub(crate) peer_role: &'a str,
     pub(crate) secret_key: Option<Arc<SecretKey>>,
     pub(crate) challenge: Vec<u8>,
     pub(crate) sealer: Option<StreamSealer>,
     pub(crate) error: Option<String>,
 }
 
-impl Authenticator {
+impl<'a> Authenticator<'a> {
     pub fn new(
         protocol: u32,
-        role: String,
-        peer_role: String,
+        role: &'a str,
+        peer_role: &'a str,
         secret_key: Option<Arc<SecretKey>>,
     ) -> Self {
         Authenticator {
@@ -63,7 +64,7 @@ impl Authenticator {
         };
         Ok(AuthenticationRequest {
             protocol: self.protocol,
-            role: self.my_role.clone(),
+            role: Cow::Borrowed(self.my_role),
             mode,
         })
     }
@@ -176,8 +177,8 @@ impl Authenticator {
 
 pub async fn do_authentication<T: AsyncRead + AsyncWrite>(
     protocol: u32,
-    my_role: String,
-    peer_role: String,
+    my_role: &str,
+    peer_role: &str,
     secret_key: Option<Arc<SecretKey>>,
     writer: &mut SplitSink<Framed<T, LengthDelimitedCodec>, bytes::Bytes>,
     reader: &mut SplitStream<Framed<T, LengthDelimitedCodec>>,

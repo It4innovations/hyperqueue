@@ -1,7 +1,7 @@
 use crate::internal::common::error::DsError;
-use crate::internal::datasrv::dataobj::{DataId, DataInputId};
+use crate::internal::datasrv::dataobj::{DataInputId, OutputId};
 use crate::internal::datasrv::messages::{
-    DataObject, FromDataNodeLocalMessage, ToDataNodeLocalMessage,
+    DataObject, FromLocalDataClientMessage, ToLocalDataClientMessage,
 };
 use crate::internal::worker::localcomm::IntroMessage;
 use bstr::BStr;
@@ -28,13 +28,13 @@ impl DataClient {
         Ok(DataClient { stream })
     }
 
-    async fn send_message(&mut self, message: ToDataNodeLocalMessage) -> crate::Result<()> {
+    async fn send_message(&mut self, message: FromLocalDataClientMessage) -> crate::Result<()> {
         let data = bincode::serialize(&message)?;
         self.stream.send(data.into()).await?;
         Ok(())
     }
 
-    async fn read_message(&mut self) -> crate::Result<FromDataNodeLocalMessage> {
+    async fn read_message(&mut self) -> crate::Result<ToLocalDataClientMessage> {
         let data = self.stream.next().await;
         Ok(match data {
             Some(data) => {
@@ -51,30 +51,30 @@ impl DataClient {
 
     pub async fn put_data_object(
         &mut self,
-        data_id: DataId,
+        data_id: OutputId,
         mime_type: String,
         data: Vec<u8>,
     ) -> crate::Result<()> {
-        let message = ToDataNodeLocalMessage::PutDataObject {
+        let message = FromLocalDataClientMessage::PutDataObject {
             data_id,
             data_object: DataObject { mime_type, data },
         };
         self.send_message(message).await?;
         let message = self.read_message().await?;
         match message {
-            FromDataNodeLocalMessage::Uploaded(id) if id == data_id => Ok(()),
-            FromDataNodeLocalMessage::Error(message) => Err(crate::Error::GenericError(message)),
+            ToLocalDataClientMessage::Uploaded(id) if id == data_id => Ok(()),
+            ToLocalDataClientMessage::Error(message) => Err(crate::Error::GenericError(message)),
             _ => Err(DsError::GenericError("Invalid response".to_string())),
         }
     }
 
     pub async fn get_input(&mut self, input_id: DataInputId) -> crate::Result<Rc<DataObject>> {
-        let message = ToDataNodeLocalMessage::GetInput { input_id };
+        let message = FromLocalDataClientMessage::GetInput { input_id };
         self.send_message(message).await?;
         let message = self.read_message().await?;
         match message {
-            FromDataNodeLocalMessage::DataObject(dataobj) => Ok(dataobj),
-            FromDataNodeLocalMessage::Error(message) => Err(crate::Error::GenericError(message)),
+            ToLocalDataClientMessage::DataObject(dataobj) => Ok(dataobj),
+            ToLocalDataClientMessage::Error(message) => Err(crate::Error::GenericError(message)),
             _ => Err(DsError::GenericError("Invalid response".to_string())),
         }
     }
