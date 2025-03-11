@@ -114,6 +114,31 @@ data_id = 3
         assert f.read() == "abc\n"
 
 
+def test_data_cleanup_when_task_failed(hq_env: HqEnv, tmp_path):
+    tmp_path.joinpath("job.toml").write_text(
+        """
+data_layer = true
+        
+[[task]]
+id = 12
+command = ["bash", "-c", "set -e; echo 'abc' > test.txt; sleep 1; $HQ data put 3 test.txt; exit 1"]
+
+[[task]]
+id = 13
+command = ["bash", "-c", "set -e; $HQ data get 0 out.txt; cat out.txt"]
+
+[[task.data_deps]]
+task_id = 12
+data_id = 3 
+"""
+    )
+    with check_data_env(hq_env, tmp_path) as start_worker:
+        start_worker(cpus=4)
+        hq_env.command(["job", "submit-file", "job.toml"])
+        wait_for_job_state(hq_env, 1, "FAILED")
+        print(hq_env.command(["job", "info", "1"]))
+
+
 def test_data_transfer_different_worker(hq_env: HqEnv, tmp_path):
     tmp_path.joinpath("job.toml").write_text(
         """
@@ -133,7 +158,7 @@ command = ["bash", "-c", "set -e; $HQ data get 0 out.txt; cat out.txt"]
 resources = { "b" = 1 }
 [[task.data_deps]]
 task_id = 1
-data_id = 3
+data_id = 22
 """
     )
     with check_data_env(hq_env, tmp_path) as start_worker:

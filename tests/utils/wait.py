@@ -21,6 +21,9 @@ def wait_until(fn, sleep_s=0.2, timeout_s=DEFAULT_TIMEOUT):
     raise TimeoutException(f"Wait timeouted after {timeout_s} seconds")
 
 
+TERMINAL_STATES = ["failed", "cancelled", "finished"]
+
+
 def wait_for_state(
     env,
     ids: Union[int, List[int]],
@@ -43,11 +46,17 @@ def wait_for_state(
 
     def check():
         nonlocal last_table
-
+        env.check_running_processes()
         table = env.command(commands, as_table=True)
         last_table = table
-        items = [row for row in table if row[0].lstrip("*") in ids]
-        return len(items) >= len(ids) and all(j[state_index].lower() in target_states for j in items)
+        items = [row[state_index].lower() for row in table if row[0].lstrip("*") in ids]
+        if len(items) < len(ids):
+            return False
+        r = all(s in target_states for s in items)
+        if not r:
+            if all(s in TERMINAL_STATES for s in items):
+                raise Exception(f"Waiting for {target_states} but job(s) are already in terminal states: {items}")
+        return r
 
     try:
         wait_until(check, **kwargs)
