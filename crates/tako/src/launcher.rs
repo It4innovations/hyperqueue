@@ -12,7 +12,6 @@ use tokio::process::Command;
 
 use crate::gateway::TaskDataFlags;
 use crate::internal::common::resources::map::ResourceMap;
-use crate::internal::server::worker::Worker;
 use crate::internal::worker::configuration::WorkerConfiguration;
 use crate::internal::worker::localcomm::Token;
 use crate::internal::worker::resources::map::ResourceLabelMap;

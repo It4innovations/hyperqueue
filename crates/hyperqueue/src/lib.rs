@@ -31,12 +31,12 @@ define_id_type!(JobTaskId, u32);
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct JobDataObjectId {
     pub task_id: JobTaskId,
-    pub data_id: DataId,
+    pub output_id: OutputId,
 }
 
 impl JobDataObjectId {
     pub fn to_dataobj_id(&self, job_id: JobId) -> DataObjectId {
-        DataObjectId::new(make_tako_id(job_id, self.task_id), self.data_id)
+        DataObjectId::new(make_tako_id(job_id, self.task_id), self.output_id)
     }
 }
 
@@ -48,7 +48,7 @@ pub const DEFAULT_WORKER_GROUP_NAME: &str = "default";
 // Reexports
 pub use tako;
 pub use tako::WrappedRcRefCell;
-use tako::datasrv::{DataId, DataObjectId};
+use tako::datasrv::{DataObjectId, OutputId};
 
 pub const HQ_VERSION: &str = {
     match option_env!("HQ_BUILD_VERSION") {

@@ -3,7 +3,6 @@ use std::time::Duration;
 
 use orion::aead::SecretKey;
 
-use crate::datasrv::DataObjectId;
 use crate::gateway::ServerInfo;
 use crate::internal::common::resources::map::{ResourceIdAllocator, ResourceMap};
 use crate::internal::common::resources::{ResourceId, ResourceRequestVariants};

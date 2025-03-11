@@ -1,4 +1,4 @@
-use crate::datasrv::{DataId, DataObjectId};
+use crate::datasrv::{DataObjectId, OutputId};
 use crate::gateway::TaskDataFlags;
 use crate::hwstats::WorkerHwStateMessage;
 use crate::internal::common::resources::{ResourceAmount, ResourceIndex};
@@ -9,7 +9,6 @@ use crate::{InstanceId, Priority};
 use crate::{TaskId, WorkerId};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
-use thin_vec::ThinVec;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WorkerRegistrationResponse {
@@ -82,7 +81,7 @@ pub enum ToWorkerMessage {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TaskOutput {
-    pub id: DataId,
+    pub id: OutputId,
     pub size: usize,
 }
 
