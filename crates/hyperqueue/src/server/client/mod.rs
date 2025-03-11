@@ -5,31 +5,30 @@ use std::sync::Arc;
 use futures::{Sink, SinkExt, Stream, StreamExt};
 use orion::kdf::SecretKey;
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{Notify, mpsc};
+use tokio::sync::{mpsc, Notify};
 
 use tako::gateway::{CancelTasks, FromGatewayMessage, StopWorkerRequest, ToGatewayMessage};
 use tako::{Set, TaskGroup};
 
-use crate::client::status::{Status, job_status};
+use crate::client::status::{job_status, Status};
 use crate::common::serverdir::ServerDir;
 use crate::server::event::Event;
 use crate::server::job::JobTaskCounters;
 use crate::server::state::{State, StateRef};
-use crate::transfer::connection::ServerConnection;
+use crate::transfer::connection::accept_client;
 use crate::transfer::messages::{
     CancelJobResponse, CloseJobResponse, FromClientMessage, IdSelector, JobDetail,
     JobDetailResponse, JobInfoResponse, StopWorkerResponse, TaskSelector, ToClientMessage,
     WorkerListResponse,
 };
 use crate::transfer::messages::{ForgetJobResponse, WaitForJobsResponse};
-use crate::{JobId, JobTaskCount, WorkerId, unwrap_tako_id};
+use crate::{unwrap_tako_id, JobId, JobTaskCount, WorkerId};
 
 pub mod autoalloc;
 mod submit;
 
-use crate::common::error::HqError;
-use crate::server::Senders;
 use crate::server::client::submit::handle_open_job;
+use crate::server::Senders;
 pub(crate) use submit::{submit_job_desc, validate_submit};
 
 pub async fn handle_client_connections(
@@ -67,7 +66,7 @@ async fn handle_client(
     key: Option<Arc<SecretKey>>,
 ) -> crate::Result<()> {
     log::debug!("New client connection");
-    let socket = ServerConnection::accept_client(socket, key).await?;
+    let socket = accept_client(socket, key).await?;
     let (tx, rx) = socket.split();
 
     client_rpc_loop(tx, rx, server_dir, state_ref, carrier, end_flag).await;
@@ -75,7 +74,7 @@ async fn handle_client(
     Ok(())
 }
 
-async fn stream_history_events<Tx: Sink<ToClientMessage, Error = HqError> + Unpin + 'static>(
+async fn stream_history_events<Tx: Sink<ToClientMessage, Error = tako::Error> + Unpin + 'static>(
     tx: &mut Tx,
     mut history: mpsc::UnboundedReceiver<Event>,
 ) {
@@ -88,8 +87,8 @@ async fn stream_history_events<Tx: Sink<ToClientMessage, Error = HqError> + Unpi
 }
 
 async fn stream_events<
-    Tx: Sink<ToClientMessage, Error = HqError> + Unpin + 'static,
-    Rx: Stream<Item = crate::Result<FromClientMessage>> + Unpin,
+    Tx: Sink<ToClientMessage, Error = tako::Error> + Unpin + 'static,
+    Rx: Stream<Item = tako::Result<FromClientMessage>> + Unpin,
 >(
     tx: &mut Tx,
     rx: &mut Rx,
@@ -116,8 +115,8 @@ async fn stream_events<
 }
 
 pub async fn client_rpc_loop<
-    Tx: Sink<ToClientMessage, Error = HqError> + Unpin + 'static,
-    Rx: Stream<Item = crate::Result<FromClientMessage>> + Unpin,
+    Tx: Sink<ToClientMessage, Error = tako::Error> + Unpin + 'static,
+    Rx: Stream<Item = tako::Result<FromClientMessage>> + Unpin,
 >(
     mut tx: Tx,
     mut rx: Rx,
