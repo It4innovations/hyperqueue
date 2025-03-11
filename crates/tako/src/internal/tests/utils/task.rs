@@ -1,5 +1,5 @@
 use super::resources::ResBuilder;
-use crate::datasrv::{DataId, DataObjectId};
+use crate::datasrv::{DataObjectId, OutputId};
 use crate::gateway::TaskDataFlags;
 use crate::internal::common::resources::{
     NumOfNodes, ResourceAmount, ResourceId, ResourceRequestVariants,
@@ -52,7 +52,7 @@ impl TaskBuilder {
         self
     }
 
-    pub fn data_dep(mut self, task: &Task, data_id: DataId) -> TaskBuilder {
+    pub fn data_dep(mut self, task: &Task, data_id: OutputId) -> TaskBuilder {
         self.task_deps.insert(task.id);
         self.data_deps.push(DataObjectId::new(task.id, data_id));
         self

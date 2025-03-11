@@ -1,4 +1,4 @@
-use crate::datasrv::{DataId, DataObjectId};
+use crate::datasrv::{DataObjectId, OutputId};
 use crate::gateway::LostWorkerReason;
 use crate::internal::common::{Map, Set};
 use crate::internal::messages::common::TaskFailInfo;
@@ -14,7 +14,6 @@ use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::worker::Worker;
 use crate::internal::server::workermap::WorkerMap;
 use crate::{TaskId, WorkerId};
-use hashbrown::HashMap;
 use std::fmt::Write;
 
 pub(crate) fn on_new_worker(core: &mut Core, comm: &mut impl Comm, worker: Worker) {
@@ -302,10 +301,10 @@ pub(crate) fn on_task_finished(
         task.get_consumers().iter().copied().collect()
     };
 
-    let output_ids_set: Set<DataId> = msg.outputs.iter().map(|o| o.id).collect();
-    let mut missing_inputs: Map<TaskId, Vec<DataId>> = Map::new();
+    let output_ids_set: Set<OutputId> = msg.outputs.iter().map(|o| o.id).collect();
+    let mut missing_inputs: Map<TaskId, Vec<OutputId>> = Map::new();
 
-    let mut data_ref_counts: Map<DataId, RefCount> = Map::new();
+    let mut data_ref_counts: Map<OutputId, RefCount> = Map::new();
 
     for consumer in consumers {
         let id = {

@@ -1,7 +1,6 @@
 use crate::datasrv::DataObjectId;
 use crate::internal::common::stablemap::ExtractKey;
-use crate::internal::server::task::Task;
-use crate::{TaskId, WorkerId};
+use crate::WorkerId;
 use std::collections::HashSet;
 
 pub(crate) type RefCount = u32;
