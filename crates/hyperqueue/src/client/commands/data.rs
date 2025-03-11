@@ -2,7 +2,7 @@ use crate::client::globalsettings::GlobalSettings;
 use crate::common::error::HqError;
 use clap::Parser;
 use std::path::{Path, PathBuf};
-use tako::datasrv::{DataClient, DataId, DataInputId};
+use tako::datasrv::{DataClient, DataInputId, OutputId};
 
 #[derive(Parser)]
 pub struct DataOpts {
@@ -21,7 +21,7 @@ enum DataCommand {
 #[derive(Parser)]
 pub struct PutOpts {
     /// DataId of task output
-    data_id: DataId,
+    data_id: OutputId,
     /// Path of file/directory that should be uploaded
     path: PathBuf,
     /// DataId of task output
@@ -44,7 +44,7 @@ async fn create_local_data_client() -> crate::Result<DataClient> {
     let (path, token) = data_access.split_once(':').ok_or_else(|| {
         HqError::GenericError("Value of HQ_DATA_ACCESS has a wrong format".to_string())
     })?;
-    Ok(DataClient::connect(&Path::new(path), token.into()).await?)
+    Ok(DataClient::connect(Path::new(path), token.into()).await?)
 }
 
 pub async fn command_task_data(_gsettings: &GlobalSettings, opts: DataOpts) -> anyhow::Result<()> {

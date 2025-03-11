@@ -4,16 +4,15 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use orion::aead::SecretKey;
-use rand::SeedableRng;
 use rand::rngs::SmallRng;
 use rand::seq::SliceRandom;
+use rand::SeedableRng;
 
 use crate::TaskId;
 use crate::WorkerId;
 
-use crate::datasrv::DataId;
-use crate::internal::common::resources::Allocation;
 use crate::internal::common::resources::map::ResourceMap;
+use crate::internal::common::resources::Allocation;
 use crate::internal::common::stablemap::StableMap;
 use crate::internal::common::{Map, Set, WrappedRcRefCell};
 use crate::internal::messages::common::TaskFailInfo;
@@ -61,6 +60,7 @@ pub struct WorkerState {
     resource_map: ResourceMap,
     resource_label_map: ResourceLabelMap,
 
+    secret_key: Option<Arc<SecretKey>>,
     server_uid: String,
 }
 
@@ -71,6 +71,10 @@ impl WorkerState {
 
     pub fn server_uid(&self) -> &str {
         &self.server_uid
+    }
+
+    pub fn secret_key(&self) -> Option<&Arc<SecretKey>> {
+        self.secret_key.as_ref()
     }
 
     #[inline]
@@ -302,11 +306,10 @@ impl WorkerState {
             &other_worker.address
         );
         assert_ne!(self.worker_id, other_worker.worker_id); // We should not receive message about ourselves
-        assert!(
-            self.worker_addresses
-                .insert(other_worker.worker_id, other_worker.address)
-                .is_none()
-        );
+        assert!(self
+            .worker_addresses
+            .insert(other_worker.worker_id, other_worker.address)
+            .is_none());
 
         let resources = WorkerResources::from_transport(other_worker.resources);
         self.ready_task_queue
@@ -326,7 +329,7 @@ impl WorkerStateRef {
         comm: WorkerComm,
         worker_id: WorkerId,
         configuration: WorkerConfiguration,
-        _secret_key: Option<Arc<SecretKey>>,
+        secret_key: Option<Arc<SecretKey>>,
         resource_map: ResourceMap,
         task_launcher: Box<dyn TaskLauncher>,
         server_uid: String,
@@ -343,6 +346,7 @@ impl WorkerStateRef {
             configuration,
             task_launcher,
             server_uid,
+            secret_key,
             tasks: Default::default(),
             ready_task_queue,
             random: SmallRng::from_entropy(),

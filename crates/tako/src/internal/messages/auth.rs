@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct Challenge {
@@ -15,9 +16,9 @@ pub(crate) enum AuthenticationMode {
 
 #[derive(Serialize, Deserialize, Debug)]
 //#[serde(tag = "op")]
-pub(crate) struct AuthenticationRequest {
+pub(crate) struct AuthenticationRequest<'a> {
     pub protocol: u32,
-    pub role: String,
+    pub role: Cow<'a, str>,
     pub mode: AuthenticationMode,
 }
 
