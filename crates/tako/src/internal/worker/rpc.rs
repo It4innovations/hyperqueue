@@ -6,18 +6,17 @@ use std::time::Duration;
 
 use bytes::{Bytes, BytesMut};
 use futures::{SinkExt, Stream, StreamExt};
-use orion::aead::SecretKey;
 use orion::aead::streaming::StreamOpener;
+use orion::aead::SecretKey;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::time::sleep;
 use tokio::time::timeout;
 
-use crate::WorkerId;
 use crate::comm::{ConnectionRegistration, RegisterWorker};
 use crate::hwstats::WorkerHwStateMessage;
-use crate::internal::common::WrappedRcRefCell;
-use crate::internal::common::resources::Allocation;
 use crate::internal::common::resources::map::ResourceMap;
+use crate::internal::common::resources::Allocation;
+use crate::internal::common::WrappedRcRefCell;
 use crate::internal::messages::worker::{
     FromWorkerMessage, StealResponseMsg, TaskResourceAllocation, ToWorkerMessage, WorkerOverview,
     WorkerRegistrationResponse, WorkerStopReason,
@@ -29,7 +28,7 @@ use crate::internal::transfer::auth::{
 use crate::internal::transfer::transport::make_protocol_builder;
 use crate::internal::worker::comm::WorkerComm;
 use crate::internal::worker::configuration::{
-    OverviewConfiguration, ServerLostPolicy, WorkerConfiguration, sync_worker_configuration,
+    sync_worker_configuration, OverviewConfiguration, ServerLostPolicy, WorkerConfiguration,
 };
 use crate::internal::worker::hwmonitor::HwSampler;
 use crate::internal::worker::localcomm::handle_local_comm;
@@ -37,6 +36,7 @@ use crate::internal::worker::reactor::start_task;
 use crate::internal::worker::state::{WorkerState, WorkerStateRef};
 use crate::internal::worker::task::{Task, TaskState};
 use crate::launcher::TaskLauncher;
+use crate::WorkerId;
 use futures::future::Either;
 use tokio::sync::Notify;
 
@@ -78,22 +78,15 @@ async fn connect_to_server(addresses: &[SocketAddr]) -> crate::Result<(TcpStream
 
 pub async fn connect_to_server_and_authenticate(
     server_addresses: &[SocketAddr],
-    secret_key: Option<&Arc<SecretKey>>,
+    secret_key: Option<Arc<SecretKey>>,
 ) -> crate::Result<ConnectionDescriptor> {
     if secret_key.is_none() {
         log::warn!("No worker key: Unauthenticated and unencrypted connection to server");
     }
     let (stream, address) = connect_to_server(server_addresses).await?;
     let (mut writer, mut reader) = make_protocol_builder().new_framed(stream).split();
-    let (sealer, opener) = do_authentication(
-        0,
-        "worker".to_string(),
-        "server".to_string(),
-        secret_key.cloned(),
-        &mut writer,
-        &mut reader,
-    )
-    .await?;
+    let (sealer, opener) =
+        do_authentication(0, "worker", "server", secret_key, &mut writer, &mut reader).await?;
     Ok(ConnectionDescriptor {
         address,
         receiver: reader,
@@ -126,7 +119,7 @@ pub async fn run_worker(
         mut opener,
         mut sealer,
         ..
-    } = connect_to_server_and_authenticate(&scheduler_addresses, secret_key.as_ref()).await?;
+    } = connect_to_server_and_authenticate(&scheduler_addresses, secret_key.clone()).await?;
     {
         let message = ConnectionRegistration::Worker(RegisterWorker {
             configuration: configuration.clone(),
@@ -406,7 +399,11 @@ pub(crate) fn process_worker_message(state: &mut WorkerState, message: ToWorkerM
                 msg.data_deps.iter().for_each(|data_id| {
                     if !state.data_node.has_object(*data_id) {
                         waiting += 1;
-                        todo!()
+                        state.data_node.downloads().download_object(
+                            *data_id,
+                            (msg.user_priority, msg.scheduler_priority),
+                            msg.id,
+                        )
                     }
                 });
                 waiting
