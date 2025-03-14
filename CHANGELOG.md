@@ -12,6 +12,10 @@
 
 * The Python API now requires Python 3.9, up from Python 3.6.
 
+### Fixes
+
+ * Fixes #848, inefficient scheduling of tasks with priorities
+
 ## v0.21.1
 
 ### Fixes
