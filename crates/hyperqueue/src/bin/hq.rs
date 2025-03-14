@@ -298,26 +298,12 @@ async fn command_dashboard_start(
     gsettings: &GlobalSettings,
     opts: hyperqueue::common::cli::DashboardOpts,
 ) -> anyhow::Result<()> {
-    use hyperqueue::common::cli::DashboardCommand;
+    use hyperqueue::dashboard::preload_dashboard_events;
     use hyperqueue::dashboard::start_ui_loop;
-    use hyperqueue::server::event::Event;
-    use hyperqueue::server::event::journal::JournalReader;
 
-    match opts.subcmd.unwrap_or_default() {
-        DashboardCommand::Replay { journal } => {
-            println!("Loading journal {}", journal.display());
-            let mut journal = JournalReader::open(&journal)?;
-            let events: Vec<Event> = journal.collect::<Result<_, _>>()?;
-            println!("Loaded {} events", events.len());
-
-            start_ui_loop(gsettings, Some(events)).await?;
-        }
-        DashboardCommand::Stream => {
-            start_ui_loop(gsettings, None).await?;
-        }
-    }
-
-    Ok(())
+    let cmd = opts.subcmd.unwrap_or_default();
+    let events = preload_dashboard_events(gsettings, cmd).await?;
+    start_ui_loop(events).await
 }
 
 fn make_global_settings(opts: CommonOpts) -> GlobalSettings {

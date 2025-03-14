@@ -1,20 +1,15 @@
 use crate::server::event::Event;
 use crate::transfer::connection::ClientSession;
-use crate::transfer::messages::{FromClientMessage, StreamEvents, ToClientMessage};
+use crate::transfer::messages::ToClientMessage;
 use std::time::Duration;
 use tokio::sync::mpsc::Sender;
 
+/// Create an async process that fetches new events from the server and sends them to `sender`.
+/// We assume that `session` has already been configured to receive streamed events from the server.
 pub async fn create_data_fetch_process(
     mut session: ClientSession,
     sender: Sender<Vec<Event>>,
 ) -> anyhow::Result<()> {
-    session
-        .connection()
-        .send(FromClientMessage::StreamEvents(StreamEvents {
-            live_events: true,
-        }))
-        .await?;
-
     const CAPACITY: usize = 1024;
 
     let mut events = Vec::with_capacity(CAPACITY);
@@ -43,9 +38,6 @@ pub async fn create_data_fetch_process(
                             events = Vec::with_capacity(CAPACITY);
                         }
                     },
-                    ToClientMessage::EventLiveBoundary => {
-                        /* Do nothing */
-                    }
                     _ => {
                         return Err(anyhow::anyhow!("Dashboard received unexpected message {message:?}"));
                     }
