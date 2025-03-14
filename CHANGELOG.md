@@ -7,6 +7,7 @@
 * More robust initialization of dashboard
 * Authentication and encryption of client/worker connection can be disabled. It is mostly for testing
   and benchmarking purpose. Do not use if you are not in 100% safe environment.
+* Added `hq worker deploy-ssh` to deploy workers to a set of nodes using SSH.
 
 ### Breaking change
 
