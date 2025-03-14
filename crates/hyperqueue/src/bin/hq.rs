@@ -23,8 +23,8 @@ use hyperqueue::client::commands::submit::{
 };
 use hyperqueue::client::commands::wait::{wait_for_jobs, wait_for_jobs_with_progress};
 use hyperqueue::client::commands::worker::{
-    WorkerFilter, WorkerStartOpts, get_worker_info, get_worker_list, start_hq_worker, stop_worker,
-    wait_for_workers,
+    WorkerFilter, WorkerStartOpts, deploy_ssh_workers, get_worker_info, get_worker_list,
+    start_hq_worker, stop_worker, wait_for_workers,
 };
 use hyperqueue::client::default_server_directory_path;
 use hyperqueue::client::globalsettings::GlobalSettings;
@@ -38,10 +38,10 @@ use hyperqueue::client::task::{
     output_job_task_list,
 };
 use hyperqueue::common::cli::{
-    ColorPolicy, CommonOpts, GenerateCompletionOpts, HwDetectOpts, JobCommand, JobProgressOpts,
-    JobWaitOpts, OptsWithMatches, RootOptions, SubCommand, WorkerAddressOpts, WorkerCommand,
-    WorkerInfoOpts, WorkerListOpts, WorkerStopOpts, WorkerWaitOpts, get_task_id_selector,
-    get_task_selector,
+    ColorPolicy, CommonOpts, DeploySSHOpts, GenerateCompletionOpts, HwDetectOpts, JobCommand,
+    JobProgressOpts, JobWaitOpts, OptsWithMatches, RootOptions, SubCommand, WorkerAddressOpts,
+    WorkerCommand, WorkerInfoOpts, WorkerListOpts, WorkerStopOpts, WorkerWaitOpts,
+    get_task_id_selector, get_task_selector,
 };
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::common::utils::fs::absolute_path;
@@ -261,6 +261,13 @@ async fn command_worker_wait(
     wait_for_workers(&mut session, opts.worker_count).await
 }
 
+async fn command_worker_deploy_ssh(
+    _gsettings: &GlobalSettings,
+    opts: DeploySSHOpts,
+) -> anyhow::Result<()> {
+    deploy_ssh_workers(opts).await
+}
+
 fn command_worker_hwdetect(gsettings: &GlobalSettings, opts: HwDetectOpts) -> anyhow::Result<()> {
     let mut cpus = detect_cpus()?;
     if opts.no_hyper_threading {
@@ -422,6 +429,7 @@ async fn main() -> hyperqueue::Result<()> {
             WorkerCommand::Info(opts) => command_worker_info(&gsettings, opts).await,
             WorkerCommand::Address(opts) => command_worker_address(&gsettings, opts).await,
             WorkerCommand::Wait(opts) => command_worker_wait(&gsettings, opts).await,
+            WorkerCommand::DeploySSH(opts) => command_worker_deploy_ssh(&gsettings, opts).await,
         },
         SubCommand::Job(opts) => match opts.subcmd {
             JobCommand::List(opts) => command_job_list(&gsettings, opts).await,
