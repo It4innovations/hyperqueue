@@ -85,12 +85,7 @@ fn serde_serialize_key<S: Serializer>(
     key: &Option<Arc<SecretKey>>,
     serializer: S,
 ) -> Result<S::Ok, S::Error> {
-    if let Some(key) = key {
-        let str = serialize_key(key);
-        serializer.serialize_str(&str)
-    } else {
-        serializer.serialize_none()
-    }
+    serializer.serialize_some(&key.as_ref().map(|k| serialize_key(k)))
 }
 
 fn serde_deserialize_key<'de, D: Deserializer<'de>>(
@@ -233,11 +228,11 @@ impl FullAccessRecord {
     pub fn worker_port(&self) -> u16 {
         self.worker.port
     }
-    pub fn client_key(&self) -> &Option<Arc<SecretKey>> {
-        &self.client.secret_key
+    pub fn client_key(&self) -> Option<&Arc<SecretKey>> {
+        self.client.secret_key.as_ref()
     }
-    pub fn worker_key(&self) -> &Option<Arc<SecretKey>> {
-        &self.worker.secret_key
+    pub fn worker_key(&self) -> Option<&Arc<SecretKey>> {
+        self.worker.secret_key.as_ref()
     }
 
     pub fn split(self) -> (ClientAccessRecord, WorkerAccessRecord) {
@@ -333,13 +328,13 @@ mod tests {
         assert_eq!(loaded.version, record.version);
         assert_eq!(loaded.worker.host, record.worker_host());
         assert_eq!(loaded.worker.port, record.worker_port());
-        assert_eq!(&loaded.worker.secret_key, record.worker_key());
+        assert_eq!(loaded.worker.secret_key.as_ref(), record.worker_key());
 
         let loaded = load_client_access_file(&path).unwrap();
         assert_eq!(loaded.version, record.version);
         assert_eq!(loaded.client.host, record.client_host());
         assert_eq!(loaded.client.port, record.client_port());
-        assert_eq!(&loaded.client.secret_key, record.client_key());
+        assert_eq!(loaded.client.secret_key.as_ref(), record.client_key());
     }
 
     #[test]
