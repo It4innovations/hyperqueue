@@ -308,8 +308,12 @@ pub struct HwDetectOpts {
     pub no_hyper_threading: bool,
 }
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 pub struct DeploySSHOpts {
+    /// Show log output of the spawned worker(s).
+    #[arg(long)]
+    pub show_output: bool,
+
     /// Path to a nodefile that contains the hostnames to which should
     /// HQ workers be deployed to.
     /// Each line in the file should correspond to one hostname address.
