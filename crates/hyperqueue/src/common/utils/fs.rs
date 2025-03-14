@@ -1,3 +1,4 @@
+use anyhow::Context;
 use std::ffi::OsStr;
 use std::io::Read;
 use std::os::unix::prelude::OsStrExt;
@@ -44,4 +45,26 @@ pub fn read_at_most<R: Read>(source: R, count: usize) -> std::io::Result<Vec<u8>
     let mut buffer: Vec<u8> = Vec::with_capacity(count);
     source.take(count as u64).read_to_end(&mut buffer)?;
     Ok(buffer)
+}
+
+/// Get absolute path to the `hq` binary that executes the current process.
+pub fn get_hq_binary_path() -> anyhow::Result<PathBuf> {
+    Ok(normalize_exe_path(
+        std::env::current_exe().context("Cannot get HyperQueue path")?,
+    ))
+}
+
+/// For some reason, Linux sometimes thinks that the current executable has been deleted,
+/// and adds a ` (deleted)` suffix to its path.
+/// That is quite annoying, so we get rid of that suffix.
+/// See the following issues for more context:
+/// - https://github.com/It4innovations/hyperqueue/issues/791
+/// - https://github.com/It4innovations/hyperqueue/issues/452
+pub fn normalize_exe_path(mut path: PathBuf) -> PathBuf {
+    if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+        if let Some(name) = name.to_string().strip_suffix(" (deleted)") {
+            path.set_file_name(name);
+        }
+    }
+    path
 }
