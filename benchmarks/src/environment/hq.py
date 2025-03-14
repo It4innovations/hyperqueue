@@ -187,6 +187,9 @@ class HqEnvironment(Environment, EnvStateManager):
                 lambda: postprocess_events(self.binary_path, event_log_path, event_log_json_path, workdir)
             )
             args += ["--journal", str(event_log_path)]
+        if not self.info.encryption:
+            args.append("--disable-client-authentication-and-encryption")
+            args.append("--disable-worker-authentication-and-encryption")
 
         args = StartProcessArgs(
             args=args,
@@ -324,8 +327,6 @@ class HqEnvironment(Environment, EnvStateManager):
             "RUST_LOG": f"hyperqueue={'DEBUG' if self.info.debug else 'INFO'}",
             "HQ_AUTOALLOC_MAX_ALLOCATION_FAILS": "100",
         }
-        if not self.info.encryption:
-            env["HQ_SKIP_AUTHENTICATION"] = "1"
         if self.info.fast_spawn:
             env["HQ_FAST_SPAWN"] = "1"
         if self.info.skip_stream_log_write:

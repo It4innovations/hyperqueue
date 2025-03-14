@@ -74,7 +74,11 @@ impl<R: DeserializeOwned, S: Serialize> HqConnection<R, S> {
         (sink, stream)
     }
 
-    async fn init(socket: TcpStream, server: bool, key: Arc<SecretKey>) -> crate::Result<Self> {
+    async fn init(
+        socket: TcpStream,
+        server: bool,
+        key: Option<Arc<SecretKey>>,
+    ) -> crate::Result<Self> {
         let connection = make_protocol_builder().new_framed(socket);
         let (mut tx, mut rx) = connection.split();
 
@@ -84,15 +88,8 @@ impl<R: DeserializeOwned, S: Serialize> HqConnection<R, S> {
             std::mem::swap(&mut my_role, &mut peer_role);
         }
 
-        let (sealer, opener) = do_authentication(
-            COMM_PROTOCOL,
-            my_role,
-            peer_role,
-            Some(key),
-            &mut tx,
-            &mut rx,
-        )
-        .await?;
+        let (sealer, opener) =
+            do_authentication(COMM_PROTOCOL, my_role, peer_role, key, &mut tx, &mut rx).await?;
 
         Ok(Self {
             writer: tx,
@@ -131,6 +128,9 @@ impl ClientSession {
 
 async fn try_connect_to_server(record: &ClientAccessRecord) -> crate::Result<TcpStream> {
     let address = format!("{}:{}", record.client.host, record.client.port);
+    if record.client.secret_key.is_none() {
+        log::warn!("No client key: Unauthenticated and unencrypted connection to server");
+    }
     match TcpStream::connect(&address).await {
         Ok(conn) => Ok(conn),
         // 113 = EHOSTUNREACH on Linux. Replace with ErrorKind::HostUnreachable once it's stabilized
@@ -155,7 +155,7 @@ with `{localhost_address}`.",
 impl ServerConnection {
     pub async fn accept_client(
         socket: TcpStream,
-        key: Arc<SecretKey>,
+        key: Option<Arc<SecretKey>>,
     ) -> crate::Result<ServerConnection> {
         HqConnection::init(socket, true, key).await
     }

@@ -114,7 +114,7 @@ pub async fn initialize_worker(
     let ((worker_id, configuration), worker_future) = run_worker(
         server_addresses,
         configuration,
-        Some(record.worker.secret_key.clone()),
+        record.worker.secret_key.clone(),
         |server_uid, worker_id| {
             let streamer_ref = StreamerRef::new(server_uid, worker_id);
             Box::new(HqTaskLauncher::new(streamer_ref))
