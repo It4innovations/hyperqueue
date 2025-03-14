@@ -480,6 +480,7 @@ pub async fn deploy_ssh_workers(opts: DeploySSHOpts) -> anyhow::Result<()> {
     }
 
     let mut interrupt = std::pin::pin!(ctrl_c());
+    let mut has_error = false;
     loop {
         tokio::select! {
             _ = &mut interrupt => {
@@ -495,7 +496,8 @@ pub async fn deploy_ssh_workers(opts: DeploySSHOpts) -> anyhow::Result<()> {
                         log::info!("Worker at `{hostname}` has ended successfully");
                     }
                     Err(error) => {
-                        log::info!("Worker at `{hostname}` has ended with an error: {error:?}");
+                        log::error!("Worker at `{hostname}` has ended with an error: {error:?}");
+                        has_error = true;
                     }
                 }
                 if worker_futures.is_empty() {
@@ -507,7 +509,11 @@ pub async fn deploy_ssh_workers(opts: DeploySSHOpts) -> anyhow::Result<()> {
     }
     worker_futures.shutdown().await;
 
-    Ok(())
+    if has_error {
+        Err(anyhow::anyhow!("Some workers have ended with an error"))
+    } else {
+        Ok(())
+    }
 }
 
 fn start_ssh_worker_process(
