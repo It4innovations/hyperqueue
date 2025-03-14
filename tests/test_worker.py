@@ -1,10 +1,11 @@
+import json
 import os
 import time
 from socket import gethostname
 
 import pytest
 
-from .conftest import HqEnv
+from .conftest import HqEnv, get_hq_binary
 from .utils import wait_for_job_state, wait_for_worker_state
 from .utils.table import Table
 
@@ -309,3 +310,72 @@ def test_worker_wait(hq_env: HqEnv):
     hq_env.start_worker(on_server_lost="finish-running")
     done = hq_env.command(["worker", "wait", "2"])
     assert "" == done
+
+
+def test_deploy_ssh_error(hq_env: HqEnv):
+    hq_env.start_server()
+    with hq_env.mock.mock_program_with_code("ssh", """
+exit(42)
+"""):
+        nodefile = prepare_localhost_nodefile()
+        hq_env.command(["worker", "deploy-ssh", nodefile], expect_fail="Worker exited with code 42")
+
+
+def test_deploy_ssh_worker_command(hq_env: HqEnv):
+    hq_env.start_server()
+    with hq_env.mock.mock_program_with_code("ssh", """
+import json
+import sys
+
+with open("command.txt", "w") as f:
+    json.dump(sys.argv, f)
+"""):
+        nodefile = prepare_localhost_nodefile()
+        hq_env.command(["worker", "deploy-ssh", "--show-output", nodefile, "--time-limit", "3s"])
+        with open("command.txt") as f:
+            cmdline = json.load(f)
+            cmdline = cmdline[cmdline.index("--") + 1:]
+            cmdline = [c.replace(get_hq_binary(), "<hq-binary>") for c in cmdline]
+            assert cmdline == ["<hq-binary>", "worker", "start", "--time-limit", "3s"]
+
+
+def test_deploy_ssh_wait_for_worker(hq_env: HqEnv):
+    hq_env.start_server()
+    with hq_env.mock.mock_program_with_code("ssh", """
+import time
+time.sleep(1)
+"""):
+        nodefile = prepare_localhost_nodefile()
+        hq_env.command(["worker", "deploy-ssh", nodefile])
+
+
+def test_deploy_ssh_multiple_workers(hq_env: HqEnv):
+    hq_env.start_server()
+    with hq_env.mock.mock_program_with_code("ssh", """
+import os
+
+os.makedirs("workers", exist_ok=True)
+with open(f"workers/{os.getpid()}", "w") as f:
+    f.write(str(os.getpid()))
+"""):
+        nodefile = prepare_localhost_nodefile(count=3)
+        hq_env.command(["worker", "deploy-ssh", nodefile])
+        assert len(os.listdir("workers")) == 3
+
+
+def test_deploy_ssh_show_output(hq_env: HqEnv):
+    hq_env.start_server()
+    with hq_env.mock.mock_program_with_code("ssh", """
+print("FOOBAR")
+"""):
+        nodefile = prepare_localhost_nodefile(count=3)
+        output = hq_env.command(["worker", "deploy-ssh", "--show-output", nodefile])
+        assert "FOOBAR" in output
+
+
+def prepare_localhost_nodefile(count: int = 1) -> str:
+    path = "nodefile.txt"
+    with open(path, "w") as f:
+        for _ in range(count):
+            print("localhost", file=f)
+    return path
