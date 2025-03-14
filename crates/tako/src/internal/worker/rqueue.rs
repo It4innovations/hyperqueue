@@ -15,14 +15,30 @@ type QueuePriorityTuple = (Priority, Priority, Priority); // user priority, reso
 pub(crate) struct QueueForRequest {
     resource_priority: Priority,
     queue: PriorityQueue<TaskId, PriorityTuple>,
+    is_blocked: bool,
 }
 
 impl QueueForRequest {
+    pub fn init(&mut self) {
+        self.is_blocked = false;
+    }
+
+    pub fn set_blocked(&mut self) {
+        self.is_blocked = true;
+    }
+
     pub fn current_priority(&self) -> Option<QueuePriorityTuple> {
-        self.peek().map(|x| x.1)
+        if self.is_blocked {
+            None
+        } else {
+            self.peek().map(|x| x.1)
+        }
     }
 
     pub fn peek(&self) -> Option<(TaskId, QueuePriorityTuple)> {
+        if self.is_blocked {
+            return None;
+        }
         self.queue
             .peek()
             .map(|(task_id, priority)| (*task_id, (priority.0, self.resource_priority, priority.1)))
@@ -107,6 +123,7 @@ impl ResourceWaitQueue {
                         .or_insert(QueueForRequest {
                             resource_priority,
                             queue: PriorityQueue::new(),
+                            is_blocked: false,
                         })
                         .queue
                 },
@@ -140,6 +157,9 @@ impl ResourceWaitQueue {
         task_map: &TaskMap,
         remaining_time: Option<Duration>,
     ) -> Vec<(TaskId, Rc<Allocation>, usize)> {
+        for qfr in self.queues.values_mut() {
+            qfr.init()
+        }
         self.allocator.init_allocator(remaining_time);
         let mut out = Vec::new();
         while !self.try_start_tasks_helper(task_map, &mut out) {
@@ -171,6 +191,7 @@ impl ResourceWaitQueue {
                     if let Some(x) = self.allocator.try_allocate(rqv) {
                         x
                     } else {
+                        qfr.set_blocked();
                         break;
                     }
                 };
@@ -594,6 +615,43 @@ mod tests {
         let map = rq.start_tasks();
         assert_eq!(map.len(), 1);
         assert!(map.contains_key(&10));
+    }
+
+    #[test]
+    fn test_issue_848() {
+        let resources = vec![
+            ResourceDescriptorItem::range("cpus", 0, 63),
+            ResourceDescriptorItem::range("gpus/nvidia", 0, 3),
+        ];
+        let mut rq = RB::new(wait_queue(resources));
+
+        for i in 0..20 {
+            let request: ResourceRequest = cpus_compact(1).add(1, 1).finish();
+            rq.add_task(
+                WorkerTaskBuilder::new(i)
+                    .resources(request)
+                    .user_priority(if i % 2 == 0 { 0 } else { -1 })
+                    .build(),
+            );
+        }
+        for i in 0..12 {
+            let request: ResourceRequest = cpus_compact(16).finish();
+            rq.add_task(
+                WorkerTaskBuilder::new(i + 20)
+                    .resources(request)
+                    .user_priority(-3)
+                    .build(),
+            );
+        }
+        let map = rq.start_tasks();
+        assert_eq!(map.len(), 7);
+        let ids = map.keys().copied().collect::<Vec<_>>();
+        assert_eq!(
+            ids.into_iter()
+                .map(|x| if x >= 20 { 1 } else { 0 })
+                .sum::<usize>(),
+            3
+        );
     }
 
     #[test]
