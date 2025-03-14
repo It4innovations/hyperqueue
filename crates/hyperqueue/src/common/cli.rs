@@ -258,6 +258,11 @@ pub enum WorkerCommand {
     Address(WorkerAddressOpts),
     /// Waits on the connection of worker(s)
     Wait(WorkerWaitOpts),
+    /// Deploy a set of workers using SSH.
+    ///
+    /// Note that to use this command, an OpenSSH-compatible `ssh` binary
+    /// has to be available on the local node.
+    DeploySSH(DeploySSHOpts),
 }
 
 #[derive(Parser)]
@@ -301,6 +306,21 @@ pub struct HwDetectOpts {
     /// Detect only physical cores
     #[arg(long)]
     pub no_hyper_threading: bool,
+}
+
+#[derive(Parser)]
+pub struct DeploySSHOpts {
+    /// Path to a nodefile that contains the hostnames to which should
+    /// HQ workers be deployed to.
+    /// Each line in the file should correspond to one hostname address.
+    pub nodefile: PathBuf,
+    // This is essentially [WorkerStartOpts], but we parse it in an opaque way
+    // so that we can forward it verbatim to the SSH command. See `deploy_ssh_workers`
+    // for more information
+    /// Arguments passed to `worker start` at the remote node.
+    /// To display possible options, use `deploy-ssh -- --help`.
+    #[arg(trailing_var_arg(true), allow_hyphen_values = true)]
+    pub worker_start_args: Vec<String>,
 }
 
 // Job CLI options

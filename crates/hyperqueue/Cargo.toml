@@ -63,6 +63,7 @@ tako = { path = "../tako" }
 
 # Optional dependencies
 jemallocator = { version = "0.5", optional = true }
+which = "7.0.2"
 
 [dev-dependencies]
 derive_builder = "0.11"
