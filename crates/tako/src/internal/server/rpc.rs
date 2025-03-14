@@ -83,12 +83,12 @@ pub(crate) async fn worker_authentication(
 ) -> crate::Result<(ConnectionDescriptor, ConnectionRegistration)> {
     let (mut writer, mut reader) = make_protocol_builder().new_framed(stream).split();
 
-    let secret_key = core_ref.get().secret_key().clone();
+    let secret_key = core_ref.get().secret_key().cloned();
     let (sealer, mut opener) = do_authentication(
         0,
         "server".to_string(),
         "worker".to_string(),
-        secret_key.clone(),
+        secret_key,
         &mut writer,
         &mut reader,
     )

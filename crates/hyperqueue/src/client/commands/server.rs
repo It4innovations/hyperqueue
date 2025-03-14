@@ -107,13 +107,13 @@ struct ServerStartOpts {
 
     /// If set, client connection will NOT be AUTHENTICATED and ENCRYPTED.
     /// ANYONE CAN CONNECT TO THE SERVER AS CLIENT!
-    /// USE ON YOUR OWN RISK.
+    /// USE AT YOUR OWN RISK.
     #[arg(long)]
     disable_client_authentication_and_encryption: bool,
 
     /// If set, worker connection will NOT be AUTHENTICATED and ENCRYPTED.
     /// ANYONE CAN CONNECT TO THE SERVER AS WORKER!
-    /// USE ON YOUR OWN RISK.
+    /// USE AT YOUR OWN RISK.
     #[arg(long)]
     disable_worker_authentication_and_encryption: bool,
 }
@@ -167,7 +167,7 @@ async fn start_server(gsettings: &GlobalSettings, opts: ServerStartOpts) -> anyh
         journal_flush_period: opts.journal_flush_period,
         worker_secret_key: access_file
             .as_ref()
-            .map(|a| a.worker_key().clone())
+            .map(|a| a.worker_key().cloned())
             .unwrap_or_else(|| {
                 if opts.disable_worker_authentication_and_encryption {
                     None
@@ -177,7 +177,7 @@ async fn start_server(gsettings: &GlobalSettings, opts: ServerStartOpts) -> anyh
             }),
         client_secret_key: access_file
             .as_ref()
-            .map(|a| a.client_key().clone())
+            .map(|a| a.client_key().cloned())
             .unwrap_or_else(|| {
                 if opts.disable_client_authentication_and_encryption {
                     None

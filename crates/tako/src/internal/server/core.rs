@@ -470,8 +470,8 @@ impl Core {
         self.resource_map.resource_count()
     }
 
-    pub fn secret_key(&self) -> &Option<Arc<SecretKey>> {
-        &self.secret_key
+    pub fn secret_key(&self) -> Option<&Arc<SecretKey>> {
+        self.secret_key.as_ref()
     }
 }
 

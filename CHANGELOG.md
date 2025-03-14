@@ -5,10 +5,11 @@
 * Added `hq doc` command for accessing documentation about various HQ features from the command-line.
 * `hq journal replay` added. It similar to `hq journal stream` but it will not wait for new events.
 * More robust initialization of dashboard
-* Authentication and encyrption of client/worker connection can be disabled. It is mostly for testing 
+* Authentication and encryption of client/worker connection can be disabled. It is mostly for testing
   and benchmarking purpose. Do not use if you are not in 100% safe environment.
 
 ### Breaking change
+
 * The Python API now requires Python 3.9, up from Python 3.6.
 
 ## v0.21.1
@@ -20,7 +21,10 @@
 ## v0.21.0
 
 ### Breaking change
-* Pre-built HyperQueue releases available from our GitHub repository are now built with GLIBC `2.28`, instead of `2.17`. If you need to run HyperQueue on a system with an older GLIBC version, you might need to recompile it from source on your system. If you encounter any issues, please let us know.
+
+* Pre-built HyperQueue releases available from our GitHub repository are now built with GLIBC `2.28`, instead of `2.17`.
+  If you need to run HyperQueue on a system with an older GLIBC version, you might need to recompile it from source on
+  your system. If you encounter any issues, please let us know.
 
 ### Changes
 

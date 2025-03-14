@@ -77,7 +77,7 @@ async fn connect_to_server(addresses: &[SocketAddr]) -> crate::Result<(TcpStream
 
 pub async fn connect_to_server_and_authenticate(
     server_addresses: &[SocketAddr],
-    secret_key: &Option<Arc<SecretKey>>,
+    secret_key: Option<&Arc<SecretKey>>,
 ) -> crate::Result<ConnectionDescriptor> {
     if secret_key.is_none() {
         log::warn!("No worker key: Unauthenticated and unencrypted connection to server");
@@ -88,7 +88,7 @@ pub async fn connect_to_server_and_authenticate(
         0,
         "worker".to_string(),
         "server".to_string(),
-        secret_key.clone(),
+        secret_key.cloned(),
         &mut writer,
         &mut reader,
     )
@@ -125,7 +125,7 @@ pub async fn run_worker(
         mut opener,
         mut sealer,
         ..
-    } = connect_to_server_and_authenticate(&scheduler_addresses, &secret_key).await?;
+    } = connect_to_server_and_authenticate(&scheduler_addresses, secret_key.as_ref()).await?;
     {
         let message = ConnectionRegistration::Worker(RegisterWorker {
             configuration: configuration.clone(),
