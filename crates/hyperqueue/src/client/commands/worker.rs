@@ -2,6 +2,7 @@ use crate::client::commands::duration_doc;
 use anyhow::{Context, bail};
 use chrono::Utc;
 use std::path::{Path, PathBuf};
+use std::process::Stdio;
 use std::time::Duration;
 use tako::resources::{
     CPU_RESOURCE_NAME, ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind,
@@ -463,7 +464,7 @@ pub async fn deploy_ssh_workers(opts: DeploySSHOpts) -> anyhow::Result<()> {
 
     // Start the workers on all nodes in the nodefile
     for hostname in hostnames {
-        let mut child = start_ssh_worker_process(&ssh, &hostname, &args)?;
+        let mut child = start_ssh_worker_process(&ssh, &hostname, &args, opts.show_output)?;
         let handle = worker_futures.spawn(async move {
             let status = child.wait().await?;
             if !status.success() {
@@ -509,7 +510,12 @@ pub async fn deploy_ssh_workers(opts: DeploySSHOpts) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn start_ssh_worker_process(ssh: &Path, node: &str, args: &[String]) -> anyhow::Result<Child> {
+fn start_ssh_worker_process(
+    ssh: &Path,
+    node: &str,
+    args: &[String],
+    show_output: bool,
+) -> anyhow::Result<Child> {
     let mut cmd = Command::new(ssh);
     let cmd = cmd
         .arg(node)
@@ -518,12 +524,17 @@ fn start_ssh_worker_process(ssh: &Path, node: &str, args: &[String]) -> anyhow::
         .arg("-t")
         .arg("--")
         .args(args)
+        .stdin(Stdio::null())
         .kill_on_drop(true);
+    if !show_output {
+        cmd.stdout(Stdio::null());
+        cmd.stderr(Stdio::null());
+    }
 
     let child = cmd
         .spawn()
         .with_context(|| anyhow::anyhow!("Cannot start SSH command {cmd:?}"))?;
-    log::info!("Started worker process at {node}");
+    log::info!("Started worker process at `{node}`");
     Ok(child)
 }
 
