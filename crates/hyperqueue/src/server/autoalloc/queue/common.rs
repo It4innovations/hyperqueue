@@ -1,4 +1,7 @@
 use crate::common::manager::info::ManagerType;
+use crate::common::utils::fs;
+use crate::server::autoalloc::state::AllocationId;
+use crate::server::autoalloc::{AutoAllocResult, QueueId, QueueInfo};
 use anyhow::Context;
 use bstr::ByteSlice;
 use std::fmt::Write;
@@ -6,9 +9,6 @@ use std::path::{Path, PathBuf};
 use std::process::Output;
 use std::time::Duration;
 use tokio::process::Command;
-
-use crate::server::autoalloc::state::AllocationId;
-use crate::server::autoalloc::{AutoAllocResult, QueueId, QueueInfo};
 
 /// Name of a script that will be submitted to Slurm/PBS.
 const SUBMIT_SCRIPT_NAME: &str = "hq-submit.sh";
@@ -25,8 +25,7 @@ pub struct ExternalHandler {
 
 impl ExternalHandler {
     pub fn new(server_directory: PathBuf, name: Option<String>) -> anyhow::Result<Self> {
-        let hq_path =
-            normalize_exe_path(std::env::current_exe().context("Cannot get HyperQueue path")?);
+        let hq_path = fs::get_hq_binary_path()?;
         Ok(Self {
             server_directory,
             hq_path,
@@ -39,21 +38,6 @@ impl ExternalHandler {
         self.allocation_counter += 1;
         self.allocation_counter
     }
-}
-
-/// For some reason, Linux sometimes thinks that the current executable has been deleted,
-/// and adds a ` (deleted)` suffix to its path.
-/// That is quite annoying, so we get rid of that suffix.
-/// See the following issues for more context:
-/// - https://github.com/It4innovations/hyperqueue/issues/791
-/// - https://github.com/It4innovations/hyperqueue/issues/452
-fn normalize_exe_path(mut path: PathBuf) -> PathBuf {
-    if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-        if let Some(name) = name.to_string().strip_suffix(" (deleted)") {
-            path.set_file_name(name);
-        }
-    }
-    path
 }
 
 pub fn create_allocation_dir(
@@ -203,7 +187,8 @@ pub fn wrap_worker_cmd(
 
 #[cfg(test)]
 mod tests {
-    use crate::server::autoalloc::queue::common::{normalize_exe_path, wrap_worker_cmd};
+    use crate::common::utils::fs::normalize_exe_path;
+    use crate::server::autoalloc::queue::common::wrap_worker_cmd;
     use std::path::PathBuf;
 
     #[test]
