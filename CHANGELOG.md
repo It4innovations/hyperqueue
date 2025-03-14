@@ -3,6 +3,10 @@
 ### New features
 
 * Added `hq doc` command for accessing documentation about various HQ features from the command-line.
+* `hq journal replay` added. It similar to `hq journal stream` but it will not wait for new events.
+* More robust initialization of dashboard
+* Authentication and encyrption of client/worker connection can be disabled. It is mostly for testing 
+  and benchmarking purpose. Do not use if you are not in 100% safe environment.
 
 ### Breaking change
 * The Python API now requires Python 3.9, up from Python 3.6.
