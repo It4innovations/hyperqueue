@@ -79,6 +79,9 @@ pub async fn connect_to_server_and_authenticate(
     server_addresses: &[SocketAddr],
     secret_key: &Option<Arc<SecretKey>>,
 ) -> crate::Result<ConnectionDescriptor> {
+    if secret_key.is_none() {
+        log::warn!("No worker key: Unauthenticated and unencrypted connection to server");
+    }
     let (stream, address) = connect_to_server(server_addresses).await?;
     let (mut writer, mut reader) = make_protocol_builder().new_framed(stream).split();
     let (sealer, opener) = do_authentication(

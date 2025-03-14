@@ -23,7 +23,6 @@ use crate::server::event::journal::start_event_streaming;
 use crate::server::event::streamer::EventStreamer;
 use crate::server::restore::StateRestorer;
 use crate::server::state::StateRef;
-use crate::transfer::auth::generate_key;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::ServerInfo;
 use chrono::Utc;
@@ -157,14 +156,22 @@ pub async fn initialize_server(
         .server_uid
         .take()
         .unwrap_or_else(generate_server_uid);
-    let worker_key = server_cfg
-        .worker_secret_key
-        .take()
-        .unwrap_or_else(|| Arc::new(generate_key()));
-    let client_key = server_cfg
-        .client_secret_key
-        .take()
-        .unwrap_or_else(|| Arc::new(generate_key()));
+    let worker_key = server_cfg.worker_secret_key.take();
+    let client_key = server_cfg.client_secret_key.take();
+
+    if worker_key.is_none() {
+        log::warn!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+        log::warn!("Server is started with unprotected worker connections");
+        log::warn!("Anyone can connect as worker");
+        log::warn!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+    }
+
+    if client_key.is_none() {
+        log::warn!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+        log::warn!("Server is started with unprotected client connections");
+        log::warn!("Anyone can connect as client");
+        log::warn!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+    }
 
     let state_ref = StateRef::new(ServerInfo {
         version: HQ_VERSION.to_string(),
@@ -410,12 +417,12 @@ mod tests {
             ConnectAccessRecordPart {
                 host: "foo".into(),
                 port: 42,
-                secret_key: Arc::new(generate_key()),
+                secret_key: Some(Arc::new(generate_key())),
             },
             ConnectAccessRecordPart {
                 host: "bar".into(),
                 port: 42,
-                secret_key: Arc::new(generate_key()),
+                secret_key: Some(Arc::new(generate_key())),
             },
             "testHQ".into(),
         );
@@ -437,12 +444,12 @@ mod tests {
             ConnectAccessRecordPart {
                 host: "foo".into(),
                 port: 42,
-                secret_key: Arc::new(generate_key()),
+                secret_key: Some(Arc::new(generate_key())),
             },
             ConnectAccessRecordPart {
                 host: "bar".into(),
                 port: 42,
-                secret_key: Arc::new(generate_key()),
+                secret_key: Some(Arc::new(generate_key())),
             },
             "testHQ".into(),
         );

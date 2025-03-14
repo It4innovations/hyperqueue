@@ -50,7 +50,7 @@ impl Backend {
         state_ref: StateRef,
         events: EventStreamer,
         autoalloc: AutoAllocService,
-        key: Arc<SecretKey>,
+        key: Option<Arc<SecretKey>>,
         idle_timeout: Option<Duration>,
         worker_port: Option<u16>,
         worker_id_initial_value: WorkerId,
@@ -63,7 +63,7 @@ impl Backend {
         let server_uid = state_ref.get().server_info().server_uid.clone();
         let (server_ref, server_future) = tako::server::server_start(
             SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), worker_port.unwrap_or(0)),
-            Some(key),
+            key,
             msd,
             from_tako_sender.clone(),
             false,

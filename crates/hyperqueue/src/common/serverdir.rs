@@ -82,20 +82,28 @@ fn resolve_active_directory(path: &Path) -> PathBuf {
 }
 
 fn serde_serialize_key<S: Serializer>(
-    key: &Arc<SecretKey>,
+    key: &Option<Arc<SecretKey>>,
     serializer: S,
 ) -> Result<S::Ok, S::Error> {
-    let str = serialize_key(key);
-    serializer.serialize_str(&str)
+    if let Some(key) = key {
+        let str = serialize_key(key);
+        serializer.serialize_str(&str)
+    } else {
+        serializer.serialize_none()
+    }
 }
 
 fn serde_deserialize_key<'de, D: Deserializer<'de>>(
     deserializer: D,
-) -> Result<Arc<SecretKey>, D::Error> {
-    let key: String = Deserialize::deserialize(deserializer)?;
-    deserialize_key(&key)
-        .map(Arc::new)
-        .map_err(|e| D::Error::custom(format!("Could not load secret key {e}")))
+) -> Result<Option<Arc<SecretKey>>, D::Error> {
+    let key_or_none: Option<String> = Deserialize::deserialize(deserializer)?;
+    key_or_none
+        .map(|key| {
+            deserialize_key(&key)
+                .map(Arc::new)
+                .map_err(|e| D::Error::custom(format!("Could not load secret key {e}")))
+        })
+        .transpose()
 }
 
 /// Finds all child directories in the given directory.
@@ -191,7 +199,7 @@ pub struct ConnectAccessRecordPart {
 
     #[serde(serialize_with = "serde_serialize_key")]
     #[serde(deserialize_with = "serde_deserialize_key")]
-    pub secret_key: Arc<SecretKey>,
+    pub secret_key: Option<Arc<SecretKey>>,
 }
 
 impl FullAccessRecord {
@@ -225,10 +233,10 @@ impl FullAccessRecord {
     pub fn worker_port(&self) -> u16 {
         self.worker.port
     }
-    pub fn client_key(&self) -> &Arc<SecretKey> {
+    pub fn client_key(&self) -> &Option<Arc<SecretKey>> {
         &self.client.secret_key
     }
-    pub fn worker_key(&self) -> &Arc<SecretKey> {
+    pub fn worker_key(&self) -> &Option<Arc<SecretKey>> {
         &self.worker.secret_key
     }
 
@@ -307,12 +315,12 @@ mod tests {
             ConnectAccessRecordPart {
                 host: "foo".into(),
                 port: 42,
-                secret_key: Arc::new(generate_key()),
+                secret_key: Some(Arc::new(generate_key())),
             },
             ConnectAccessRecordPart {
                 host: "bar".into(),
                 port: 42,
-                secret_key: Arc::new(generate_key()),
+                secret_key: Some(Arc::new(generate_key())),
             },
             "testHQ".into(),
         );

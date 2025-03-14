@@ -38,7 +38,7 @@ pub async fn handle_client_connections(
     server_dir: ServerDir,
     listener: TcpListener,
     end_flag: Arc<Notify>,
-    key: Arc<SecretKey>,
+    key: Option<Arc<SecretKey>>,
 ) {
     let group = TaskGroup::default();
     while let Ok((connection, _)) = group.run_until(listener.accept()).await {
@@ -64,7 +64,7 @@ async fn handle_client(
     state_ref: StateRef,
     carrier: &Senders,
     end_flag: Arc<Notify>,
-    key: Arc<SecretKey>,
+    key: Option<Arc<SecretKey>>,
 ) -> crate::Result<()> {
     log::debug!("New client connection");
     let socket = ServerConnection::accept_client(socket, key).await?;
