@@ -11,6 +11,23 @@ use std::time::Duration;
 
 type QueuePriorityTuple = (Priority, Priority, Priority); // user priority, resource priority, scheduler priority
 
+/// QueueForRequest is priority queue of the tasks that has the same resource request
+/// The idea is that if we cannot schedule one task from this queue, we cannot schedule
+/// any task in this queue.
+/// So when we are finding a candidate to schedule,
+/// it allows just to consider only first task in the resource queue.
+///
+/// We remember only PriorityTuple (i.e. user and scheduler priority) for each task
+/// Because all tasks share the same resource request they all have the same resource priority
+/// So we remember resource priority only for the whole queue, not for each task individually.
+///
+/// The queue also remember if it is currently blocked, that means that the
+/// resource request cannot be scheduled right now, and we should skip it.
+///
+/// Note: Allocator also remembers blocked resources, so more "clean" solution would be to
+/// do a lookup into allocator. But testing if queue is blocked is relatively often so
+/// we directly remember information in the queue. It also allows to make queue more independent
+/// on allocator.
 #[derive(Debug)]
 pub(crate) struct QueueForRequest {
     resource_priority: Priority,
@@ -19,7 +36,7 @@ pub(crate) struct QueueForRequest {
 }
 
 impl QueueForRequest {
-    pub fn init(&mut self) {
+    pub fn reset_temporaries(&mut self) {
         self.is_blocked = false;
     }
 
@@ -158,9 +175,9 @@ impl ResourceWaitQueue {
         remaining_time: Option<Duration>,
     ) -> Vec<(TaskId, Rc<Allocation>, usize)> {
         for qfr in self.queues.values_mut() {
-            qfr.init()
+            qfr.reset_temporaries()
         }
-        self.allocator.init_allocator(remaining_time);
+        self.allocator.reset_temporaries(remaining_time);
         let mut out = Vec::new();
         while !self.try_start_tasks_helper(task_map, &mut out) {
             self.allocator.close_priority_level()
@@ -168,6 +185,21 @@ impl ResourceWaitQueue {
         out
     }
 
+    /// This is "main" function of the worker resource allocation process.
+    /// It tries to find a candidate task and try to schedule it
+    ///
+    /// It goes through all resource priority queues and peeks of
+    /// the priority of the first in the queue for each non-blocked queue.
+    /// We take the maximal priority of all these priorities to get "current_priority"
+    ///
+    /// Then we go through all tasks with this priority (technically it is a prefix of each
+    /// resource queue, because they are sorted by priorities) and we try to find
+    /// resources for it in the allocator. If the allocation failed, we mark the
+    /// whole queue as blocked and skip rest of the queue because if we cannot schedule one task
+    /// we cannot schedule any task in the queue.
+    ///
+    /// The function always explore only the current highest non-blocked priority.
+    /// and it expects that it is called again when it returns `false`.
     fn try_start_tasks_helper(
         &mut self,
         _task_map: &TaskMap,
@@ -618,7 +650,7 @@ mod tests {
     }
 
     #[test]
-    fn test_issue_848() {
+    fn test_different_resources_and_priorities() {
         let resources = vec![
             ResourceDescriptorItem::range("cpus", 0, 63),
             ResourceDescriptorItem::range("gpus/nvidia", 0, 3),
