@@ -206,7 +206,7 @@ pub async fn command_autoalloc(
             print_allocation_queues(gsettings, session).await?;
         }
         AutoAllocCommand::Add(opts) => {
-            add_queue(session, opts).await?;
+            add_queue(gsettings, session, opts).await?;
         }
         AutoAllocCommand::Info(opts) => {
             print_allocations(gsettings, session, opts).await?;
@@ -348,7 +348,11 @@ wasting resources."
     Ok(())
 }
 
-async fn add_queue(mut session: ClientSession, opts: AddQueueOpts) -> anyhow::Result<()> {
+async fn add_queue(
+    gsettings: &GlobalSettings,
+    mut session: ClientSession,
+    opts: AddQueueOpts,
+) -> anyhow::Result<()> {
     let (parameters, dry_run) = match opts.subcmd {
         AddQueueCommand::Pbs(params) => {
             let no_dry_run = params.no_dry_run;
@@ -369,6 +373,9 @@ async fn add_queue(mut session: ClientSession, opts: AddQueueOpts) -> anyhow::Re
         ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueueCreated(id)) => id
     )
     .await?;
+
+    // print empty response
+    gsettings.printer().print_empty();
 
     if dry_run {
         log::info!(
