@@ -212,7 +212,6 @@ impl ResourceWaitQueue {
         } else {
             return true;
         };
-        let mut is_finished = true;
         for rqv in &self.requests {
             let qfr = self.queues.get_mut(rqv).unwrap();
             while let Some((_task_id, priority)) = qfr.peek() {
@@ -229,10 +228,9 @@ impl ResourceWaitQueue {
                 };
                 let task_id = qfr.queue.pop().unwrap().0;
                 out.push((task_id, allocation, resource_index));
-                is_finished = false;
             }
         }
-        is_finished
+        false
     }
 }
 
