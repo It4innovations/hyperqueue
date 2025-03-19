@@ -685,6 +685,121 @@ mod tests {
     }
 
     #[test]
+    fn test_different_resources_and_priorities1() {
+        let resources = vec![
+            ResourceDescriptorItem::range("cpus", 0, 63),
+            ResourceDescriptorItem::range("gpus/nvidia", 0, 3),
+        ];
+        let mut rq = RB::new(wait_queue(resources));
+
+        for i in 0..20 {
+            let request: ResourceRequest = cpus_compact(1).add(1, 1).finish();
+            rq.add_task(
+                WorkerTaskBuilder::new(i)
+                    .resources(request)
+                    .user_priority(if i % 2 == 0 { 0 } else { -1 })
+                    .build(),
+            );
+        }
+        for i in 0..12 {
+            let request: ResourceRequest = cpus_compact(16).finish();
+            rq.add_task(
+                WorkerTaskBuilder::new(i + 20)
+                    .resources(request)
+                    .user_priority(-3)
+                    .build(),
+            );
+        }
+        let map = rq.start_tasks();
+        assert_eq!(map.len(), 7);
+        let ids = map.keys().copied().collect::<Vec<_>>();
+        assert_eq!(
+            ids.into_iter()
+                .map(|x| if x >= 20 { 1 } else { 0 })
+                .sum::<usize>(),
+            3
+        );
+    }
+
+    #[test]
+    fn test_different_resources_and_priorities2() {
+        let resources = vec![
+            ResourceDescriptorItem::range("cpus", 0, 10),
+            ResourceDescriptorItem::range("foo", 1, 3),
+        ];
+        let mut rq = RB::new(wait_queue(resources));
+
+        for i in 0..6 {
+            let request: ResourceRequest = cpus_compact(1).add(1, 1).finish();
+            rq.add_task(WorkerTaskBuilder::new(i).resources(request).build());
+        }
+        let map = rq.start_tasks();
+        assert_eq!(map.len(), 3);
+        for i in 0..6 {
+            let request: ResourceRequest = cpus_compact(1).add(1, 1).finish();
+            rq.add_task(
+                WorkerTaskBuilder::new(i + 10)
+                    .resources(request)
+                    .user_priority(1)
+                    .build(),
+            );
+        }
+        let map = rq.start_tasks();
+        assert!(map.is_empty());
+        for i in 0..6 {
+            let request: ResourceRequest = cpus_compact(5).finish();
+            rq.add_task(
+                WorkerTaskBuilder::new(i + 20)
+                    .resources(request)
+                    .user_priority(-3)
+                    .build(),
+            );
+        }
+        let map = rq.start_tasks();
+        assert_eq!(map.len(), 1);
+        assert!(map.keys().all(|id| *id >= 20));
+    }
+
+    #[test]
+    fn test_different_resources_and_priorities3() {
+        let resources = vec![
+            ResourceDescriptorItem::range("cpus", 0, 9),
+            ResourceDescriptorItem::range("foo", 1, 3),
+        ];
+        let mut rq = RB::new(wait_queue(resources));
+
+        for i in 0..6 {
+            let request: ResourceRequest = cpus_compact(1).add(1, 2).finish();
+            rq.add_task(WorkerTaskBuilder::new(i).resources(request).build());
+        }
+        let map = rq.start_tasks();
+        assert_eq!(map.len(), 1);
+        for i in 0..6 {
+            let request: ResourceRequest = cpus_compact(1).add(1, 3).finish();
+            rq.add_task(
+                WorkerTaskBuilder::new(i + 10)
+                    .resources(request)
+                    .user_priority(1)
+                    .build(),
+            );
+        }
+        let map = rq.start_tasks();
+        assert!(map.is_empty());
+        for i in 0..6 {
+            let request: ResourceRequest = cpus_compact(2).finish();
+            rq.add_task(
+                WorkerTaskBuilder::new(i + 20)
+                    .resources(request)
+                    .user_priority(-3)
+                    .build(),
+            );
+        }
+        let map = rq.start_tasks();
+        assert_eq!(map.len(), 4);
+        assert!(map.keys().all(|id| *id >= 20));
+    }
+
+    #[test]
     fn test_uniq_resource_priorities4() {
         let resources = vec![
             ResourceDescriptorItem::range("cpus", 0, 16),

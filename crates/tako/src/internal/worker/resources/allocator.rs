@@ -87,13 +87,13 @@ impl ResourceAllocator {
     }
 
     fn release_allocation_helper(&mut self, allocation: &Allocation) {
-        self.free_resources.add(allocation);
         for al in &allocation.resources {
             self.pools[al.resource_id].release_allocation(al);
         }
     }
 
     pub fn release_allocation(&mut self, allocation: Rc<Allocation>) {
+        self.free_resources.add(&allocation);
         self.release_allocation_helper(&allocation);
         let position = self
             .running_tasks
@@ -188,11 +188,6 @@ impl ResourceAllocator {
         running: &mut [Rc<Allocation>],
         request: &ResourceRequest,
     ) -> Vec<ConciseFreeResources> {
-        let mut full = free_resources.clone();
-        for running in running.iter() {
-            full.add(running);
-        }
-
         let mut witnesses: Vec<ConciseFreeResources> =
             Vec::with_capacity(2 * free_resources.n_resources());
 
@@ -206,8 +201,6 @@ impl ResourceAllocator {
 
         for i in 0..free_resources.n_resources() {
             let idx = ResourceId::from(i as u32);
-            /*running
-            .sort_unstable_by_key(|x| (x.get_sum(idx), -(x.fraction(&full) * 10_000.0) as u32));*/
             running.sort_unstable_by_key(|x| {
                 x.resource_allocation(idx)
                     .map(|a| a.amount)
@@ -279,12 +272,11 @@ impl ResourceAllocator {
             allocation
                 .add_resource_allocation(pool.claim_resources(entry.resource_id, &entry.request))
         }
-        self.free_resources.remove(&allocation);
-
         if !self.check_blocked_request(&allocation) {
             self.release_allocation_helper(&allocation);
             return None;
         }
+        self.free_resources.remove(&allocation);
         let allocation_rc = Rc::new(allocation);
         self.running_tasks.push(allocation_rc.clone());
         Some(allocation_rc)
