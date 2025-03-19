@@ -4,11 +4,12 @@ import time
 
 import pytest
 
+from .utils.wait import wait_until
 from .conftest import HqEnv
 from .utils import wait_for_job_state
 from .utils.cmd import python
 from .utils.io import read_file
-from .utils.job import default_task_output
+from .utils.job import default_task_output, list_jobs
 
 
 def test_worker_resources_display(hq_env: HqEnv):
@@ -469,3 +470,55 @@ def test_resources_invalid_definitions(hq_env: HqEnv):
         args=["submit", "--resource", "foo=0", "--", "sleep", "1"],
         expect_fail="Zero resources cannot be requested",
     )
+
+
+def test_resources_and_priorities_one_by_one_submit(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(args=["--resource", "foo=[1, 2, 3, 4]"], cpus=8)
+
+    for i in range(1, 5):
+        hq_env.command(["submit", "--resource", "foo=2", "--", "sleep", "100"])
+        if i < 3:
+            wait_for_job_state(hq_env, i, "RUNNING")
+    time.sleep(0.6)
+    wait_for_job_state(hq_env, [1, 2], "RUNNING")
+    wait_for_job_state(hq_env, [3, 4], "WAITING")
+    time.sleep(1.0)
+    hq_env.command(["submit", "--cpus=2", "--priority=-1", "--", "sleep", "100"])
+
+    def check():
+        table = list_jobs(hq_env)
+        return table.get_column_value("State") == ["RUNNING", "RUNNING", "WAITING", "WAITING", "RUNNING"]
+
+    wait_until(check, timeout_s=5)
+
+
+def test_resources_and_priorities_submit_before_worker(hq_env: HqEnv):
+    hq_env.start_server()
+    for i in range(1, 5):
+        hq_env.command(["submit", "--resource", "foo=2", "--", "sleep", "100"])
+    hq_env.command(["submit", "--cpus=2", "--priority=-1", "--", "sleep", "100"])
+    hq_env.start_worker(args=["--resource", "foo=[1, 2, 3, 4]"], cpus=8)
+
+    def check():
+        table = list_jobs(hq_env)
+        s = table.get_column_value("State")
+        return s[-1] == "RUNNING" and s[:-1].count("RUNNING") == 2 and s[:-1].count("WAITING") == 2
+
+    wait_until(check, timeout_s=5)
+
+
+def test_resources_and_many_priorities(hq_env: HqEnv):
+    hq_env.start_server()
+    for i in range(1, 10):
+        hq_env.command(["submit", "--resource", "foo=2", f"--priority={i * 10}", "--", "sleep", "100"])
+    for i in range(12):
+        hq_env.command(["submit", "--cpus=1", f"--priority={i // 3 - 5}", "--", "sleep", "100"])
+    hq_env.start_worker(args=["--resource", "foo=[1, 2, 3, 4, 5, 6]"], cpus=12)
+
+    def check():
+        table = list_jobs(hq_env)
+        s = table.get_column_value("State")
+        return s == 6 * ["WAITING"] + 3 * ["RUNNING"] + 3 * ["WAITING"] + 9 * ["RUNNING"]
+
+    wait_until(check, timeout_s=5)
