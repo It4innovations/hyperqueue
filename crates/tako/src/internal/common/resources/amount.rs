@@ -8,7 +8,6 @@ pub const FRACTIONS_PER_UNIT: ResourceFractions = 10_000;
 pub const FRACTIONS_MAX_DIGITS: usize = FRACTIONS_PER_UNIT.ilog10() as usize;
 
 #[derive(
-    Debug,
     Serialize,
     Clone,
     Copy,
@@ -81,6 +80,12 @@ impl std::fmt::Display for ResourceAmount {
             write!(f, ".{}", num.trim_end_matches('0'))?;
         }
         Ok(())
+    }
+}
+
+impl std::fmt::Debug for ResourceAmount {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self, f)
     }
 }
 
