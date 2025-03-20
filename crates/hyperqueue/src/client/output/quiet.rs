@@ -151,6 +151,8 @@ impl Output for Quiet {
     fn print_error(&self, error: Error) {
         eprintln!("{error:?}");
     }
+    
+    fn print_empty(&self) {}
 }
 
 fn format_status(status: &Status) -> &str {

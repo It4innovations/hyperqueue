@@ -238,6 +238,10 @@ impl Output for JsonOutput {
     fn print_error(&self, error: Error) {
         self.print(json!({ "error": format!("{error:?}") }))
     }
+
+    fn print_empty(&self) {
+        self.print(json!("{}"));
+    }
 }
 
 fn format_task_description(task_desc: &TaskDescription) -> Value {
