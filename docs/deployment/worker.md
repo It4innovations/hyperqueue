@@ -80,17 +80,19 @@ If you have an OpenSSH-compatible `ssh` binary available in your environment, HQ
 $ hq worker deploy-ssh <nodefile> <worker-args>
 ```
 
-For example, if we had the following content stored in file called `nodefile.txt`:
+To use this command, you need to prepare a *hostfile*, which should contain a set of lines describing individual hostnames on which you want to deploy the workers:
 ```text
 node1
-node2
+node2:1234
 ```
 
-And we execute the following command:
+As you can see above, each hostname can optionally have an attached SSH port (to change the default SSH port number `22`).
+
+Assume that the content above is stored in a file called `hostfile.txt`. If we then execute the following command:
 ```bash
-$ hq worker deploy-ssh nodefile.txt --time-limit 1h
+$ hq worker deploy-ssh hostfile.txt --time-limit 1h
 ```
-HQ would run `hq worker start --time-limit 1h` on both `node1` and `node2`.
+HQ would run `hq worker start --time-limit 1h` on both `node1` and `node2:1234`.
 
 The nodes have to be accessible using a passwordless SSH connection.
 
