@@ -30,6 +30,7 @@ class ExternalProgram(Task):
         task_dir: bool = False,
         priority: int = 0,
         resources: Optional[ResourceRequest],
+        crash_limit: Optional[int] = None,
     ):
         super().__init__(
             task_id,
@@ -41,6 +42,7 @@ class ExternalProgram(Task):
             stdout=stdout,
             stderr=stderr,
             name=name,
+            crash_limit=crash_limit,
         )
         args = to_arg_list(args)
         validate_args(args)
@@ -70,6 +72,7 @@ class ExternalProgram(Task):
             task_dir=self.task_dir,
             priority=self.priority,
             resource_request=_make_ffi_requests(self.resources),
+            crash_limit=self.crash_limit,
         )
 
     def __getitem__(self, key: str):
