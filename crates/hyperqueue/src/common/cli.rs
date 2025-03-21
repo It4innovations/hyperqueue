@@ -262,7 +262,7 @@ pub enum WorkerCommand {
     ///
     /// Note that to use this command, an OpenSSH-compatible `ssh` binary
     /// has to be available on the local node.
-    DeploySSH(DeploySSHOpts),
+    DeploySsh(DeploySshOpts),
 }
 
 #[derive(Parser)]
@@ -309,7 +309,7 @@ pub struct HwDetectOpts {
 }
 
 #[derive(Parser, Debug)]
-pub struct DeploySSHOpts {
+pub struct DeploySshOpts {
     /// Show log output of the spawned worker(s).
     #[arg(long)]
     pub show_output: bool,

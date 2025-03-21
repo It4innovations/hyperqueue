@@ -22,7 +22,7 @@ use tokio::time::sleep;
 use crate::WorkerId;
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::utils::{PassThroughArgument, passthrough_parser};
-use crate::common::cli::DeploySSHOpts;
+use crate::common::cli::DeploySshOpts;
 use crate::common::manager::info::{ManagerInfo, WORKER_EXTRA_MANAGER_KEY};
 use crate::common::utils::fs::get_hq_binary_path;
 use crate::common::utils::network::get_hostname;
@@ -430,7 +430,7 @@ pub async fn wait_for_workers(
     Ok(())
 }
 
-pub async fn deploy_ssh_workers(opts: DeploySSHOpts) -> anyhow::Result<()> {
+pub async fn deploy_ssh_workers(opts: DeploySshOpts) -> anyhow::Result<()> {
     // We need to validate worker start options, but also get them as a list of arguments,
     // so that we can forward it to the SSH command.
     // We do that by using trailing var args, and then parse them manually as `WorkerStartOpts`
