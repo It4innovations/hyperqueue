@@ -314,10 +314,10 @@ pub struct DeploySshOpts {
     #[arg(long)]
     pub show_output: bool,
 
-    /// Path to a nodefile that contains the hostnames to which should
+    /// Path to a file that contains the hostnames to which should
     /// HQ workers be deployed to.
     /// Each line in the file should correspond to one hostname address.
-    pub nodefile: PathBuf,
+    pub hostfile: PathBuf,
     // This is essentially [WorkerStartOpts], but we parse it in an opaque way
     // so that we can forward it verbatim to the SSH command. See `deploy_ssh_workers`
     // for more information

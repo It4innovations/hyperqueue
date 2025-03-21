@@ -444,7 +444,7 @@ pub async fn deploy_ssh_workers(opts: DeploySshOpts) -> anyhow::Result<()> {
     // It is not ideal, but if we returned Err, then the error message would not be as nice.
     let _worker_args = WorkerStartOpts::parse_from(fake_worker_args);
 
-    let hostnames = load_hostnames(&opts.nodefile)?;
+    let hostnames = load_hostnames(&opts.hostfile)?;
     if hostnames.is_empty() {
         return Err(anyhow::anyhow!("The provided hostname is empty"));
     }
@@ -462,7 +462,7 @@ pub async fn deploy_ssh_workers(opts: DeploySshOpts) -> anyhow::Result<()> {
     let mut worker_futures = JoinSet::new();
     let mut worker_data = Map::new();
 
-    // Start the workers on all nodes in the nodefile
+    // Start the workers on all nodes in the hostfile
     for hostname in hostnames {
         let mut child = start_ssh_worker_process(&ssh, &hostname, &args, opts.show_output)?;
         let handle = worker_futures.spawn(async move {
@@ -544,9 +544,9 @@ fn start_ssh_worker_process(
     Ok(child)
 }
 
-fn load_hostnames(nodefile: &Path) -> anyhow::Result<Vec<String>> {
-    let content = std::fs::read_to_string(nodefile)
-        .with_context(|| anyhow::anyhow!("Cannot load nodefile from {}", nodefile.display()))?;
+fn load_hostnames(hostfile: &Path) -> anyhow::Result<Vec<String>> {
+    let content = std::fs::read_to_string(hostfile)
+        .with_context(|| anyhow::anyhow!("Cannot load hostfile from {}", hostfile.display()))?;
     Ok(content.lines().map(|s| s.to_string()).collect::<Vec<_>>())
 }
 
