@@ -54,6 +54,7 @@ class Job:
         task_dir: bool = False,
         priority: int = 0,
         resources: Optional[Union[ResourceRequest, Sequence[ResourceRequest]]] = None,
+        crash_limit: Optional[int] = None,
     ) -> ExternalProgram:
         """
         Creates a new task that will execute the provided command.
@@ -72,6 +73,8 @@ class Job:
         :param task_dir: If True, an isolated directory will be created for the task.
         :param priority: Priority of the created task.
         :param resources: List of resource requests required by this task.
+        :param crash_limit: How many times can a worker that executes this task crash before the
+        task is considered to be failed.
         """
         task = ExternalProgram(
             len(self.tasks),
@@ -86,6 +89,7 @@ class Job:
             task_dir=task_dir,
             priority=priority,
             resources=resources,
+            crash_limit=crash_limit,
         )
         self._add_task(task)
         return task
@@ -104,6 +108,7 @@ class Job:
         name: Optional[str] = None,
         priority: int = 0,
         resources: Optional[Union[ResourceRequest, Sequence[ResourceRequest]]] = None,
+        crash_limit: Optional[int] = None,
     ) -> PythonFunction:
         """
         Creates a new task that will execute the provided Python function.
@@ -120,6 +125,8 @@ class Job:
         :param name: Name of the task.
         :param priority: Priority of the created task.
         :param resources: List of resource requests required by this task.
+        :param crash_limit: How many times can a worker that executes this task crash before the
+        task is considered to be failed.
         """
         task = PythonFunction(
             len(self.tasks),
@@ -134,6 +141,7 @@ class Job:
             dependencies=deps,
             priority=priority,
             resources=resources,
+            crash_limit=crash_limit,
         )
         self._add_task(task)
         return task

@@ -62,6 +62,7 @@ pub struct TaskDescription {
     task_dir: bool,
     priority: tako::Priority,
     resource_request: Vec<ResourceRequestDescription>,
+    crash_limit: Option<u32>,
 }
 
 #[derive(Debug, FromPyObject)]
@@ -229,7 +230,7 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<H
         resources,
         priority: desc.priority,
         time_limit: None,
-        crash_limit: DEFAULT_CRASH_LIMIT,
+        crash_limit: desc.crash_limit.unwrap_or(DEFAULT_CRASH_LIMIT),
     })
 }
 

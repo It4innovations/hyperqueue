@@ -33,6 +33,7 @@ class Task:
         stdout: Optional[Stdio] = None,
         stderr: Optional[Stdio] = None,
         name: Optional[str] = None,
+        crash_limit: Optional[int] = None,
     ):
         assert dependencies is not None
         self.task_id = task_id
@@ -44,6 +45,7 @@ class Task:
         self.stdout = build_stdio(stdout, "stdout")
         self.stderr = build_stdio(stderr, "stderr")
         self.name = name
+        self.crash_limit = crash_limit
 
     @property
     def label(self) -> str:

@@ -103,6 +103,7 @@ class PythonFunction(Task):
         dependencies=(),
         priority: int = 0,
         resources: Optional[Union[ResourceRequest, Sequence[ResourceRequest]]] = None,
+        crash_limit: Optional[int] = None,
     ):
         name = generate_task_name(task_id, name, fn)
         super().__init__(
@@ -115,6 +116,7 @@ class PythonFunction(Task):
             stdout=stdout,
             stderr=stderr,
             name=name,
+            crash_limit=crash_limit,
         )
 
         fn_id = id(fn)
@@ -141,6 +143,7 @@ class PythonFunction(Task):
             task_dir=True,
             priority=self.priority,
             resource_request=_make_ffi_requests(self.resources),
+            crash_limit=self.crash_limit,
         )
 
     def __repr__(self):
