@@ -19,7 +19,7 @@ use std::time::Duration;
 #[derive(Parser)]
 pub struct ServerOpts {
     #[clap(subcommand)]
-    subcmd: ServerCommand,
+    pub subcmd: ServerCommand,
 }
 
 #[derive(Parser)]
@@ -57,7 +57,7 @@ pub struct GenerateAccessOpts {
 }
 
 #[derive(Parser)]
-enum ServerCommand {
+pub enum ServerCommand {
     /// Start the HyperQueue server
     Start(ServerStartOpts),
     /// Stop the HyperQueue server, if it is running
@@ -69,7 +69,7 @@ enum ServerCommand {
 }
 
 #[derive(Parser)]
-struct ServerStartOpts {
+pub struct ServerStartOpts {
     /// Hostname/IP of the machine under which is visible to others, default: hostname
     #[arg(long)]
     host: Option<String>,
@@ -119,10 +119,10 @@ struct ServerStartOpts {
 }
 
 #[derive(Parser)]
-struct ServerStopOpts {}
+pub struct ServerStopOpts {}
 
 #[derive(Parser)]
-struct ServerInfoOpts {}
+pub struct ServerInfoOpts {}
 
 pub async fn command_server(gsettings: &GlobalSettings, opts: ServerOpts) -> anyhow::Result<()> {
     match opts.subcmd {
