@@ -1,6 +1,7 @@
 use crate::client::commands::duration_doc;
 use anyhow::{Context, bail};
 use chrono::Utc;
+use std::fmt::{Display, Formatter};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
@@ -518,17 +519,22 @@ pub async fn deploy_ssh_workers(opts: DeploySshOpts) -> anyhow::Result<()> {
 
 fn start_ssh_worker_process(
     ssh: &Path,
-    node: &str,
+    hostname: &Hostname,
     args: &[String],
     show_output: bool,
 ) -> anyhow::Result<Child> {
     let mut cmd = Command::new(ssh);
     let cmd = cmd
-        .arg(node)
+        .arg(&hostname.host)
         // double -t forces TTY allocation and propagates SIGINT to the remote process
         .arg("-t")
-        .arg("-t")
-        .arg("--")
+        .arg("-t");
+    if let Some(port) = hostname.port {
+        cmd.arg("-p");
+        cmd.arg(port.to_string());
+    }
+
+    cmd.arg("--")
         .args(args)
         .stdin(Stdio::null())
         .kill_on_drop(true);
@@ -540,14 +546,48 @@ fn start_ssh_worker_process(
     let child = cmd
         .spawn()
         .with_context(|| anyhow::anyhow!("Cannot start SSH command {cmd:?}"))?;
-    log::info!("Started worker process at `{node}`");
+    log::info!("Started worker process at `{hostname}`");
     Ok(child)
 }
 
-fn load_hostnames(hostfile: &Path) -> anyhow::Result<Vec<String>> {
+struct Hostname {
+    host: String,
+    port: Option<u16>,
+}
+
+impl Display for Hostname {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.host)?;
+        if let Some(port) = self.port {
+            write!(f, ":{port}")?;
+        }
+        Ok(())
+    }
+}
+
+fn load_hostnames(hostfile: &Path) -> anyhow::Result<Vec<Hostname>> {
     let content = std::fs::read_to_string(hostfile)
         .with_context(|| anyhow::anyhow!("Cannot load hostfile from {}", hostfile.display()))?;
-    Ok(content.lines().map(|s| s.to_string()).collect::<Vec<_>>())
+    content
+        .lines()
+        .map(|line| {
+            let line = line.trim();
+            if let Some((host, port)) = line.split_once(':') {
+                let port = port
+                    .parse::<u16>()
+                    .map_err(|e| anyhow::anyhow!("Cannot parser port from {line}: {e:?}"))?;
+                Ok(Hostname {
+                    host: host.to_string(),
+                    port: Some(port),
+                })
+            } else {
+                Ok(Hostname {
+                    host: line.to_string(),
+                    port: None,
+                })
+            }
+        })
+        .collect()
 }
 
 fn get_ssh_binary() -> anyhow::Result<PathBuf> {

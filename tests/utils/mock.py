@@ -37,6 +37,6 @@ class ProgramMock:
             f.write(content)
         os.chmod(program_path, 0o700)
 
-        yield
+        yield program_path
 
         os.unlink(program_path)
