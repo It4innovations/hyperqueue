@@ -38,7 +38,7 @@ use hyperqueue::client::task::{
     output_job_task_list,
 };
 use hyperqueue::common::cli::{
-    ColorPolicy, CommonOpts, DeploySSHOpts, GenerateCompletionOpts, HwDetectOpts, JobCommand,
+    ColorPolicy, CommonOpts, DeploySshOpts, GenerateCompletionOpts, HwDetectOpts, JobCommand,
     JobProgressOpts, JobWaitOpts, OptsWithMatches, RootOptions, SubCommand, WorkerAddressOpts,
     WorkerCommand, WorkerInfoOpts, WorkerListOpts, WorkerStopOpts, WorkerWaitOpts,
     get_task_id_selector, get_task_selector,
@@ -263,7 +263,7 @@ async fn command_worker_wait(
 
 async fn command_worker_deploy_ssh(
     _gsettings: &GlobalSettings,
-    opts: DeploySSHOpts,
+    opts: DeploySshOpts,
 ) -> anyhow::Result<()> {
     deploy_ssh_workers(opts).await
 }
@@ -429,7 +429,7 @@ async fn main() -> hyperqueue::Result<()> {
             WorkerCommand::Info(opts) => command_worker_info(&gsettings, opts).await,
             WorkerCommand::Address(opts) => command_worker_address(&gsettings, opts).await,
             WorkerCommand::Wait(opts) => command_worker_wait(&gsettings, opts).await,
-            WorkerCommand::DeploySSH(opts) => command_worker_deploy_ssh(&gsettings, opts).await,
+            WorkerCommand::DeploySsh(opts) => command_worker_deploy_ssh(&gsettings, opts).await,
         },
         SubCommand::Job(opts) => match opts.subcmd {
             JobCommand::List(opts) => command_job_list(&gsettings, opts).await,
