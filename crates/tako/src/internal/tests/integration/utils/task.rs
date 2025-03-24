@@ -100,6 +100,7 @@ pub fn build_task_def_from_config(
         cwd,
     };
     let body = bincode::DefaultOptions::new()
+        .with_limit(crate::MAX_FRAME_SIZE as u64)
         .serialize(&program_def)
         .unwrap();
 

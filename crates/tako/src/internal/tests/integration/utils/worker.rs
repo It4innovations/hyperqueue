@@ -266,6 +266,7 @@ impl TaskLauncher for TestTaskLauncher {
                 ctx.body().len(),
             );
             bincode::DefaultOptions::new()
+                .with_limit(crate::MAX_FRAME_SIZE as u64)
                 .deserialize(ctx.body())
                 .map_err(|_| DsError::GenericError("Body deserialization failed".into()))?
         };
