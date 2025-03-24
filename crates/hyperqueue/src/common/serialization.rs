@@ -13,7 +13,7 @@ pub struct DefaultConfig;
 
 impl SerializationConfig for DefaultConfig {
     fn config() -> impl Options {
-        bincode::DefaultOptions::new()
+        bincode::DefaultOptions::new().with_limit(tako::MAX_FRAME_SIZE as u64)
     }
 }
 
@@ -21,7 +21,9 @@ pub struct TrailingAllowedConfig;
 
 impl SerializationConfig for TrailingAllowedConfig {
     fn config() -> impl Options {
-        bincode::DefaultOptions::new().allow_trailing_bytes()
+        bincode::DefaultOptions::new()
+            .allow_trailing_bytes()
+            .with_limit(tako::MAX_FRAME_SIZE as u64)
     }
 }
 

@@ -244,6 +244,7 @@ where
     T: serde::Serialize + ?Sized,
 {
     DefaultOptions::new()
+        .with_limit(crate::MAX_FRAME_SIZE as u64)
         .with_fixint_encoding()
         .serialize(value)
         .map_err(|e| format!("Serialization failed: {e:?}").into())
@@ -255,6 +256,7 @@ where
     T: Deserialize<'a>,
 {
     DefaultOptions::new()
+        .with_limit(crate::MAX_FRAME_SIZE as u64)
         .with_fixint_encoding()
         .deserialize(bytes)
         .map_err(|e| format!("Deserialization failed: {e:?}, data {bytes:?}").into())

@@ -26,6 +26,8 @@ pub type PriorityTuple = (Priority, Priority); // user priority, scheduler prior
 pub type Error = internal::common::error::DsError;
 pub type Result<T> = std::result::Result<T, Error>;
 
+pub const MAX_FRAME_SIZE: usize = 128 * 1024 * 1024;
+
 pub mod resources {
     pub use crate::internal::common::resources::{
         AMD_GPU_RESOURCE_NAME, Allocation, AllocationRequest, CPU_RESOURCE_ID, CPU_RESOURCE_NAME,
