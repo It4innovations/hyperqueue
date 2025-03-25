@@ -59,7 +59,7 @@ impl Iterator for &mut JournalReader {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.position = self.source.stream_position().unwrap();
-        if self.position == self.size {
+        if self.position >= self.size {
             return None;
         }
         match EventSerializationConfig::config().deserialize_from(&mut self.source) {
