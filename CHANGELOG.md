@@ -1,13 +1,13 @@
-## Dev
+## 0.22.0
 
 ### New features
 
+* Added `hq worker deploy-ssh` to deploy workers to a set of nodes using SSH.
 * Added `hq doc` command for accessing documentation about various HQ features from the command-line.
 * `hq journal replay` added. It similar to `hq journal stream` but it will not wait for new events.
 * More robust initialization of dashboard
 * Authentication and encryption of client/worker connection can be disabled. It is mostly for testing
   and benchmarking purpose. Do not use if you are not in 100% safe environment.
-* Added `hq worker deploy-ssh` to deploy workers to a set of nodes using SSH.
 
 ### Breaking change
 
@@ -15,7 +15,8 @@
 
 ### Fixes
 
- * Fixes #848, inefficient scheduling of tasks with priorities
+* Fixes #848, inefficient scheduling of tasks with priorities
+* HyperQueue will no longer allocate extreme amounts of memory when loading a corrupted journal
 
 ## v0.21.1
 
