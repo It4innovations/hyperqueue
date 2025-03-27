@@ -6,8 +6,8 @@ use futures::stream::{SplitSink, SplitStream};
 use futures::{Sink, SinkExt, Stream, StreamExt};
 use orion::aead::streaming::{StreamOpener, StreamSealer};
 use orion::kdf::SecretKey;
-use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 use std::marker::PhantomData;
 use std::sync::Arc;
 use tokio::net::TcpStream;
@@ -71,8 +71,8 @@ impl<R: DeserializeOwned, S: Serialize> Connection<R, S> {
     pub async fn init(
         socket: TcpStream,
         protocol: u32,
-        my_role: &str,
-        peer_role: &str,
+        my_role: &'static str,
+        peer_role: &'static str,
         key: Option<Arc<SecretKey>>,
     ) -> crate::Result<Self> {
         socket.set_nodelay(true)?;
