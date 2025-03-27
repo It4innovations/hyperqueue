@@ -4,14 +4,14 @@ use std::time::Duration;
 
 use bincode::{DefaultOptions, Options};
 use bytes::Bytes;
-use futures::stream::{SplitSink, SplitStream};
 use futures::StreamExt;
+use futures::stream::{SplitSink, SplitStream};
 use futures::{Sink, SinkExt};
 use orion::aead::streaming::{Nonce, StreamOpener, StreamSealer, StreamTag};
 use orion::kdf::SecretKey;
 use orion::util::secure_rand_bytes;
-use serde::de::DeserializeOwned;
 use serde::Deserialize;
+use serde::de::DeserializeOwned;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::time::timeout;
@@ -25,21 +25,21 @@ use crate::internal::messages::auth::{
 
 const CHALLENGE_LENGTH: usize = 16;
 
-pub(crate) struct Authenticator<'a> {
+pub(crate) struct Authenticator {
     pub(crate) protocol: u32,
-    pub(crate) my_role: &'a str,
-    pub(crate) peer_role: &'a str,
+    pub(crate) my_role: &'static str,
+    pub(crate) peer_role: &'static str,
     pub(crate) secret_key: Option<Arc<SecretKey>>,
     pub(crate) challenge: Vec<u8>,
     pub(crate) sealer: Option<StreamSealer>,
     pub(crate) error: Option<String>,
 }
 
-impl<'a> Authenticator<'a> {
+impl Authenticator {
     pub fn new(
         protocol: u32,
-        role: &'a str,
-        peer_role: &'a str,
+        role: &'static str,
+        peer_role: &'static str,
         secret_key: Option<Arc<SecretKey>>,
     ) -> Self {
         Authenticator {
@@ -177,8 +177,8 @@ impl<'a> Authenticator<'a> {
 
 pub async fn do_authentication<T: AsyncRead + AsyncWrite>(
     protocol: u32,
-    my_role: &str,
-    peer_role: &str,
+    my_role: &'static str,
+    peer_role: &'static str,
     secret_key: Option<Arc<SecretKey>>,
     writer: &mut SplitSink<Framed<T, LengthDelimitedCodec>, bytes::Bytes>,
     reader: &mut SplitStream<Framed<T, LengthDelimitedCodec>>,
@@ -300,8 +300,8 @@ mod tests {
 
     #[test]
     fn test_no_auth() {
-        let mut a1 = Authenticator::new(0, "a".to_string(), "b".to_string(), None);
-        let mut a2 = Authenticator::new(0, "b".to_string(), "a".to_string(), None);
+        let mut a1 = Authenticator::new(0, "a", "b", None);
+        let mut a2 = Authenticator::new(0, "b", "a", None);
 
         let q1 = a1.make_auth_request().unwrap();
         let q2 = a2.make_auth_request().unwrap();
@@ -324,8 +324,8 @@ mod tests {
     #[test]
     fn test_auth_ok() {
         let secret_key = Some(Arc::new(SecretKey::generate(32).unwrap()));
-        let mut a1 = Authenticator::new(0, "a".to_string(), "b".to_string(), secret_key.clone());
-        let mut a2 = Authenticator::new(0, "b".to_string(), "a".to_string(), secret_key);
+        let mut a1 = Authenticator::new(0, "a", "b", secret_key.clone());
+        let mut a2 = Authenticator::new(0, "b", "a", secret_key);
 
         let q1 = a1.make_auth_request().unwrap();
         let q2 = a2.make_auth_request().unwrap();
@@ -349,8 +349,8 @@ mod tests {
     fn test_auth_diferent_keys() {
         let secret_key1 = Some(Arc::new(SecretKey::generate(32).unwrap()));
         let secret_key2 = Some(Arc::new(SecretKey::generate(32).unwrap()));
-        let mut a1 = Authenticator::new(0, "a".to_string(), "b".to_string(), secret_key1);
-        let mut a2 = Authenticator::new(0, "b".to_string(), "a".to_string(), secret_key2);
+        let mut a1 = Authenticator::new(0, "a", "b", secret_key1);
+        let mut a2 = Authenticator::new(0, "b", "a", secret_key2);
 
         let q1 = a1.make_auth_request().unwrap();
         let q2 = a2.make_auth_request().unwrap();
@@ -368,8 +368,8 @@ mod tests {
     #[test]
     fn test_auth_and_no_auth() {
         let secret_key = Some(Arc::new(SecretKey::generate(32).unwrap()));
-        let mut a1 = Authenticator::new(0, "a".to_string(), "b".to_string(), secret_key);
-        let mut a2 = Authenticator::new(0, "b".to_string(), "a".to_string(), None);
+        let mut a1 = Authenticator::new(0, "a", "b", secret_key);
+        let mut a2 = Authenticator::new(0, "b", "a", None);
 
         let q1 = a1.make_auth_request().unwrap();
         let q2 = a2.make_auth_request().unwrap();
@@ -387,18 +387,18 @@ mod tests {
     #[test]
     fn test_mirror_attack() {
         let secret_key = Some(Arc::new(SecretKey::generate(32).unwrap()));
-        let mut a1 = Authenticator::new(0, "a".to_string(), "b".to_string(), secret_key);
+        let mut a1 = Authenticator::new(0, "a", "b", secret_key);
 
         let mut q1 = a1.make_auth_request().unwrap();
-        q1.role = "b".to_string();
+        q1.role = "b".into();
         let r1 = a1.make_auth_response(q1).unwrap();
         assert!(a1.finish_authentication(r1).is_err());
     }
 
     #[test]
     fn test_invalid_version() {
-        let mut a1 = Authenticator::new(0, "a".to_string(), "b".to_string(), None);
-        let mut a2 = Authenticator::new(1, "b".to_string(), "a".to_string(), None);
+        let mut a1 = Authenticator::new(0, "a", "b", None);
+        let mut a2 = Authenticator::new(1, "b", "a", None);
 
         let q1 = a1.make_auth_request().unwrap();
         let q2 = a2.make_auth_request().unwrap();
@@ -415,8 +415,8 @@ mod tests {
 
     #[test]
     fn test_invalid_roles() {
-        let mut a1 = Authenticator::new(0, "a".to_string(), "b".to_string(), None);
-        let mut a2 = Authenticator::new(0, "b".to_string(), "c".to_string(), None);
+        let mut a1 = Authenticator::new(0, "a", "b", None);
+        let mut a2 = Authenticator::new(0, "b", "c", None);
 
         let q1 = a1.make_auth_request().unwrap();
         let q2 = a2.make_auth_request().unwrap();

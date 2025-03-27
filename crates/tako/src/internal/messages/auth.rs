@@ -16,9 +16,9 @@ pub(crate) enum AuthenticationMode {
 
 #[derive(Serialize, Deserialize, Debug)]
 //#[serde(tag = "op")]
-pub(crate) struct AuthenticationRequest<'a> {
+pub(crate) struct AuthenticationRequest {
     pub protocol: u32,
-    pub role: Cow<'a, str>,
+    pub role: Cow<'static, str>,
     pub mode: AuthenticationMode,
 }
 
