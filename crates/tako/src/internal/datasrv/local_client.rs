@@ -1,8 +1,7 @@
 use crate::internal::common::error::DsError;
 use crate::internal::datasrv::dataobj::{DataInputId, OutputId};
-use crate::internal::datasrv::messages::{
-    DataObject, FromLocalDataClientMessage, ToLocalDataClientMessage,
-};
+use crate::internal::datasrv::messages::{FromLocalDataClientMessage, ToLocalDataClientMessage};
+use crate::internal::datasrv::{DataObject, DataObjectRef};
 use crate::internal::worker::localcomm::IntroMessage;
 use bstr::BStr;
 use futures::{SinkExt, StreamExt};
@@ -11,11 +10,11 @@ use std::rc::Rc;
 use tokio::net::UnixStream;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
-pub struct DataClient {
+pub struct LocalDataClient {
     stream: Framed<UnixStream, LengthDelimitedCodec>,
 }
 
-impl DataClient {
+impl LocalDataClient {
     pub async fn connect(path: &Path, token: &BStr) -> crate::Result<Self> {
         log::debug!("Creating local connection to: {}", path.display());
         let stream = UnixStream::connect(path).await?;
@@ -25,7 +24,7 @@ impl DataClient {
             token: token.into(),
         })?;
         stream.send(data.into()).await?;
-        Ok(DataClient { stream })
+        Ok(LocalDataClient { stream })
     }
 
     async fn send_message(&mut self, message: FromLocalDataClientMessage) -> crate::Result<()> {
@@ -57,7 +56,7 @@ impl DataClient {
     ) -> crate::Result<()> {
         let message = FromLocalDataClientMessage::PutDataObject {
             data_id,
-            data_object: DataObject { mime_type, data },
+            data_object: DataObjectRef::new(DataObject::new(mime_type, data)),
         };
         self.send_message(message).await?;
         let message = self.read_message().await?;
@@ -68,7 +67,7 @@ impl DataClient {
         }
     }
 
-    pub async fn get_input(&mut self, input_id: DataInputId) -> crate::Result<Rc<DataObject>> {
+    pub async fn get_input(&mut self, input_id: DataInputId) -> crate::Result<DataObjectRef> {
         let message = FromLocalDataClientMessage::GetInput { input_id };
         self.send_message(message).await?;
         let message = self.read_message().await?;

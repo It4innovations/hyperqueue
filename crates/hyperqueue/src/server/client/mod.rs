@@ -4,13 +4,14 @@ use std::sync::Arc;
 
 use futures::{Sink, SinkExt, Stream, StreamExt};
 use orion::kdf::SecretKey;
+
 use tako::gateway::{CancelTasks, FromGatewayMessage, StopWorkerRequest, ToGatewayMessage};
 use tako::{Set, TaskGroup};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc::UnboundedSender;
-use tokio::sync::{mpsc, Notify};
+use tokio::sync::{Notify, mpsc};
 
-use crate::client::status::{job_status, Status};
+use crate::client::status::{Status, job_status};
 use crate::common::serverdir::ServerDir;
 use crate::server::event::Event;
 use crate::server::job::{JobTaskCounters, JobTaskState};
@@ -22,16 +23,16 @@ use crate::transfer::messages::{
     TaskSelector, ToClientMessage, WorkerListResponse,
 };
 use crate::transfer::messages::{ForgetJobResponse, WaitForJobsResponse};
-use crate::{unwrap_tako_id, JobId, JobTaskCount, WorkerId};
+use crate::{JobId, JobTaskCount, WorkerId, unwrap_tako_id};
 
 pub mod autoalloc;
 mod submit;
 
 use crate::common::error::HqError;
 use crate::common::serialization::Serialized;
+use crate::server::Senders;
 use crate::server::client::submit::handle_open_job;
 use crate::server::event::payload::EventPayload;
-use crate::server::Senders;
 pub(crate) use submit::{submit_job_desc, validate_submit};
 
 pub async fn handle_client_connections(

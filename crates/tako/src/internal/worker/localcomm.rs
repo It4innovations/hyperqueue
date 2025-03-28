@@ -1,5 +1,5 @@
 use crate::datasrv::DataObjectId;
-use crate::internal::worker::datanode::datanode_connection_handler;
+use crate::internal::worker::data::datanode_local_connection_handler;
 use crate::internal::worker::state::WorkerStateRef;
 use crate::{Map, TaskId};
 use bstr::{BStr, BString, ByteSlice, ByteVec};
@@ -137,7 +137,7 @@ async fn handle_connection(state_ref: WorkerStateRef, stream: UnixStream) -> cra
                 drop(lc_state);
                 drop(state);
                 let state_ref = state_ref.clone();
-                datanode_connection_handler(state_ref, rx, tx, task_id, input_map).await?;
+                datanode_local_connection_handler(state_ref, rx, tx, task_id, input_map).await?;
             }
         }
     } else {
