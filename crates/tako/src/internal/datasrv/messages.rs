@@ -1,32 +1,15 @@
 use crate::datasrv::DataObjectId;
 use crate::internal::datasrv::dataobj::{DataInputId, OutputId};
+use crate::internal::datasrv::{DataObject, DataObjectRef};
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
-
-#[derive(Serialize, Deserialize)]
-pub struct DataObject {
-    pub mime_type: String,
-    #[serde(with = "serde_bytes")]
-    pub data: Vec<u8>,
-}
-
-impl Debug for DataObject {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "<DataObj mimetype='{}' len={}>",
-            self.mime_type,
-            self.data.len()
-        )
-    }
-}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) enum FromLocalDataClientMessage {
     PutDataObject {
         data_id: OutputId,
-        data_object: DataObject,
+        data_object: DataObjectRef,
     },
     GetInput {
         input_id: DataInputId,
@@ -36,7 +19,7 @@ pub(crate) enum FromLocalDataClientMessage {
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) enum ToLocalDataClientMessage {
     Uploaded(OutputId),
-    DataObject(Rc<DataObject>),
+    DataObject(DataObjectRef),
     Error(String),
 }
 
@@ -48,4 +31,5 @@ pub(crate) enum FromDataClientMessage {
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) enum ToDataClientMessage {
     DataObject(Rc<DataObject>),
+    DataObjectNotFound,
 }

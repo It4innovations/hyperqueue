@@ -1,6 +1,6 @@
+use crate::WorkerId;
 use crate::datasrv::DataObjectId;
 use crate::internal::common::stablemap::ExtractKey;
-use crate::WorkerId;
 use std::collections::HashSet;
 
 pub(crate) type RefCount = u32;
@@ -10,7 +10,7 @@ pub(crate) struct DataObjectHandle {
     // TODO: Optimize for small number of placements (enum?)
     id: DataObjectId,
     placement: HashSet<WorkerId>,
-    size: usize,
+    size: u64,
     ref_count: RefCount,
 }
 
@@ -18,7 +18,7 @@ impl DataObjectHandle {
     pub fn new(
         id: DataObjectId,
         initial_placement: WorkerId,
-        size: usize,
+        size: u64,
         ref_count: RefCount,
     ) -> Self {
         let mut placement = HashSet::new();
