@@ -166,7 +166,11 @@ impl StateRestorer {
         log::debug!("Loading event file {}", path.display());
         let mut event_reader = JournalReader::open(path)?;
         for event in &mut event_reader {
-            let event = event?;
+            let event = event.map_err(|error| {
+                crate::Error::DeserializationError(format!(
+                    "Journal load error: {error:?}.\nIt appears that the journal file is corrupted."
+                ))
+            })?;
             match event.payload {
                 EventPayload::WorkerConnected(worker_id, _) => {
                     log::debug!("Replaying: WorkerConnected {worker_id}");
