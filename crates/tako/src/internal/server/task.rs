@@ -99,10 +99,11 @@ impl Task {
         body: Box<[u8]>,
     ) -> Self {
         log::debug!(
-            "New task {} {:?} {:?}",
+            "New task {} {:?} {:?} {:?}",
             id,
             &configuration.resources,
-            &task_deps
+            &task_deps,
+            &dataobj_deps,
         );
 
         let mut flags = TaskFlags::empty();

@@ -82,7 +82,7 @@ pub enum ToWorkerMessage {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TaskOutput {
     pub id: OutputId,
-    pub size: usize,
+    pub size: u64,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -138,16 +138,25 @@ pub struct TaskResourceAllocation {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DataObjectOverview {
     pub id: DataObjectId,
-    pub size: usize,
+    pub size: u64,
+}
+
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct DataStorageStats {
+    locally_uploaded_objects: u32,
+    locally_uploaded_bytes: u64,
+    locally_downloaded_objects: u32,
+    locally_downloaded_bytes: u64,
+    remotely_uploaded_objects: u32,
+    remotely_uploaded_bytes: u64,
+    remotely_downloaded_objects: u32,
+    remotely_downloaded_bytes: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DataNodeOverview {
     pub objects: Vec<DataObjectOverview>,
-    pub total_downloaded_count: u32,
-    pub total_uploaded_count: u32,
-    pub total_downloaded_bytes: usize,
-    pub total_uploaded_bytes: usize,
+    pub stats: DataStorageStats,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

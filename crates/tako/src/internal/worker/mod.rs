@@ -10,9 +10,8 @@ pub mod comm;
 pub mod configuration;
 pub(crate) mod resources;
 
+pub(crate) mod data;
 pub(crate) mod localcomm;
 
-mod datadownload;
-pub mod datanode;
 #[cfg(test)]
 mod test_util;

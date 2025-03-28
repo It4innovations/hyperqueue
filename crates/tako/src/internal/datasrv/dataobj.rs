@@ -1,6 +1,7 @@
-use crate::{define_id_type, TaskId};
+use crate::{TaskId, define_id_type};
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Display, Formatter};
+use std::rc::Rc;
 
 define_id_type!(OutputId, u32);
 define_id_type!(DataInputId, u32);
@@ -30,3 +31,38 @@ impl Debug for DataObjectId {
         write!(f, "{}/{}", self.task_id, self.data_id)
     }
 }
+
+#[derive(Serialize, Deserialize)]
+pub struct DataObject {
+    mime_type: String,
+
+    #[serde(with = "serde_bytes")]
+    data: Vec<u8>,
+}
+
+impl Debug for DataObject {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "<MemDataObj mimetype='{}' size={}>",
+            self.mime_type,
+            self.size(),
+        )
+    }
+}
+
+impl DataObject {
+    pub fn new(mime_type: String, data: Vec<u8>) -> Self {
+        DataObject { mime_type, data }
+    }
+
+    pub fn size(&self) -> u64 {
+        self.data.len() as u64
+    }
+
+    pub fn data(&self) -> &[u8] {
+        &self.data
+    }
+}
+
+pub type DataObjectRef = Rc<DataObject>;
