@@ -82,9 +82,11 @@ mod tests {
     use crate::server::event::Event;
     use crate::server::event::journal::{JournalReader, JournalWriter};
     use crate::server::event::payload::EventPayload;
+    use bincode::ErrorKind;
     use chrono::Utc;
     use std::fs::{File, OpenOptions};
     use std::io::Write;
+    use std::ops::Deref;
     use tako::gateway::LostWorkerReason;
     use tempfile::TempDir;
 
@@ -236,5 +238,49 @@ mod tests {
             event.payload,
             EventPayload::AllocationFinished(0, _)
         ));
+    }
+
+    #[test]
+    fn test_read_bad_data() -> anyhow::Result<()> {
+        // This test simulates the situation from https://github.com/It4innovations/hyperqueue/pull/858,
+        // where a corrupted journal file was causing HQ to allocate enormous amounts of memory.
+        // This test reconstructs a part of that problematic file and checks that HQ correctly
+        // reports a size error rather than going OOM.
+        let tempdir = tempfile::tempdir()?;
+        let journal = tempdir.path().join("journal.bin");
+
+        // Create a new journal start
+        let mut writer = JournalWriter::create_or_append(&journal, None)?;
+        writer.flush()?;
+        // Do not finish the file
+        std::mem::forget(writer);
+
+        // Write known bad data into it
+        let bad_data = [
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 1, 0, 200, 66, 253, 0, 48, 210, 204, 62, 0, 0, 0, 253, 0, 144, 73, 241, 55, 0, 0, 0,
+            253, 95, 251, 247, 59, 186, 0, 0, 0, 253, 140, 194, 17, 205, 108, 0, 0, 0, 252, 53,
+            213, 191, 40, 252, 66, 130, 166, 21, 0, 0, 0, 0, 252, 146, 46, 212, 103, 253, 156, 218,
+            171, 41, 43, 3, 0, 0, 2, 251, 104, 1, 4, 253, 0, 0, 0, 0, 254, 4, 0, 0, 1, 4, 99, 112,
+            117, 115, 32, 127, 0, 126, 0, 125, 0, 124, 0, 123,
+        ];
+        {
+            let mut file = OpenOptions::new().append(true).open(&journal)?;
+            file.write_all(&bad_data)?;
+            file.flush()?;
+        }
+
+        let mut reader = JournalReader::open(&journal)?;
+        let mut reader = &mut reader;
+        reader.next().unwrap()?;
+        reader.next().unwrap()?;
+
+        let error: bincode::Error = reader
+            .next()
+            .unwrap()
+            .expect_err("third read should be an error");
+        assert!(matches!(error.deref(), ErrorKind::SizeLimit));
+
+        Ok(())
     }
 }
