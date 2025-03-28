@@ -3,6 +3,7 @@ use crate::datasrv::DataObjectId;
 use crate::internal::datasrv::messages::{DataObject, FromDataClientMessage, ToDataClientMessage};
 use crate::internal::messages::worker::FromWorkerMessage;
 use crate::internal::worker::state::WorkerStateRef;
+use crate::internal::worker::task::TaskState;
 use crate::{Map, PriorityTuple, Set, TaskId, WorkerId};
 use std::rc::Rc;
 use std::time::Duration;
@@ -13,6 +14,11 @@ use tokio::task::{spawn_local, AbortHandle, JoinSet};
 const PROTOCOL_VERSION: u32 = 0;
 const MAX_PARALLEL_DOWNLOADS: usize = 4;
 const MAX_DOWNLOAD_TRIES: usize = 10;
+const MAX_IDLE_CONNECTIONS_PER_WORKER: usize = 4;
+
+// TODO: Remove connections when when worker is removed
+// TODO: Remove downloading processes when task is removed
+// TODO: Fail task when download failed several times
 
 pub(crate) struct RunningDownloadHandle {
     subscribed_tasks: Set<TaskId>,
@@ -44,6 +50,16 @@ impl Downloads {
         self.idle_connections
             .get_mut(&worker_id)
             .and_then(|connections| connections.pop())
+    }
+
+    pub fn return_connection(&mut self, worker_id: WorkerId, connection: DataClientConnection) {
+        let connections = self.idle_connections.entry(worker_id).or_default();
+        if connections.len() < MAX_IDLE_CONNECTIONS_PER_WORKER {
+            log::debug!("Returning connection for worker {worker_id} to idle_connections");
+            connections.push(connection);
+        } else {
+            log::debug!("Connection for {worker_id} is closed, because there are too many connections in connection pool");
+        }
     }
 
     pub fn download_object(
@@ -118,7 +134,14 @@ async fn download_from_worker(
     let message = FromDataClientMessage::GetObject { data_id };
     let message = connection.send_and_receive(message).await?;
     match message {
-        ToDataClientMessage::DataObject(data_obj) => Ok(data_obj),
+        ToDataClientMessage::DataObject(data_obj) => {
+            state_ref
+                .get_mut()
+                .data_node
+                .downloads()
+                .return_connection(worker_id, connection);
+            Ok(data_obj)
+        }
     }
 }
 
@@ -143,16 +166,38 @@ async fn download_process(state_ref: WorkerStateRef, data_id: DataObjectId) {
                 .send_message_to_server(FromWorkerMessage::PlacementQuery(data_id));
         }
         let worker_id = receiver.await.unwrap();
+        log::debug!("Placement for {data_id} was resolved as {worker_id}");
         match download_from_worker(&state_ref, worker_id, data_id).await {
-            Ok(_) => todo!(), // TODO: Return connection to the pool
-            Err(e) => todo!(),
+            Ok(data_obj) => {
+                log::debug!(
+                    "Download of {data_id} completed; size={}",
+                    data_obj.data.len()
+                );
+                let mut state = state_ref.get_mut();
+                state.data_node.put_object(data_id, data_obj).unwrap();
+                let download = state_ref
+                    .get_mut()
+                    .data_node
+                    .downloads()
+                    .running_downloads
+                    .remove(&data_id)
+                    .unwrap();
+                for task_id in download.subscribed_tasks {
+                    if state.get_task_mut(task_id).decrease_waiting_count() {
+                        todo!() // START TASK
+                    }
+                }
+            }
+            Err(e) => {
+                log::debug!("Downloading of {data_id} failed: {e}");
+            }
         };
         tokio::time::sleep(Duration::from_secs(i as u64)).await;
     }
     todo!() // FAIL TASKS
 }
 
-pub(crate) fn start_download_process(state_ref: WorkerStateRef) {
+pub(crate) fn start_download_manager_process(state_ref: WorkerStateRef) {
     spawn_local(async move {
         let notify = {
             let mut state = state_ref.get_mut();
