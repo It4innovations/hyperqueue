@@ -10,10 +10,10 @@ pub mod hwstats;
 pub mod launcher;
 pub mod program;
 
+pub use crate::internal::common::WrappedRcRefCell;
 pub use crate::internal::common::index::{AsIdVec, ItemId};
 pub use crate::internal::common::taskgroup::TaskGroup;
 pub use crate::internal::common::utils::format_comma_delimited;
-pub use crate::internal::common::WrappedRcRefCell;
 pub use crate::internal::common::{Map, Set};
 
 define_id_type!(WorkerId, u32);
@@ -31,12 +31,11 @@ pub const MAX_FRAME_SIZE: usize = 128 * 1024 * 1024;
 
 pub mod resources {
     pub use crate::internal::common::resources::{
-        Allocation, AllocationRequest, NumOfNodes, ResourceAllocation, ResourceAmount,
-        ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind, ResourceFractions,
-        ResourceIndex, ResourceLabel, ResourceRequest, ResourceRequestEntries,
+        AMD_GPU_RESOURCE_NAME, Allocation, AllocationRequest, CPU_RESOURCE_ID, CPU_RESOURCE_NAME,
+        MEM_RESOURCE_NAME, NVIDIA_GPU_RESOURCE_NAME, NumOfNodes, ResourceAllocation,
+        ResourceAmount, ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind,
+        ResourceFractions, ResourceIndex, ResourceLabel, ResourceRequest, ResourceRequestEntries,
         ResourceRequestEntry, ResourceRequestVariants, ResourceUnits, TimeRequest,
-        AMD_GPU_RESOURCE_NAME, CPU_RESOURCE_ID, CPU_RESOURCE_NAME, MEM_RESOURCE_NAME,
-        NVIDIA_GPU_RESOURCE_NAME,
     };
 
     pub use crate::internal::common::resources::map::ResourceMap;
@@ -66,6 +65,6 @@ pub mod task {
 }
 
 pub mod datasrv {
-    pub use crate::internal::datasrv::client::DataClient;
     pub use crate::internal::datasrv::dataobj::{DataInputId, DataObjectId, OutputId};
+    pub use crate::internal::datasrv::local_client::LocalDataClient;
 }
