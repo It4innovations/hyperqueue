@@ -1,11 +1,11 @@
 use crate::datasrv::DataObjectId;
-use crate::internal::worker::datanode::datanode_connection_handler;
+use crate::internal::worker::data::datanode_local_connection_handler;
 use crate::internal::worker::state::WorkerStateRef;
 use crate::{Map, TaskId};
 use bstr::{BStr, BString, ByteSlice, ByteVec};
 use futures::StreamExt;
-use rand::Rng;
 use rand::distributions::Alphanumeric;
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
 use std::os::unix::ffi::OsStrExt;
@@ -13,8 +13,8 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use tokio::net::{UnixListener, UnixStream};
 use tokio::task::spawn_local;
-use tokio_util::codec::LengthDelimitedCodec;
 use tokio_util::codec::length_delimited::Builder;
+use tokio_util::codec::LengthDelimitedCodec;
 
 pub(crate) enum Registration {
     DataConnection {
@@ -137,7 +137,7 @@ async fn handle_connection(state_ref: WorkerStateRef, stream: UnixStream) -> cra
                 drop(lc_state);
                 drop(state);
                 let state_ref = state_ref.clone();
-                datanode_connection_handler(state_ref, rx, tx, task_id, input_map).await?;
+                datanode_local_connection_handler(state_ref, rx, tx, task_id, input_map).await?;
             }
         }
     } else {
