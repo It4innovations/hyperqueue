@@ -142,7 +142,8 @@ pub async fn client_rpc_loop<
                     }
                     FromClientMessage::WorkerList => handle_worker_list(&state_ref).await,
                     FromClientMessage::WorkerInfo(msg) => {
-                        handle_worker_info(&state_ref, msg.worker_id).await
+                        handle_worker_info(&state_ref, senders, msg.worker_id, msg.runtime_info)
+                            .await
                     }
                     FromClientMessage::StopWorker(msg) => {
                         handle_worker_stop(&state_ref, senders, msg.selector).await
@@ -330,7 +331,7 @@ async fn handle_worker_stop(
             .get()
             .get_workers()
             .iter()
-            .filter(|(_, worker)| worker.make_info().ended.is_none())
+            .filter(|(_, worker)| worker.make_info(None).ended.is_none())
             .map(|(_, worker)| worker.worker_id())
             .collect(),
         IdSelector::LastN(n) => {
@@ -343,7 +344,7 @@ async fn handle_worker_stop(
 
     for worker_id in worker_ids {
         if let Some(worker) = state_ref.get().get_worker(worker_id) {
-            if worker.make_info().ended.is_some() {
+            if worker.make_info(None).ended.is_some() {
                 responses.push((worker_id, StopWorkerResponse::AlreadyStopped));
                 continue;
             }
@@ -584,13 +585,39 @@ async fn handle_worker_list(state_ref: &StateRef) -> ToClientMessage {
         workers: state
             .get_workers()
             .values()
-            .map(|w| w.make_info())
+            .map(|w| w.make_info(None))
             .collect(),
     })
 }
 
-async fn handle_worker_info(state_ref: &StateRef, worker_id: WorkerId) -> ToClientMessage {
+async fn handle_worker_info(
+    state_ref: &StateRef,
+    senders: &Senders,
+    worker_id: WorkerId,
+    runtime_info: bool,
+) -> ToClientMessage {
+    let runtime_info = if runtime_info
+        && state_ref
+            .get()
+            .get_workers()
+            .get(&worker_id)
+            .is_some_and(|w| w.is_running())
+    {
+        match senders
+            .backend
+            .send_tako_message(FromGatewayMessage::WorkerInfo(worker_id))
+            .await
+        {
+            Ok(ToGatewayMessage::WorkerInfo(info)) => info,
+            _ => unreachable!(),
+        }
+    } else {
+        None
+    };
     let state = state_ref.get();
-
-    ToClientMessage::WorkerInfoResponse(state.get_worker(worker_id).map(|w| w.make_info()))
+    ToClientMessage::WorkerInfoResponse(
+        state
+            .get_worker(worker_id)
+            .map(|w| w.make_info(runtime_info)),
+    )
 }

@@ -1,12 +1,12 @@
 use cli_table::format::{Justify, Separator};
-use cli_table::{Cell, CellStruct, Color, ColorChoice, Style, Table, TableStruct, print_stdout};
+use cli_table::{print_stdout, Cell, CellStruct, Color, ColorChoice, Style, Table, TableStruct};
 
 use std::fmt::{Display, Write};
 use std::io::Write as write;
 
 use crate::client::job::WorkerMap;
-use crate::client::output::outputs::{MAX_DISPLAYED_WORKERS, Output, OutputStream};
-use crate::client::status::{Status, get_task_status, job_status};
+use crate::client::output::outputs::{Output, OutputStream, MAX_DISPLAYED_WORKERS};
+use crate::client::status::{get_task_status, job_status, Status};
 use crate::common::env::is_hq_env;
 use crate::common::format::{human_duration, human_mem_amount, human_size};
 use crate::common::manager::info::GetManagerInfo;
@@ -31,11 +31,11 @@ use std::time::SystemTime;
 use tako::program::StdioDef;
 use tako::resources::{ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind};
 
-use crate::client::output::Verbosity;
 use crate::client::output::common::{
-    JOB_SUMMARY_STATUS_ORDER, TaskToPathsMap, group_jobs_by_status, resolve_task_paths,
+    group_jobs_by_status, resolve_task_paths, TaskToPathsMap, JOB_SUMMARY_STATUS_ORDER,
 };
 use crate::client::output::json::format_datetime;
+use crate::client::output::Verbosity;
 use crate::common::arraydef::IntArray;
 use crate::common::utils::str::{pluralize, select_plural, truncate_middle};
 use crate::worker::start::WORKER_EXTRA_PROCESS_PID;
@@ -46,8 +46,9 @@ use std::collections::BTreeSet;
 use std::fs::File;
 use tako::gateway::{
     LostWorkerReason, ResourceRequest, ResourceRequestEntry, ResourceRequestVariants,
+    WorkerRuntimeInfo,
 };
-use tako::{Map, format_comma_delimited};
+use tako::{format_comma_delimited, Map};
 
 pub const TASK_COLOR_CANCELED: Colorization = Colorization::Magenta;
 pub const TASK_COLOR_FAILED: Colorization = Colorization::Red;
@@ -237,31 +238,7 @@ impl Output for CliOutput {
                 let manager_info = worker.configuration.get_manager_info();
                 vec![
                     worker.id.cell().justify(Justify::Right),
-                    match worker.ended.as_ref() {
-                        None => "RUNNING".cell().foreground_color(Some(Color::Green)),
-                        Some(WorkerExitInfo {
-                            reason: LostWorkerReason::ConnectionLost,
-                            ..
-                        }) => "CONNECTION LOST".cell().foreground_color(Some(Color::Red)),
-                        Some(WorkerExitInfo {
-                            reason: LostWorkerReason::HeartbeatLost,
-                            ..
-                        }) => "HEARTBEAT LOST".cell().foreground_color(Some(Color::Red)),
-                        Some(WorkerExitInfo {
-                            reason: LostWorkerReason::IdleTimeout,
-                            ..
-                        }) => "IDLE TIMEOUT".cell().foreground_color(Some(Color::Cyan)),
-                        Some(WorkerExitInfo {
-                            reason: LostWorkerReason::Stopped,
-                            ..
-                        }) => "STOPPED".cell().foreground_color(Some(Color::Magenta)),
-                        Some(WorkerExitInfo {
-                            reason: LostWorkerReason::TimeLimitReached,
-                            ..
-                        }) => "TIME LIMIT REACHED"
-                            .cell()
-                            .foreground_color(Some(Color::Cyan)),
-                    },
+                    worker_status(&worker),
                     worker.configuration.hostname.cell(),
                     resources_summary(&worker.configuration.resources, false).cell(),
                     manager_info
@@ -291,16 +268,19 @@ impl Output for CliOutput {
     }
 
     fn print_worker_info(&self, worker_info: WorkerInfo) {
+        let state = worker_status(&worker_info);
         let WorkerInfo {
             id,
             configuration,
             started,
             ended: _ended,
+            runtime_info,
         } = worker_info;
 
         let manager_info = configuration.get_manager_info();
-        let rows = vec![
+        let mut rows = vec![
             vec!["Worker ID".cell().bold(true), id.cell()],
+            vec!["State".cell().bold(true), state],
             vec!["Hostname".cell().bold(true), configuration.hostname.cell()],
             vec!["Started".cell().bold(true), format_datetime(started).cell()],
             vec![
@@ -364,6 +344,33 @@ impl Output for CliOutput {
                     .cell(),
             ],
         ];
+        if let Some(runtime_info) = runtime_info {
+            let mut s = String::with_capacity(60);
+            match runtime_info {
+                WorkerRuntimeInfo::SingleNodeTasks {
+                    running_tasks,
+                    assigned_tasks,
+                    is_reserved,
+                } => {
+                    write!(s, "Assigned tasks: {}", assigned_tasks).unwrap();
+                    if running_tasks > 0 {
+                        write!(s, "; Running tasks: {}", running_tasks).unwrap();
+                    }
+                    if is_reserved {
+                        write!(s, "; reserved").unwrap();
+                    }
+                }
+                WorkerRuntimeInfo::MultiNodeTask { main_node } => {
+                    write!(s, "Running multinode task; ").unwrap();
+                    if main_node {
+                        write!(s, "main node").unwrap();
+                    } else {
+                        write!(s, "secondary node").unwrap();
+                    }
+                }
+            };
+            rows.push(vec!["Runtime Info".cell().bold(true), s.cell()]);
+        }
         self.print_vertical_table(rows);
     }
 
@@ -1100,6 +1107,34 @@ fn job_status_to_cell(info: &JobInfo) -> String {
     result
 }
 
+pub fn worker_status(worker_info: &WorkerInfo) -> CellStruct {
+    match worker_info.ended.as_ref() {
+        None => "RUNNING".cell().foreground_color(Some(Color::Green)),
+        Some(WorkerExitInfo {
+            reason: LostWorkerReason::ConnectionLost,
+            ..
+        }) => "CONNECTION LOST".cell().foreground_color(Some(Color::Red)),
+        Some(WorkerExitInfo {
+            reason: LostWorkerReason::HeartbeatLost,
+            ..
+        }) => "HEARTBEAT LOST".cell().foreground_color(Some(Color::Red)),
+        Some(WorkerExitInfo {
+            reason: LostWorkerReason::IdleTimeout,
+            ..
+        }) => "IDLE TIMEOUT".cell().foreground_color(Some(Color::Cyan)),
+        Some(WorkerExitInfo {
+            reason: LostWorkerReason::Stopped,
+            ..
+        }) => "STOPPED".cell().foreground_color(Some(Color::Magenta)),
+        Some(WorkerExitInfo {
+            reason: LostWorkerReason::TimeLimitReached,
+            ..
+        }) => "TIME LIMIT REACHED"
+            .cell()
+            .foreground_color(Some(Color::Cyan)),
+    }
+}
+
 pub fn job_progress_bar(counters: JobTaskCounters, n_tasks: JobTaskCount, width: usize) -> String {
     let mut buffer = String::from("[");
 
@@ -1473,7 +1508,7 @@ mod tests {
     use crate::client::output::cli::{resources_full_describe, resources_summary};
     use tako::internal::tests::utils::shared::{res_kind_groups, res_kind_list, res_kind_sum};
     use tako::resources::{
-        MEM_RESOURCE_NAME, ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind,
+        ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind, MEM_RESOURCE_NAME,
     };
 
     #[test]

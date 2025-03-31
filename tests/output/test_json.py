@@ -53,6 +53,7 @@ def test_print_worker_info(hq_env: HqEnv):
             "allocation": None,
             "started": str,
             "ended": None,
+            "runtime_info": {"SingleNodeTasks": {"assigned_tasks": 0, "is_reserved": False, "running_tasks": 0}},
             "id": 1,
         }
     )

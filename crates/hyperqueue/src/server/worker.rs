@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use tako::gateway::LostWorkerReason;
+use tako::gateway::{LostWorkerReason, WorkerRuntimeInfo};
 use tako::worker::WorkerConfiguration;
 
 use crate::WorkerId;
@@ -74,8 +74,9 @@ impl Worker {
         matches!(self.state, WorkerState::Online(_))
     }
 
-    pub fn make_info(&self) -> WorkerInfo {
+    pub fn make_info(&self, runtime_info: Option<WorkerRuntimeInfo>) -> WorkerInfo {
         WorkerInfo {
+            runtime_info,
             id: self.worker_id,
             configuration: self.configuration.clone(),
             started: self.started_at(),

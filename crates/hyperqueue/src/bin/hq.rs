@@ -243,7 +243,7 @@ async fn command_worker_info(
     opts: WorkerInfoOpts,
 ) -> anyhow::Result<()> {
     let mut session = get_client_session(gsettings.server_directory()).await?;
-    let response = get_worker_info(&mut session, opts.worker_id).await?;
+    let response = get_worker_info(&mut session, opts.worker_id, true).await?;
 
     if let Some(worker) = response {
         gsettings.printer().print_worker_info(worker);
@@ -289,7 +289,7 @@ async fn command_worker_address(
     opts: WorkerAddressOpts,
 ) -> anyhow::Result<()> {
     let mut session = get_client_session(gsettings.server_directory()).await?;
-    let response = get_worker_info(&mut session, opts.worker_id).await?;
+    let response = get_worker_info(&mut session, opts.worker_id, false).await?;
 
     match response {
         Some(info) => println!("{}", info.configuration.hostname),

@@ -119,7 +119,8 @@ impl Backend {
                         | ToGatewayMessage::Error(_)
                         | ToGatewayMessage::ServerInfo(_)
                         | ToGatewayMessage::WorkerStopped
-                        | ToGatewayMessage::NewWorkerAllocationQueryResponse(_) => {
+                        | ToGatewayMessage::NewWorkerAllocationQueryResponse(_)
+                        | ToGatewayMessage::WorkerInfo(_) => {
                             let response = senders
                                 .backend
                                 .inner
