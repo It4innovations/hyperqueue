@@ -566,6 +566,7 @@ fn handle_job_forget(
             forgotten += 1;
         }
     }
+    state.try_release_memory();
     let ignored = job_ids.len() - forgotten;
 
     ToClientMessage::ForgetJobResponse(ForgetJobResponse { forgotten, ignored })

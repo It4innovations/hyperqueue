@@ -111,6 +111,13 @@ impl State {
         Some(job)
     }
 
+    /// Try to release unused memory if possible.
+    /// Can be called e.g. after forgetting jobs.
+    pub fn try_release_memory(&mut self) {
+        self.jobs.shrink_to_fit();
+        self.workers.shrink_to_fit();
+    }
+
     pub fn new_job_id(&mut self) -> JobId {
         let id = self.job_id_counter;
         self.job_id_counter += 1;
