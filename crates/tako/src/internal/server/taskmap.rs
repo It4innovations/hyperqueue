@@ -67,4 +67,8 @@ impl TaskMap {
     pub fn is_empty(&self) -> bool {
         self.tasks.is_empty()
     }
+
+    pub fn shrink_to_fit(&mut self) {
+        self.tasks.shrink_to_fit();
+    }
 }

@@ -158,6 +158,11 @@ pub(crate) async fn process_client_message(
             );
             None
         }
+        FromGatewayMessage::TryReleaseMemory => {
+            let mut core = core_ref.get_mut();
+            core.try_release_memory();
+            None
+        }
     }
 }
 

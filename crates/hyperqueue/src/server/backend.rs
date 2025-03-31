@@ -46,6 +46,10 @@ impl Backend {
         Ok(rx.await.unwrap())
     }
 
+    pub fn send_tako_message_no_wait(&self, message: FromGatewayMessage) {
+        let _ = self.inner.get_mut().tako_sender.send(message);
+    }
+
     pub async fn start(
         state_ref: StateRef,
         events: EventStreamer,

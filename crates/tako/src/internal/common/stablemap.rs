@@ -38,6 +38,10 @@ impl<V> StableVec<V> {
         self.items.push(value);
         index
     }
+
+    fn shrink_to_fit(&mut self) {
+        self.items.shrink_to_fit();
+    }
 }
 
 #[derive(Debug)]
@@ -149,6 +153,11 @@ where
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    pub fn shrink_to_fit(&mut self) {
+        self.map.shrink_to_fit();
+        self.storage.shrink_to_fit();
     }
 }
 
