@@ -1,3 +1,10 @@
+## DEV
+
+### New features
+
+* `hq worker info` contains more information
+* `hq job forget` tries to free more memory
+
 ## 0.22.0
 
 ### New features
