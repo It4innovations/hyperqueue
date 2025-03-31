@@ -183,6 +183,7 @@ pub enum FromGatewayMessage {
     CancelTasks(CancelTasks),
     GetTaskInfo(TaskInfoRequest),
     ServerInfo,
+    WorkerInfo(WorkerId),
     StopWorker(StopWorkerRequest),
     NewWorkerQuery(NewWorkerQuery),
     TryReleaseMemory,
@@ -240,6 +241,18 @@ pub struct TaskFailedMessage {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ServerInfo {
     pub worker_listen_port: u16,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum WorkerRuntimeInfo {
+    SingleNodeTasks {
+        assigned_tasks: u32,
+        running_tasks: u32,
+        is_reserved: bool,
+    },
+    MultiNodeTask {
+        main_node: bool,
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -320,6 +333,7 @@ pub enum ToGatewayMessage {
     TaskInfo(TasksInfoResponse),
     Error(ErrorResponse),
     ServerInfo(ServerInfo),
+    WorkerInfo(Option<WorkerRuntimeInfo>),
     NewWorker(NewWorkerMessage),
     LostWorker(LostWorkerMessage),
     WorkerOverview(WorkerOverview),

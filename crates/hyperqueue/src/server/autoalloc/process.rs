@@ -1175,7 +1175,7 @@ mod tests {
         let allocs = get_allocations(&state, queue_id);
 
         for id in [0u32, 1] {
-            on_worker_added(&s, queue_id, &mut state, &allocs[0].id, id.into());
+            on_worker_added(&s, queue_id, &mut state, &allocs[0].id, id);
         }
         check_running_workers(
             get_allocations(&state, queue_id).first().unwrap(),
@@ -2079,12 +2079,12 @@ mod tests {
 
     fn fail_allocation(queue_id: QueueId, autoalloc: &mut AutoAllocState, allocation_id: &str) {
         let s = EventStreamer::new(None);
-        on_worker_added(&s, queue_id, autoalloc, &allocation_id, 0);
+        on_worker_added(&s, queue_id, autoalloc, allocation_id, 0);
         on_worker_lost(
             &s,
             queue_id,
             autoalloc,
-            &allocation_id,
+            allocation_id,
             0,
             lost_worker_quick(LostWorkerReason::ConnectionLost),
         );

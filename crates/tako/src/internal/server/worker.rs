@@ -1,5 +1,6 @@
 use std::fmt;
 
+use crate::gateway::WorkerRuntimeInfo;
 use crate::internal::common::Set;
 use crate::internal::common::resources::TimeRequest;
 use crate::internal::common::resources::map::ResourceMap;
@@ -95,6 +96,27 @@ impl Worker {
             task_id,
             reservation_only,
         });
+    }
+
+    pub fn worker_info(&self, task_map: &TaskMap) -> WorkerRuntimeInfo {
+        if let Some(mn_task) = &self.mn_task {
+            WorkerRuntimeInfo::MultiNodeTask {
+                main_node: !mn_task.reservation_only,
+            }
+        } else {
+            let mut running_tasks = 0;
+            self.sn_tasks.iter().for_each(|task_id| {
+                if task_map.get_task(*task_id).is_sn_running() {
+                    running_tasks += 1;
+                }
+            });
+            let assigned_tasks = self.sn_tasks.len() as u32;
+            WorkerRuntimeInfo::SingleNodeTasks {
+                assigned_tasks,
+                running_tasks,
+                is_reserved: self.is_reserved(),
+            }
+        }
     }
 
     pub fn reset_mn_task(&mut self) {

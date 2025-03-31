@@ -171,6 +171,7 @@ pub async fn start_hq_worker(
         configuration: worker.configuration.clone(),
         started: Utc::now(),
         ended: None,
+        runtime_info: None,
     });
     worker.run().await?;
     log::info!("Worker stopping");
@@ -358,11 +359,13 @@ pub async fn get_worker_list(
 pub async fn get_worker_info(
     session: &mut ClientSession,
     worker_id: WorkerId,
+    runtime_info: bool,
 ) -> crate::Result<Option<WorkerInfo>> {
     let msg = rpc_call!(
         session.connection(),
         FromClientMessage::WorkerInfo(WorkerInfoRequest {
             worker_id,
+            runtime_info,
         }),
         ToClientMessage::WorkerInfoResponse(r) => r
     )

@@ -15,7 +15,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::server::event::Event;
-use tako::gateway::{LostWorkerReason, ResourceRequestVariants};
+use tako::gateway::{LostWorkerReason, ResourceRequestVariants, WorkerRuntimeInfo};
 use tako::program::ProgramDefinition;
 use tako::worker::WorkerConfiguration;
 
@@ -261,6 +261,7 @@ pub struct StopWorkerMessage {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WorkerInfoRequest {
     pub worker_id: WorkerId,
+    pub runtime_info: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -423,6 +424,7 @@ pub struct WorkerInfo {
     pub configuration: WorkerConfiguration,
     pub started: DateTime<Utc>,
     pub ended: Option<WorkerExitInfo>,
+    pub runtime_info: Option<WorkerRuntimeInfo>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

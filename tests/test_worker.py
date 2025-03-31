@@ -317,8 +317,8 @@ def test_deploy_ssh_error(hq_env: HqEnv):
     with hq_env.mock.mock_program_with_code(
         "ssh",
         """
-exit(42)
-""",
+    exit(42)
+    """,
     ):
         nodefile = prepare_localhost_nodefile()
         hq_env.command(["worker", "deploy-ssh", nodefile], expect_fail="Worker exited with code 42")
@@ -351,9 +351,9 @@ def test_deploy_ssh_wait_for_worker(hq_env: HqEnv):
     with hq_env.mock.mock_program_with_code(
         "ssh",
         """
-import time
-time.sleep(1)
-""",
+    import time
+    time.sleep(1)
+    """,
     ):
         nodefile = prepare_localhost_nodefile()
         hq_env.command(["worker", "deploy-ssh", nodefile])
@@ -364,12 +364,12 @@ def test_deploy_ssh_multiple_workers(hq_env: HqEnv):
     with hq_env.mock.mock_program_with_code(
         "ssh",
         """
-import os
-
-os.makedirs("workers", exist_ok=True)
-with open(f"workers/{os.getpid()}", "w") as f:
-    f.write(str(os.getpid()))
-""",
+    import os
+    
+    os.makedirs("workers", exist_ok=True)
+    with open(f"workers/{os.getpid()}", "w") as f:
+        f.write(str(os.getpid()))
+    """,
     ):
         nodefile = prepare_localhost_nodefile(count=3)
         hq_env.command(["worker", "deploy-ssh", nodefile])
@@ -381,8 +381,8 @@ def test_deploy_ssh_show_output(hq_env: HqEnv):
     with hq_env.mock.mock_program_with_code(
         "ssh",
         """
-print("FOOBAR")
-""",
+    print("FOOBAR")
+    """,
     ):
         nodefile = prepare_localhost_nodefile(count=3)
         output = hq_env.command(["worker", "deploy-ssh", "--show-output", nodefile])
@@ -409,3 +409,21 @@ def prepare_localhost_nodefile(count: int = 1) -> str:
         for _ in range(count):
             print("localhost", file=f)
     return path
+
+
+def test_worker_state_info(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+    hq_env.command(["submit", "--array=1-2", "--", "sleep", "1"])
+    wait_for_job_state(hq_env, 1, "RUNNING")
+    table = hq_env.command(["worker", "info", "1"], as_table=True)
+    table.check_row_value("State", "RUNNING")
+    table.check_row_value("Runtime Info", "Assigned tasks: 2; Running tasks: 1")
+    hq_env.start_worker()
+    hq_env.command(["submit", "--nodes=2", "--", "sleep", "1"])
+    wait_for_job_state(hq_env, 2, "RUNNING")
+    table = hq_env.command(["worker", "info", "1"], as_table=True)
+    a = table.get_row_value("Runtime Info")
+    table = hq_env.command(["worker", "info", "2"], as_table=True)
+    b = table.get_row_value("Runtime Info")
+    assert {a, b} == {"Running multinode task; main node", "Running multinode task; secondary node"}
