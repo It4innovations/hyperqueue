@@ -473,6 +473,17 @@ impl Core {
     pub fn secret_key(&self) -> Option<&Arc<SecretKey>> {
         self.secret_key.as_ref()
     }
+
+    pub fn try_release_memory(&mut self) {
+        self.tasks.shrink_to_fit();
+        self.workers.shrink_to_fit();
+        self.worker_groups.shrink_to_fit();
+        self.parked_resources.shrink_to_fit();
+        self.single_node_ready_to_assign.shrink_to_fit();
+        self.multi_node_ready_to_assign.shrink_to_fit();
+        self.sleeping_sn_tasks.shrink_to_fit();
+        self.multi_node_queue.shrink_to_fit();
+    }
 }
 
 #[cfg(test)]

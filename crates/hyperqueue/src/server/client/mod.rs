@@ -151,7 +151,7 @@ pub async fn client_rpc_loop<
                         handle_job_cancel(&state_ref, senders, &msg.selector).await
                     }
                     FromClientMessage::ForgetJob(msg) => {
-                        handle_job_forget(&state_ref, &msg.selector, msg.filter)
+                        handle_job_forget(&state_ref, senders, &msg.selector, msg.filter)
                     }
                     FromClientMessage::JobDetail(msg) => {
                         compute_job_detail(&state_ref, msg.job_id_selector, msg.task_selector)
@@ -433,7 +433,7 @@ fn compute_job_info(state_ref: &StateRef, selector: &IdSelector) -> ToClientMess
 
 async fn handle_job_cancel(
     state_ref: &StateRef,
-    carrier: &Senders,
+    senders: &Senders,
     selector: &IdSelector,
 ) -> ToClientMessage {
     let job_ids: Vec<JobId> = match selector {
@@ -450,7 +450,7 @@ async fn handle_job_cancel(
 
     let mut responses: Vec<(JobId, CancelJobResponse)> = Vec::new();
     for job_id in job_ids {
-        let response = cancel_job(state_ref, carrier, job_id).await;
+        let response = cancel_job(state_ref, senders, job_id).await;
         responses.push((job_id, response));
     }
 
@@ -547,6 +547,7 @@ async fn cancel_job(state_ref: &StateRef, senders: &Senders, job_id: JobId) -> C
 
 fn handle_job_forget(
     state_ref: &StateRef,
+    senders: &Senders,
     selector: &IdSelector,
     allowed_statuses: Vec<Status>,
 ) -> ToClientMessage {
@@ -567,6 +568,10 @@ fn handle_job_forget(
         }
     }
     state.try_release_memory();
+    senders
+        .backend
+        .send_tako_message_no_wait(FromGatewayMessage::TryReleaseMemory);
+
     let ignored = job_ids.len() - forgotten;
 
     ToClientMessage::ForgetJobResponse(ForgetJobResponse { forgotten, ignored })

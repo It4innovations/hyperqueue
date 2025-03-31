@@ -44,6 +44,11 @@ impl MultiNodeQueue {
         // TODO: Not priority now, but it should be implemented also for multi node tasks
     }
 
+    pub fn shrink_to_fit(&mut self) {
+        self.queues.shrink_to_fit();
+        self.requests.shrink_to_fit();
+    }
+
     pub fn get_profiles(&self) -> Map<NumOfNodes, u32> {
         let mut result = Map::new();
         for (rq, queue) in &self.queues {

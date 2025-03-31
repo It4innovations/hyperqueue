@@ -185,6 +185,7 @@ pub enum FromGatewayMessage {
     ServerInfo,
     StopWorker(StopWorkerRequest),
     NewWorkerQuery(NewWorkerQuery),
+    TryReleaseMemory,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
