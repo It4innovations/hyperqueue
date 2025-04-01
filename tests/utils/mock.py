@@ -29,7 +29,9 @@ class ProgramMock:
 
     @contextlib.contextmanager
     def mock_program_with_code(self, name: str, code: str):
-        content = f"#!{sys.executable}\n{code}"
+        import textwrap
+
+        content = f"#!{sys.executable}\n{textwrap.dedent(code)}"
         program_path = self.directory / name
         assert not program_path.is_file()
 
