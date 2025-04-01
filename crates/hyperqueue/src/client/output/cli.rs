@@ -1,12 +1,12 @@
 use cli_table::format::{Justify, Separator};
-use cli_table::{print_stdout, Cell, CellStruct, Color, ColorChoice, Style, Table, TableStruct};
+use cli_table::{Cell, CellStruct, Color, ColorChoice, Style, Table, TableStruct, print_stdout};
 
 use std::fmt::{Display, Write};
 use std::io::Write as write;
 
 use crate::client::job::WorkerMap;
-use crate::client::output::outputs::{Output, OutputStream, MAX_DISPLAYED_WORKERS};
-use crate::client::status::{get_task_status, job_status, Status};
+use crate::client::output::outputs::{MAX_DISPLAYED_WORKERS, Output, OutputStream};
+use crate::client::status::{Status, get_task_status, job_status};
 use crate::common::env::is_hq_env;
 use crate::common::format::{human_duration, human_mem_amount, human_size};
 use crate::common::manager::info::GetManagerInfo;
@@ -31,11 +31,11 @@ use std::time::SystemTime;
 use tako::program::StdioDef;
 use tako::resources::{ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind};
 
+use crate::client::output::Verbosity;
 use crate::client::output::common::{
-    group_jobs_by_status, resolve_task_paths, TaskToPathsMap, JOB_SUMMARY_STATUS_ORDER,
+    JOB_SUMMARY_STATUS_ORDER, TaskToPathsMap, group_jobs_by_status, resolve_task_paths,
 };
 use crate::client::output::json::format_datetime;
-use crate::client::output::Verbosity;
 use crate::common::arraydef::IntArray;
 use crate::common::utils::str::{pluralize, select_plural, truncate_middle};
 use crate::worker::start::WORKER_EXTRA_PROCESS_PID;
@@ -48,7 +48,7 @@ use tako::gateway::{
     LostWorkerReason, ResourceRequest, ResourceRequestEntry, ResourceRequestVariants,
     WorkerRuntimeInfo,
 };
-use tako::{format_comma_delimited, Map};
+use tako::{Map, format_comma_delimited};
 
 pub const TASK_COLOR_CANCELED: Colorization = Colorization::Magenta;
 pub const TASK_COLOR_FAILED: Colorization = Colorization::Red;
@@ -275,6 +275,7 @@ impl Output for CliOutput {
             started,
             ended: _ended,
             runtime_info,
+            last_task_started,
         } = worker_info;
 
         let manager_info = configuration.get_manager_info();
@@ -343,6 +344,20 @@ impl Output for CliOutput {
                     .unwrap_or("N/A")
                     .cell(),
             ],
+            vec![
+                "Last task started".cell().bold(true),
+                last_task_started
+                    .map(|t| {
+                        format!(
+                            "Job: {}; Task: {}; Time: {}",
+                            t.job_id,
+                            t.task_id,
+                            format_datetime(t.time)
+                        )
+                        .cell()
+                    })
+                    .unwrap_or_else(|| "".cell()),
+            ],
         ];
         if let Some(runtime_info) = runtime_info {
             let mut s = String::with_capacity(60);
@@ -352,16 +367,16 @@ impl Output for CliOutput {
                     assigned_tasks,
                     is_reserved,
                 } => {
-                    write!(s, "Assigned tasks: {}", assigned_tasks).unwrap();
+                    write!(s, "assigned tasks: {}", assigned_tasks).unwrap();
                     if running_tasks > 0 {
-                        write!(s, "; Running tasks: {}", running_tasks).unwrap();
+                        write!(s, "; running tasks: {}", running_tasks).unwrap();
                     }
                     if is_reserved {
-                        write!(s, "; reserved").unwrap();
+                        write!(s, "; reserved for a multi-node task").unwrap();
                     }
                 }
                 WorkerRuntimeInfo::MultiNodeTask { main_node } => {
-                    write!(s, "Running multinode task; ").unwrap();
+                    write!(s, "running multinode task; ").unwrap();
                     if main_node {
                         write!(s, "main node").unwrap();
                     } else {
@@ -1508,7 +1523,7 @@ mod tests {
     use crate::client::output::cli::{resources_full_describe, resources_summary};
     use tako::internal::tests::utils::shared::{res_kind_groups, res_kind_list, res_kind_sum};
     use tako::resources::{
-        ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind, MEM_RESOURCE_NAME,
+        MEM_RESOURCE_NAME, ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind,
     };
 
     #[test]

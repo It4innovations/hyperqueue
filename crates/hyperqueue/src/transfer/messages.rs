@@ -419,12 +419,20 @@ pub struct WorkerExitInfo {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TaskTimestamp {
+    pub job_id: JobId,
+    pub task_id: JobTaskId,
+    pub time: DateTime<Utc>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WorkerInfo {
     pub id: WorkerId,
     pub configuration: WorkerConfiguration,
     pub started: DateTime<Utc>,
     pub ended: Option<WorkerExitInfo>,
     pub runtime_info: Option<WorkerRuntimeInfo>,
+    pub last_task_started: Option<TaskTimestamp>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

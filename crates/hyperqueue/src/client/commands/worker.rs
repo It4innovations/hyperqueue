@@ -172,6 +172,7 @@ pub async fn start_hq_worker(
         started: Utc::now(),
         ended: None,
         runtime_info: None,
+        last_task_started: None,
     });
     worker.run().await?;
     log::info!("Worker stopping");

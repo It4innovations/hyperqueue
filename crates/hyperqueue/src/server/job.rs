@@ -266,6 +266,7 @@ impl Job {
         task_id: JobTaskId,
         workers: SmallVec<[WorkerId; 1]>,
         context: SerializedTaskContext,
+        now: DateTime<Utc>,
     ) {
         let task = self.tasks.get_mut(&task_id).unwrap();
 
@@ -275,7 +276,7 @@ impl Job {
         if matches!(task.state, JobTaskState::Waiting) {
             task.state = JobTaskState::Running {
                 started_data: StartedTaskData {
-                    start_date: Utc::now(),
+                    start_date: now,
                     context,
                     worker_ids: workers,
                 },
@@ -304,7 +305,7 @@ impl Job {
                     handler.callback.send(self.job_id).ok();
                 }
                 self.completion_date = Some(now);
-                senders.events.on_job_completed(self.job_id);
+                senders.events.on_job_completed(self.job_id, now);
             }
         }
     }
@@ -314,7 +315,7 @@ impl Job {
         task_id: JobTaskId,
         now: DateTime<Utc>,
         senders: &Senders,
-    ) -> JobTaskId {
+    ) {
         let task = self.tasks.get_mut(&task_id).unwrap();
         match &task.state {
             JobTaskState::Running { started_data } => {
@@ -329,10 +330,9 @@ impl Job {
                 "Invalid worker state, expected Running, got {:?}",
                 task.state
             ),
-        }
-        senders.events.on_task_finished(self.job_id, task_id);
+        };
+        senders.events.on_task_finished(self.job_id, task_id, now);
         self.check_termination(senders, now);
-        task_id
     }
 
     pub fn set_waiting_state(&mut self, task_id: JobTaskId) {
@@ -374,7 +374,9 @@ impl Job {
         }
         self.counters.n_failed_tasks += 1;
 
-        senders.events.on_task_failed(self.job_id, task_id, error);
+        senders
+            .events
+            .on_task_failed(self.job_id, task_id, error, now);
         self.check_termination(senders, now);
         task_id
     }
@@ -399,7 +401,7 @@ impl Job {
             state => panic!("Invalid job state that is being canceled: {task_id:?} {state:?}"),
         }
 
-        senders.events.on_task_canceled(self.job_id, task_id);
+        senders.events.on_task_canceled(self.job_id, task_id, now);
         self.counters.n_canceled_tasks += 1;
         self.check_termination(senders, now);
         task_id

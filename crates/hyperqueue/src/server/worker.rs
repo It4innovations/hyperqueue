@@ -2,9 +2,9 @@ use chrono::{DateTime, Utc};
 use tako::gateway::{LostWorkerReason, WorkerRuntimeInfo};
 use tako::worker::WorkerConfiguration;
 
-use crate::WorkerId;
 use crate::server::worker::WorkerState::Offline;
-use crate::transfer::messages::{WorkerExitInfo, WorkerInfo};
+use crate::transfer::messages::{TaskTimestamp, WorkerExitInfo, WorkerInfo};
+use crate::{JobId, JobTaskId, WorkerId};
 
 #[derive(Default)]
 pub struct ConnectedWorkerData {
@@ -22,6 +22,7 @@ pub enum WorkerState {
 pub struct Worker {
     worker_id: WorkerId,
     state: WorkerState,
+    last_task_started: Option<TaskTimestamp>,
     pub(crate) configuration: WorkerConfiguration,
 }
 
@@ -33,6 +34,7 @@ impl Worker {
             state: WorkerState::Online(ConnectedWorkerData {
                 started_at: Utc::now(),
             }),
+            last_task_started: None,
         }
     }
 
@@ -48,6 +50,14 @@ impl Worker {
         match &self.state {
             WorkerState::Online(connected) | Offline { connected, .. } => connected.started_at,
         }
+    }
+
+    pub fn update_task_started(&mut self, job_id: JobId, task_id: JobTaskId, now: DateTime<Utc>) {
+        self.last_task_started = Some(TaskTimestamp {
+            job_id,
+            task_id,
+            time: now,
+        });
     }
 
     pub fn set_offline_state(&mut self, reason: LostWorkerReason) {
@@ -84,6 +94,7 @@ impl Worker {
                 WorkerState::Online(_) => None,
                 Offline { exit_info, .. } => Some(exit_info.clone()),
             },
+            last_task_started: self.last_task_started.clone(),
         }
     }
 }
