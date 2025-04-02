@@ -28,7 +28,7 @@ use crate::transfer::messages::ServerInfo;
 use chrono::Utc;
 use orion::kdf::SecretKey;
 use rand::Rng;
-use rand::distributions::Alphanumeric;
+use rand::distr::Alphanumeric;
 use std::time::Duration;
 use tako::WorkerId;
 use tako::gateway::{FromGatewayMessage, ToGatewayMessage};
@@ -123,7 +123,7 @@ async fn get_server_status(server_directory: &Path) -> crate::Result<ServerStatu
 }
 
 pub fn generate_server_uid() -> String {
-    rand::thread_rng()
+    rand::rng()
         .sample_iter(&Alphanumeric)
         .take(6)
         .map(char::from)

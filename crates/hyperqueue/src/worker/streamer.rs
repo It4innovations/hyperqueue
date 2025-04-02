@@ -7,7 +7,7 @@ use crate::{JobId, JobTaskId, Map};
 use bincode::Options;
 use chrono::Utc;
 use rand::Rng;
-use rand::distributions::Alphanumeric;
+use rand::distr::Alphanumeric;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
@@ -172,7 +172,7 @@ async fn stream_writer(
     path: &Path,
     mut receiver: Receiver<StreamerMessage>,
 ) -> crate::Result<()> {
-    let uid: String = rand::thread_rng()
+    let uid: String = rand::rng()
         .sample_iter(&Alphanumeric)
         .take(12)
         .map(char::from)

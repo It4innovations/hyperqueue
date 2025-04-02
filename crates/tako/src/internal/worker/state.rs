@@ -4,8 +4,8 @@ use std::time::Instant;
 
 use orion::aead::SecretKey;
 use rand::SeedableRng;
+use rand::prelude::IndexedRandom;
 use rand::rngs::SmallRng;
-use rand::seq::SliceRandom;
 
 use crate::TaskId;
 use crate::WorkerId;
@@ -308,10 +308,9 @@ impl WorkerStateRef {
             worker_id,
             configuration,
             task_launcher,
-            //secret_key,
             tasks: Default::default(),
             ready_task_queue,
-            random: SmallRng::from_entropy(),
+            random: SmallRng::from_os_rng(),
             start_task_scheduled: false,
             running_tasks: Default::default(),
             start_time: now,
