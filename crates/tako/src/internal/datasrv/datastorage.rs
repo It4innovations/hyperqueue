@@ -1,28 +1,19 @@
+use crate::datasrv::DataObjectId;
 use crate::internal::common::error::DsError;
-use crate::internal::datasrv::dataobj::DataObjectId;
 use crate::internal::datasrv::download::DownloadManager;
-use crate::internal::datasrv::messages::{FromLocalDataClientMessage, ToLocalDataClientMessage};
 use crate::internal::datasrv::DataObjectRef;
-use crate::internal::messages::worker::{DataNodeOverview, DataObjectOverview, TaskOutput};
-use crate::internal::worker::state::WorkerStateRef;
-use crate::{Map, TaskId};
-use bytes::{Bytes, BytesMut};
-use futures::{Sink, SinkExt, Stream, StreamExt};
+use crate::internal::messages::worker::{DataNodeOverview, DataObjectOverview};
+use crate::{Map, WrappedRcRefCell};
 use hashbrown::hash_map::Entry;
 use std::rc::Rc;
 
-pub(crate) struct DataConnectionSession {
-    task_id: TaskId,
-    inputs: Vec<DataObjectId>,
-}
-
-pub(crate) struct DataNode {
+pub(crate) struct DataStorage {
     store: Map<DataObjectId, DataObjectRef>,
 }
 
-impl DataNode {
+impl DataStorage {
     pub fn new() -> Self {
-        DataNode { store: Map::new() }
+        DataStorage { store: Map::new() }
     }
 
     pub fn get_object(&self, data_object_id: DataObjectId) -> Option<&DataObjectRef> {

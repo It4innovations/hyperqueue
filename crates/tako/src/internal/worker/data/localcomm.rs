@@ -1,6 +1,7 @@
 use crate::datasrv::DataObjectId;
 use crate::internal::common::error::DsError;
 use crate::internal::datasrv::messages::{FromLocalDataClientMessage, ToLocalDataClientMessage};
+use crate::internal::datasrv::DataObjectRef;
 use crate::internal::messages::worker::TaskOutput;
 use crate::internal::worker::state::WorkerStateRef;
 use crate::TaskId;
@@ -24,11 +25,10 @@ async fn datanode_local_message_handler(
                 let mut state = state_ref.get_mut();
                 let (tasks, data_node) = state.tasks_and_datanode();
                 if let Some(task) = tasks.find_mut(&task_id) {
-                    let size = data_object.data.len();
+                    let size = data_object.size();
                     // Put into datanode has to be before "add_output", because it checks
                     // that the output is not already there
-                    data_node
-                        .put_object(DataObjectId::new(task_id, data_id), Rc::new(data_object))?;
+                    data_node.put_object(DataObjectId::new(task_id, data_id), data_object)?;
                     task.add_output(TaskOutput { id: data_id, size });
                     ToLocalDataClientMessage::Uploaded(data_id)
                 } else {

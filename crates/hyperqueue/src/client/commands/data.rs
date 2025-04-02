@@ -59,7 +59,7 @@ pub async fn command_task_data(_gsettings: &GlobalSettings, opts: DataOpts) -> a
         DataCommand::Get(get_opts) => {
             let mut client = create_local_data_client().await?;
             let data_obj = client.get_input(get_opts.input_id).await?;
-            std::fs::write(get_opts.path, &data_obj.data)?;
+            std::fs::write(get_opts.path, data_obj.data())?;
         }
     }
     Ok(())
