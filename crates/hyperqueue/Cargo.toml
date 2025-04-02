@@ -40,7 +40,7 @@ num_cpus = "1"
 cli-table = { version = "0.4.6", default-features = false }
 atty = "0.2"
 dirs = "6"
-nom = "7.1"
+nom = "7"
 nom-supreme = { version = "0.8" }
 colored = "3"
 const_format = "0.2"
@@ -50,7 +50,7 @@ toml = "0.8"
 signal-hook = "0.3"
 core_affinity = "0.8"
 itertools = "0.14.0"
-lru = "0.12"
+lru = "0.13"
 open = "5"
 
 # Dashboard

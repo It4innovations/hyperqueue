@@ -385,7 +385,7 @@ pub async fn stop_worker(session: &mut ClientSession, selector: IdSelector) -> c
     for (id, response) in responses {
         match response {
             StopWorkerResponse::Failed(e) => {
-                log::error!("Stopping worker {} failed; {}", id, e.to_string());
+                log::error!("Stopping worker {} failed; {}", id, e);
             }
             StopWorkerResponse::InvalidWorker => {
                 log::error!("Stopping worker {} failed; worker not found", id);
