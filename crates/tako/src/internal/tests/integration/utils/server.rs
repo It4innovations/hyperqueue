@@ -147,10 +147,7 @@ impl ServerHandle {
                 }
             }
         };
-        match timeout(max_duration, fut).await {
-            Ok(result) => Some(result),
-            Err(_) => None,
-        }
+        (timeout(max_duration, fut).await).ok()
     }
 
     pub async fn start_worker(
