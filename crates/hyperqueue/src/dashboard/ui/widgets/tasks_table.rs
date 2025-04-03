@@ -82,7 +82,7 @@ impl TasksTable {
         }
         headers.extend(["State", "Start", "End", "Makespan"]);
         let mut column_widths = vec![Constraint::Max(8), Constraint::Max(10)];
-        column_widths.extend(std::iter::repeat(Constraint::Fill(1)).take(headers.len() - 2));
+        column_widths.extend(std::iter::repeat_n(Constraint::Fill(1), headers.len() - 2));
 
         self.table.draw(
             rect,

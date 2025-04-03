@@ -83,7 +83,9 @@ fn get_column_constraints(rect: Rect, num_cpus: usize) -> Vec<Constraint> {
     let max_columns = (rect.width / CPU_METER_WIDTH as u16) as usize;
     let num_columns = cmp::min(max_columns, num_cpus);
 
-    std::iter::repeat(Constraint::Percentage((100 / num_columns) as u16))
-        .take(num_columns)
-        .collect()
+    std::iter::repeat_n(
+        Constraint::Percentage((100 / num_columns) as u16),
+        num_columns,
+    )
+    .collect()
 }

@@ -52,12 +52,13 @@ pub fn render_progress_bar_at(
     assert!(num_characters > 1);
 
     let indicator_count = (progress * (num_characters as f64)).ceil();
-    let indicator = std::iter::repeat(style.indicator)
-        .take(indicator_count as usize)
-        .collect::<String>();
-    let filler = std::iter::repeat(style.unused_area)
-        .take(num_characters as usize - indicator_count as usize)
-        .collect::<String>();
+    let indicator =
+        std::iter::repeat_n(style.indicator, indicator_count as usize).collect::<String>();
+    let filler = std::iter::repeat_n(
+        style.unused_area,
+        num_characters as usize - indicator_count as usize,
+    )
+    .collect::<String>();
 
     let progress_bar = format!("{label}{indicator}{filler}{percent}");
     let progress_width = UnicodeWidthStr::width(progress_bar.as_str());
