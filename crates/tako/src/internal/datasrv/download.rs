@@ -33,7 +33,6 @@ pub(crate) type DataClientConnection = Connection<ToDataClientMessage, FromDataC
 
 pub(crate) trait DownloadInterface {
     fn find_placement(&self, data_id: DataObjectId) -> oneshot::Receiver<String>;
-    fn get_object(&self, data_id: DataObjectId) -> Option<DataObjectRef>;
     fn on_download_finished(&self, data_id: DataObjectId, data_ref: DataObjectRef);
     fn on_download_failed(&self, data_id: DataObjectId);
 }
