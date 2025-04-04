@@ -31,10 +31,13 @@ pub async fn start_ui_loop(events: PreloadedEvents) -> anyhow::Result<()> {
         PreloadedEvents::FromServer { .. } => true,
     };
     let mut dashboard_data = DashboardData::new(time_mode, stream);
-    let (events, session) = match events {
+    let (mut events, session) = match events {
         PreloadedEvents::FromJournal(events) => (events, None),
         PreloadedEvents::FromServer { events, connection } => (events, Some(connection)),
     };
+
+    // Check that the events are sorted.
+    assert!(events.is_sorted_by_key(|e| e.time));
     dashboard_data.push_new_events(events);
 
     let mut root_screen = RootScreen::default();
