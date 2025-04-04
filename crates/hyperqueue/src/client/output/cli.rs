@@ -389,27 +389,47 @@ impl Output for CliOutput {
         self.print_vertical_table(rows);
     }
 
-    fn print_server_description(&self, server_dir: Option<&Path>, info: &ServerInfo) {
+    fn print_server_info(&self, server_dir: Option<&Path>, info: &ServerInfo) {
+        let ServerInfo {
+            server_uid,
+            client_host,
+            worker_host,
+            client_port,
+            worker_port,
+            version,
+            pid,
+            start_date,
+            journal_path,
+        } = info;
+
         let mut rows = vec![
             vec![
                 "Server UID".cell().bold(true),
-                info.server_uid.to_string().cell(),
+                server_uid.to_string().cell(),
             ],
             vec![
                 "Client host".cell().bold(true),
-                info.client_host.to_string().cell(),
+                client_host.to_string().cell(),
             ],
-            vec!["Client port".cell().bold(true), info.client_port.cell()],
+            vec!["Client port".cell().bold(true), client_port.cell()],
             vec![
                 "Worker host".cell().bold(true),
-                info.worker_host.to_string().cell(),
+                worker_host.to_string().cell(),
             ],
-            vec!["Worker port".cell().bold(true), info.worker_port.cell()],
-            vec!["Version".cell().bold(true), info.version.to_string().cell()],
-            vec!["Pid".cell().bold(true), info.pid.cell()],
+            vec!["Worker port".cell().bold(true), worker_port.cell()],
+            vec!["Version".cell().bold(true), version.to_string().cell()],
+            vec!["Pid".cell().bold(true), pid.cell()],
             vec![
                 "Start date".cell().bold(true),
-                info.start_date.format("%F %T %Z").cell(),
+                start_date.format("%F %T %Z").cell(),
+            ],
+            vec![
+                "Journal path".cell().bold(true),
+                journal_path
+                    .as_ref()
+                    .map(|p| format!("{}", p.display()))
+                    .unwrap_or_else(|| "".to_string())
+                    .cell(),
             ],
         ];
         if let Some(dir) = server_dir {

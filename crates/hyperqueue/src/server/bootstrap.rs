@@ -182,6 +182,7 @@ pub async fn initialize_server(
         worker_port: 0, // Will be set later
         pid: std::process::id(),
         start_date: Utc::now(),
+        journal_path: server_cfg.journal_path.clone(),
     });
 
     let (events, event_stream_fut) =
@@ -223,7 +224,7 @@ pub async fn initialize_server(
 
     gsettings
         .printer()
-        .print_server_description(Some(server_directory), state_ref.get().server_info());
+        .print_server_info(Some(server_directory), state_ref.get().server_info());
 
     let end_flag = Arc::new(Notify::new());
     let end_flag_check = end_flag.clone();

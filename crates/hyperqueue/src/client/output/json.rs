@@ -50,17 +50,30 @@ impl Output for JsonOutput {
         self.print(format_worker_info(worker_info));
     }
 
-    fn print_server_description(&self, server_dir: Option<&Path>, record: &ServerInfo) {
+    fn print_server_info(&self, server_dir: Option<&Path>, info: &ServerInfo) {
+        let ServerInfo {
+            server_uid,
+            client_host,
+            worker_host,
+            client_port,
+            worker_port,
+            version,
+            pid,
+            start_date,
+            journal_path,
+        } = info;
+
         let json = json!({
             "server_dir": server_dir,
-            "server_uid": record.server_uid,
-            "worker_host": record.worker_host,
-            "client_host": record.client_host,
-            "client_port": record.client_port,
-            "worker_port": record.worker_port,
-            "pid": record.pid,
-            "start_date": record.start_date,
-            "version": record.version,
+            "server_uid": server_uid,
+            "worker_host": worker_host,
+            "client_host": client_host,
+            "client_port": client_port,
+            "worker_port": worker_port,
+            "pid": pid,
+            "start_date": start_date,
+            "version": version,
+            "journal_path": journal_path
         });
         self.print(json);
     }
