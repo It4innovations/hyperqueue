@@ -68,7 +68,7 @@ which = "7.0.2"
 [dev-dependencies]
 derive_builder = { workspace = true }
 insta = "1.15.0"
-criterion = { version = "0.3", features = ["html_reports"] }
+criterion = { workspace = true }
 
 [features]
 default = ["jemalloc", "dashboard"]
