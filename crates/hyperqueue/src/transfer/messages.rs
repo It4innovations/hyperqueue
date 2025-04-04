@@ -329,6 +329,7 @@ pub struct ServerInfo {
     pub version: String,
     pub pid: u32,
     pub start_date: DateTime<Utc>,
+    pub journal_path: Option<PathBuf>,
 }
 
 // Messages server -> client

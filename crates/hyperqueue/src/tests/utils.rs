@@ -52,5 +52,6 @@ pub fn create_hq_state() -> StateRef {
         version: HQ_VERSION.to_string(),
         pid: std::process::id(),
         start_date: Utc::now(),
+        journal_path: None,
     })
 }

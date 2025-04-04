@@ -59,7 +59,7 @@ impl Output for Quiet {
     fn print_worker_info(&self, _worker_info: WorkerInfo) {}
 
     // Server
-    fn print_server_description(&self, server_dir: Option<&Path>, _record: &ServerInfo) {
+    fn print_server_info(&self, server_dir: Option<&Path>, _record: &ServerInfo) {
         if let Some(dir) = server_dir {
             println!("{}", dir.display());
         }

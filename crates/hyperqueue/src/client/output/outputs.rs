@@ -38,7 +38,7 @@ pub trait Output {
     fn print_worker_info(&self, worker_info: WorkerInfo);
 
     // Server
-    fn print_server_description(&self, server_dir: Option<&Path>, record: &ServerInfo);
+    fn print_server_info(&self, server_dir: Option<&Path>, record: &ServerInfo);
 
     // Jobs
     fn print_job_submitted(&self, job: JobDetail);
