@@ -3,7 +3,6 @@ import time
 import subprocess
 from typing import List, Callable, Any
 
-from executing.executing import assert_
 from schema import Schema
 
 from .conftest import HqEnv, get_hq_binary
