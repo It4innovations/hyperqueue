@@ -4,11 +4,11 @@ use std::sync::Arc;
 
 use futures::{Sink, SinkExt, Stream, StreamExt};
 use orion::kdf::SecretKey;
-use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{Notify, mpsc};
-
 use tako::gateway::{CancelTasks, FromGatewayMessage, StopWorkerRequest, ToGatewayMessage};
 use tako::{Set, TaskGroup};
+use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::{Notify, mpsc};
 
 use crate::client::status::{Status, job_status};
 use crate::common::serverdir::ServerDir;
@@ -30,6 +30,7 @@ mod submit;
 use crate::common::error::HqError;
 use crate::server::Senders;
 use crate::server::client::submit::handle_open_job;
+use crate::server::event::payload::EventPayload;
 pub(crate) use submit::{submit_job_desc, validate_submit};
 
 pub async fn handle_client_connections(
@@ -101,7 +102,7 @@ async fn stream_events<
             r = current.recv() => r,
             _ = rx.next() => {
                 log::debug!("Event streaming terminated");
-                return
+                return;
             }
         };
         if let Some(e) = r {
@@ -174,7 +175,7 @@ pub async fn client_rpc_loop<
                         log::debug!("Start streaming events to client");
                         /* We create two event queues, one for historic events and one for live events
                         So while historic events are loaded from the file and streamed, live events are already
-                        collected and sent immediately the historic events are sent */
+                        collected and sent immediately once the historic events are sent */
                         let (tx1, rx1) = mpsc::unbounded_channel::<Event>();
                         let live = if msg.live_events {
                             let (tx2, rx2) = mpsc::unbounded_channel::<Event>();
@@ -183,8 +184,18 @@ pub async fn client_rpc_loop<
                         } else {
                             None
                         };
-                        senders.events.replay_journal(tx1);
+
+                        // If we use a journal, we can replay historical events from it.
+                        // If not, we can at least try to reconstruct a few basic events
+                        // based on the current state.
+                        if senders.events.is_journal_enabled() {
+                            senders.events.start_journal_replay(tx1);
+                        } else if let Err(e) = reconstruct_historical_events(state_ref, tx1) {
+                            log::error!("Cannot reconstruct historical state: {e:?}");
+                        }
+
                         stream_history_events(&mut tx, rx1).await;
+
                         if let Some((rx2, listener_id)) = live {
                             let _ = tx.send(ToClientMessage::EventLiveBoundary).await;
                             stream_events(&mut tx, &mut rx, rx2).await;
@@ -224,6 +235,40 @@ pub async fn client_rpc_loop<
             }
         }
     }
+}
+
+/// Tries to reconstruct historical events based on the current state.
+fn reconstruct_historical_events(
+    state: StateRef,
+    tx: UnboundedSender<Event>,
+) -> anyhow::Result<()> {
+    let state = state.get();
+
+    tx.send(Event::at(
+        state.server_info().start_date,
+        EventPayload::ServerStart {
+            server_uid: state.server_info().server_uid.clone(),
+        },
+    ))?;
+
+    // Reconstruct worker (dis)connections
+    for (id, worker) in state.get_workers() {
+        // Worker start
+        tx.send(Event::at(
+            worker.started_at(),
+            EventPayload::WorkerConnected(*id, Box::new(worker.configuration().clone())),
+        ))?;
+
+        // Worker end
+        let info = worker.make_info(None);
+        if let Some(ended) = info.ended {
+            tx.send(Event::at(
+                ended.ended_at,
+                EventPayload::WorkerLost(*id, ended.reason),
+            ))?;
+        }
+    }
+    Ok(())
 }
 
 async fn handle_prune_journal(state_ref: &StateRef, senders: &Senders) -> ToClientMessage {

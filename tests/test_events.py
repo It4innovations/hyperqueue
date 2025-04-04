@@ -1,8 +1,9 @@
 import json
 import time
 import subprocess
-from typing import List
+from typing import List, Callable, Any
 
+from executing.executing import assert_
 from schema import Schema
 
 from .conftest import HqEnv, get_hq_binary
@@ -67,9 +68,22 @@ def test_worker_stream_events2(hq_env: HqEnv, tmp_path):
 def test_worker_journal_replay(hq_env: HqEnv, tmp_path):
     journal = tmp_path.joinpath("test.journal")
     hq_env.start_server(args=["--journal", journal])
-    r = hq_env.command(["journal", "replay"])
-    msg = json.loads(r)
-    assert msg["event"]["type"] == "server-start"
+    events = get_replayed_events(hq_env)
+    assert events[0]["event"]["type"] == "server-start"
+
+
+def test_worker_replay_without_journal(hq_env: HqEnv, tmp_path):
+    hq_env.start_server()
+    hq_env.start_worker()
+    hq_env.start_worker()
+    wait_for_worker_state(hq_env, [1, 2], "RUNNING")
+    hq_env.command(["worker", "stop", "1"])
+    wait_for_worker_state(hq_env, [1], "STOPPED")
+
+    events = get_replayed_events(hq_env)
+    assert_contains_event(events, lambda e: e["event"]["type"] == "worker-connected" and e["event"]["id"] == 1)
+    assert_contains_event(events, lambda e: e["event"]["type"] == "worker-connected" and e["event"]["id"] == 2)
+    assert_contains_event(events, lambda e: e["event"]["type"] == "worker-lost" and e["event"]["id"] == 1)
 
 
 def test_worker_connected_event(hq_env: HqEnv):
@@ -217,6 +231,21 @@ def get_events(hq_env: HqEnv, callback):
     process.wait(timeout=5)
     hq_env.processes.clear()
     return read_events(hq_env, journal_path)
+
+
+def get_replayed_events(hq_env):
+    output = hq_env.command(["journal", "replay"])
+    events = []
+    for line in output.splitlines():
+        events.append(json.loads(line))
+    return events
+
+
+def assert_contains_event(events, filter: Callable[[Any], bool]):
+    for e in events:
+        if filter(e):
+            return
+    raise Exception(f"Event not found in {events}")
 
 
 def read_events(hq_env: HqEnv, journal_path: str):

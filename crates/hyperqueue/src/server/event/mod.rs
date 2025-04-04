@@ -18,3 +18,9 @@ pub struct Event {
     pub time: DateTime<Utc>,
     pub payload: EventPayload,
 }
+
+impl Event {
+    pub fn at(time: DateTime<Utc>, payload: EventPayload) -> Self {
+        Self { time, payload }
+    }
+}

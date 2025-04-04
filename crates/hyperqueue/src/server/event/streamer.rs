@@ -168,6 +168,10 @@ impl EventStreamer {
         );
     }
 
+    pub fn is_journal_enabled(&self) -> bool {
+        self.inner.get().storage_sender.is_some()
+    }
+
     fn send_event(&self, payload: EventPayload, now: Option<DateTime<Utc>>) {
         let mut inner = self.inner.get_mut();
         if inner.storage_sender.is_none() && inner.client_listeners.is_empty() {
@@ -200,7 +204,7 @@ impl EventStreamer {
         );
     }
 
-    pub fn replay_journal(&self, history_sender: mpsc::UnboundedSender<Event>) {
+    pub fn start_journal_replay(&self, history_sender: mpsc::UnboundedSender<Event>) {
         let inner = self.inner.get();
         if let Some(ref streamer) = inner.storage_sender {
             if streamer
