@@ -37,7 +37,7 @@ derive_more = { version = "1", features = ["add", "add_assign", "sum"] }
 anyhow = { workspace = true }
 env_logger = { workspace = true }
 tempfile = { workspace = true }
-derive_builder = "0.11"
+derive_builder = { workspace = true }
 criterion = { version = "0.3", features = ["html_reports"] }
 
 [[bench]]
