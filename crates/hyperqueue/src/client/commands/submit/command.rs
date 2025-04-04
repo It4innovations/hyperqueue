@@ -30,6 +30,7 @@ use crate::transfer::messages::{
 use crate::{JobId, JobTaskCount, Map, rpc_call};
 use anyhow::{anyhow, bail};
 use bstr::BString;
+use chrono::Utc;
 use chumsky::Parser as ChumskyParser;
 use chumsky::primitive::{filter, just};
 use chumsky::text::TextParser;
@@ -703,6 +704,7 @@ pub async fn submit_computation(
     let request = SubmitRequest {
         job_desc: JobDescription { name, max_fails },
         submit_desc: JobSubmitDescription {
+            created_at: Utc::now(),
             task_desc,
             submit_dir: get_current_dir(),
             stream_path: stream,

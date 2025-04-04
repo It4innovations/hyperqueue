@@ -171,6 +171,7 @@ impl JobTaskDescription {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JobSubmitDescription {
+    pub created_at: DateTime<Utc>,
     pub task_desc: JobTaskDescription,
     pub submit_dir: PathBuf,
     pub stream_path: Option<PathBuf>,

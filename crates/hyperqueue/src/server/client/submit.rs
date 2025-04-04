@@ -421,6 +421,7 @@ mod tests {
         JobDescription, JobSubmitDescription, JobTaskDescription, PinMode, SubmitResponse,
         TaskDescription, TaskKind, TaskKindProgram, TaskWithDependencies,
     };
+    use chrono::Utc;
     use smallvec::smallvec;
     use std::path::PathBuf;
     use std::sync::Arc;
@@ -469,6 +470,7 @@ mod tests {
             true,
         );
         job.attach_submit(Arc::new(JobSubmitDescription {
+            created_at: Utc::now(),
             task_desc: JobTaskDescription::Array {
                 ids: IntArray::from_range(100, 10),
                 entries: None,
