@@ -51,12 +51,12 @@ pub(crate) type DownloadManagerRef<I, P> = WrappedRcRefCell<DownloadManager<I, P
 impl<I: DownloadInterface, P: Ord> DownloadManagerRef<I, P> {
     pub fn new(secret_key: Option<Arc<SecretKey>>) -> Self {
         WrappedRcRefCell::wrap(DownloadManager {
+            secret_key,
             interface: None,
             download_queue: Default::default(),
             running_downloads: Default::default(),
             notify_downloader: Rc::new(Notify::new()),
             idle_connections: Map::new(),
-            secret_key,
         })
     }
 }
@@ -171,11 +171,12 @@ async fn download_process<I: DownloadInterface, P: Ord + Debug>(
             match download_from_address(&dm_ref, &addr, data_id).await {
                 Ok(data_obj) => {
                     log::debug!("Download of {data_id} completed; size={}", data_obj.size());
-                    let dm = dm_ref.get();
+                    let mut dm = dm_ref.get_mut();
                     dm.interface
                         .as_ref()
                         .unwrap()
                         .on_download_finished(data_id, data_obj);
+                    return;
                 }
                 Err(e) => {
                     log::debug!("Downloading of {data_id} failed: {e}");

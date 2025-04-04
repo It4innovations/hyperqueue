@@ -56,8 +56,8 @@ impl DataObject {
         DataObject { mime_type, data }
     }
 
-    pub fn size(&self) -> usize {
-        self.data.len()
+    pub fn size(&self) -> u64 {
+        self.data.len() as u64
     }
 
     pub fn data(&self) -> &[u8] {

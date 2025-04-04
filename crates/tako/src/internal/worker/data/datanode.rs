@@ -67,10 +67,7 @@ impl DataNode {
             .collect();
         DataNodeOverview {
             objects,
-            total_downloaded_count: 0,
-            total_uploaded_count: 0,
-            total_downloaded_bytes: 0,
-            total_uploaded_bytes: 0,
+            stats: Default::default(),
         }
     }
 }

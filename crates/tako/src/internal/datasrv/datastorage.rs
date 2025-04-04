@@ -2,18 +2,23 @@ use crate::datasrv::DataObjectId;
 use crate::internal::common::error::DsError;
 use crate::internal::datasrv::download::DownloadManager;
 use crate::internal::datasrv::DataObjectRef;
-use crate::internal::messages::worker::{DataNodeOverview, DataObjectOverview};
+use crate::internal::messages::worker::{DataNodeOverview, DataObjectOverview, DataStorageStats};
 use crate::{Map, WrappedRcRefCell};
 use hashbrown::hash_map::Entry;
+use serde::{Deserialize, Serialize};
 use std::rc::Rc;
 
 pub(crate) struct DataStorage {
     store: Map<DataObjectId, DataObjectRef>,
+    stats: DataStorageStats,
 }
 
 impl DataStorage {
     pub fn new() -> Self {
-        DataStorage { store: Map::new() }
+        DataStorage {
+            store: Map::new(),
+            stats: DataStorageStats::default(),
+        }
     }
 
     pub fn get_object(&self, data_object_id: DataObjectId) -> Option<&DataObjectRef> {
@@ -58,10 +63,7 @@ impl DataStorage {
             .collect();
         DataNodeOverview {
             objects,
-            total_downloaded_count: 0,
-            total_uploaded_count: 0,
-            total_downloaded_bytes: 0,
-            total_uploaded_bytes: 0,
+            stats: self.stats.clone(),
         }
     }
 }
