@@ -90,7 +90,7 @@ def test_print_server_record(hq_env: HqEnv):
             "server_uid": str,
             "start_date": str,
             "pid": int,
-            "journal_path": None
+            "journal_path": None,
         }
     )
     schema.validate(output)
