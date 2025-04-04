@@ -14,8 +14,8 @@ use crate::dashboard::ui::terminal::initialize_terminal;
 use crate::dashboard::{DEFAULT_LIVE_DURATION, PreloadedEvents};
 
 /// Starts the dashboard UI with a keyboard listener and tick provider
-pub async fn start_ui_loop(events: PreloadedEvents) -> anyhow::Result<()> {
-    let time_mode = match &events {
+pub async fn start_ui_loop(preloaded: PreloadedEvents) -> anyhow::Result<()> {
+    let time_mode = match &preloaded {
         PreloadedEvents::FromJournal(events) => {
             let end = match events.last() {
                 Some(event) => event.time.into(),
@@ -26,15 +26,29 @@ pub async fn start_ui_loop(events: PreloadedEvents) -> anyhow::Result<()> {
         PreloadedEvents::FromServer { .. } => TimeMode::Live(DEFAULT_LIVE_DURATION),
     };
 
-    let stream = match &events {
+    let stream = match &preloaded {
         PreloadedEvents::FromJournal(_) => false,
         PreloadedEvents::FromServer { .. } => true,
     };
     let mut dashboard_data = DashboardData::new(time_mode, stream);
-    let (mut events, session) = match events {
-        PreloadedEvents::FromJournal(events) => (events, None),
-        PreloadedEvents::FromServer { events, connection } => (events, Some(connection)),
+    let (events, session, warning) = match preloaded {
+        PreloadedEvents::FromJournal(events) => (events, None, None),
+        PreloadedEvents::FromServer {
+            events,
+            connection,
+            journal_used,
+        } => {
+            let warning = if journal_used {
+                None
+            } else {
+                Some(
+                    "The server does not use a journal, historical data was reconstructred from the current server state. Consider passing `--journal <path>` to `hq server start` when using the dashboard.",
+                )
+            };
+            (events, Some(connection), warning)
+        }
     };
+    dashboard_data.set_warning(warning);
 
     // Check that the events are sorted.
     assert!(events.is_sorted_by_key(|e| e.time));
