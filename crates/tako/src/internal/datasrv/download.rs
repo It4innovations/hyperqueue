@@ -129,7 +129,7 @@ async fn get_connection<I: DownloadInterface, P: Ord + Debug>(
         socket,
         PROTOCOL_VERSION,
         "data-client",
-        "data-node",
+        "data-server",
         secret_key,
     )
     .await
@@ -148,6 +148,9 @@ async fn download_from_address<I: DownloadInterface, P: Ord + Debug>(
             dm_ref.get_mut().return_connection(&addr, connection);
             Ok(data_obj)
         }
+        ToDataClientMessage::DataObjectNotFound => Err(crate::Error::GenericError(
+            "Object not found in remote side".to_string(),
+        )),
     }
 }
 

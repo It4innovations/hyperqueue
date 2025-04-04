@@ -1,14 +1,12 @@
 use crate::datasrv::DataObjectId;
 use crate::internal::datasrv::datastorage::DataStorage;
-use crate::internal::datasrv::download::{
-    start_download_manager_process, DownloadInterface, DownloadManager, DownloadManagerRef,
+use crate::internal::datasrv::download::start_download_manager_process;
+use crate::internal::datasrv::test_utils::{
+    start_test_upload_service, test_download_manager, TestUploadInterface,
 };
+use crate::internal::datasrv::upload::UploadInterface;
 use crate::internal::datasrv::{DataObject, DataObjectRef};
-use crate::{Map, WrappedRcRefCell};
-use std::rc::Rc;
 use std::time::Duration;
-use tokio::sync::oneshot;
-use tokio::sync::oneshot::Receiver;
 
 #[test]
 fn storage_put_get() {
@@ -27,56 +25,6 @@ fn storage_put_get() {
     storage.remove_object(id);
     assert!(storage.get_object(id).is_none());
     assert!(!storage.has_object(id));
-}
-
-#[derive(Default)]
-struct TestDmInterfaceInner {
-    hosts: Map<DataObjectId, Option<String>>,
-    failed_downloads: Vec<DataObjectId>,
-}
-
-type TestDmInterface = WrappedRcRefCell<TestDmInterfaceInner>;
-
-impl DownloadInterface for TestDmInterface {
-    fn find_placement(&self, data_id: DataObjectId) -> Receiver<String> {
-        let host = self.get().hosts.get(&data_id).unwrap().clone();
-        let (sender, receiver) = oneshot::channel();
-        if let Some(host) = host {
-            // If host is None, then do not fire sender
-            sender.send(host).unwrap();
-        }
-        receiver
-    }
-
-    fn get_object(&self, data_id: DataObjectId) -> Option<DataObjectRef> {
-        todo!()
-    }
-
-    fn on_download_finished(&self, data_id: DataObjectId, data_ref: DataObjectRef) {
-        todo!()
-    }
-
-    fn on_download_failed(&self, data_id: DataObjectId) {
-        self.get_mut().failed_downloads.push(data_id);
-    }
-}
-
-impl TestDmInterface {
-    pub fn check_empty(&self) {
-        assert!(self.get().failed_downloads.is_empty())
-    }
-    pub fn take_failed_downloads(&self, length: usize) -> Vec<DataObjectId> {
-        let f = std::mem::take(&mut self.get_mut().failed_downloads);
-        assert_eq!(f.len(), length);
-        f
-    }
-}
-
-fn test_download_manager() -> (DownloadManagerRef<TestDmInterface, u32>, TestDmInterface) {
-    let mut dm_ref = DownloadManagerRef::new(None);
-    let interface = TestDmInterface::default();
-    dm_ref.get_mut().set_interface(interface.clone());
-    (dm_ref, interface)
 }
 
 #[test]
@@ -122,3 +70,34 @@ async fn download_invalid_hostname() {
 
     interface.check_empty();
 }
+
+#[tokio::test]
+async fn download_object_not_found() {
+    env_logger::init();
+    let set = tokio::task::LocalSet::new();
+    set.run_until(async move {
+        let upload = TestUploadInterface::new();
+
+        let addr = start_test_upload_service(upload).await;
+
+        let (dm_ref, interface) = test_download_manager();
+
+        let data_id1 = DataObjectId::new(1.into(), 2.into());
+        interface.get_mut().hosts.insert(data_id1, Some(addr));
+
+        let dm_ref2 = dm_ref.clone();
+        start_download_manager_process(dm_ref2, 4, 2);
+
+        dm_ref.get_mut().download_object(data_id1, 0);
+        tokio::time::sleep(Duration::new(3, 0)).await;
+
+        assert_eq!(interface.take_failed_downloads(1)[0], data_id1);
+
+        interface.check_empty();
+    })
+    .await;
+}
+
+// TODO: DataNodeInfo
+// TODO: Forgetting connections
+// TODO: Test maximal parallel downloads

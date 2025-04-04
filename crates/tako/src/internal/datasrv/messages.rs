@@ -31,4 +31,5 @@ pub(crate) enum FromDataClientMessage {
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) enum ToDataClientMessage {
     DataObject(Rc<DataObject>),
+    DataObjectNotFound,
 }

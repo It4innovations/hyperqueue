@@ -10,11 +10,11 @@ use std::rc::Rc;
 use tokio::net::UnixStream;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
-pub struct DataClient {
+pub struct LocalDataClient {
     stream: Framed<UnixStream, LengthDelimitedCodec>,
 }
 
-impl DataClient {
+impl LocalDataClient {
     pub async fn connect(path: &Path, token: &BStr) -> crate::Result<Self> {
         log::debug!("Creating local connection to: {}", path.display());
         let stream = UnixStream::connect(path).await?;
@@ -24,7 +24,7 @@ impl DataClient {
             token: token.into(),
         })?;
         stream.send(data.into()).await?;
-        Ok(DataClient { stream })
+        Ok(LocalDataClient { stream })
     }
 
     async fn send_message(&mut self, message: FromLocalDataClientMessage) -> crate::Result<()> {

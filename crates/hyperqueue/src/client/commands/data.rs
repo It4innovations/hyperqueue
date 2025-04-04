@@ -2,7 +2,7 @@ use crate::client::globalsettings::GlobalSettings;
 use crate::common::error::HqError;
 use clap::Parser;
 use std::path::{Path, PathBuf};
-use tako::datasrv::{DataClient, DataInputId, OutputId};
+use tako::datasrv::{DataInputId, LocalDataClient, OutputId};
 
 #[derive(Parser)]
 pub struct DataOpts {
@@ -37,14 +37,14 @@ pub struct GetOpts {
     path: PathBuf,
 }
 
-async fn create_local_data_client() -> crate::Result<DataClient> {
+async fn create_local_data_client() -> crate::Result<LocalDataClient> {
     let data_access = std::env::var("HQ_DATA_ACCESS").map_err(|_| {
         HqError::GenericError("HQ_DATA_ACCESS variable not found. Are you running this command under a task with data layer enabled?".to_string())
     })?;
     let (path, token) = data_access.split_once(':').ok_or_else(|| {
         HqError::GenericError("Value of HQ_DATA_ACCESS has a wrong format".to_string())
     })?;
-    Ok(DataClient::connect(Path::new(path), token.into()).await?)
+    Ok(LocalDataClient::connect(Path::new(path), token.into()).await?)
 }
 
 pub async fn command_task_data(_gsettings: &GlobalSettings, opts: DataOpts) -> anyhow::Result<()> {

@@ -66,6 +66,6 @@ pub mod task {
 }
 
 pub mod datasrv {
-    pub use crate::internal::datasrv::client::DataClient;
     pub use crate::internal::datasrv::dataobj::{DataInputId, DataObjectId, OutputId};
+    pub use crate::internal::datasrv::local_client::LocalDataClient;
 }
