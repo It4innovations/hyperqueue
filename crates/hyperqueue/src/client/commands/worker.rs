@@ -43,9 +43,6 @@ use crate::worker::hwdetect::{
 use crate::worker::parser::{parse_cpu_definition, parse_resource_definition};
 use crate::{DEFAULT_WORKER_GROUP_NAME, rpc_call};
 
-// How often to send overview status to the server
-const DEFAULT_OVERVIEW_INTERVAL: Duration = Duration::from_secs(5);
-
 #[derive(clap::ValueEnum, Clone)]
 pub enum WorkerFilter {
     Running,
@@ -115,6 +112,8 @@ pub struct SharedWorkerStartOpts {
 
     /// How often should the worker send its overview status (e.g. HW usage, task status)
     /// to the server for monitoring. Set to "0s" to disable overview updates.
+    /// By default, overview updates are disabled, to reduce network bandwidth and event journal
+    /// size.
     #[arg(long, value_parser = passthrough_parser(parse_human_time))]
     pub overview_interval: Option<PassThroughArgument<Duration>>,
 }
@@ -287,17 +286,14 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
             .unwrap_or_else(|| DEFAULT_WORKER_GROUP_NAME.to_string())
     });
 
-    let send_overview_interval = match overview_interval {
-        Some(v) => {
-            let duration = v.into_parsed_arg();
-            if duration.is_zero() {
-                None
-            } else {
-                Some(duration)
-            }
+    let send_overview_interval = overview_interval.and_then(|v| {
+        let duration = v.into_parsed_arg();
+        if duration.is_zero() {
+            None
+        } else {
+            Some(duration)
         }
-        None => Some(DEFAULT_OVERVIEW_INTERVAL),
-    };
+    });
     let overview_configuration = send_overview_interval.map(|interval| OverviewConfiguration {
         send_interval: interval,
         gpu_families,
