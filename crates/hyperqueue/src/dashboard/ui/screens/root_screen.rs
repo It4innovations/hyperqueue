@@ -9,9 +9,9 @@ use chrono::Local;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Direction, Flex, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{Block, Borders, Paragraph, Tabs, Wrap};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph, Tabs, Wrap};
 use std::fmt::Write;
 use std::ops::ControlFlow;
 use std::time::Duration;
@@ -59,6 +59,22 @@ impl RootScreen {
                 render_screen_tabs(screen_state, chunks.screen_tabs, frame);
                 render_timeline(data, chunks.timeline, frame);
                 screen.draw(chunks.screen, frame);
+
+                // Draw warning popup
+                if let Some(warning) = data.get_warning() {
+                    let block = Block::bordered()
+                        .title("Warning [press any key to hide]")
+                        .bold()
+                        .on_blue();
+                    let paragraph = Paragraph::new(warning)
+                        .block(block)
+                        .not_bold()
+                        .wrap(Wrap { trim: true });
+
+                    let area = popup_area(frame.area(), 50, 50);
+                    frame.render_widget(Clear, area);
+                    frame.render_widget(paragraph, area);
+                }
             })
             .expect("An error occurred while drawing the dashboard");
     }
@@ -68,6 +84,11 @@ impl RootScreen {
         input: KeyEvent,
         data: &mut DashboardData,
     ) -> ControlFlow<anyhow::Result<()>> {
+        if data.get_warning().is_some() {
+            data.set_warning(None);
+            return ControlFlow::Continue(());
+        }
+
         if input.code == KeyCode::Char('q') {
             return ControlFlow::Break(Ok(()));
         }
@@ -239,4 +260,15 @@ fn render_timeline(data: &DashboardData, rect: Rect, frame: &mut Frame) {
 
 fn offset_duration(data: &DashboardData) -> Duration {
     data.current_time_range().duration() / 4
+}
+
+/// Helper function to create a centered rect using up certain percentage of the available rect
+/// `area`
+/// Taken from https://ratatui.rs/examples/apps/popup/.
+fn popup_area(area: Rect, percent_x: u16, percent_y: u16) -> Rect {
+    let vertical = Layout::vertical([Constraint::Percentage(percent_y)]).flex(Flex::Center);
+    let horizontal = Layout::horizontal([Constraint::Percentage(percent_x)]).flex(Flex::Center);
+    let [area] = vertical.areas(area);
+    let [area] = horizontal.areas(area);
+    area
 }
