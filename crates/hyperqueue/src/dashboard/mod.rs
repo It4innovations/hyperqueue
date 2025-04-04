@@ -7,6 +7,7 @@ pub use ui_loop::start_ui_loop;
 
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::cli::DashboardCommand;
+use crate::rpc_call;
 use crate::server::bootstrap::get_client_session;
 use crate::server::event::Event;
 use crate::server::event::journal::JournalReader;
@@ -22,6 +23,8 @@ pub enum PreloadedEvents {
     FromServer {
         events: Vec<Event>,
         connection: ClientSession,
+        // If true, the server stores events into a journal.
+        journal_used: bool,
     },
 }
 
@@ -37,6 +40,8 @@ pub async fn preload_dashboard_events(
             let mut session = get_client_session(gsettings.server_directory()).await?;
             let connection = session.connection();
             let mut events = Vec::new();
+
+            let server_info = rpc_call!(connection, FromClientMessage::ServerInfo, ToClientMessage::ServerInfo(info) => info).await?;
 
             // Start streaming events
             connection
@@ -58,6 +63,7 @@ pub async fn preload_dashboard_events(
                         return Ok(PreloadedEvents::FromServer {
                             events,
                             connection: session,
+                            journal_used: server_info.journal_path.is_some(),
                         });
                     }
                     _ => {

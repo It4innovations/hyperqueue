@@ -14,6 +14,7 @@ use crate::transfer::messages::{
     TaskDescription, TaskKind, TaskKindProgram, TaskWithDependencies,
 };
 use crate::{JobId, JobTaskCount, JobTaskId};
+use chrono::Utc;
 use clap::Parser;
 use smallvec::smallvec;
 use std::path::PathBuf;
@@ -140,6 +141,7 @@ fn build_job_submit(jdef: JobDef, job_id: Option<JobId>) -> SubmitRequest {
             max_fails: jdef.max_fails,
         },
         submit_desc: JobSubmitDescription {
+            created_at: Utc::now(),
             task_desc,
             submit_dir: get_current_dir(),
             stream_path: jdef.stream,

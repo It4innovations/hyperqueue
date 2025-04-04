@@ -1025,6 +1025,7 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use anyhow::anyhow;
+    use chrono::Utc;
     use derive_builder::Builder;
     use smallvec::smallvec;
     use tako::WorkerId;
@@ -1947,6 +1948,7 @@ mod tests {
             false,
         );
         job.attach_submit(Arc::new(JobSubmitDescription {
+            created_at: Utc::now(),
             task_desc: JobTaskDescription::Array {
                 ids: IntArray::from_range(0, tasks),
                 entries: None,

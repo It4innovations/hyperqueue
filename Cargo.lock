@@ -1658,6 +1658,7 @@ name = "pyhq"
 version = "0.22.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "hyperqueue",
  "log",
  "pyo3",

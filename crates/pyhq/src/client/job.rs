@@ -1,6 +1,7 @@
 use crate::marshal::FromPy;
 use crate::utils::error::ToPyResult;
 use crate::{ClientContextPtr, FromPyObject, PyJobId, PyTaskId, borrow_mut, run_future};
+use chrono::Utc;
 use hyperqueue::client::commands::submit::command::{
     DEFAULT_CRASH_LIMIT, DEFAULT_STDERR_PATH, DEFAULT_STDOUT_PATH,
 };
@@ -83,6 +84,7 @@ pub fn submit_job_impl(py: Python, ctx: ClientContextPtr, job: PyJobDescription)
                 max_fails: job.max_fails,
             },
             submit_desc: JobSubmitDescription {
+                created_at: Utc::now(),
                 task_desc,
                 submit_dir,
                 stream_path: None,

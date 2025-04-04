@@ -23,6 +23,8 @@ pub struct DashboardData {
     time_mode: TimeMode,
     /// Is streaming from a live server enabled?
     stream_enabled: bool,
+    /// Warning that should be displayed to the user.
+    warning: Option<String>,
 }
 
 impl DashboardData {
@@ -33,7 +35,15 @@ impl DashboardData {
             alloc_timeline: Default::default(),
             time_mode,
             stream_enabled,
+            warning: None,
         }
+    }
+
+    pub fn get_warning(&self) -> Option<&str> {
+        self.warning.as_deref()
+    }
+    pub fn set_warning(&mut self, warning: Option<&str>) {
+        self.warning = warning.map(String::from);
     }
 
     pub fn push_new_events(&mut self, events: Vec<Event>) {

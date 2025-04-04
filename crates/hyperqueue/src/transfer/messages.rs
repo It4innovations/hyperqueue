@@ -171,6 +171,7 @@ impl JobTaskDescription {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JobSubmitDescription {
+    pub created_at: DateTime<Utc>,
     pub task_desc: JobTaskDescription,
     pub submit_dir: PathBuf,
     pub stream_path: Option<PathBuf>,
@@ -329,6 +330,7 @@ pub struct ServerInfo {
     pub version: String,
     pub pid: u32,
     pub start_date: DateTime<Utc>,
+    pub journal_path: Option<PathBuf>,
 }
 
 // Messages server -> client
