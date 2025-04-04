@@ -216,7 +216,7 @@ pub async fn print_server_info(gsettings: &GlobalSettings) -> anyhow::Result<()>
     gsettings
         .printer()
         // We are not using gsettings.server_directory() as it is local one
-        .print_server_description(None, &response);
+        .print_server_info(None, &response);
     Ok(())
 }
 

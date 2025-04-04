@@ -81,7 +81,7 @@ def test_server_info(hq_env: HqEnv):
     server_uid = table.get_row_value("Server UID")
     assert len(server_uid) == 6
     assert server_uid.isalnum()
-    assert len(table) == 8
+    assert len(table) == 9
 
 
 def test_server_stop(hq_env: HqEnv):
