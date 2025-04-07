@@ -6,7 +6,7 @@ from .autoalloc.mock.mock import MockJobManager
 from .autoalloc.flavor import all_flavors, ManagerFlavor
 from .autoalloc.utils import add_queue, remove_queue
 from .conftest import HqEnv
-from .utils import wait_for_job_state
+from .utils import wait_for_job_state, wait_for_task_state
 import os
 
 
@@ -342,3 +342,31 @@ def test_flush_and_prune_journal(hq_env: HqEnv, tmp_path):
     j_ids, w_ids = collect_ids()
     assert j_ids == {1, 3}
     assert w_ids == {2}
+
+
+def test_restore_dependencies(hq_env: HqEnv, tmp_path):
+    journal_path = os.path.join(tmp_path, "my.journal")
+    hq_env.start_server(args=["--journal", journal_path])
+    hq_env.start_worker()
+    tmp_path.joinpath("job.toml").write_text(
+        """
+[[task]]
+id = 1
+command = ["sleep", "0"]
+
+[[task]]
+id = 2
+command = ["sleep", "2"]
+
+[[task]]
+id = 3
+command = ["sleep", "0"]
+deps = [1, 2]
+    """
+    )
+    hq_env.command(["job", "submit-file", "job.toml"])
+    wait_for_task_state(hq_env, 1, [1, 2, 3], ["finished", "running", "waiting"])
+    hq_env.stop_server()
+    hq_env.start_server(args=["--journal", journal_path])
+    hq_env.start_worker()
+    wait_for_job_state(hq_env, 1, "FINISHED")

@@ -41,6 +41,10 @@ pub struct Queue {
     pub params: Box<AllocationQueueParams>,
 }
 
+fn is_task_completed(tasks: &Map<JobTaskId, RestorerTaskInfo>, task_id: JobTaskId) -> bool {
+    tasks.get(&task_id).is_some_and(|tt| tt.is_completed())
+}
+
 impl RestorerJob {
     pub fn restore_job(
         mut self,
@@ -60,12 +64,11 @@ impl RestorerJob {
             let mut new_tasks = submit_job_desc(state, job_id, submit_desc);
             let job = state.get_job_mut(job_id).unwrap();
 
-            new_tasks.tasks.retain(|t| {
+            new_tasks.tasks.retain_mut(|t| {
                 let (_, task_id) = unwrap_tako_id(t.id);
-                self.tasks
-                    .get(&task_id)
-                    .map(|tt| !tt.is_completed())
-                    .unwrap_or(true)
+                t.task_deps
+                    .retain(|d| !is_task_completed(&self.tasks, unwrap_tako_id(*d).1));
+                !is_task_completed(&self.tasks, task_id)
             });
 
             for (task_id, job_task) in job.tasks.iter_mut() {

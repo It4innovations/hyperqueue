@@ -5,6 +5,10 @@
 * `hq worker info` contains more information
 * `hq job forget` tries to free more memory
 
+### Fixes
+
+* Fixed a problem with journal loading when task dependencies are used
+
 ## 0.22.0
 
 ### New features
