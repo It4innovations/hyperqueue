@@ -57,3 +57,29 @@ def test_kill_worker_with_deps(hq_env: HqEnv):
     hq_env.kill_worker(2)
     time.sleep(2.0)
     wait_for_job_state(hq_env, submitted_job.id, "WAITING")
+
+
+def test_long_chain_of_deps(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(cpus="4")
+    client = Client(hq_env.server_dir)
+    job = Job()
+    prev = job.program(bash("sleep 0"))
+    for i in range(50):
+        prev = job.program(bash("sleep 0"), deps=[prev])
+    submitted_job = client.submit(job)
+    hq_env.command(["job", "info", str(submitted_job.id)])
+    wait_for_job_state(hq_env, submitted_job.id, "FINISHED")
+
+
+def test_long_many_pairs_deps(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(cpus="4")
+    client = Client(hq_env.server_dir)
+    job = Job()
+    for i in range(150):
+        prev = job.program(bash("sleep 0"))
+        job.program(bash("sleep 0"), deps=[prev])
+    submitted_job = client.submit(job)
+    hq_env.command(["job", "info", str(submitted_job.id)])
+    wait_for_job_state(hq_env, submitted_job.id, "FINISHED")
