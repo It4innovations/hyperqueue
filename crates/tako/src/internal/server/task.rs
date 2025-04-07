@@ -95,7 +95,12 @@ impl Task {
         configuration: Rc<TaskConfiguration>,
         body: Box<[u8]>,
     ) -> Self {
-        log::debug!("New task {} {:?}", id, &configuration.resources);
+        log::debug!(
+            "New task {} {:?} {:?}",
+            id,
+            &configuration.resources,
+            &dependencies
+        );
 
         let mut flags = TaskFlags::empty();
         flags.set(TaskFlags::FRESH, true);
