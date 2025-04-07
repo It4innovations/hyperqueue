@@ -579,7 +579,7 @@ fn load_hostnames(hostfile: &Path) -> anyhow::Result<Vec<Hostname>> {
             if let Some((host, port)) = line.split_once(':') {
                 let port = port
                     .parse::<u16>()
-                    .map_err(|e| anyhow::anyhow!("Cannot parser port from {line}: {e:?}"))?;
+                    .map_err(|e| anyhow::anyhow!("Cannot parse port from {line}: {e:?}"))?;
                 Ok(Hostname {
                     host: host.to_string(),
                     port: Some(port),
