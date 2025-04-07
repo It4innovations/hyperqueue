@@ -65,6 +65,24 @@ def wait_for_worker_state(env, ids: Union[int, List[int]], target_states: Union[
     wait_for_state(env, ids, target_states, ["worker", "list", "--all"], 1, **kwargs)
 
 
+def wait_for_task_state(env, job_id: int, task_ids: Union[int, List[int]], states: Union[str, List[str]], **kwargs):
+    if isinstance(task_ids, int):
+        task_ids = [task_ids]
+
+    if isinstance(states, str):
+        states = [states]
+    assert len(task_ids) == len(states)
+
+    ids = ",".join(str(t) for t in task_ids)
+    states = [s.lower() for s in states]
+
+    def check():
+        result = env.command(["--output-mode=json", "task", "info", str(job_id), ids], as_json=True)
+        return [r["state"] for r in result] == states
+
+    wait_until(check, **kwargs)
+
+
 def wait_for_pid_exit(pid: int):
     """
     Waits until the given `pid` does not represent any process anymore.
