@@ -162,21 +162,15 @@ pub(crate) fn on_remove_worker(
 
 pub(crate) fn on_new_tasks(core: &mut Core, comm: &mut impl Comm, new_tasks: Vec<Task>) {
     assert!(!new_tasks.is_empty());
-
-    let mut task_map: Map<_, _> = new_tasks.into_iter().map(|t| (t.id, t)).collect();
-    let ids: Vec<_> = task_map.keys().copied().collect();
-    for task_id in ids {
-        let mut task = task_map.remove(&task_id).unwrap();
-
+    for mut task in new_tasks.into_iter() {
         let mut count = 0;
         for t in task.task_deps.iter() {
-            let task_dep = task_map.get_mut(t).unwrap_or_else(|| core.get_task_mut(*t));
+            let task_dep = core.get_task_mut(*t);
             task_dep.add_consumer(task.id);
             if !task_dep.is_finished() {
                 count += 1
             }
         }
-
         assert!(matches!(
             task.state,
             TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 })
@@ -184,10 +178,6 @@ pub(crate) fn on_new_tasks(core: &mut Core, comm: &mut impl Comm, new_tasks: Vec
         task.state = TaskRuntimeState::Waiting(WaitingInfo {
             unfinished_deps: count,
         });
-        task_map.insert(task_id, task);
-    }
-
-    for (_, task) in task_map.into_iter() {
         core.add_task(task);
     }
     comm.ask_for_scheduling()

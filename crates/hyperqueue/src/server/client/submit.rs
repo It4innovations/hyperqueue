@@ -97,8 +97,6 @@ pub(crate) fn validate_submit(
                 if !task_ids.insert(task.id) {
                     return Some(SubmitResponse::NonUniqueTaskId(task.id));
                 }
-            }
-            for task in tasks {
                 for dep_id in &task.dependencies {
                     if *dep_id == task.id
                         || (!task_ids.contains(dep_id)
