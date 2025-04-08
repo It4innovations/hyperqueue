@@ -17,6 +17,7 @@ use crate::{JobId, JobTaskCount, JobTaskId};
 use clap::Parser;
 use smallvec::smallvec;
 use std::path::PathBuf;
+use tako::Map;
 use tako::gateway::{ResourceRequest, ResourceRequestVariants};
 use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
 
@@ -112,7 +113,7 @@ fn build_job_desc_array(array: ArrayDef) -> JobTaskDescription {
     }
 }
 
-fn build_job_desc_individual_tasks(tasks: Vec<TaskDef>) -> JobTaskDescription {
+fn build_job_desc_individual_tasks(tasks: Vec<TaskDef>) -> crate::Result<JobTaskDescription> {
     let mut max_id: JobTaskId = tasks
         .iter()
         .map(|t| t.id)
@@ -120,21 +121,65 @@ fn build_job_desc_individual_tasks(tasks: Vec<TaskDef>) -> JobTaskDescription {
         .flatten()
         .unwrap_or(JobTaskId(0));
 
-    JobTaskDescription::Graph {
-        tasks: tasks
-            .into_iter()
-            .map(|t| build_task(t, &mut max_id))
-            .collect(),
+    /* Topological sort */
+    let original_len = tasks.len();
+    let mut new_tasks = Vec::with_capacity(original_len);
+    let mut unprocessed_tasks = Map::new();
+    let mut in_degrees = Map::new();
+    let mut consumers: Map<JobTaskId, Vec<_>> = Map::new();
+    for task in tasks {
+        let t = build_task(task, &mut max_id);
+        if in_degrees.insert(t.id, t.dependencies.len()).is_some() {
+            return Err(crate::Error::GenericError(format!(
+                "Task {} is defined multiple times",
+                t.id
+            )));
+        }
+        let is_empty = t.dependencies.is_empty();
+        if is_empty {
+            new_tasks.push(t);
+        } else {
+            for dep in &t.dependencies {
+                consumers.entry(*dep).or_default().push(t.id);
+            }
+            unprocessed_tasks.insert(t.id, t);
+        }
     }
+    let mut idx = 0;
+    while idx < new_tasks.len() {
+        if let Some(consumers) = consumers.get(&new_tasks[idx].id) {
+            for c in consumers {
+                let d = in_degrees.get_mut(c).unwrap();
+                assert!(*d > 0);
+                *d -= 1;
+                if *d == 0 {
+                    new_tasks.push(unprocessed_tasks.remove(c).unwrap())
+                }
+            }
+        }
+        idx += 1;
+    }
+
+    if unprocessed_tasks.is_empty() {
+        assert_eq!(new_tasks.len(), original_len);
+    } else {
+        let t = unprocessed_tasks.values().next().unwrap();
+        return Err(crate::Error::GenericError(format!(
+            "Task {} is part of dependency cycle or has an invalid dependencies",
+            t.id
+        )));
+    }
+
+    Ok(JobTaskDescription::Graph { tasks: new_tasks })
 }
 
-fn build_job_submit(jdef: JobDef, job_id: Option<JobId>) -> SubmitRequest {
+fn build_job_submit(jdef: JobDef, job_id: Option<JobId>) -> crate::Result<SubmitRequest> {
     let task_desc = if let Some(array) = jdef.array {
         build_job_desc_array(array)
     } else {
-        build_job_desc_individual_tasks(jdef.tasks)
+        build_job_desc_individual_tasks(jdef.tasks)?
     };
-    SubmitRequest {
+    Ok(SubmitRequest {
         job_desc: JobDescription {
             name: jdef.name,
             max_fails: jdef.max_fails,
@@ -145,7 +190,7 @@ fn build_job_submit(jdef: JobDef, job_id: Option<JobId>) -> SubmitRequest {
             stream_path: jdef.stream,
         },
         job_id,
-    }
+    })
 }
 
 pub async fn submit_computation_from_job_file(
@@ -159,6 +204,6 @@ pub async fn submit_computation_from_job_file(
                 anyhow::anyhow!(format!("Cannot read {}: {}", opts.path.display(), e))
             })?)?
         };
-    let request = build_job_submit(jdef, opts.job);
+    let request = build_job_submit(jdef, opts.job)?;
     send_submit_request(gsettings, session, request, false, false).await
 }
