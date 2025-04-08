@@ -318,10 +318,13 @@ async fn start_server(
     mut server_cfg: ServerConfig,
 ) -> anyhow::Result<()> {
     let restorer = if server_cfg.journal_path.as_ref().is_some_and(|p| p.exists()) {
+        log::info!("Loading journal ...");
         let mut restorer = StateRestorer::default();
         restorer.load_event_file(server_cfg.journal_path.as_ref().unwrap())?;
         if restorer.truncate_size().is_some() {
-            log::warn!("Journal contains not fully written data; they will removed from the log");
+            log::warn!(
+                "Journal contains not fully written data; they will be removed from the log"
+            );
         }
         let server_uid = restorer.take_server_uid();
         if !server_uid.is_empty() {
@@ -378,6 +381,7 @@ async fn start_server(
                     .unwrap();
             }
             log::debug!("Restoration of old queues is completed");
+            log::info!("State restoration completed");
         });
     };
     local_set.run_until(fut).await?;
