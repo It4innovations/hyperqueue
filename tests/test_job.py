@@ -13,7 +13,7 @@ from .utils import wait_for_job_state
 from .utils.cmd import python
 from .utils.io import check_file_contents, read_file, read_task_pid
 from .utils.job import default_task_output, list_jobs
-from .utils.wait import wait_until
+from .utils.wait import wait_until, wait_for_task_state
 
 
 def test_job_submit(hq_env: HqEnv):
@@ -1257,3 +1257,28 @@ def test_close_job_before_worker(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "WAITING")
     hq_env.start_worker()
     wait_for_job_state(hq_env, 1, "FINISHED")
+
+
+def test_new_submit_with_while_unfinished_deps(hq_env: HqEnv, tmp_path):
+    journal_path = os.path.join(tmp_path, "my.journal")
+    hq_env.start_server(args=["--journal", journal_path])
+    hq_env.start_worker(cpus=2)
+    tmp_path.joinpath("job.toml").write_text(
+        """
+[[task]]
+id = 1
+command = ["sleep", "0"]
+
+[[task]]
+id = 2
+command = ["sleep", "0"]
+deps = [1]
+[[task.request]]
+resources = { "cpus" = "1", "x"=1 }
+    """
+    )
+    hq_env.command(["job", "submit-file", "job.toml"])
+    wait_for_task_state(hq_env, 1, [1, 2], ["finished", "waiting"])
+    hq_env.command(["job", "submit-file", "job.toml"])
+    hq_env.start_worker(cpus=2, args=["--resource", "x=sum(2)"])
+    wait_for_job_state(hq_env, [1, 2], "FINISHED")
