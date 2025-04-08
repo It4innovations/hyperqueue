@@ -331,6 +331,65 @@ deps = [1, 3]
     table.check_row_value("Dependencies", "")
 
 
+def test_job_file_unordered_dependencies(hq_env: HqEnv, tmp_path):
+    hq_env.start_server()
+    hq_env.start_worker()
+    tmp_path.joinpath("job.toml").write_text(
+        """
+[[task]]
+id = 20
+command = ["sleep", "0"]
+deps = [1, 3]
+
+[[task]]
+id = 1
+command = ["sleep", "0"]
+deps = [10]
+
+[[task]]
+id = 3
+command = ["sleep", "0"]
+
+[[task]]
+id = 5
+command = ["sleep", "0"]
+deps = [1, 3]
+
+[[task]]
+id = 10
+command = ["sleep", "0"]
+
+[[task]]
+id = 2
+command = ["sleep", "0"]
+deps = [5, 10]
+"""
+    )
+    hq_env.command(["job", "submit-file", "job.toml"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+    table = hq_env.command(["job", "info", "1"], as_table=True)
+    table.check_row_value("Tasks", "6; Ids: 1-3,5,10,20")
+
+
+def test_job_file_dependencies_with_cycle(hq_env: HqEnv, tmp_path):
+    hq_env.start_server()
+    hq_env.start_worker()
+    tmp_path.joinpath("job.toml").write_text(
+        """
+[[task]]
+id = 2
+command = ["sleep", "0"]
+deps = [1]
+
+[[task]]
+id = 1
+command = ["sleep", "0"]
+deps = [2]
+"""
+    )
+    hq_env.command(["job", "submit-file", "job.toml"], expect_fail="cycle")
+
+
 def test_job_file_attach(hq_env: HqEnv, tmp_path):
     hq_env.start_server()
     hq_env.command(["job", "open"])
