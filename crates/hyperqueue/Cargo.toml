@@ -90,3 +90,6 @@ bench = false
 # It is not a normal Cargo feature, because it would break building with `--all-features`.
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(zero_worker)'] }
+
+[lints.clippy]
+dbg_macro = "deny"

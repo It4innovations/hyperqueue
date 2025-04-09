@@ -33,3 +33,6 @@ termcolor = "1.1"
 
 [package.metadata.maturin]
 python-source = "python"
+
+[lints]
+workspace = true
