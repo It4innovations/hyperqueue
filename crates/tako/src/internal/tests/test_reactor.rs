@@ -24,7 +24,7 @@ use crate::internal::tests::utils::schedule::{
 };
 use crate::internal::tests::utils::shared::{res_kind_groups, res_kind_sum};
 use crate::internal::tests::utils::sorted_vec;
-use crate::internal::tests::utils::task::{task, task_running_msg, task_with_deps, TaskBuilder};
+use crate::internal::tests::utils::task::{TaskBuilder, task, task_running_msg, task_with_deps};
 use crate::internal::tests::utils::workflows::{submit_example_1, submit_example_3};
 use crate::internal::tests::utils::{env, schedule};
 use crate::internal::worker::configuration::OverviewConfiguration;
@@ -678,11 +678,12 @@ fn test_task_mn_fail() {
     comm.emptiness_check();
     assert!(core.find_task(1.into()).is_none());
     for w in &[100, 101, 102, 103] {
-        assert!(core
-            .get_worker_map()
-            .get_worker((*w).into())
-            .mn_task()
-            .is_none());
+        assert!(
+            core.get_worker_map()
+                .get_worker((*w).into())
+                .mn_task()
+                .is_none()
+        );
     }
 }
 
