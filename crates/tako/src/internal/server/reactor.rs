@@ -7,7 +7,7 @@ use crate::internal::messages::worker::{
 };
 use crate::internal::server::comm::Comm;
 use crate::internal::server::core::Core;
-use crate::internal::server::task::{FinishInfo, WaitingInfo};
+use crate::internal::server::task::WaitingInfo;
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::worker::Worker;
 use crate::internal::server::workermap::WorkerMap;
@@ -84,7 +84,7 @@ pub(crate) fn on_remove_worker(
                     continue;
                 }
             }
-            TaskRuntimeState::Finished(_finfo) => {
+            TaskRuntimeState::Finished => {
                 continue;
             }
             TaskRuntimeState::RunningMultiNode(ws) => {
@@ -164,13 +164,17 @@ pub(crate) fn on_new_tasks(core: &mut Core, comm: &mut impl Comm, new_tasks: Vec
     assert!(!new_tasks.is_empty());
     for mut task in new_tasks.into_iter() {
         let mut count = 0;
-        for t in task.task_deps.iter() {
-            let task_dep = core.get_task_mut(*t);
-            task_dep.add_consumer(task.id);
-            if !task_dep.is_finished() {
-                count += 1
+        task.task_deps.retain(|t| {
+            if let Some(task_dep) = core.find_task_mut(*t) {
+                task_dep.add_consumer(task.id);
+                if !task_dep.is_finished() {
+                    count += 1
+                }
+                true
+            } else {
+                false
             }
-        }
+        });
         assert!(matches!(
             task.state,
             TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 })
@@ -225,7 +229,7 @@ pub(crate) fn on_task_running(
             }
             TaskRuntimeState::Running { .. }
             | TaskRuntimeState::Waiting(_)
-            | TaskRuntimeState::Finished(_) => {
+            | TaskRuntimeState::Finished => {
                 unreachable!()
             }
         };
@@ -276,7 +280,7 @@ pub(crate) fn on_task_finished(
                     assert_eq!(*w_id, worker_id);
                     /* Do nothing */
                 }
-                TaskRuntimeState::Waiting(_) | TaskRuntimeState::Finished(_) => {
+                TaskRuntimeState::Waiting(_) | TaskRuntimeState::Finished => {
                     unreachable!();
                 }
             }
@@ -287,7 +291,7 @@ pub(crate) fn on_task_finished(
                 placement.insert(worker_id);
             }
 
-            task.state = TaskRuntimeState::Finished(FinishInfo {});
+            task.state = TaskRuntimeState::Finished;
             comm.ask_for_scheduling();
             comm.send_client_task_finished(task.id);
         } else {
@@ -315,8 +319,8 @@ pub(crate) fn on_task_finished(
         core.add_ready_to_assign(id);
         comm.ask_for_scheduling();
     }
-    unregister_as_consumer(core, comm, msg.id);
-    remove_task_if_possible(core, comm, msg.id);
+    let state = core.remove_task(msg.id);
+    assert!(matches!(state, TaskRuntimeState::Finished));
 }
 
 pub(crate) fn on_steal_response(
@@ -423,18 +427,13 @@ fn fail_task_helper(
         }
     };
 
-    // TODO: take taskmap in `unregister_as_consumer`
-    unregister_as_consumer(core, comm, task_id);
-
     for &consumer in &consumers {
-        {
-            let task = core.get_task(consumer);
-            log::debug!("Task={} canceled because of failed dependency", task.id);
-            assert!(task.is_waiting());
-        }
-        unregister_as_consumer(core, comm, consumer);
+        log::debug!("Task={} canceled because of failed dependency", consumer);
+        assert!(matches!(
+            core.remove_task(consumer),
+            TaskRuntimeState::Waiting(_)
+        ));
     }
-
     let state = core.remove_task(task_id);
     if worker_id.is_some() {
         assert!(matches!(
@@ -448,14 +447,6 @@ fn fail_task_helper(
         assert!(matches!(state, TaskRuntimeState::Waiting(_)));
     }
     drop(state);
-
-    for &consumer in &consumers {
-        // We can drop the resulting state as checks was done earlier
-        assert!(matches!(
-            core.remove_task(consumer),
-            TaskRuntimeState::Waiting(_)
-        ));
-    }
     comm.send_client_task_error(task_id, consumers, error_info);
 }
 
@@ -522,15 +513,11 @@ pub(crate) fn on_cancel_tasks(
                     }
                     running_ids.entry(from_id).or_default().push(task_id);
                 }
-                TaskRuntimeState::Finished(_) => {
+                TaskRuntimeState::Finished => {
                     already_finished.push(task_id);
                 }
             };
         }
-    }
-
-    for &task_id in &to_unregister {
-        unregister_as_consumer(core, comm, task_id);
     }
 
     core.remove_tasks_batched(&to_unregister);
@@ -541,24 +528,4 @@ pub(crate) fn on_cancel_tasks(
 
     comm.ask_for_scheduling();
     (to_unregister.into_iter().collect(), already_finished)
-}
-
-fn unregister_as_consumer(core: &mut Core, comm: &mut impl Comm, task_id: TaskId) {
-    let inputs: Vec<TaskId> = core.get_task(task_id).task_deps.iter().copied().collect();
-    for input_id in inputs {
-        let input = core.get_task_mut(input_id);
-        assert!(input.remove_consumer(task_id));
-        remove_task_if_possible(core, comm, input_id);
-    }
-}
-
-fn remove_task_if_possible(core: &mut Core, _comm: &mut impl Comm, task_id: TaskId) {
-    if !core.get_task(task_id).is_removable() {
-        return;
-    }
-    match core.remove_task(task_id) {
-        TaskRuntimeState::Finished(_finfo) => { /* Ok */ }
-        _ => unreachable!(),
-    };
-    log::debug!("Task id={task_id} is no longer needed");
 }
