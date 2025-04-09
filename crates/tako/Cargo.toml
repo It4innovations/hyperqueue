@@ -47,3 +47,6 @@ harness = false
 # Workaround for Criterion (https://bheisler.github.io/criterion.rs/book/faq.html#cargo-bench-gives-unrecognized-option-errors-for-valid-command-line-options)
 [lib]
 bench = false
+
+[lints]
+workspace = true

@@ -45,6 +45,9 @@ bstr = { version = "1", features = ["serde"] }
 psutil = "3"
 thin-vec = { version = "0.2", features = ["serde"] }
 
+[workspace.lints.clippy]
+dbg_macro = "deny"
+
 [profile.release]
 panic = "abort"
 
