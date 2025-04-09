@@ -99,7 +99,9 @@ impl SchedulerState {
         try_prev_worker: bool, // Enable heuristics that tries to fit tasks on fewer workers
     ) -> Option<WorkerId> {
         // Fast path
-        if try_prev_worker && task.task_deps.is_empty() {
+        if try_prev_worker
+        /* LATER MIGRATE TO DATA OBJECTS, depending on task deps is wrong: && task.task_deps.is_empty()*/
+        {
             // Note: We are *not* using "is_capable_to_run" but "have_immediate_resources_for_rq",
             // because we want to enable fast path only if task can be directly executed
             // We want to avoid creation of overloaded
@@ -379,13 +381,14 @@ impl SchedulerState {
                     //log::debug!("Task {} initially assigned to {}", task.id, worker_id);
                 };
                 if let Some(worker_id) = worker_id {
-                    debug_assert!(core
-                        .get_worker_map()
-                        .get_worker(worker_id)
-                        .is_capable_to_run_rqv(
-                            &core.get_task(task_id).configuration.resources,
-                            self.now
-                        ));
+                    debug_assert!(
+                        core.get_worker_map()
+                            .get_worker(worker_id)
+                            .is_capable_to_run_rqv(
+                                &core.get_task(task_id).configuration.resources,
+                                self.now
+                            )
+                    );
                     self.assign(core, task_id, worker_id);
                 } else {
                     core.add_sleeping_sn_task(task_id);
@@ -419,7 +422,7 @@ impl SchedulerState {
                     let task = tasks.get_task_mut(task_id);
                     if task.is_sn_running()
                         || (not_overloaded
-                            && (task.is_fresh() || !task.task_deps.is_empty())
+                            && (task.is_fresh()/*|| THIS SHOULD LATER BE MIGRATED TO DATA OBJECTS, not task deps !task.task_deps.is_empty()*/)
                             && worker.has_time_to_run_for_rqv(&task.configuration.resources, now))
                     {
                         continue;

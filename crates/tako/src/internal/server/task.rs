@@ -3,13 +3,13 @@ use std::rc::Rc;
 use std::time::Duration;
 use thin_vec::ThinVec;
 
-use crate::internal::common::stablemap::ExtractKey;
+use crate::WorkerId;
 use crate::internal::common::Set;
+use crate::internal::common::stablemap::ExtractKey;
 use crate::internal::messages::worker::{ComputeTaskMsg, ToWorkerMessage};
 use crate::internal::server::taskmap::TaskMap;
-use crate::WorkerId;
-use crate::{static_assert_size, TaskId};
 use crate::{InstanceId, Priority};
+use crate::{TaskId, static_assert_size};
 
 #[cfg_attr(test, derive(Eq, PartialEq))]
 pub struct WaitingInfo {
