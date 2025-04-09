@@ -3,22 +3,19 @@ use std::rc::Rc;
 use std::time::Duration;
 use thin_vec::ThinVec;
 
-use crate::WorkerId;
-use crate::internal::common::Set;
 use crate::internal::common::stablemap::ExtractKey;
+use crate::internal::common::Set;
 use crate::internal::messages::worker::{ComputeTaskMsg, ToWorkerMessage};
 use crate::internal::server::taskmap::TaskMap;
+use crate::WorkerId;
+use crate::{static_assert_size, TaskId};
 use crate::{InstanceId, Priority};
-use crate::{TaskId, static_assert_size};
 
 #[cfg_attr(test, derive(Eq, PartialEq))]
 pub struct WaitingInfo {
     pub unfinished_deps: u32,
     // pub scheduler_metric: i32,
 }
-
-#[cfg_attr(test, derive(Eq, PartialEq))]
-pub struct FinishInfo {}
 
 #[cfg_attr(test, derive(Eq, PartialEq))]
 pub enum TaskRuntimeState {
@@ -28,7 +25,7 @@ pub enum TaskRuntimeState {
     Running { worker_id: WorkerId },
     // The first worker is the root node where the command is executed, others are reserved
     RunningMultiNode(Vec<WorkerId>),
-    Finished(FinishInfo),
+    Finished,
 }
 
 impl fmt::Debug for TaskRuntimeState {
@@ -39,7 +36,7 @@ impl fmt::Debug for TaskRuntimeState {
             Self::Stealing(from_w, to_w) => write!(f, "S({from_w}, {to_w:?})"),
             Self::Running { worker_id, .. } => write!(f, "R({worker_id})"),
             Self::RunningMultiNode(ws) => write!(f, "M({ws:?})"),
-            Self::Finished(_) => write!(f, "F"),
+            Self::Finished => write!(f, "F"),
         }
     }
 }
@@ -160,11 +157,6 @@ impl Task {
     }
 
     #[inline]
-    pub(crate) fn has_consumers(&self) -> bool {
-        !self.consumers.is_empty()
-    }
-
-    #[inline]
     pub(crate) fn add_consumer(&mut self, consumer: TaskId) -> bool {
         self.consumers.insert(consumer)
     }
@@ -195,11 +187,6 @@ impl Task {
     #[inline]
     pub(crate) fn is_taken(&self) -> bool {
         self.flags.contains(TaskFlags::TAKE)
-    }
-
-    #[inline]
-    pub(crate) fn is_removable(&self) -> bool {
-        self.consumers.is_empty() && self.is_finished()
     }
 
     pub(crate) fn collect_consumers(&self, taskmap: &TaskMap) -> Set<TaskId> {
@@ -275,14 +262,14 @@ impl Task {
 
     #[inline]
     pub(crate) fn is_finished(&self) -> bool {
-        matches!(&self.state, TaskRuntimeState::Finished(_))
+        matches!(&self.state, TaskRuntimeState::Finished)
     }
 
     #[inline]
     pub(crate) fn is_done_or_running(&self) -> bool {
         matches!(
             &self.state,
-            TaskRuntimeState::Finished(_) | TaskRuntimeState::Running { .. }
+            TaskRuntimeState::Finished | TaskRuntimeState::Running { .. }
         )
     }
 
@@ -295,7 +282,7 @@ impl Task {
             TaskRuntimeState::Waiting(_)
             | TaskRuntimeState::Stealing(_, None)
             | TaskRuntimeState::RunningMultiNode(_)
-            | TaskRuntimeState::Finished(_) => None,
+            | TaskRuntimeState::Finished => None,
         }
     }
 

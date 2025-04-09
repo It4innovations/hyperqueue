@@ -1282,3 +1282,34 @@ resources = { "cpus" = "1", "x"=1 }
     hq_env.command(["job", "submit-file", "job.toml"])
     hq_env.start_worker(cpus=2, args=["--resource", "x=sum(2)"])
     wait_for_job_state(hq_env, [1, 2], "FINISHED")
+
+
+def test_new_submit_with_while_unfinished_deps2(hq_env: HqEnv, tmp_path):
+    journal_path = os.path.join(tmp_path, "my.journal")
+    hq_env.start_server(args=["--journal", journal_path])
+    hq_env.start_worker(cpus=2)
+    tmp_path.joinpath("job.toml").write_text(
+        """
+[[task]]
+id = 1
+command = ["sleep", "0"]
+
+[[task]]
+id = 2
+command = ["sleep", "0"]
+deps = [1]
+
+[[task]]
+id = 10
+command = ["sleep", "0"]
+deps = [2]
+[[task.request]]
+resources = { "cpus" = "1", "x"=1 }
+
+"""
+    )
+    hq_env.command(["job", "submit-file", "job.toml"])
+    wait_for_task_state(hq_env, 1, [1, 2, 10], ["finished", "finished", "waiting"])
+    hq_env.command(["job", "submit-file", "job.toml"])
+    hq_env.start_worker(cpus=2, args=["--resource", "x=sum(2)"])
+    wait_for_job_state(hq_env, [1, 2], "FINISHED")

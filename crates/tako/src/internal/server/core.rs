@@ -313,7 +313,13 @@ impl Core {
             .tasks
             .remove(task_id)
             .expect("Trying to remove non-existent task");
-        assert!(!task.has_consumers());
+        if matches!(&task.state, TaskRuntimeState::Waiting(w) if w.unfinished_deps > 0) {
+            for input_id in task.task_deps {
+                if let Some(input) = self.find_task_mut(input_id) {
+                    assert!(input.remove_consumer(task_id));
+                }
+            }
+        }
         task.state
     }
 
@@ -364,7 +370,7 @@ impl Core {
     pub fn sanity_check(&self) {
         let fw_check = |task: &Task| {
             for task_dep in &task.task_deps {
-                assert!(self.tasks.get_task(*task_dep).is_finished());
+                assert!(self.tasks.find_task(*task_dep).is_none());
             }
             for &task_id in task.get_consumers() {
                 assert!(self.tasks.get_task(task_id).is_waiting());
@@ -399,7 +405,11 @@ impl Core {
                 TaskRuntimeState::Waiting(winfo) => {
                     let mut count = 0;
                     for task_dep in &task.task_deps {
-                        if !self.tasks.get_task(*task_dep).is_finished() {
+                        if !self
+                            .tasks
+                            .find_task(*task_dep)
+                            .is_none_or(|t| t.is_finished())
+                        {
                             count += 1;
                         }
                     }
@@ -424,9 +434,9 @@ impl Core {
                     worker_check_sn(self, task.id, target.unwrap_or(WorkerId::new(0)));
                 }
 
-                TaskRuntimeState::Finished(_) => {
+                TaskRuntimeState::Finished => {
                     for task_dep in &task.task_deps {
-                        assert!(self.tasks.get_task(*task_dep).is_finished());
+                        assert!(self.tasks.find_task(*task_dep).is_none());
                     }
                 }
                 TaskRuntimeState::RunningMultiNode(ws) => {
