@@ -3,6 +3,7 @@ use tako::ItemId;
 use tako::internal::server::core::Core;
 use tako::internal::server::task::{Task, TaskConfiguration};
 use tako::internal::server::worker::Worker;
+use tako::internal::worker::configuration::OverviewConfiguration;
 use tako::resources::{
     CPU_RESOURCE_NAME, ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind,
 };
@@ -33,7 +34,7 @@ pub fn create_worker(id: u64) -> Worker {
             group: "default".to_string(),
             work_dir: Default::default(),
             heartbeat_interval: Default::default(),
-            overview_configuration: None,
+            overview_configuration: OverviewConfiguration::default(),
             idle_timeout: None,
             time_limit: None,
             on_server_lost: ServerLostPolicy::Stop,

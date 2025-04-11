@@ -6,6 +6,7 @@ use hyperqueue::common::utils::network::get_hostname;
 use tokio::task::LocalSet;
 
 use hyperqueue::worker::bootstrap::{finalize_configuration, initialize_worker};
+use tako::internal::worker::configuration::OverviewConfiguration;
 use tako::resources::{
     CPU_RESOURCE_NAME, ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind,
     ResourceIndex,
@@ -44,7 +45,7 @@ impl RunningWorker {
                 group: "default".to_string(),
                 work_dir,
                 heartbeat_interval: Duration::from_secs(10),
-                overview_configuration: None,
+                overview_configuration: OverviewConfiguration::disabled(),
                 idle_timeout: None,
                 time_limit: None,
                 on_server_lost: ServerLostPolicy::Stop,

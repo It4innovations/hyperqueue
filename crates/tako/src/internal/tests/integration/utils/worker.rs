@@ -73,12 +73,10 @@ pub(super) fn create_worker_configuration(
             group: "".to_string(),
             work_dir: Default::default(),
             heartbeat_interval,
-            overview_configuration: send_overview_interval.map(|send_interval| {
-                OverviewConfiguration {
-                    send_interval,
-                    gpu_families: Default::default(),
-                }
-            }),
+            overview_configuration: OverviewConfiguration {
+                send_interval: send_overview_interval,
+                gpu_families: Default::default(),
+            },
             idle_timeout,
             on_server_lost: ServerLostPolicy::Stop,
             time_limit: None,
