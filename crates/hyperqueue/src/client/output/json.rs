@@ -129,7 +129,7 @@ impl Output for JsonOutput {
                                     "started_at": format_datetime(submission_date),
                                     "finished_at": finished_at.map(format_datetime),
                                     "submits": submit_descs.iter().map(|submit_desc|
-                match &submit_desc.task_desc {
+                match &submit_desc.description().task_desc {
                                     JobTaskDescription::Array { task_desc, .. } => {
                                         json!({
                                             "array": format_task_description(task_desc)

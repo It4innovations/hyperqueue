@@ -1,9 +1,9 @@
 use std::borrow::Cow;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::time::Duration;
 
 use bstr::BString;
+use chrono::{DateTime, Utc};
 use tako::Map;
 use tako::Set;
 use thin_vec::ThinVec;
@@ -18,7 +18,7 @@ use crate::common::placeholders::{
     fill_placeholders_after_submit, fill_placeholders_log, normalize_path,
 };
 use crate::server::Senders;
-use crate::server::job::Job;
+use crate::server::job::{Job, SubmittedJobDescription};
 use crate::server::state::{State, StateRef};
 use crate::transfer::messages::{
     JobDescription, JobSubmitDescription, JobTaskDescription, OpenJobResponse, SubmitRequest,
@@ -57,6 +57,7 @@ pub(crate) fn submit_job_desc(
     state: &mut State,
     job_id: JobId,
     mut submit_desc: JobSubmitDescription,
+    submitted_at: DateTime<Utc>,
 ) -> NewTasksMessage {
     prepare_job(job_id, &mut submit_desc, state);
     let new_tasks = create_new_task_message(job_id, &mut submit_desc);
@@ -64,7 +65,7 @@ pub(crate) fn submit_job_desc(
     state
         .get_job_mut(job_id)
         .unwrap()
-        .attach_submit(Arc::new(submit_desc));
+        .attach_submit(SubmittedJobDescription::at(submitted_at, submit_desc));
     new_tasks
 }
 
@@ -180,7 +181,7 @@ pub(crate) async fn handle_submit(
         state.add_job(job);
     }
 
-    let new_tasks = submit_job_desc(&mut state, job_id, submit_desc);
+    let new_tasks = submit_job_desc(&mut state, job_id, submit_desc, Utc::now());
     senders.autoalloc.on_job_created(job_id);
 
     let job_detail = state
@@ -414,14 +415,14 @@ mod tests {
     use crate::make_tako_id;
     use crate::server::client::submit::build_tasks_graph;
     use crate::server::client::validate_submit;
-    use crate::server::job::Job;
+    use crate::server::job::{Job, SubmittedJobDescription};
     use crate::transfer::messages::{
         JobDescription, JobSubmitDescription, JobTaskDescription, PinMode, SubmitResponse,
         TaskDescription, TaskKind, TaskKindProgram, TaskWithDependencies,
     };
+    use chrono::Utc;
     use smallvec::smallvec;
     use std::path::PathBuf;
-    use std::sync::Arc;
     use std::time::Duration;
     use tako::Priority;
     use tako::gateway::{
@@ -466,15 +467,18 @@ mod tests {
             },
             true,
         );
-        job.attach_submit(Arc::new(JobSubmitDescription {
-            task_desc: JobTaskDescription::Array {
-                ids: IntArray::from_range(100, 10),
-                entries: None,
-                task_desc: task_desc(None, 0, 1),
+        job.attach_submit(SubmittedJobDescription::at(
+            Utc::now(),
+            JobSubmitDescription {
+                task_desc: JobTaskDescription::Array {
+                    ids: IntArray::from_range(100, 10),
+                    entries: None,
+                    task_desc: task_desc(None, 0, 1),
+                },
+                submit_dir: Default::default(),
+                stream_path: None,
             },
-            submit_dir: Default::default(),
-            stream_path: None,
-        }));
+        ));
 
         let job_task_desc = JobTaskDescription::Array {
             ids: IntArray::from_range(109, 2),

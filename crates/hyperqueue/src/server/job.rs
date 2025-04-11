@@ -110,13 +110,36 @@ pub struct JobCompletionCallback {
     wait_for_close: bool,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct SubmittedJobDescription {
+    submitted_at: DateTime<Utc>,
+    description: Arc<JobSubmitDescription>,
+}
+
+impl SubmittedJobDescription {
+    pub fn at(time: DateTime<Utc>, description: JobSubmitDescription) -> Self {
+        Self {
+            submitted_at: time,
+            description: Arc::new(description),
+        }
+    }
+
+    pub fn submitted_at(&self) -> DateTime<Utc> {
+        self.submitted_at
+    }
+
+    pub fn description(&self) -> &JobSubmitDescription {
+        &self.description
+    }
+}
+
 pub struct Job {
     pub job_id: JobId,
     pub counters: JobTaskCounters,
     pub tasks: Map<JobTaskId, JobTaskInfo>,
 
     pub job_desc: JobDescription,
-    pub submit_descs: SmallVec<[Arc<JobSubmitDescription>; 1]>,
+    pub submit_descs: SmallVec<[SubmittedJobDescription; 1]>,
 
     // If true, new tasks may be submitted into this job
     // If true and all tasks in the job are terminated then the job
@@ -419,8 +442,8 @@ impl Job {
         rx
     }
 
-    pub fn attach_submit(&mut self, submit_desc: Arc<JobSubmitDescription>) {
-        match &submit_desc.task_desc {
+    pub fn attach_submit(&mut self, description: SubmittedJobDescription) {
+        match &description.description().task_desc {
             JobTaskDescription::Array { ids, .. } => {
                 self.tasks.reserve(ids.id_count() as usize);
                 ids.iter().for_each(|task_id| {
@@ -453,6 +476,6 @@ impl Job {
                 })
             }
         };
-        self.submit_descs.push(submit_desc);
+        self.submit_descs.push(description);
     }
 }
