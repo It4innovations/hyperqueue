@@ -12,12 +12,22 @@ pub enum ServerLostPolicy {
     FinishRunning,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct OverviewConfiguration {
-    /// How often should overview be gathered
-    pub send_interval: Duration,
+    /// How often should overview be gathered.
+    /// If `None`, worker overview is currently disabled.
+    pub send_interval: Option<Duration>,
     /// GPU families to monitor
     pub gpu_families: Set<GpuFamily>,
+}
+
+impl OverviewConfiguration {
+    pub fn disabled() -> Self {
+        Self {
+            send_interval: None,
+            gpu_families: Default::default(),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -29,7 +39,7 @@ pub struct WorkerConfiguration {
     pub group: String,
     pub work_dir: PathBuf,
     pub heartbeat_interval: Duration,
-    pub overview_configuration: Option<OverviewConfiguration>,
+    pub overview_configuration: OverviewConfiguration,
     pub idle_timeout: Option<Duration>,
     pub time_limit: Option<Duration>,
     pub on_server_lost: ServerLostPolicy,
