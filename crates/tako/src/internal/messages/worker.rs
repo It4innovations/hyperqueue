@@ -16,6 +16,8 @@ pub struct WorkerRegistrationResponse {
     pub other_workers: Vec<NewWorkerMsg>,
     pub server_idle_timeout: Option<Duration>,
     pub server_uid: String,
+    /// Override worker overview interval, if the worker does not have it configured
+    pub worker_overview_interval_override: Option<Duration>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

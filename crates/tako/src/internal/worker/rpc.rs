@@ -147,6 +147,7 @@ pub async fn run_worker(
                     resource_names,
                     server_idle_timeout,
                     server_uid,
+                    worker_overview_interval_override,
                 } = open_message(&mut opener, &data?)?;
 
                 sync_worker_configuration(&mut configuration, server_idle_timeout);
@@ -166,6 +167,7 @@ pub async fn run_worker(
 
                 {
                     let mut state = state_ref.get_mut();
+                    state.worker_overview_interval_override = worker_overview_interval_override;
                     for worker_info in other_workers {
                         state.new_worker(worker_info);
                     }
@@ -504,11 +506,12 @@ async fn send_overview_loop(state_ref: WorkerStateRef) -> crate::Result<()> {
     loop {
         poll_interval.tick().await;
 
-        let current_overview_duration = state_ref
-            .get()
-            .configuration
-            .overview_configuration
-            .send_interval;
+        let current_overview_duration = {
+            let state = state_ref.get();
+            state
+                .worker_overview_interval_override
+                .or(state.configuration.overview_configuration.send_interval)
+        };
         if let Some(current_duration) = current_overview_duration {
             let _ = trigger_tx.send(()).await;
             if let Some(hw_state) = overview_rx.recv().await {
