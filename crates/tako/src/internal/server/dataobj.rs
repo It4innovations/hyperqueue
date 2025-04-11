@@ -40,8 +40,12 @@ impl DataObjectHandle {
         self.ref_count == 0
     }
 
-    pub fn placement(&self) -> impl Iterator<Item = WorkerId> + '_ {
-        self.placement.iter().copied()
+    pub fn add_placement(&mut self, worker_id: WorkerId) {
+        self.placement.insert(worker_id);
+    }
+
+    pub fn placement(&self) -> &HashSet<WorkerId> {
+        &self.placement
     }
 }
 

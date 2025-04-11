@@ -70,6 +70,7 @@ pub enum ToWorkerMessage {
     LostWorker(WorkerId),
     SetReservation(bool),
     RemoveDataObjects(Vec<DataObjectId>),
+    PlacementResponse(DataObjectId, Option<WorkerId>),
     Stop,
 }
 
@@ -177,4 +178,5 @@ pub enum FromWorkerMessage {
     Heartbeat,
     Stop(WorkerStopReason),
     PlacementQuery(DataObjectId),
+    NewPlacement(DataObjectId),
 }
