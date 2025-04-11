@@ -3,11 +3,9 @@ use crate::server::autoalloc::QueueId;
 use crate::server::client::{submit_job_desc, validate_submit};
 use crate::server::event::journal::JournalReader;
 use crate::server::event::payload::EventPayload;
-use crate::server::job::{Job, JobTaskState, StartedTaskData};
+use crate::server::job::{Job, JobTaskState, StartedTaskData, SubmittedJobDescription};
 use crate::server::state::State;
-use crate::transfer::messages::{
-    AllocationQueueParams, JobDescription, JobSubmitDescription, SubmitRequest,
-};
+use crate::transfer::messages::{AllocationQueueParams, JobDescription, SubmitRequest};
 use crate::worker::start::RunningTaskContext;
 use crate::{JobId, JobTaskId, Map, make_tako_id, unwrap_tako_id};
 use std::path::Path;
@@ -31,7 +29,7 @@ impl RestorerTaskInfo {
 
 struct RestorerJob {
     job_desc: JobDescription,
-    submit_descs: Vec<JobSubmitDescription>,
+    submit_descs: Vec<SubmittedJobDescription>,
     tasks: Map<JobTaskId, RestorerTaskInfo>,
     is_open: bool,
 }
@@ -55,13 +53,19 @@ impl RestorerJob {
         let job = Job::new(job_id, self.job_desc, self.is_open);
         state.add_job(job);
         let mut result: Vec<NewTasksMessage> = Vec::new();
-        for submit_desc in self.submit_descs {
-            if let Some(e) = validate_submit(state.get_job(job_id), &submit_desc.task_desc) {
+        for submit in self.submit_descs {
+            if let Some(e) = validate_submit(state.get_job(job_id), &submit.description().task_desc)
+            {
                 return Err(HqError::GenericError(format!(
                     "Job validation failed {e:?}"
                 )));
             }
-            let mut new_tasks = submit_job_desc(state, job_id, submit_desc);
+            let mut new_tasks = submit_job_desc(
+                state,
+                job_id,
+                submit.description().clone(),
+                submit.submitted_at(),
+            );
             let job = state.get_job_mut(job_id).unwrap();
 
             new_tasks.tasks.retain_mut(|t| {
@@ -105,8 +109,8 @@ impl RestorerJob {
         }
     }
 
-    pub fn add_submit(&mut self, submit_desc: JobSubmitDescription) {
-        self.submit_descs.push(submit_desc)
+    pub fn add_submit(&mut self, submit: SubmittedJobDescription) {
+        self.submit_descs.push(submit)
     }
 }
 
@@ -190,10 +194,16 @@ impl StateRestorer {
                     let submit_request: SubmitRequest = serialized_desc.deserialize()?;
                     if closed_job {
                         let mut job = RestorerJob::new(submit_request.job_desc, false);
-                        job.add_submit(submit_request.submit_desc);
+                        job.add_submit(SubmittedJobDescription::at(
+                            event.time,
+                            submit_request.submit_desc,
+                        ));
                         self.add_job(job_id, job);
                     } else if let Some(job) = self.get_job_mut(job_id) {
-                        job.add_submit(submit_request.submit_desc)
+                        job.add_submit(SubmittedJobDescription::at(
+                            event.time,
+                            submit_request.submit_desc,
+                        ));
                     } else {
                         log::warn!("Ignoring submit attachment to an non-existing job")
                     }

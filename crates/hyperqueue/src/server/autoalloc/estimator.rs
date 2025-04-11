@@ -58,7 +58,7 @@ pub fn get_server_task_state(state: &State, queue_info: &QueueInfo) -> ServerTas
 fn can_queue_execute_job(job: &Job, queue_info: &QueueInfo) -> bool {
     job.submit_descs
         .iter()
-        .all(|submit_desc| match &submit_desc.task_desc {
+        .all(|submit_desc| match &submit_desc.description().task_desc {
             JobTaskDescription::Array {
                 task_desc: TaskDescription { resources, .. },
                 ..

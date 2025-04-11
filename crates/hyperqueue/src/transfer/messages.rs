@@ -7,11 +7,10 @@ use crate::client::status::Status;
 use crate::common::arraydef::IntArray;
 use crate::common::manager::info::ManagerType;
 use crate::server::autoalloc::{Allocation, QueueId, QueueInfo};
-use crate::server::job::{JobTaskCounters, JobTaskInfo};
+use crate::server::job::{JobTaskCounters, JobTaskInfo, SubmittedJobDescription};
 use crate::{JobId, JobTaskCount, JobTaskId, Map, WorkerId};
 use bstr::BString;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::time::Duration;
 
 use crate::server::event::Event;
@@ -445,7 +444,7 @@ pub struct JobInfoResponse {
 pub struct JobDetail {
     pub info: JobInfo,
     pub job_desc: JobDescription,
-    pub submit_descs: Vec<Arc<JobSubmitDescription>>,
+    pub submit_descs: Vec<SubmittedJobDescription>,
     pub tasks: Vec<(JobTaskId, JobTaskInfo)>,
     pub tasks_not_found: Vec<JobTaskId>,
 

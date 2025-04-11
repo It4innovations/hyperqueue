@@ -25,16 +25,21 @@ pub fn resolve_task_paths(job: &JobDetail, server_uid: &str) -> TaskToPathsMap {
         Default::default();
 
     for submit_desc in &job.submit_descs {
-        match &submit_desc.task_desc {
+        match &submit_desc.description().task_desc {
             JobTaskDescription::Array { task_desc, ids, .. } => {
                 for id in ids.iter() {
-                    task_to_desc_map
-                        .insert(JobTaskId(id), (submit_desc.submit_dir.as_path(), task_desc));
+                    task_to_desc_map.insert(
+                        JobTaskId(id),
+                        (submit_desc.description().submit_dir.as_path(), task_desc),
+                    );
                 }
             }
             JobTaskDescription::Graph { tasks } => {
                 for t in tasks {
-                    task_to_desc_map.insert(t.id, (submit_desc.submit_dir.as_path(), &t.task_desc));
+                    task_to_desc_map.insert(
+                        t.id,
+                        (submit_desc.description().submit_dir.as_path(), &t.task_desc),
+                    );
                 }
             }
         };

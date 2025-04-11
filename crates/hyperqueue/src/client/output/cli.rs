@@ -550,16 +550,18 @@ impl Output for CliOutput {
             let mut n_tasks = info.n_tasks.to_string();
 
             let ids = if submit_descs.len() == 1
-                && matches!(&submit_descs[0].task_desc, JobTaskDescription::Array { .. })
-            {
-                match &submit_descs[0].task_desc {
+                && matches!(
+                    &submit_descs[0].description().task_desc,
+                    JobTaskDescription::Array { .. }
+                ) {
+                match &submit_descs[0].description().task_desc {
                     JobTaskDescription::Array { ids, .. } => ids.clone(),
                     _ => unreachable!(),
                 }
             } else {
                 let mut ids: Vec<u32> = submit_descs
                     .iter()
-                    .flat_map(|submit_desc| match &submit_desc.task_desc {
+                    .flat_map(|submit_desc| match &submit_desc.description().task_desc {
                         JobTaskDescription::Array { ids, .. } => {
                             itertools::Either::Left(ids.iter())
                         }
@@ -582,7 +584,9 @@ impl Output for CliOutput {
             ]);
 
             if submit_descs.len() == 1 {
-                if let JobTaskDescription::Array { task_desc, .. } = &submit_descs[0].task_desc {
+                if let JobTaskDescription::Array { task_desc, .. } =
+                    &submit_descs[0].description().task_desc
+                {
                     self.print_job_shared_task_description(&mut rows, task_desc);
                 }
             }
@@ -595,7 +599,12 @@ impl Output for CliOutput {
             if submit_descs.len() == 1 {
                 rows.push(vec![
                     "Submission directory".cell().bold(true),
-                    submit_descs[0].submit_dir.to_str().unwrap().cell(),
+                    submit_descs[0]
+                        .description()
+                        .submit_dir
+                        .to_str()
+                        .unwrap()
+                        .cell(),
                 ]);
             }
 
@@ -747,9 +756,8 @@ impl Output for CliOutput {
             let (cwd, stdout, stderr) = format_task_paths(&task_to_paths, *task_id);
 
             let (task_desc, task_deps) = if let Some(x) =
-                job.submit_descs
-                    .iter()
-                    .find_map(|submit_desc| match &submit_desc.task_desc {
+                job.submit_descs.iter().find_map(|submit_desc| {
+                    match &submit_desc.description().task_desc {
                         JobTaskDescription::Array {
                             ids,
                             entries: _,
@@ -761,7 +769,8 @@ impl Output for CliOutput {
                                 (&task_dep.task_desc, task_dep.dependencies.as_slice())
                             })
                         }
-                    }) {
+                    }
+                }) {
                 x
             } else {
                 log::error!("Task {task_id} not found in (graph) job {job_id}");
