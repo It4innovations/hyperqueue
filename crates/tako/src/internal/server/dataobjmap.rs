@@ -44,6 +44,11 @@ impl DataObjectMap {
         self.data_objs.find_mut(&data_object_id)
     }
 
+    #[inline(always)]
+    pub fn find_data_object(&self, data_object_id: DataObjectId) -> Option<&DataObjectHandle> {
+        self.data_objs.find(&data_object_id)
+    }
+
     pub fn remove_object(&mut self, data_object_id: DataObjectId) {
         self.data_objs.remove(&data_object_id);
     }

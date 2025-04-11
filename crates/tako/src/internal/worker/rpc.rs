@@ -18,6 +18,10 @@ use crate::hwstats::WorkerHwStateMessage;
 use crate::internal::common::WrappedRcRefCell;
 use crate::internal::common::resources::Allocation;
 use crate::internal::common::resources::map::ResourceMap;
+use crate::internal::datasrv::download::download_manager_process;
+use crate::internal::datasrv::{
+    DownloadManager, DownloadManagerRef, data_upload_service, download,
+};
 use crate::internal::messages::worker::{
     FromWorkerMessage, StealResponseMsg, TaskResourceAllocation, ToWorkerMessage, WorkerOverview,
     WorkerRegistrationResponse, WorkerStopReason,
@@ -43,10 +47,7 @@ use tokio::sync::Notify;
 async fn start_listener() -> crate::Result<(TcpListener, u16)> {
     let address = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), 0);
     let listener = TcpListener::bind(address).await?;
-    let port = {
-        let socketaddr = listener.local_addr()?;
-        socketaddr.port()
-    };
+    let port = listener.local_addr()?.port();
     log::info!("Listening on port {}", port);
     Ok((listener, port))
 }
@@ -111,7 +112,7 @@ pub async fn run_worker(
     (WorkerId, WorkerConfiguration),
     impl Future<Output = crate::Result<()>>,
 )> {
-    let (_listener, port) = start_listener().await?;
+    let (listener, port) = start_listener().await?;
     configuration.listen_address = format!("{}:{}", configuration.hostname, port);
     let ConnectionDescriptor {
         mut sender,
@@ -133,7 +134,7 @@ pub async fn run_worker(
     let overview_configuration = configuration.overview_configuration.clone();
     let time_limit = configuration.time_limit;
 
-    let (worker_id, state, start_task_notify) = {
+    let (worker_id, state_ref, start_task_notify) = {
         match timeout(Duration::from_secs(15), receiver.next()).await {
             Ok(Some(data)) => {
                 let WorkerRegistrationResponse {
@@ -153,7 +154,7 @@ pub async fn run_worker(
                     comm,
                     worker_id,
                     configuration.clone(),
-                    secret_key,
+                    secret_key.clone(),
                     ResourceMap::from_vec(resource_names),
                     launcher,
                     server_uid,
@@ -173,27 +174,32 @@ pub async fn run_worker(
         }
     };
 
-    let local_conn_listener = state.get().lc_state.borrow().create_listener()?;
-    let local_comm_fut = handle_local_comm(local_conn_listener, state.clone());
+    let local_conn_listener = state_ref.get().lc_state.borrow().create_listener()?;
+    let local_comm_fut = handle_local_comm(local_conn_listener, state_ref.clone());
 
-    let heartbeat_fut = heartbeat_process(heartbeat_interval, state.clone());
+    let heartbeat_fut = heartbeat_process(heartbeat_interval, state_ref.clone());
     let idle_timeout_fut = match configuration.idle_timeout {
-        Some(timeout) => Either::Left(idle_timeout_process(timeout, state.clone())),
+        Some(timeout) => Either::Left(idle_timeout_process(timeout, state_ref.clone())),
         None => Either::Right(futures::future::pending()),
     };
 
     let overview_fut = match overview_configuration {
         None => Either::Left(futures::future::pending()),
-        Some(configuration) => Either::Right(send_overview_loop(state.clone(), configuration)),
+        Some(configuration) => Either::Right(send_overview_loop(state_ref.clone(), configuration)),
     };
 
     let time_limit_fut = match time_limit {
         None => Either::Left(futures::future::pending::<()>()),
         Some(d) => Either::Right(tokio::time::sleep(d)),
     };
+    let upload_service_fut = data_upload_service(listener, secret_key.clone(), state_ref.clone());
+
+    let dm_ref = DownloadManagerRef::new(state_ref.clone(), secret_key);
+    state_ref.get_mut().set_download_manager(dm_ref.clone());
+    let download_manager_fut = download_manager_process(dm_ref, 4, 8, Duration::from_secs(40));
 
     let future = async move {
-        let try_start_tasks = task_starter_process(state.clone(), start_task_notify);
+        let try_start_tasks = task_starter_process(state_ref.clone(), start_task_notify);
         let send_loop = forward_queue_to_sealed_sink(queue_receiver, sender, sealer);
         tokio::pin! {
             let send_loop = send_loop;
@@ -201,7 +207,7 @@ pub async fn run_worker(
         }
 
         let result: crate::Result<Option<FromWorkerMessage>> = tokio::select! {
-            r = worker_message_loop(state.clone(), receiver, opener) => {
+            r = worker_message_loop(state_ref.clone(), receiver, opener) => {
                 log::debug!("Server read connection has disconnected");
                 r.map(|_| None)
             }
@@ -225,6 +231,8 @@ pub async fn run_worker(
             _ = heartbeat_fut => { unreachable!() }
             _ = overview_fut => { unreachable!() }
             _ = local_comm_fut => { unreachable!() }
+            _ = upload_service_fut => { unreachable!() }
+            _ = download_manager_fut => { unreachable!() }
         };
 
         // Handle sending stop info to the server and finishing running tasks gracefully.
@@ -232,8 +240,8 @@ pub async fn run_worker(
             Ok(Some(msg)) => {
                 // Worker wants to end gracefully, send message to the server
                 {
-                    state.get_mut().comm().send_message_to_server(msg);
-                    state.get_mut().comm().drop_sender();
+                    state_ref.get_mut().comm().send_message_to_server(msg);
+                    state_ref.get_mut().comm().drop_sender();
                 }
                 send_loop.await?;
                 Ok(())
@@ -246,7 +254,7 @@ pub async fn run_worker(
                 // Server has disconnected
                 tokio::select! {
                     _ = &mut try_start_tasks => { unreachable!() }
-                    r = finish_tasks_on_server_lost(state.clone()) => r
+                    r = finish_tasks_on_server_lost(state_ref.clone()) => r
                 }
                 Err(e)
             }
@@ -257,7 +265,7 @@ pub async fn run_worker(
         // The futures of the tasks are scheduled onto the current tokio Runtime using spawn_local,
         // therefore we do not need to await any specific future to drive them forward.
         // try_start_tasks is not being polled, therefore no new tasks should be started.
-        cancel_running_tasks_on_worker_end(state).await;
+        cancel_running_tasks_on_worker_end(state_ref).await;
         result
     };
 
@@ -397,14 +405,13 @@ pub(crate) fn process_worker_message(state: &mut WorkerState, message: ToWorkerM
             } else {
                 let mut waiting: u32 = 0;
                 msg.data_deps.iter().for_each(|data_id| {
-                    if !state.data_node.has_object(*data_id) {
+                    if !state.data_storage.has_object(*data_id) {
                         waiting += 1;
-                        todo!()
-                        /*state.data_node.downloads().download_object(
+                        state.download_object(
                             *data_id,
-                            (msg.user_priority, msg.scheduler_priority),
                             msg.id,
-                        )*/
+                            (msg.user_priority, msg.scheduler_priority),
+                        )
                     }
                 });
                 waiting
@@ -432,7 +439,7 @@ pub(crate) fn process_worker_message(state: &mut WorkerState, message: ToWorkerM
         }
         ToWorkerMessage::RemoveDataObjects(dataobj_ids) => {
             for dataobj_id in dataobj_ids {
-                state.data_node.remove_object(dataobj_id);
+                state.data_storage.remove_object(dataobj_id);
             }
         }
         ToWorkerMessage::NewWorker(msg) => {
@@ -446,6 +453,9 @@ pub(crate) fn process_worker_message(state: &mut WorkerState, message: ToWorkerM
             if !on_off {
                 state.reset_idle_timer();
             }
+        }
+        ToWorkerMessage::PlacementResponse(data_id, placement) => {
+            state.process_resolved_placement(data_id, placement);
         }
         ToWorkerMessage::Stop => {
             log::info!("Received stop command");
@@ -523,7 +533,7 @@ async fn send_overview_loop(
                     })
                     .collect(),
                 hw_state: Some(WorkerHwStateMessage { state: hw_state }),
-                data_node: worker_state.data_node.get_overview(),
+                data_node: worker_state.data_storage.get_overview(),
             });
             worker_state.comm().send_message_to_server(message);
         }

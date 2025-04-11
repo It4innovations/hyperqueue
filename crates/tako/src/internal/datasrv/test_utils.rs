@@ -1,17 +1,25 @@
 use crate::datasrv::DataObjectId;
 use crate::internal::datasrv::DataObjectRef;
 use crate::internal::datasrv::download::{DownloadInterface, DownloadManagerRef};
-use crate::internal::datasrv::upload::{UploadInterface, start_data_upload_service};
+use crate::internal::datasrv::upload::{UploadInterface, data_upload_service};
 use crate::{Map, WrappedRcRefCell};
 use std::net::SocketAddr;
 use std::str::FromStr;
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::Receiver;
+use tokio::task::spawn_local;
+
+#[derive(Clone)]
+enum PlacementConfig {
+    Valid(String),
+    Unresolvable,
+    Ignore,
+}
 
 #[derive(Default)]
 pub(crate) struct TestDmInterfaceInner {
-    pub hosts: Map<DataObjectId, Option<String>>,
+    pub hosts: Map<DataObjectId, PlacementConfig>,
     pub failed_downloads: Vec<DataObjectId>,
     pub finished_downloads: Map<DataObjectId, DataObjectRef>,
     pub resolved_ids: Vec<DataObjectId>,
@@ -20,15 +28,20 @@ pub(crate) struct TestDmInterfaceInner {
 pub(crate) type TestDmInterface = WrappedRcRefCell<TestDmInterfaceInner>;
 
 impl DownloadInterface for TestDmInterface {
-    fn find_placement(&self, data_id: DataObjectId) -> Receiver<String> {
+    fn find_placement(&self, data_id: DataObjectId) -> Receiver<Option<String>> {
         self.get_mut().resolved_ids.push(data_id);
-        let host = self.get().hosts.get(&data_id).cloned().unwrap_or_else(|| {
+        let response = self.get().hosts.get(&data_id).cloned().unwrap_or_else(|| {
             panic!("Unexpected lookup of placement for object {data_id}");
         });
         let (sender, receiver) = oneshot::channel();
-        if let Some(host) = host {
-            // If host is None, then do not fire sender
-            sender.send(host).unwrap();
+        match response {
+            PlacementConfig::Valid(host) => {
+                sender.send(Some(host)).unwrap();
+            }
+            PlacementConfig::Unresolvable => {
+                sender.send(None).unwrap();
+            }
+            PlacementConfig::Ignore => { /* Do nothing */ }
         }
         receiver
     }
@@ -80,9 +93,8 @@ impl TestDmInterface {
 
 pub(crate) fn test_download_manager() -> (DownloadManagerRef<TestDmInterface, u32>, TestDmInterface)
 {
-    let mut dm_ref = DownloadManagerRef::new(None);
     let interface = TestDmInterface::default();
-    dm_ref.get_mut().set_interface(interface.clone());
+    let mut dm_ref = DownloadManagerRef::new(interface.clone(), None);
     (dm_ref, interface)
 }
 
@@ -114,6 +126,6 @@ pub(crate) async fn start_test_upload_service(interface: TestUploadInterface) ->
         .await
         .unwrap();
     let listener_port = listener.local_addr().unwrap().port();
-    start_data_upload_service(listener, None, interface);
+    spawn_local(data_upload_service(listener, None, interface));
     format!("127.0.0.1:{listener_port}")
 }

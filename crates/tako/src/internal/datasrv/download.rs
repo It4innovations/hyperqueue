@@ -21,26 +21,16 @@ use tokio::time::Instant;
 const PROTOCOL_VERSION: u32 = 0;
 const MAX_IDLE_CONNECTIONS_PER_WORKER: usize = 4;
 
-// TODO: Remove connections when when worker is removed
-// TODO: Remove downloading processes when task is removed
-// TODO: Fail task when download failed several times
-
-pub(crate) struct RunningDownloadHandle {
-    priority: PriorityTuple,
-    placement_resolver: Option<oneshot::Sender<WorkerId>>,
-    abort: Option<AbortHandle>,
-}
-
 pub(crate) type DataClientConnection = Connection<ToDataClientMessage, FromDataClientMessage>;
 
 pub(crate) trait DownloadInterface {
-    fn find_placement(&self, data_id: DataObjectId) -> oneshot::Receiver<String>;
+    fn find_placement(&self, data_id: DataObjectId) -> oneshot::Receiver<Option<String>>;
     fn on_download_finished(&self, data_id: DataObjectId, data_ref: DataObjectRef);
     fn on_download_failed(&self, data_id: DataObjectId);
 }
 
 pub(crate) struct DownloadManager<I, P> {
-    interface: Option<I>,
+    interface: I,
     download_queue: PriorityQueue<DataObjectId, P>,
     running_downloads: Map<DataObjectId, AbortHandle>,
     notify_downloader: Rc<Notify>,
@@ -51,10 +41,10 @@ pub(crate) struct DownloadManager<I, P> {
 pub(crate) type DownloadManagerRef<I, P> = WrappedRcRefCell<DownloadManager<I, P>>;
 
 impl<I: DownloadInterface, P: Ord> DownloadManagerRef<I, P> {
-    pub fn new(secret_key: Option<Arc<SecretKey>>) -> Self {
+    pub fn new(interface: I, secret_key: Option<Arc<SecretKey>>) -> Self {
         WrappedRcRefCell::wrap(DownloadManager {
+            interface,
             secret_key,
-            interface: None,
             download_queue: Default::default(),
             running_downloads: Default::default(),
             notify_downloader: Rc::new(Notify::new()),
@@ -64,10 +54,6 @@ impl<I: DownloadInterface, P: Ord> DownloadManagerRef<I, P> {
 }
 
 impl<I: DownloadInterface, P: Ord + Debug> DownloadManager<I, P> {
-    pub fn set_interface(&mut self, interface: I) {
-        self.interface = Some(interface);
-    }
-
     fn get_idle_connection(&mut self, addr: &str) -> Option<DataClientConnection> {
         self.idle_connections
             .get_mut(addr)
@@ -183,32 +169,36 @@ async fn download_process<I: DownloadInterface, P: Ord + Debug>(
         log::debug!("Trying to resolve placement for {data_id}, try {i}");
         let resolver = {
             let mut dm = dm_ref.get();
-            dm.interface.as_ref().unwrap().find_placement(data_id)
+            dm.interface.find_placement(data_id)
         };
         if let Ok(addr) = resolver.await {
-            log::debug!("Placement for {data_id} was resolved as {addr}");
-            match download_from_address(&dm_ref, &addr, data_id).await {
-                Ok(data_obj) => {
-                    log::debug!("Download of {data_id} completed; size={}", data_obj.size());
-                    let mut dm = dm_ref.get_mut();
-                    dm.interface
-                        .as_ref()
-                        .unwrap()
-                        .on_download_finished(data_id, data_obj);
-                    return;
-                }
-                Err(e) => {
-                    log::debug!("Downloading of {data_id} failed: {e}");
-                }
-            };
+            log::debug!("Placement for {data_id} was resolved as {addr:?}");
+            if let Some(addr) = addr {
+                match download_from_address(&dm_ref, &addr, data_id).await {
+                    Ok(data_obj) => {
+                        log::debug!("Download of {data_id} completed; size={}", data_obj.size());
+                        let mut dm = dm_ref.get_mut();
+                        dm.interface.on_download_finished(data_id, data_obj);
+                        return;
+                    }
+                    Err(e) => {
+                        log::debug!("Downloading of {data_id} failed: {e}");
+                    }
+                };
+            } else {
+                log::debug!("Placement for {data_id} is not resolvable.");
+                let mut dm = dm_ref.get_mut();
+                dm.interface.on_download_failed(data_id);
+                return;
+            }
         }
         tokio::time::sleep(Duration::from_secs(i as u64)).await;
     }
     let dm = dm_ref.get();
-    dm.interface.as_ref().unwrap().on_download_failed(data_id);
+    dm.interface.on_download_failed(data_id);
 }
 
-pub(crate) fn start_download_manager_process<
+pub(crate) async fn download_manager_process<
     I: DownloadInterface + 'static,
     P: Ord + Debug + 'static,
 >(
@@ -217,56 +207,54 @@ pub(crate) fn start_download_manager_process<
     max_download_tries: u32,
     idle_connection_timeout: Duration,
 ) {
-    spawn_local(async move {
-        let notify = {
-            let mut dm = dm_ref.get_mut();
-            dm.notify_downloader.clone()
-        };
-        notify.notified().await;
-        // First download request arrived
+    let notify = {
+        let mut dm = dm_ref.get_mut();
+        dm.notify_downloader.clone()
+    };
+    notify.notified().await;
+    // First download request arrived
 
-        if !idle_connection_timeout.is_zero() {
-            let dm_ref2 = dm_ref.clone();
-            spawn_local(async move {
-                // Periodically close idle connections
-                loop {
-                    tokio::time::sleep(idle_connection_timeout / 2).await;
-                    let mut dm = dm_ref2.get_mut();
-                    if !dm.idle_connections.is_empty() {
-                        let now = Instant::now();
-                        dm.idle_connections.values_mut().for_each(|v| {
-                            v.retain(|(_, t)| now - *t < idle_connection_timeout);
-                        });
-                        dm.idle_connections.retain(|_, v| !v.is_empty());
-                    }
+    if !idle_connection_timeout.is_zero() {
+        let dm_ref2 = dm_ref.clone();
+        spawn_local(async move {
+            // Periodically close idle connections
+            loop {
+                tokio::time::sleep(idle_connection_timeout / 2).await;
+                let mut dm = dm_ref2.get_mut();
+                if !dm.idle_connections.is_empty() {
+                    let now = Instant::now();
+                    dm.idle_connections.values_mut().for_each(|v| {
+                        v.retain(|(_, t)| now - *t < idle_connection_timeout);
+                    });
+                    dm.idle_connections.retain(|_, v| !v.is_empty());
                 }
-            });
-        }
+            }
+        });
+    }
 
-        let mut join_set = JoinSet::new();
-        let semaphore = Arc::new(Semaphore::new(max_parallel_downloads as usize));
-        loop {
-            {
-                let permit = semaphore.clone().acquire_owned().await.unwrap();
-                let is_empty = {
-                    let mut dm = dm_ref.get_mut();
-                    if let Some((data_id, _)) = dm.download_queue.pop() {
-                        let abort = join_set.spawn_local(download_process(
-                            dm_ref.clone(),
-                            data_id,
-                            permit,
-                            max_download_tries,
-                        ));
-                        assert!(dm.running_downloads.insert(data_id, abort).is_none());
-                        dm.download_queue.is_empty()
-                    } else {
-                        true
-                    }
-                };
-                if is_empty {
-                    notify.notified().await;
+    let mut join_set = JoinSet::new();
+    let semaphore = Arc::new(Semaphore::new(max_parallel_downloads as usize));
+    loop {
+        {
+            let permit = semaphore.clone().acquire_owned().await.unwrap();
+            let is_empty = {
+                let mut dm = dm_ref.get_mut();
+                if let Some((data_id, _)) = dm.download_queue.pop() {
+                    let abort = join_set.spawn_local(download_process(
+                        dm_ref.clone(),
+                        data_id,
+                        permit,
+                        max_download_tries,
+                    ));
+                    assert!(dm.running_downloads.insert(data_id, abort).is_none());
+                    dm.download_queue.is_empty()
+                } else {
+                    true
                 }
             };
-        }
-    });
+            if is_empty {
+                notify.notified().await;
+            }
+        };
+    }
 }
