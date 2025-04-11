@@ -23,12 +23,12 @@ async fn datanode_local_message_handler(
         } => {
             let message = {
                 let mut state = state_ref.get_mut();
-                let (tasks, data_node) = state.tasks_and_datanode();
+                let (tasks, storage) = state.tasks_and_storage();
                 if let Some(task) = tasks.find_mut(&task_id) {
                     let size = data_object.size();
                     // Put into datanode has to be before "add_output", because it checks
                     // that the output is not already there
-                    data_node.put_object(DataObjectId::new(task_id, data_id), data_object)?;
+                    storage.put_object(DataObjectId::new(task_id, data_id), data_object)?;
                     task.add_output(TaskOutput { id: data_id, size });
                     ToLocalDataClientMessage::Uploaded(data_id)
                 } else {
@@ -43,7 +43,7 @@ async fn datanode_local_message_handler(
                 .as_ref()
                 .and_then(|map| map.get(input_id.as_num() as usize))
             {
-                if let Some(data_obj) = state_ref.get_mut().data_node.get_object(*data_id) {
+                if let Some(data_obj) = state_ref.get_mut().data_storage.get_object(*data_id) {
                     send_message(tx, ToLocalDataClientMessage::DataObject(data_obj.clone()))
                         .await?;
                 } else {

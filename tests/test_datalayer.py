@@ -156,17 +156,18 @@ id = 2
 command = ["bash", "-c", "set -e; $HQ data get 0 out.txt; cat out.txt"]
 [[task.request]]
 resources = { "b" = 1 }
+
 [[task.data_deps]]
 task_id = 1
-data_id = 22
+output_id = 22
 """
     )
     with check_data_env(hq_env, tmp_path) as start_worker:
-        start_worker(args=["--resource", "a=sum(1)"])
+        start_worker(args=["--resource", "a=sum(1)"], hostname="localhost")
         start_worker(args=["--resource", "b=sum(1)"])
         hq_env.command(["job", "submit-file", "job.toml"])
         wait_for_job_state(hq_env, 1, "FINISHED")
-    with open(os.path.join(tmp_path, default_task_output(job_id=1, task_id=13, type="stdout"))) as f:
+    with open(os.path.join(tmp_path, default_task_output(job_id=1, task_id=2, type="stdout"))) as f:
         assert f.read() == "abc\n"
 
 

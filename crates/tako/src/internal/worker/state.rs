@@ -3,18 +3,13 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use orion::aead::SecretKey;
-use rand::prelude::IndexedRandom;
-use rand::rngs::SmallRng;
-use rand::SeedableRng;
+use crate::datasrv::DataObjectId;
 
-use crate::TaskId;
-use crate::WorkerId;
-
-use crate::internal::common::resources::map::ResourceMap;
 use crate::internal::common::resources::Allocation;
+use crate::internal::common::resources::map::ResourceMap;
 use crate::internal::common::stablemap::StableMap;
 use crate::internal::common::{Map, Set, WrappedRcRefCell};
+use crate::internal::datasrv::{DataObjectRef, DataStorage};
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{
     FromWorkerMessage, NewWorkerMsg, StealResponse, TaskFailedMsg, TaskFinishedMsg, TaskOutput,
@@ -22,6 +17,9 @@ use crate::internal::messages::worker::{
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::comm::WorkerComm;
 use crate::internal::worker::configuration::WorkerConfiguration;
+
+use crate::WorkerId;
+use crate::internal::worker::data::download::WorkerDownloadManagerRef;
 use crate::internal::worker::localcomm::LocalCommState;
 use crate::internal::worker::resources::allocator::ResourceAllocator;
 use crate::internal::worker::resources::map::ResourceLabelMap;
@@ -29,6 +27,12 @@ use crate::internal::worker::rqueue::ResourceWaitQueue;
 use crate::internal::worker::task::{RunningState, Task, TaskState};
 use crate::internal::worker::task_comm::RunningTaskComm;
 use crate::launcher::TaskLauncher;
+use crate::{Priority, PriorityTuple, TaskId};
+use orion::aead::SecretKey;
+use rand::SeedableRng;
+use rand::prelude::IndexedRandom;
+use rand::rngs::SmallRng;
+use tokio::sync::oneshot;
 
 pub type TaskMap = StableMap<TaskId, Task>;
 
@@ -56,7 +60,10 @@ pub struct WorkerState {
     pub(crate) last_task_finish_time: Instant,
 
     pub(crate) lc_state: RefCell<LocalCommState>,
-    pub(crate) data_node: DataNode,
+    pub(crate) data_storage: DataStorage,
+    download_manager: Option<WorkerDownloadManagerRef>,
+    tasks_waiting_for_data: Map<DataObjectId, Set<TaskId>>,
+    placement_resolver: Map<DataObjectId, oneshot::Sender<Option<String>>>,
 
     resource_map: ResourceMap,
     resource_label_map: ResourceLabelMap,
@@ -78,6 +85,26 @@ impl WorkerState {
         self.secret_key.as_ref()
     }
 
+    pub fn process_resolved_placement(
+        &mut self,
+        data_id: DataObjectId,
+        worker_id: Option<WorkerId>,
+    ) {
+        if let Some(sender) = self.placement_resolver.remove(&data_id) {
+            let host = worker_id.and_then(|id| self.worker_addresses.get(&id).cloned());
+            let _ = sender.send(host);
+        }
+    }
+
+    #[inline]
+    pub fn download_manager(&mut self) -> &WorkerDownloadManagerRef {
+        self.download_manager.as_ref().unwrap()
+    }
+
+    pub fn set_download_manager(&mut self, dm_ref: WorkerDownloadManagerRef) {
+        self.download_manager = Some(dm_ref);
+    }
+
     #[inline]
     pub fn get_task(&self, task_id: TaskId) -> &Task {
         self.tasks.get(&task_id)
@@ -88,8 +115,8 @@ impl WorkerState {
         self.tasks.find(&task_id)
     }
 
-    pub fn tasks_and_datanode(&mut self) -> (&mut TaskMap, &mut DataNode) {
-        (&mut self.tasks, &mut self.data_node)
+    pub fn tasks_and_storage(&mut self) -> (&mut TaskMap, &mut DataStorage) {
+        (&mut self.tasks, &mut self.data_storage)
     }
 
     #[inline]
@@ -264,6 +291,16 @@ impl WorkerState {
         self.running_tasks.insert(task_id);
     }
 
+    pub fn ask_for_data_placement(
+        &mut self,
+        data_id: DataObjectId,
+        sender: oneshot::Sender<Option<String>>,
+    ) {
+        self.placement_resolver.insert(data_id, sender);
+        self.comm
+            .send_message_to_server(FromWorkerMessage::PlacementQuery(data_id))
+    }
+
     pub fn finish_task(&mut self, task_id: TaskId) {
         let output_ids = self.remove_task(task_id, true, true);
         let message = FromWorkerMessage::TaskFinished(TaskFinishedMsg {
@@ -307,10 +344,11 @@ impl WorkerState {
             &other_worker.address
         );
         assert_ne!(self.worker_id, other_worker.worker_id); // We should not receive message about ourselves
-        assert!(self
-            .worker_addresses
-            .insert(other_worker.worker_id, other_worker.address)
-            .is_none());
+        assert!(
+            self.worker_addresses
+                .insert(other_worker.worker_id, other_worker.address)
+                .is_none()
+        );
 
         let resources = WorkerResources::from_transport(other_worker.resources);
         self.ready_task_queue
@@ -321,6 +359,44 @@ impl WorkerState {
         log::debug!("Lost worker={} announced", worker_id);
         assert!(self.worker_addresses.remove(&worker_id).is_some());
         self.ready_task_queue.remove_worker(worker_id);
+    }
+
+    pub fn on_download_finished(&mut self, data_id: DataObjectId, data_ref: DataObjectRef) {
+        self.data_storage.put_object(data_id, data_ref).unwrap();
+        self.comm
+            .send_message_to_server(FromWorkerMessage::NewPlacement(data_id));
+        if let Some(tasks) = self.tasks_waiting_for_data.remove(&data_id) {
+            let mut new_ready = false;
+            for task_id in tasks {
+                if let Some(task) = self.tasks.find_mut(&task_id) {
+                    log::debug!("Task {} is directly ready", task.id);
+                    if task.decrease_waiting_count() {
+                        self.ready_task_queue.add_task(task);
+                        new_ready = true;
+                    }
+                }
+            }
+            if new_ready {
+                self.schedule_task_start();
+            }
+        }
+    }
+
+    pub fn download_object(
+        &mut self,
+        data_id: DataObjectId,
+        task_id: TaskId,
+        priority: PriorityTuple,
+    ) {
+        self.tasks_waiting_for_data
+            .entry(data_id)
+            .or_default()
+            .insert(task_id);
+        self.download_manager
+            .as_ref()
+            .unwrap()
+            .get_mut()
+            .download_object(data_id, priority);
     }
 }
 
@@ -361,7 +437,10 @@ impl WorkerStateRef {
             reservation: false,
             worker_addresses: Default::default(),
             lc_state: RefCell::new(LocalCommState::new()),
-            data_node: DataNode::new(),
+            data_storage: DataStorage::new(),
+            download_manager: None,
+            tasks_waiting_for_data: Map::new(),
+            placement_resolver: Map::new(),
         })
     }
 }

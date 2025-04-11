@@ -284,6 +284,11 @@ impl Core {
         &self.data_objects
     }
 
+    #[inline(always)]
+    pub fn data_objects_mut(&mut self) -> &mut DataObjectMap {
+        &mut self.data_objects
+    }
+
     pub fn add_task(&mut self, task: Task) {
         let is_ready = task.is_ready();
         let task_id = task.id;
