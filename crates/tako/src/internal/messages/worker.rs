@@ -16,6 +16,8 @@ pub struct WorkerRegistrationResponse {
     pub other_workers: Vec<NewWorkerMsg>,
     pub server_idle_timeout: Option<Duration>,
     pub server_uid: String,
+    /// Override worker overview interval, if the worker does not have it configured
+    pub worker_overview_interval_override: Option<Duration>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -67,6 +69,10 @@ pub enum ToWorkerMessage {
     NewWorker(NewWorkerMsg),
     LostWorker(WorkerId),
     SetReservation(bool),
+    /// Override the internally set overview interval with a new duration
+    /// if it is **disabled** on the worker.
+    /// If the worker has already enabled overview interval, then this does nothing.
+    SetOverviewIntervalOverride(Option<Duration>),
     Stop,
 }
 
