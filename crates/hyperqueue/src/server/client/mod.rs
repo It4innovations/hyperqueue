@@ -82,8 +82,16 @@ async fn stream_history_events<Tx: Sink<ToClientMessage, Error = HqError> + Unpi
     mut history: mpsc::UnboundedReceiver<Event>,
 ) {
     log::debug!("Resending history started");
-    while let Some(e) = history.recv().await {
-        if tx.send(ToClientMessage::Event(e)).await.is_err() {
+
+    let mut events = Vec::with_capacity(1024);
+    let capacity = events.capacity();
+    while history.recv_many(&mut events, capacity).await != 0 {
+        let events = std::mem::replace(&mut events, Vec::with_capacity(capacity));
+        if tx
+            .send_all(&mut futures::stream::iter(events).map(|e| Ok(ToClientMessage::Event(e))))
+            .await
+            .is_err()
+        {
             return;
         }
     }
