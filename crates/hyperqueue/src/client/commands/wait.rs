@@ -80,49 +80,58 @@ pub async fn wait_for_jobs_with_progress(
     if jobs.iter().all(is_terminated) {
         log::warn!("There are no jobs to wait for");
     } else {
-        let total_tasks: JobTaskCount = jobs
-            .iter()
-            .filter(|info| !is_terminated(info))
-            .map(|info| info.n_tasks)
-            .sum();
-        let mut remaining_job_ids: BTreeSet<JobId> = jobs
+        let mut unfinished_job_ids: BTreeSet<JobId> = jobs
             .iter()
             .filter(|info| !is_terminated(info))
             .map(|info| info.id)
             .collect();
+        let unfinished_tasks = jobs
+            .iter()
+            .filter(|info| !is_terminated(info))
+            .map(|info| info.n_tasks)
+            .sum::<u32>();
 
-        let total_jobs = remaining_job_ids.len();
+        let initial_unfinished_jobs = unfinished_job_ids.len();
         log::info!(
             "Waiting for {} {} with {} {}",
-            total_jobs,
-            pluralize("job", total_jobs),
-            total_tasks,
-            pluralize("task", total_tasks as usize),
+            initial_unfinished_jobs,
+            pluralize("job", initial_unfinished_jobs),
+            unfinished_tasks,
+            pluralize("task", unfinished_tasks as usize),
         );
 
-        let mut counters = JobTaskCounters::default();
+        let total_tasks: JobTaskCount = jobs.iter().map(|info| info.n_tasks).sum();
+
+        // Counters of jobs that have all been finished
+        // Note: this ignores the fact that some jobs might be open
+        let mut counters_finished = jobs
+            .iter()
+            .filter(|info| is_terminated(info))
+            .map(|info| info.counters)
+            .fold(JobTaskCounters::default(), |acc, c| acc + c);
 
         loop {
+            // Only ask for status of unfinished jobs
             let response = rpc_call!(
                 session.connection(),
                 FromClientMessage::JobInfo(JobInfoRequest {
-                    selector: IdSelector::Specific(IntArray::from_sorted_ids(remaining_job_ids.iter().map(|x| x.as_num()))),
+                    selector: IdSelector::Specific(IntArray::from_sorted_ids(unfinished_job_ids.iter().map(|x| x.as_num()))),
                 }),
                 ToClientMessage::JobInfoResponse(r) => r
             )
             .await?;
 
-            let mut current_counters = counters;
+            let mut current_counters = counters_finished;
             for job in &response.jobs {
                 current_counters = current_counters + job.counters;
 
                 if is_terminated(job) {
-                    remaining_job_ids.remove(&job.id);
-                    counters = counters + job.counters;
+                    unfinished_job_ids.remove(&job.id);
+                    counters_finished = counters_finished + job.counters;
                 }
             }
 
-            let completed_jobs = total_jobs - remaining_job_ids.len();
+            let completed_jobs = jobs.len() - unfinished_job_ids.len();
             let completed_tasks = current_counters.n_finished_tasks
                 + current_counters.n_canceled_tasks
                 + current_counters.n_failed_tasks;
@@ -160,14 +169,14 @@ pub async fn wait_for_jobs_with_progress(
                 "\r\x1b[2K{} {}/{} jobs, {}/{} tasks {}",
                 job_progress_bar(current_counters, total_tasks, 40),
                 completed_jobs,
-                total_jobs,
+                jobs.len(),
                 completed_tasks,
                 total_tasks,
                 status
             );
             std::io::stdout().flush().unwrap();
 
-            if remaining_job_ids.is_empty() {
+            if unfinished_job_ids.is_empty() {
                 // Move the cursor to a new line
                 println!();
                 break;
@@ -175,10 +184,10 @@ pub async fn wait_for_jobs_with_progress(
             sleep(Duration::from_secs(1)).await;
         }
 
-        if counters.n_failed_tasks > 0 {
+        if counters_finished.n_failed_tasks > 0 {
             anyhow::bail!("Some jobs have failed");
         }
-        if counters.n_canceled_tasks > 0 {
+        if counters_finished.n_canceled_tasks > 0 {
             anyhow::bail!("Some jobs were canceled");
         }
     }
