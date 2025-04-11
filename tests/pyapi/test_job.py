@@ -328,3 +328,11 @@ def test_resource_min_time(hq_env: HqEnv):
 
     data = hq_env.command(["--output-mode=json", "job", "info", "last"], as_json=True)[0]
     assert data["submits"][0]["graph"][0]["resources"][0]["min_time"] == 42.0
+
+
+def test_job_name(hq_env: HqEnv):
+    (job, client) = prepare_job_client(hq_env, name="Foo")
+    job.program("ls")
+    client.submit(job)
+    data = hq_env.command(["job", "info", "last", "--output-mode", "json"], as_json=True)
+    assert data[0]["info"]["name"] == "Foo"

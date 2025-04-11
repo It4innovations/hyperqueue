@@ -47,5 +47,6 @@ class TaskDescription:
 
 @dataclasses.dataclass
 class JobDescription:
+    name: Optional[str]
     tasks: List[TaskDescription]
     max_fails: Optional[int]

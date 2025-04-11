@@ -21,18 +21,21 @@ class Job:
         default_workdir: Optional[GenericPath] = None,
         max_fails: Optional[int] = 1,
         default_env: Optional[EnvType] = None,
+        name: Optional[str] = None,
     ):
         """
         :param default_workdir: Default working directory for tasks.
         :param max_fails: How many tasks can fail before the whole job will be cancelled.
         :param default_env: Environment variables that will be automatically set for each task in
         this job.
+        :param name: Name of the job.
         """
         self.tasks: List[Task] = []
         self.task_map: Dict[TaskId, Task] = {}
         self.max_fails = max_fails
         self.default_workdir = Path(default_workdir).resolve() if default_workdir is not None else default_workdir
         self.default_env = default_env or {}
+        self.name = name
 
     def task_by_id(self, id: TaskId) -> Optional[Task]:
         """
@@ -154,7 +157,7 @@ class Job:
         task_descriptions = []
         for task in self.tasks:
             task_descriptions.append(task._build(client))
-        return JobDescription(task_descriptions, self.max_fails)
+        return JobDescription(name=self.name, tasks=task_descriptions, max_fails=self.max_fails)
 
 
 @dataclasses.dataclass

@@ -67,6 +67,7 @@ pub struct TaskDescription {
 
 #[derive(Debug, FromPyObject)]
 pub struct PyJobDescription {
+    name: Option<String>,
     tasks: Vec<TaskDescription>,
     max_fails: Option<JobTaskCount>,
 }
@@ -79,7 +80,7 @@ pub fn submit_job_impl(py: Python, ctx: ClientContextPtr, job: PyJobDescription)
 
         let message = FromClientMessage::Submit(SubmitRequest {
             job_desc: JobDescription {
-                name: "".to_string(),
+                name: job.name.unwrap_or_else(|| "PyAPI job".to_string()),
                 max_fails: job.max_fails,
             },
             submit_desc: JobSubmitDescription {
