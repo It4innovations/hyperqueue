@@ -4,6 +4,7 @@
 
 * `hq worker info` contains more information
 * `hq job forget` tries to free more memory
+* You can now configure Job name in the Python API.
 
 ### Fixes
 
