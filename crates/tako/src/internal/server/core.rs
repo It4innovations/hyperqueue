@@ -45,6 +45,9 @@ pub struct Core {
     secret_key: Option<Arc<SecretKey>>,
     server_uid: String,
     custom_conn_handler: Option<CustomConnectionHandler>,
+
+    // How many streaming clients currently want to receive worker overviews
+    worker_overview_listeners: u64,
 }
 
 pub(crate) type CoreRef = WrappedRcRefCell<Core>;
@@ -101,6 +104,13 @@ impl Core {
 
     pub fn server_uid(&self) -> &str {
         &self.server_uid
+    }
+
+    pub fn worker_overview_listeners(&self) -> u64 {
+        self.worker_overview_listeners
+    }
+    pub fn worker_overview_listeners_mut(&mut self) -> &mut u64 {
+        &mut self.worker_overview_listeners
     }
 
     pub(crate) fn multi_node_queue_split_mut(

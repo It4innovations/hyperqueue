@@ -69,6 +69,10 @@ pub enum ToWorkerMessage {
     NewWorker(NewWorkerMsg),
     LostWorker(WorkerId),
     SetReservation(bool),
+    /// Override the internally set overview interval with a new duration
+    /// if it is **disabled** on the worker.
+    /// If the worker has already enabled overview interval, then this does nothing.
+    SetOverviewIntervalOverride(Option<Duration>),
     Stop,
 }
 

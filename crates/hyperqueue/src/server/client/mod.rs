@@ -181,6 +181,15 @@ pub async fn client_rpc_loop<
                         handle_job_close(&state_ref, senders, &msg.selector).await
                     }
                     FromClientMessage::StreamEvents(msg) => {
+                        let enable_worker_overviews = msg.enable_worker_overviews;
+                        if enable_worker_overviews {
+                            senders.backend.send_tako_message_no_wait(
+                                FromGatewayMessage::ModifyWorkerOverviewListeners(
+                                    WorkerOverviewListenerOp::Add,
+                                ),
+                            );
+                        }
+
                         log::debug!("Start streaming events to client");
                         /* We create two event queues, one for historic events and one for live events
                         So while historic events are loaded from the file and streamed, live events are already
@@ -210,6 +219,15 @@ pub async fn client_rpc_loop<
                             stream_events(&mut tx, &mut rx, rx2).await;
                             senders.events.unregister_listener(listener_id);
                         }
+
+                        if enable_worker_overviews {
+                            senders.backend.send_tako_message_no_wait(
+                                FromGatewayMessage::ModifyWorkerOverviewListeners(
+                                    WorkerOverviewListenerOp::Remove,
+                                ),
+                            );
+                        }
+
                         break;
                     }
                     FromClientMessage::ServerInfo => {
