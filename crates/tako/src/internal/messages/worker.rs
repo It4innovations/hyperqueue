@@ -76,6 +76,7 @@ pub enum ToWorkerMessage {
     /// If the worker has already enabled overview interval, then this does nothing.
     SetOverviewIntervalOverride(Option<Duration>),
     RemoveDataObjects(Vec<DataObjectId>),
+    PlacementResponse(DataObjectId, Option<WorkerId>),
     Stop,
 }
 
@@ -184,4 +185,5 @@ pub enum FromWorkerMessage {
     Heartbeat,
     Stop(WorkerStopReason),
     PlacementQuery(DataObjectId),
+    NewPlacement(DataObjectId),
 }

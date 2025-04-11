@@ -574,3 +574,20 @@ pub(crate) fn on_cancel_tasks(
     comm.ask_for_scheduling();
     (to_unregister.into_iter().collect(), already_finished)
 }
+
+pub(crate) fn on_resolve_placement(
+    core: &mut Core,
+    comm: &mut impl Comm,
+    worker_id: WorkerId,
+    data_id: DataObjectId,
+) {
+    // TODO: Maube randomize what placement to return?
+    let placement = core
+        .data_objects()
+        .find_data_object(data_id)
+        .and_then(|obj| obj.placement().iter().next().copied());
+    comm.send_worker_message(
+        worker_id,
+        &ToWorkerMessage::PlacementResponse(data_id, placement),
+    );
+}
