@@ -9,12 +9,12 @@ use futures::{SinkExt, Stream, StreamExt};
 use orion::aead::SecretKey;
 use orion::aead::streaming::StreamOpener;
 use tokio::net::{TcpListener, TcpStream};
-use tokio::time::sleep;
 use tokio::time::timeout;
+use tokio::time::{MissedTickBehavior, sleep};
 
 use crate::WorkerId;
 use crate::comm::{ConnectionRegistration, RegisterWorker};
-use crate::hwstats::WorkerHwStateMessage;
+use crate::hwstats::{WorkerHwState, WorkerHwStateMessage};
 use crate::internal::common::WrappedRcRefCell;
 use crate::internal::common::resources::Allocation;
 use crate::internal::common::resources::map::ResourceMap;
@@ -29,7 +29,7 @@ use crate::internal::transfer::auth::{
 use crate::internal::transfer::transport::make_protocol_builder;
 use crate::internal::worker::comm::WorkerComm;
 use crate::internal::worker::configuration::{
-    OverviewConfiguration, ServerLostPolicy, WorkerConfiguration, sync_worker_configuration,
+    ServerLostPolicy, WorkerConfiguration, sync_worker_configuration,
 };
 use crate::internal::worker::hwmonitor::HwSampler;
 use crate::internal::worker::reactor::start_task;
@@ -136,7 +136,6 @@ pub async fn run_worker(
 
     let (queue_sender, queue_receiver) = tokio::sync::mpsc::unbounded_channel::<Bytes>();
     let heartbeat_interval = configuration.heartbeat_interval;
-    let overview_configuration = configuration.overview_configuration.clone();
     let time_limit = configuration.time_limit;
 
     let (worker_id, state, start_task_notify) = {
@@ -185,10 +184,7 @@ pub async fn run_worker(
         None => Either::Right(futures::future::pending()),
     };
 
-    let overview_fut = match overview_configuration {
-        None => Either::Left(futures::future::pending()),
-        Some(configuration) => Either::Right(send_overview_loop(state.clone(), configuration)),
-    };
+    let overview_fut = send_overview_loop(state.clone());
 
     let time_limit_fut = match time_limit {
         None => Either::Left(futures::future::pending::<()>()),
@@ -454,26 +450,31 @@ async fn worker_message_loop(
     Err("Server connection closed".into())
 }
 
-async fn send_overview_loop(
-    state_ref: WorkerStateRef,
-    configuration: OverviewConfiguration,
-) -> crate::Result<()> {
-    let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+/// This is a background overview interval loop.
+///
+/// If overview is enabled, the loop wakes up every <overview-interval> interval and gathers HW
+/// stats.
+/// If overview is disabled, the loop wakes up every second to check if it should re-enable worker
+/// overviews.
+///
+/// This approach is used because the server can temporarily enable worker overviews even if they
+/// were originally disabled, so we need to always run the loop.
+/// When overviews are currently disabled, the loop will essentially do nothing.
+async fn send_overview_loop(state_ref: WorkerStateRef) -> crate::Result<()> {
+    // Used to send overviews from the gathering thread
+    let (overview_tx, mut overview_rx) = tokio::sync::mpsc::channel::<WorkerHwState>(1);
+    // Used to trigger overview collection from the main thread
+    let (trigger_tx, mut trigger_rx) = tokio::sync::mpsc::channel::<()>(1);
 
-    let OverviewConfiguration {
-        send_interval,
-        gpu_families,
-    } = configuration;
+    let initial_overview = state_ref.get().configuration.overview_configuration.clone();
 
     // Fetching the HW state performs blocking I/O, therefore we should do it in a separate thread.
-    // tokio::task::spawn_blocking is not used because it would need mutable access to a sampler,
-    // which shouldn't be created again and again.
     std::thread::spawn(move || -> crate::Result<()> {
-        let mut sampler = HwSampler::init(gpu_families)?;
-        loop {
-            std::thread::sleep(send_interval);
+        let mut sampler = HwSampler::init(initial_overview.gpu_families)?;
+        while let Some(_trigger) = trigger_rx.blocking_recv() {
             let hw_state = sampler.fetch_hw_state()?;
-            if let Err(error) = tx.blocking_send(hw_state) {
+            log::info!("Gathering HW stats");
+            if let Err(error) = overview_tx.blocking_send(hw_state) {
                 log::error!("Cannot send HW state to overview loop: {error:?}");
                 break;
             }
@@ -481,31 +482,66 @@ async fn send_overview_loop(
         Ok(())
     });
 
-    let mut poll_interval = tokio::time::interval(send_interval);
+    // How often should we check if we should re-enable overview collection
+    let idle_check_duration = Duration::from_secs(1);
+
+    let create_interval = |duration| {
+        let mut interval = tokio::time::interval(duration);
+        // If we miss a deadline, perform the next step after `duration` is elapsed from `tick()`
+        interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        // The first tick is immediate, so skip it to avoid gathering the overview twice in a
+        // row
+        interval.reset();
+        interval
+    };
+
+    let mut poll_interval = create_interval(
+        initial_overview
+            .send_interval
+            .unwrap_or(idle_check_duration),
+    );
+
     loop {
         poll_interval.tick().await;
 
-        if let Some(hw_state) = rx.recv().await {
-            let mut worker_state = state_ref.get_mut();
+        let current_overview_duration = state_ref
+            .get()
+            .configuration
+            .overview_configuration
+            .send_interval;
+        if let Some(current_duration) = current_overview_duration {
+            let _ = trigger_tx.send(()).await;
+            if let Some(hw_state) = overview_rx.recv().await {
+                let mut worker_state = state_ref.get_mut();
 
-            let message = FromWorkerMessage::Overview(WorkerOverview {
-                id: worker_state.worker_id,
-                running_tasks: worker_state
-                    .running_tasks
-                    .iter()
-                    .map(|&task_id| {
-                        let task = worker_state.get_task(task_id);
-                        let allocation: &Allocation = task.resource_allocation().unwrap();
-                        (
-                            task_id,
-                            resource_allocation_to_msg(allocation, worker_state.get_resource_map()),
-                        )
-                        // TODO: Modify this when more cpus are allowed
-                    })
-                    .collect(),
-                hw_state: Some(WorkerHwStateMessage { state: hw_state }),
-            });
-            worker_state.comm().send_message_to_server(message);
+                let message = FromWorkerMessage::Overview(WorkerOverview {
+                    id: worker_state.worker_id,
+                    running_tasks: worker_state
+                        .running_tasks
+                        .iter()
+                        .map(|&task_id| {
+                            let task = worker_state.get_task(task_id);
+                            let allocation: &Allocation = task.resource_allocation().unwrap();
+                            (
+                                task_id,
+                                resource_allocation_to_msg(
+                                    allocation,
+                                    worker_state.get_resource_map(),
+                                ),
+                            )
+                            // TODO: Modify this when more cpus are allowed
+                        })
+                        .collect(),
+                    hw_state: Some(WorkerHwStateMessage { state: hw_state }),
+                });
+                worker_state.comm().send_message_to_server(message);
+            }
+
+            // If the current overview interval is different from before, switch to the current one
+            poll_interval = create_interval(current_duration);
+        } else if poll_interval.period() != idle_check_duration {
+            // The overview is disabled now, switch to idle mode duration if needed.
+            poll_interval = create_interval(idle_check_duration);
         }
     }
 }

@@ -113,10 +113,10 @@ impl TestEnv {
                 group: "default".to_string(),
                 work_dir: Default::default(),
                 heartbeat_interval: Duration::from_millis(1000),
-                overview_configuration: Some(OverviewConfiguration {
-                    send_interval: Duration::from_millis(1000),
+                overview_configuration: OverviewConfiguration {
+                    send_interval: Some(Duration::from_millis(1000)),
                     gpu_families: Default::default(),
-                }),
+                },
                 idle_timeout: None,
                 time_limit: *time_limit,
                 on_server_lost: ServerLostPolicy::Stop,

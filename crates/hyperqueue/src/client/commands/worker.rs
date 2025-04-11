@@ -294,10 +294,10 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
             Some(duration)
         }
     });
-    let overview_configuration = send_overview_interval.map(|interval| OverviewConfiguration {
-        send_interval: interval,
+    let overview_configuration = OverviewConfiguration {
+        send_interval: send_overview_interval,
         gpu_families,
-    });
+    };
 
     Ok(WorkerConfiguration {
         resources,
