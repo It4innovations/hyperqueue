@@ -5,6 +5,7 @@
 * `hq worker info` contains more information
 * `hq job forget` tries to free more memory
 * You can now configure Job name in the Python API.
+* `hq job progress` now displays all jobs and tasks that you wait for, rather than those that were unfinished at the time when the command was executed.
 
 ### Fixes
 
