@@ -177,6 +177,12 @@ pub struct NewWorkerQuery {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
+pub enum WorkerOverviewListenerOp {
+    Add,
+    Remove,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(tag = "op")]
 pub enum FromGatewayMessage {
     NewTasks(NewTasksMessage),
@@ -187,6 +193,7 @@ pub enum FromGatewayMessage {
     StopWorker(StopWorkerRequest),
     NewWorkerQuery(NewWorkerQuery),
     TryReleaseMemory,
+    ModifyWorkerOverviewListeners(WorkerOverviewListenerOp),
 }
 
 #[derive(Serialize, Deserialize, Debug)]

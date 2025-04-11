@@ -430,6 +430,9 @@ pub(crate) fn process_worker_message(state: &mut WorkerState, message: ToWorkerM
             log::info!("Received stop command");
             return true;
         }
+        ToWorkerMessage::SetOverviewIntervalOverride(r#override) => {
+            state.worker_overview_interval_override = r#override;
+        }
     }
     false
 }
@@ -509,8 +512,10 @@ async fn send_overview_loop(state_ref: WorkerStateRef) -> crate::Result<()> {
         let current_overview_duration = {
             let state = state_ref.get();
             state
-                .worker_overview_interval_override
-                .or(state.configuration.overview_configuration.send_interval)
+                .configuration
+                .overview_configuration
+                .send_interval
+                .or(state.worker_overview_interval_override)
         };
         if let Some(current_duration) = current_overview_duration {
             let _ = trigger_tx.send(()).await;
