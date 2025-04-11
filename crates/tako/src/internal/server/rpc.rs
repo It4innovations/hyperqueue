@@ -152,26 +152,29 @@ async fn worker_rpc_loop(
 
     /* Send registration message, this has to be after on_new_worker
     because of registration of resources */
-    let message = WorkerRegistrationResponse {
-        worker_id,
-        resource_names: core_ref.get().create_resource_map().into_vec(),
-        other_workers: core_ref
-            .get()
-            .get_workers()
-            .filter_map(|w| {
-                if w.id != worker_id {
-                    Some(NewWorkerMsg {
-                        worker_id: w.id(),
-                        address: w.configuration().listen_address.clone(),
-                        resources: w.resources.to_transport(),
-                    })
-                } else {
-                    None
-                }
-            })
-            .collect(),
-        server_idle_timeout: *core_ref.get().idle_timeout(),
-        server_uid: core_ref.get().server_uid().to_string(),
+    let message: WorkerRegistrationResponse = {
+        let core = core_ref.get();
+        WorkerRegistrationResponse {
+            worker_id,
+            resource_names: core.create_resource_map().into_vec(),
+            other_workers: core
+                .get_workers()
+                .filter_map(|w| {
+                    if w.id != worker_id {
+                        Some(NewWorkerMsg {
+                            worker_id: w.id(),
+                            address: w.configuration().listen_address.clone(),
+                            resources: w.resources.to_transport(),
+                        })
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
+            server_idle_timeout: *core.idle_timeout(),
+            server_uid: core.server_uid().to_string(),
+            worker_overview_interval_override: None,
+        }
     };
     queue_sender
         .send(serialize(&message).unwrap().into())

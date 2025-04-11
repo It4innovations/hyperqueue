@@ -1,6 +1,6 @@
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use orion::aead::SecretKey;
 use rand::SeedableRng;
@@ -43,6 +43,8 @@ pub struct WorkerState {
     pub(crate) random: SmallRng,
 
     pub(crate) configuration: WorkerConfiguration,
+    /// If `Some`, forcefully overrides `configuration.overview_configuration.send_interval`.
+    pub(crate) worker_overview_interval_override: Option<Duration>,
     pub(crate) task_launcher: Box<dyn TaskLauncher>,
     //pub(crate) secret_key: Option<Arc<SecretKey>>,
     pub(crate) start_time: Instant,
@@ -307,6 +309,7 @@ impl WorkerStateRef {
             comm,
             worker_id,
             configuration,
+            worker_overview_interval_override: None,
             task_launcher,
             tasks: Default::default(),
             ready_task_queue,
