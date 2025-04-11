@@ -43,6 +43,8 @@ pub struct MultiNodeTaskAssignment {
     pub reservation_only: bool,
 }
 
+pub const DEFAULT_WORKER_OVERVIEW_INTERVAL: Duration = Duration::from_secs(2);
+
 pub struct Worker {
     pub(crate) id: WorkerId,
 

@@ -23,7 +23,7 @@ use crate::internal::server::reactor::{
     on_new_worker, on_remove_worker, on_steal_response, on_task_error, on_task_finished,
     on_task_running,
 };
-use crate::internal::server::worker::Worker;
+use crate::internal::server::worker::{DEFAULT_WORKER_OVERVIEW_INTERVAL, Worker};
 use crate::internal::transfer::auth::{
     do_authentication, forward_queue_to_sealed_sink, open_message, serialize,
 };
@@ -173,7 +173,11 @@ async fn worker_rpc_loop(
                 .collect(),
             server_idle_timeout: *core.idle_timeout(),
             server_uid: core.server_uid().to_string(),
-            worker_overview_interval_override: None,
+            worker_overview_interval_override: if core.worker_overview_listeners() > 0 {
+                Some(DEFAULT_WORKER_OVERVIEW_INTERVAL)
+            } else {
+                None
+            },
         }
     };
     queue_sender

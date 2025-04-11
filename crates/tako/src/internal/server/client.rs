@@ -4,6 +4,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::gateway::{
     CancelTasksResponse, FromGatewayMessage, NewTasksMessage, NewTasksResponse,
     SharedTaskConfiguration, TaskInfo, TaskState, TasksInfoResponse, ToGatewayMessage,
+    WorkerOverviewListenerOp,
 };
 use crate::internal::common::resources::request::ResourceRequestEntry;
 use crate::internal::messages::worker::ToWorkerMessage;
@@ -12,6 +13,7 @@ use crate::internal::server::comm::{Comm, CommSender, CommSenderRef};
 use crate::internal::server::core::{Core, CoreRef};
 use crate::internal::server::reactor::{on_cancel_tasks, on_new_tasks};
 use crate::internal::server::task::{Task, TaskConfiguration, TaskRuntimeState};
+use crate::internal::server::worker::DEFAULT_WORKER_OVERVIEW_INTERVAL;
 use std::rc::Rc;
 
 fn create_task_configuration(
@@ -176,6 +178,43 @@ pub(crate) async fn process_client_message(
             );
             None
         }
+        FromGatewayMessage::ModifyWorkerOverviewListeners(op) => {
+            modify_worker_overview_listeners(op, &mut core_ref.get_mut(), &mut comm_ref.get_mut());
+            None
+        }
+    }
+}
+
+/// Modify the count of clients that want to receive worker overviews.
+/// If the count wasn't zero and becomes zero or if it was zero and becomes non-zero,
+/// messages are sent to workers.
+pub fn modify_worker_overview_listeners(
+    op: WorkerOverviewListenerOp,
+    core: &mut Core,
+    sender: &mut CommSender,
+) {
+    let previous = core.worker_overview_listeners();
+    match op {
+        WorkerOverviewListenerOp::Add => {
+            *core.worker_overview_listeners_mut() += 1;
+        }
+        WorkerOverviewListenerOp::Remove => {
+            *core.worker_overview_listeners_mut() =
+                core.worker_overview_listeners().saturating_sub(1);
+        }
+    }
+    match (previous, core.worker_overview_listeners()) {
+        // Enable worker overview
+        (0, 1..) => {
+            sender.broadcast_worker_message(&ToWorkerMessage::SetOverviewIntervalOverride(Some(
+                DEFAULT_WORKER_OVERVIEW_INTERVAL,
+            )));
+        }
+        // Stop overriding worker overviews
+        (1.., 0) => {
+            sender.broadcast_worker_message(&ToWorkerMessage::SetOverviewIntervalOverride(None));
+        }
+        _ => {}
     }
 }
 

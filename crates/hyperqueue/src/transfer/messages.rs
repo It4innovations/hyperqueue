@@ -88,7 +88,11 @@ pub struct TaskKindProgram {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct StreamEvents {
+    /// If false, only replay historical events.
+    /// If true, replay historical events and then start streaming live events.
     pub live_events: bool,
+    /// Enable worker overviews during the event streaming.
+    pub enable_worker_overviews: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

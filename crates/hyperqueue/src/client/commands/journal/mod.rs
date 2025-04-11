@@ -64,6 +64,7 @@ async fn stream_json(gsettings: &GlobalSettings, live_events: bool) -> anyhow::R
         .connection()
         .send(FromClientMessage::StreamEvents(StreamEvents {
             live_events,
+            enable_worker_overviews: false,
         }))
         .await?;
     let stdout = std::io::stdout();
