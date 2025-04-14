@@ -1,7 +1,12 @@
-use crate::WorkerId;
 use crate::datasrv::DataObjectId;
+use crate::internal::common::resources::allocation::AllocationIndex;
 use crate::internal::common::stablemap::ExtractKey;
+use crate::internal::messages::worker::ToWorkerMessage;
+use crate::internal::server::comm::Comm;
+use crate::{Map, WorkerId};
+use smallvec::SmallVec;
 use std::collections::HashSet;
+use tracing::Instrument;
 
 pub(crate) type RefCount = u32;
 
@@ -31,13 +36,15 @@ impl DataObjectHandle {
         }
     }
 
-    pub fn ref_count(&self) -> RefCount {
-        self.ref_count
-    }
-
+    #[must_use]
+    #[inline]
     pub fn decrease_ref_count(&mut self) -> bool {
         self.ref_count -= 1;
         self.ref_count == 0
+    }
+
+    pub fn ref_count(&self) -> RefCount {
+        self.ref_count
     }
 
     pub fn add_placement(&mut self, worker_id: WorkerId) {
@@ -53,5 +60,23 @@ impl ExtractKey<DataObjectId> for DataObjectHandle {
     #[inline]
     fn extract_key(&self) -> DataObjectId {
         self.id
+    }
+}
+
+pub(crate) struct ObjsToRemoveFromWorkers(Map<WorkerId, SmallVec<[DataObjectId; 1]>>);
+
+impl ObjsToRemoveFromWorkers {
+    pub fn new() -> Self {
+        ObjsToRemoveFromWorkers(Map::new())
+    }
+
+    pub fn add(&mut self, worker_id: WorkerId, data_object_id: DataObjectId) {
+        self.0.entry(worker_id).or_default().push(data_object_id);
+    }
+
+    pub fn send(self, comm: &mut impl Comm) {
+        for (worker_id, obj_ids) in self.0 {
+            comm.send_worker_message(worker_id, &ToWorkerMessage::RemoveDataObjects(obj_ids));
+        }
     }
 }
