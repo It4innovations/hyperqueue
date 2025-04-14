@@ -146,6 +146,11 @@ where
     }
 
     #[inline]
+    pub fn values_mut(&mut self) -> impl Iterator<Item = &mut V> {
+        self.storage.items.iter_mut()
+    }
+
+    #[inline]
     pub fn len(&self) -> usize {
         self.map.len()
     }
