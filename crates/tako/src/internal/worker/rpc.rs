@@ -6,21 +6,20 @@ use std::time::Duration;
 
 use bytes::{Bytes, BytesMut};
 use futures::{SinkExt, Stream, StreamExt};
-use orion::aead::SecretKey;
 use orion::aead::streaming::StreamOpener;
+use orion::aead::SecretKey;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::time::sleep;
 use tokio::time::timeout;
 
-use crate::WorkerId;
 use crate::comm::{ConnectionRegistration, RegisterWorker};
 use crate::hwstats::WorkerHwStateMessage;
-use crate::internal::common::WrappedRcRefCell;
-use crate::internal::common::resources::Allocation;
 use crate::internal::common::resources::map::ResourceMap;
+use crate::internal::common::resources::Allocation;
+use crate::internal::common::WrappedRcRefCell;
 use crate::internal::datasrv::download::download_manager_process;
 use crate::internal::datasrv::{
-    DownloadManager, DownloadManagerRef, data_upload_service, download,
+    data_upload_service, download, DownloadManager, DownloadManagerRef,
 };
 use crate::internal::messages::worker::{
     FromWorkerMessage, StealResponseMsg, TaskResourceAllocation, ToWorkerMessage, WorkerOverview,
@@ -33,7 +32,7 @@ use crate::internal::transfer::auth::{
 use crate::internal::transfer::transport::make_protocol_builder;
 use crate::internal::worker::comm::WorkerComm;
 use crate::internal::worker::configuration::{
-    OverviewConfiguration, ServerLostPolicy, WorkerConfiguration, sync_worker_configuration,
+    sync_worker_configuration, OverviewConfiguration, ServerLostPolicy, WorkerConfiguration,
 };
 use crate::internal::worker::hwmonitor::HwSampler;
 use crate::internal::worker::localcomm::handle_local_comm;
@@ -41,6 +40,7 @@ use crate::internal::worker::reactor::start_task;
 use crate::internal::worker::state::{WorkerState, WorkerStateRef};
 use crate::internal::worker::task::{Task, TaskState};
 use crate::launcher::TaskLauncher;
+use crate::WorkerId;
 use futures::future::Either;
 use tokio::sync::Notify;
 
@@ -196,7 +196,13 @@ pub async fn run_worker(
 
     let dm_ref = DownloadManagerRef::new(state_ref.clone(), secret_key);
     state_ref.get_mut().set_download_manager(dm_ref.clone());
-    let download_manager_fut = download_manager_process(dm_ref, 4, 8, Duration::from_secs(40));
+    let download_manager_fut = download_manager_process(
+        dm_ref,
+        configuration.max_parallel_downloads,
+        configuration.max_download_tries,
+        configuration.wait_between_download_tries,
+        Duration::from_secs(40),
+    );
 
     let future = async move {
         let try_start_tasks = task_starter_process(state_ref.clone(), start_task_notify);

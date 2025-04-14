@@ -1,8 +1,8 @@
-use crate::PriorityTuple;
 use crate::datasrv::DataObjectId;
 use crate::internal::datasrv::{DataObjectRef, DownloadInterface, DownloadManagerRef};
 use crate::internal::messages::worker::FromWorkerMessage;
 use crate::internal::worker::state::WorkerStateRef;
+use crate::PriorityTuple;
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::Receiver;
 
@@ -19,7 +19,8 @@ impl DownloadInterface for WorkerStateRef {
     }
 
     fn on_download_failed(&self, data_id: DataObjectId) {
-        todo!()
+        let mut state = self.get_mut();
+        state.on_download_failed(data_id);
     }
 }
 

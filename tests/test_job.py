@@ -1305,7 +1305,6 @@ command = ["sleep", "0"]
 deps = [2]
 [[task.request]]
 resources = { "cpus" = "1", "x"=1 }
-
 """
     )
     hq_env.command(["job", "submit-file", "job.toml"])

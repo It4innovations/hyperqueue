@@ -1,7 +1,7 @@
 use crate::connection::Connection;
 use crate::datasrv::DataObjectId;
-use crate::internal::datasrv::DataObjectRef;
 use crate::internal::datasrv::messages::{FromDataClientMessage, ToDataClientMessage};
+use crate::internal::datasrv::DataObjectRef;
 use crate::internal::messages::worker::FromWorkerMessage;
 use crate::internal::worker::state::WorkerStateRef;
 use crate::internal::worker::task::TaskState;
@@ -14,8 +14,8 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::TcpStream;
-use tokio::sync::{Notify, OwnedSemaphorePermit, Semaphore, oneshot};
-use tokio::task::{AbortHandle, JoinSet, spawn_local};
+use tokio::sync::{oneshot, Notify, OwnedSemaphorePermit, Semaphore};
+use tokio::task::{spawn_local, AbortHandle, JoinSet};
 use tokio::time::Instant;
 
 const PROTOCOL_VERSION: u32 = 0;
@@ -164,6 +164,7 @@ async fn download_process<I: DownloadInterface, P: Ord + Debug>(
     data_id: DataObjectId,
     _permit: OwnedSemaphorePermit,
     max_download_tries: u32,
+    wait_between_download_tries: Duration,
 ) {
     for i in 0..max_download_tries {
         log::debug!("Trying to resolve placement for {data_id}, try {i}");
@@ -192,7 +193,7 @@ async fn download_process<I: DownloadInterface, P: Ord + Debug>(
                 return;
             }
         }
-        tokio::time::sleep(Duration::from_secs(i as u64)).await;
+        tokio::time::sleep(wait_between_download_tries * i).await;
     }
     let dm = dm_ref.get();
     dm.interface.on_download_failed(data_id);
@@ -205,6 +206,7 @@ pub(crate) async fn download_manager_process<
     dm_ref: DownloadManagerRef<I, P>,
     max_parallel_downloads: u32,
     max_download_tries: u32,
+    wait_between_download_tries: Duration,
     idle_connection_timeout: Duration,
 ) {
     let notify = {
@@ -245,6 +247,7 @@ pub(crate) async fn download_manager_process<
                         data_id,
                         permit,
                         max_download_tries,
+                        wait_between_download_tries,
                     ));
                     assert!(dm.running_downloads.insert(data_id, abort).is_none());
                     dm.download_queue.is_empty()
