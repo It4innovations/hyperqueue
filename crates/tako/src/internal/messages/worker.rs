@@ -8,6 +8,7 @@ use crate::task::SerializedTaskContext;
 use crate::{InstanceId, Priority};
 use crate::{TaskId, WorkerId};
 use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
 use std::time::Duration;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -69,7 +70,7 @@ pub enum ToWorkerMessage {
     NewWorker(NewWorkerMsg),
     LostWorker(WorkerId),
     SetReservation(bool),
-    RemoveDataObjects(Vec<DataObjectId>),
+    RemoveDataObjects(SmallVec<[DataObjectId; 1]>),
     PlacementResponse(DataObjectId, Option<WorkerId>),
     Stop,
 }

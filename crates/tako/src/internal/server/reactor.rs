@@ -8,7 +8,7 @@ use crate::internal::messages::worker::{
 };
 use crate::internal::server::comm::Comm;
 use crate::internal::server::core::Core;
-use crate::internal::server::dataobj::{DataObjectHandle, RefCount};
+use crate::internal::server::dataobj::{DataObjectHandle, ObjsToRemoveFromWorkers, RefCount};
 use crate::internal::server::task::WaitingInfo;
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::worker::Worker;
@@ -330,10 +330,10 @@ pub(crate) fn on_task_finished(
         core.add_ready_to_assign(id);
         comm.ask_for_scheduling();
     }
-    let state = core.remove_task(msg.id);
+    let mut objs_to_remove = ObjsToRemoveFromWorkers::new();
+    let state = core.remove_task(msg.id, &mut objs_to_remove);
     assert!(matches!(state, TaskRuntimeState::Finished));
 
-    let mut remove_objects = Vec::new();
     for data in msg.outputs {
         let obj_id = DataObjectId::new(task_id, data.id);
         if let Some(ref_count) = data_ref_counts.get(&data.id) {
@@ -341,16 +341,11 @@ pub(crate) fn on_task_finished(
                 obj_id, worker_id, data.size, *ref_count,
             ));
         } else {
-            remove_objects.push(obj_id);
+            objs_to_remove.add(worker_id, obj_id);
         }
     }
 
-    if !remove_objects.is_empty() {
-        comm.send_worker_message(
-            worker_id,
-            &ToWorkerMessage::RemoveDataObjects(remove_objects),
-        );
-    }
+    objs_to_remove.send(comm);
 
     for (dep_task_id, missing_data_ids) in missing_inputs {
         let mut message = format!(
@@ -452,7 +447,7 @@ fn fail_task_helper(
     let consumers: Vec<TaskId> = {
         let (tasks, workers) = core.split_tasks_workers_mut();
         if let Some(task) = tasks.find_task(task_id) {
-            log::debug!("Task task {} failed", task_id);
+            log::debug!("Task task_id={} failed", task_id);
             if let Some(worker_id) = worker_id {
                 if task.configuration.resources.is_multi_node() {
                     let ws = task.mn_placement().unwrap();
@@ -472,14 +467,16 @@ fn fail_task_helper(
         }
     };
 
+    let mut objs_to_remove = ObjsToRemoveFromWorkers::new();
+
     for &consumer in &consumers {
         log::debug!("Task={} canceled because of failed dependency", consumer);
         assert!(matches!(
-            core.remove_task(consumer),
+            core.remove_task(consumer, &mut objs_to_remove),
             TaskRuntimeState::Waiting(_)
         ));
     }
-    let state = core.remove_task(task_id);
+    let state = core.remove_task(task_id, &mut objs_to_remove);
     if worker_id.is_some() {
         assert!(matches!(
             state,
@@ -492,6 +489,7 @@ fn fail_task_helper(
         assert!(matches!(state, TaskRuntimeState::Waiting(_)));
     }
     drop(state);
+    objs_to_remove.send(comm);
     comm.send_client_task_error(task_id, consumers, error_info);
 }
 
@@ -565,11 +563,14 @@ pub(crate) fn on_cancel_tasks(
         }
     }
 
-    core.remove_tasks_batched(&to_unregister);
+    let mut objs_to_remove = ObjsToRemoveFromWorkers::new();
+    core.remove_tasks_batched(&to_unregister, &mut objs_to_remove);
 
     for (w_id, ids) in running_ids {
         comm.send_worker_message(w_id, &ToWorkerMessage::CancelTasks(TaskIdsMsg { ids }));
     }
+
+    objs_to_remove.send(comm); // This needs to be sent after tasks are cancelled
 
     comm.ask_for_scheduling();
     (to_unregister.into_iter().collect(), already_finished)

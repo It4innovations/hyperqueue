@@ -1,6 +1,9 @@
 use crate::datasrv::DataObjectId;
+use crate::internal::common::resources::allocation::AllocationIndex;
 use crate::internal::common::stablemap::StableMap;
-use crate::internal::server::dataobj::DataObjectHandle;
+use crate::internal::server::dataobj::{DataObjectHandle, ObjsToRemoveFromWorkers};
+use crate::{Map, WorkerId};
+use smallvec::SmallVec;
 
 #[derive(Default, Debug)]
 pub(crate) struct DataObjectMap {
@@ -51,5 +54,19 @@ impl DataObjectMap {
 
     pub fn remove_object(&mut self, data_object_id: DataObjectId) {
         self.data_objs.remove(&data_object_id);
+    }
+
+    pub fn decrease_ref_count(
+        &mut self,
+        data_object_id: DataObjectId,
+        objs_to_delete: &mut ObjsToRemoveFromWorkers,
+    ) {
+        let mut obj = self.get_data_object_mut(data_object_id);
+        if obj.decrease_ref_count() {
+            for worker_id in obj.placement() {
+                objs_to_delete.add(*worker_id, data_object_id);
+            }
+            self.data_objs.remove(&data_object_id);
+        }
     }
 }
