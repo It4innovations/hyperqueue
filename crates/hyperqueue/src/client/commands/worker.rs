@@ -1,12 +1,12 @@
 use crate::client::commands::duration_doc;
-use anyhow::{Context, bail};
+use anyhow::{bail, Context};
 use chrono::Utc;
 use std::fmt::{Display, Formatter};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
 use tako::resources::{
-    CPU_RESOURCE_NAME, ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind,
+    ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind, CPU_RESOURCE_NAME,
 };
 use tako::worker::{ServerLostPolicy, WorkerConfiguration};
 use tako::{Map, Set};
@@ -20,9 +20,8 @@ use tokio::signal::ctrl_c;
 use tokio::task::JoinSet;
 use tokio::time::sleep;
 
-use crate::WorkerId;
 use crate::client::globalsettings::GlobalSettings;
-use crate::client::utils::{PassThroughArgument, passthrough_parser};
+use crate::client::utils::{passthrough_parser, PassThroughArgument};
 use crate::common::cli::DeploySshOpts;
 use crate::common::manager::info::{ManagerInfo, WORKER_EXTRA_MANAGER_KEY};
 use crate::common::utils::fs::get_hq_binary_path;
@@ -38,10 +37,11 @@ use crate::worker::bootstrap::{
     finalize_configuration, initialize_worker, try_get_pbs_info, try_get_slurm_info,
 };
 use crate::worker::hwdetect::{
-    GPU_ENVIRONMENTS, detect_additional_resources, detect_cpus, prune_hyper_threading,
+    detect_additional_resources, detect_cpus, prune_hyper_threading, GPU_ENVIRONMENTS,
 };
 use crate::worker::parser::{parse_cpu_definition, parse_resource_definition};
-use crate::{DEFAULT_WORKER_GROUP_NAME, rpc_call};
+use crate::WorkerId;
+use crate::{rpc_call, DEFAULT_WORKER_GROUP_NAME};
 
 #[derive(clap::ValueEnum, Clone)]
 pub enum WorkerFilter {
@@ -154,6 +154,21 @@ pub struct WorkerStartOpts {
     /// It should *NOT* be placed on a network filesystem.
     #[arg(long)]
     pub work_dir: Option<PathBuf>,
+
+    /// The maximal number of data objects are downloaded simultaneously
+    #[arg(long, default_value = "4")]
+    pub max_parallel_downloads: u32,
+
+    /// How many times the worker tries to download a data object from remote side
+    /// when download is failing.
+    #[arg(long, default_value = "8")]
+    pub max_download_tries: u32,
+
+    /// When data object download failed, how long to wait to try it again
+    /// This time is multiplied by the number of previous retries
+    /// So between 4th and 5th retry it waits 4 * the given duration.
+    #[arg(long, default_value = "1s", value_parser = parse_hms_or_human_time)]
+    pub wait_between_download_tries: Duration,
 }
 
 pub async fn start_hq_worker(
@@ -198,10 +213,20 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
         hostname,
         on_server_lost,
         work_dir,
+        max_parallel_downloads,
+        max_download_tries,
+        wait_between_download_tries,
     } = opts;
 
-    let hostname = get_hostname(hostname);
+    if max_download_tries == 0 {
+        bail!("--max-download-tries cannot be zero");
+    }
 
+    if max_parallel_downloads == 0 {
+        bail!("--max-parallel-downloads cannot be zero");
+    }
+
+    let hostname = get_hostname(hostname);
     let mut resources: Vec<_> = resource.into_iter().map(|x| x.into_parsed_arg()).collect();
     let cpu_resources = resources.iter().find(|x| x.name == CPU_RESOURCE_NAME);
     let specified_cpu_resource = match cpu_resources {
@@ -311,6 +336,9 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
         idle_timeout,
         overview_configuration,
         extra,
+        max_parallel_downloads,
+        max_download_tries,
+        wait_between_download_tries,
     })
 }
 

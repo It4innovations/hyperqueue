@@ -1,7 +1,7 @@
-use crate::Set;
 use crate::hwstats::GpuFamily;
-use crate::internal::common::Map;
 use crate::internal::common::resources::ResourceDescriptor;
+use crate::internal::common::Map;
+use crate::Set;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -48,6 +48,9 @@ pub struct WorkerConfiguration {
     pub idle_timeout: Option<Duration>,
     pub time_limit: Option<Duration>,
     pub on_server_lost: ServerLostPolicy,
+    pub max_parallel_downloads: u32,
+    pub max_download_tries: u32,
+    pub wait_between_download_tries: Duration,
 
     pub extra: Map<String, String>,
 }

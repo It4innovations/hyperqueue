@@ -1,12 +1,11 @@
+use crate::datasrv::DataObjectId;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use crate::datasrv::DataObjectId;
-
-use crate::internal::common::resources::Allocation;
 use crate::internal::common::resources::map::ResourceMap;
+use crate::internal::common::resources::Allocation;
 use crate::internal::common::stablemap::StableMap;
 use crate::internal::common::{Map, Set, WrappedRcRefCell};
 use crate::internal::datasrv::{DataObjectRef, DataStorage};
@@ -18,7 +17,6 @@ use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::comm::WorkerComm;
 use crate::internal::worker::configuration::WorkerConfiguration;
 
-use crate::WorkerId;
 use crate::internal::worker::data::download::WorkerDownloadManagerRef;
 use crate::internal::worker::localcomm::LocalCommState;
 use crate::internal::worker::resources::allocator::ResourceAllocator;
@@ -27,11 +25,12 @@ use crate::internal::worker::rqueue::ResourceWaitQueue;
 use crate::internal::worker::task::{RunningState, Task, TaskState};
 use crate::internal::worker::task_comm::RunningTaskComm;
 use crate::launcher::TaskLauncher;
+use crate::WorkerId;
 use crate::{Priority, PriorityTuple, TaskId};
 use orion::aead::SecretKey;
-use rand::SeedableRng;
 use rand::prelude::IndexedRandom;
 use rand::rngs::SmallRng;
+use rand::SeedableRng;
 use tokio::sync::oneshot;
 
 pub type TaskMap = StableMap<TaskId, Task>;
@@ -344,11 +343,10 @@ impl WorkerState {
             &other_worker.address
         );
         assert_ne!(self.worker_id, other_worker.worker_id); // We should not receive message about ourselves
-        assert!(
-            self.worker_addresses
-                .insert(other_worker.worker_id, other_worker.address)
-                .is_none()
-        );
+        assert!(self
+            .worker_addresses
+            .insert(other_worker.worker_id, other_worker.address)
+            .is_none());
 
         let resources = WorkerResources::from_transport(other_worker.resources);
         self.ready_task_queue
@@ -378,6 +376,35 @@ impl WorkerState {
             }
             if new_ready {
                 self.schedule_task_start();
+            }
+        }
+    }
+
+    pub fn on_download_failed(&mut self, data_id: DataObjectId) {
+        log::debug!("Data {data_id} download failed");
+        if let Some(tasks) = self.tasks_waiting_for_data.remove(&data_id) {
+            for task_id in tasks {
+                if let Some(task) = self.tasks.find_mut(&task_id) {
+                    log::debug!("Task {task_id} failed because of failed download");
+                    let input_idx = task
+                        .data_deps
+                        .as_ref()
+                        .unwrap()
+                        .iter()
+                        .enumerate()
+                        .find(|(_, id)| **id == data_id)
+                        .unwrap()
+                        .0;
+                    self.remove_task(task_id, false, false);
+                    let message = format!(
+                        "Fails to download data object {data_id}; it has input index {input_idx}"
+                    );
+                    let message = FromWorkerMessage::TaskFailed(TaskFailedMsg {
+                        id: task_id,
+                        info: TaskFailInfo { message },
+                    });
+                    self.comm.send_message_to_server(message);
+                }
             }
         }
     }
