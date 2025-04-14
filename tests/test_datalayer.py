@@ -1,11 +1,12 @@
 from .conftest import HqEnv
-from .utils import wait_for_job_state
+from .utils import wait_for_job_state, wait_for_task_state
 from .utils.job import default_task_output
 
 from contextlib import contextmanager
 import os
 import time
 import json
+import psutil
 
 
 @contextmanager
@@ -169,6 +170,46 @@ output_id = 22
         wait_for_job_state(hq_env, 1, "FINISHED")
     with open(os.path.join(tmp_path, default_task_output(job_id=1, task_id=2, type="stdout"))) as f:
         assert f.read() == "abc\n"
+
+
+def test_data_transfer_failed_worker(hq_env: HqEnv, tmp_path):
+    tmp_path.joinpath("job.toml").write_text(
+        """
+data_layer = true
+        
+[[task]]
+id = 1
+command = ["bash", "-c", "set -e; echo 'abc' > test.txt; sleep 1; $HQ data put 22 test.txt"]
+[[task.request]]
+resources = { "a" = 1 }
+
+
+[[task]]
+id = 2
+command = ["bash", "-c", "set -e; $HQ data get 0 out.txt; cat out.txt"]
+[[task.request]]
+resources = { "b" = 1 }
+
+[[task.data_deps]]
+task_id = 1
+output_id = 22
+
+"""
+    )
+    with check_data_env(hq_env, tmp_path) as start_worker:
+        w = start_worker(args=["--resource", "a=sum(1)", "--heartbeat=10min"], hostname="localhost")
+        print(w)
+        hq_env.command(["job", "submit-file", "job.toml"])
+        wait_for_task_state(hq_env, 1, [1, 2], ["finished", "waiting"])
+        p = psutil.Process(w.pid)
+        p.suspend()
+        start_worker(args=["--resource", "b=sum(1)", "--max-download-tries=1"])
+        wait_for_job_state(hq_env, 1, "FAILED", timeout_s=30)
+        table = hq_env.command(["task", "list", "1", "-v"], as_table=True)
+        err = table.get_column_value("Error")[1]
+        assert "Fails to download data object" in err
+        assert "it has input index 0" in err
+        p.resume()
 
 
 def test_data_transfer_big_data(hq_env: HqEnv, tmp_path):

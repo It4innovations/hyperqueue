@@ -197,7 +197,13 @@ pub async fn run_worker(
 
     let dm_ref = DownloadManagerRef::new(state_ref.clone(), secret_key);
     state_ref.get_mut().set_download_manager(dm_ref.clone());
-    let download_manager_fut = download_manager_process(dm_ref, 4, 8, Duration::from_secs(40));
+    let download_manager_fut = download_manager_process(
+        dm_ref,
+        configuration.max_parallel_downloads,
+        configuration.max_download_tries,
+        configuration.wait_between_download_tries,
+        Duration::from_secs(40),
+    );
 
     let future = async move {
         let try_start_tasks = task_starter_process(state_ref.clone(), start_task_notify);

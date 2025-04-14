@@ -1,12 +1,12 @@
 use cli_table::format::{Justify, Separator};
-use cli_table::{Cell, CellStruct, Color, ColorChoice, Style, Table, TableStruct, print_stdout};
+use cli_table::{print_stdout, Cell, CellStruct, Color, ColorChoice, Style, Table, TableStruct};
 
 use std::fmt::{Display, Write};
 use std::io::Write as write;
 
 use crate::client::job::WorkerMap;
-use crate::client::output::outputs::{MAX_DISPLAYED_WORKERS, Output, OutputStream};
-use crate::client::status::{Status, get_task_status, job_status};
+use crate::client::output::outputs::{Output, OutputStream, MAX_DISPLAYED_WORKERS};
+use crate::client::status::{get_task_status, job_status, Status};
 use crate::common::env::is_hq_env;
 use crate::common::format::{human_duration, human_mem_amount, human_size};
 use crate::common::manager::info::GetManagerInfo;
@@ -31,11 +31,11 @@ use std::time::SystemTime;
 use tako::program::StdioDef;
 use tako::resources::{ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind};
 
-use crate::client::output::Verbosity;
 use crate::client::output::common::{
-    JOB_SUMMARY_STATUS_ORDER, TaskToPathsMap, group_jobs_by_status, resolve_task_paths,
+    group_jobs_by_status, resolve_task_paths, TaskToPathsMap, JOB_SUMMARY_STATUS_ORDER,
 };
 use crate::client::output::json::format_datetime;
+use crate::client::output::Verbosity;
 use crate::common::arraydef::IntArray;
 use crate::common::utils::str::{pluralize, select_plural, truncate_middle};
 use crate::worker::start::WORKER_EXTRA_PROCESS_PID;
@@ -48,7 +48,7 @@ use tako::gateway::{
     LostWorkerReason, ResourceRequest, ResourceRequestEntry, ResourceRequestVariants,
     WorkerRuntimeInfo,
 };
-use tako::{Map, format_comma_delimited};
+use tako::{format_comma_delimited, Map};
 
 pub const TASK_COLOR_CANCELED: Colorization = Colorization::Magenta;
 pub const TASK_COLOR_FAILED: Colorization = Colorization::Red;
@@ -328,6 +328,16 @@ impl Output for CliOutput {
                     .cell(),
             ],
             vec!["Group".cell().bold(true), configuration.group.cell()],
+            vec![
+                "Downloads".cell().bold(true),
+                format!(
+                    "{} parallel; max {} fails + {} delay",
+                    configuration.max_parallel_downloads,
+                    configuration.max_download_tries,
+                    format_duration(configuration.wait_between_download_tries)
+                )
+                .cell(),
+            ],
             vec![
                 "Manager".cell().bold(true),
                 manager_info
@@ -1551,7 +1561,7 @@ mod tests {
     use crate::client::output::cli::{resources_full_describe, resources_summary};
     use tako::internal::tests::utils::shared::{res_kind_groups, res_kind_list, res_kind_sum};
     use tako::resources::{
-        MEM_RESOURCE_NAME, ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind,
+        ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind, MEM_RESOURCE_NAME,
     };
 
     #[test]

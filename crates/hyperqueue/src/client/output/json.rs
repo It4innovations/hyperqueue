@@ -6,18 +6,18 @@ use anyhow::Error;
 use chrono::{DateTime, Utc};
 use serde::{Serialize, Serializer};
 use serde_json;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
-use tako::Map;
 use tako::gateway::ResourceRequest;
 use tako::program::{ProgramDefinition, StdioDef};
 use tako::resources::{ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind};
 use tako::worker::WorkerConfiguration;
+use tako::Map;
 
 use crate::client::job::WorkerMap;
-use crate::client::output::Verbosity;
-use crate::client::output::common::{TaskToPathsMap, group_jobs_by_status, resolve_task_paths};
+use crate::client::output::common::{group_jobs_by_status, resolve_task_paths, TaskToPathsMap};
 use crate::client::output::outputs::{Output, OutputStream};
+use crate::client::output::Verbosity;
 use crate::common::arraydef::IntArray;
 use crate::common::manager::info::{GetManagerInfo, ManagerType};
 use crate::server::autoalloc::{Allocation, AllocationState, QueueId};
@@ -512,6 +512,9 @@ fn format_worker_info(worker_info: WorkerInfo) -> serde_json::Value {
                 time_limit,
                 on_server_lost,
                 group,
+                max_parallel_downloads,
+                max_download_tries,
+                wait_between_download_tries,
                 extra: _,
             },
         started,
@@ -532,6 +535,9 @@ fn format_worker_info(worker_info: WorkerInfo) -> serde_json::Value {
             "listen_address": listen_address,
             "resources": format_resource_descriptor(&resources),
             "on_server_lost": crate::common::format::server_lost_policy_to_str(&on_server_lost),
+            "max_parallel_downloads": max_parallel_downloads,
+            "max_download_tries": max_download_tries,
+            "wait_between_download_tries": format_duration(wait_between_download_tries),
         }),
         "allocation": manager_info.map(|info| json!({
             "manager": FormattedManagerType(info.manager),
