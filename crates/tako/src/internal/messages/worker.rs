@@ -8,6 +8,7 @@ use crate::task::SerializedTaskContext;
 use crate::{InstanceId, Priority};
 use crate::{TaskId, WorkerId};
 use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
 use std::time::Duration;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -75,7 +76,7 @@ pub enum ToWorkerMessage {
     /// if it is **disabled** on the worker.
     /// If the worker has already enabled overview interval, then this does nothing.
     SetOverviewIntervalOverride(Option<Duration>),
-    RemoveDataObjects(Vec<DataObjectId>),
+    RemoveDataObjects(SmallVec<[DataObjectId; 1]>),
     PlacementResponse(DataObjectId, Option<WorkerId>),
     Stop,
 }

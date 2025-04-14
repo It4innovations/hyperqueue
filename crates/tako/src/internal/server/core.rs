@@ -8,7 +8,7 @@ use crate::internal::common::resources::map::{ResourceIdAllocator, ResourceMap};
 use crate::internal::common::resources::{ResourceId, ResourceRequestVariants};
 use crate::internal::common::{Set, WrappedRcRefCell};
 use crate::internal::scheduler::multinode::MultiNodeQueue;
-use crate::internal::server::dataobj::DataObjectHandle;
+use crate::internal::server::dataobj::{DataObjectHandle, ObjsToRemoveFromWorkers};
 use crate::internal::server::dataobjmap::DataObjectMap;
 use crate::internal::server::rpc::ConnectionDescriptor;
 use crate::internal::server::task::{Task, TaskRuntimeState};
@@ -340,7 +340,11 @@ impl Core {
     /// It can still remain in [`ready_to_assign`], where it will remain until the scheduler picks
     /// it up.
     #[must_use]
-    pub fn remove_task(&mut self, task_id: TaskId) -> TaskRuntimeState {
+    pub fn remove_task(
+        &mut self,
+        task_id: TaskId,
+        objs_to_remove: &mut ObjsToRemoveFromWorkers,
+    ) -> TaskRuntimeState {
         let task = self
             .tasks
             .remove(task_id)
@@ -352,14 +356,25 @@ impl Core {
                 }
             }
         }
+        if !task.data_deps.is_empty() {
+            for data_id in &task.data_deps {
+                self.data_objects
+                    .decrease_ref_count(*data_id, objs_to_remove);
+            }
+        }
         task.state
     }
 
     /// Removes multiple tasks at once, to reduce memory consumption
-    pub fn remove_tasks_batched(&mut self, tasks: &Set<TaskId>) {
+    pub fn remove_tasks_batched(
+        &mut self,
+        tasks: &Set<TaskId>,
+        objs_to_remove: &mut ObjsToRemoveFromWorkers,
+    ) {
         for &task_id in tasks {
-            let _ = self.remove_task(task_id);
+            let _ = self.remove_task(task_id, objs_to_remove);
         }
+
         self.single_node_ready_to_assign
             .retain(|t| !tasks.contains(t));
     }
