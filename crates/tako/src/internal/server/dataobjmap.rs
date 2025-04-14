@@ -20,6 +20,10 @@ impl DataObjectMap {
         self.data_objs.values()
     }
 
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut DataObjectHandle> {
+        self.data_objs.values_mut()
+    }
+
     #[inline(always)]
     pub fn get_data_object_mut(&mut self, data_object_id: DataObjectId) -> &mut DataObjectHandle {
         self.data_objs.find_mut(&data_object_id).unwrap_or_else(|| {

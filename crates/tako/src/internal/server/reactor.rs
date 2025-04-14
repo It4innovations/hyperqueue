@@ -129,6 +129,10 @@ pub(crate) fn on_remove_worker(
         core.add_ready_to_assign(task_id);
     }
 
+    for data_obj in core.data_objects_mut().iter_mut() {
+        data_obj.remove_placement(worker_id);
+    }
+
     log::debug!(
         "Running tasks on lost worker {}: {:?}",
         worker_id,
