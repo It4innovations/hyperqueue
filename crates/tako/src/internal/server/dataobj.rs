@@ -51,6 +51,10 @@ impl DataObjectHandle {
         self.placement.insert(worker_id);
     }
 
+    pub fn remove_placement(&mut self, worker_id: WorkerId) -> bool {
+        self.placement.remove(&worker_id)
+    }
+
     pub fn placement(&self) -> &HashSet<WorkerId> {
         &self.placement
     }
