@@ -359,7 +359,7 @@ impl Core {
         if !task.data_deps.is_empty() {
             for data_id in &task.data_deps {
                 self.data_objects
-                    .decrease_ref_count(*data_id, objs_to_remove);
+                    .try_decrease_ref_count(*data_id, objs_to_remove);
             }
         }
         task.state

@@ -262,7 +262,12 @@ pub(crate) fn on_task_finished(
     {
         let (tasks, workers) = core.split_tasks_workers_mut();
         if let Some(task) = tasks.find_task_mut(msg.id) {
-            log::debug!("Task id={} finished on worker={}", task_id, worker_id);
+            log::debug!(
+                "Task id={} finished on worker={}; outputs={:?}",
+                task_id,
+                worker_id,
+                &msg.outputs
+            );
 
             assert!(task.is_assigned_or_stolen_from(worker_id));
 
