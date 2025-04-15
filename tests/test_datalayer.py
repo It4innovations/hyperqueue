@@ -7,12 +7,13 @@ import os
 import time
 import json
 import psutil
+import hashlib
 
 
 @contextmanager
-def check_data_env(hq_env: HqEnv, tmp_path):
+def check_data_env(hq_env: HqEnv, tmp_path, server_args=None):
     journal_path = os.path.join(tmp_path, "my.journal")
-    hq_env.start_server(args=["--journal", journal_path])
+    hq_env.start_server(args=["--journal", journal_path] + server_args if server_args else [])
     yield lambda *args, **kwargs: hq_env.start_worker(*args, **kwargs)
     time.sleep(0.6)
     check_for_memory_leaks(hq_env)
@@ -58,13 +59,15 @@ command = ["bash", "-c", "set -e; echo 'abc' > test.txt; $HQ data put 1 test.txt
 
 
 def test_data_transfer_invalid_input_id(hq_env: HqEnv, tmp_path):
-    tmp_path.joinpath("job.toml").write_text("""
+    tmp_path.joinpath("job.toml").write_text(
+        """
 data_layer = true
         
 [[task]]
 id = 12
 command = ["bash", "-c", "set -e; $HQ data get 3 test.txt"]
-""")
+"""
+    )
     with check_data_env(hq_env, tmp_path) as start_worker:
         start_worker()
         hq_env.command(["job", "submit-file", "job.toml"])
@@ -74,13 +77,15 @@ command = ["bash", "-c", "set -e; $HQ data get 3 test.txt"]
 
 
 def test_data_transfer_invalid_upload(hq_env: HqEnv, tmp_path):
-    tmp_path.joinpath("job.toml").write_text("""
+    tmp_path.joinpath("job.toml").write_text(
+        """
 data_layer = true
         
 [[task]]
 id = 12
 command = ["bash", "-c", "set -e; touch test.txt; $HQ data put 3 test.txt; $HQ data put 3 test.txt"]
-""")
+"""
+    )
     with check_data_env(hq_env, tmp_path) as start_worker:
         start_worker()
         hq_env.command(["job", "submit-file", "job.toml"])
@@ -130,7 +135,7 @@ command = ["bash", "-c", "set -e; $HQ data get 0 out.txt; cat out.txt"]
 
 [[task.data_deps]]
 task_id = 12
-data_id = 3 
+output_id = 3 
 """
     )
     with check_data_env(hq_env, tmp_path) as start_worker:
@@ -193,7 +198,6 @@ resources = { "b" = 1 }
 [[task.data_deps]]
 task_id = 1
 output_id = 22
-
 """
     )
     with check_data_env(hq_env, tmp_path) as start_worker:
@@ -249,5 +253,85 @@ output_id = 22
         assert "it has input index 0" in err
 
 
-def test_data_transfer_big_data(hq_env: HqEnv, tmp_path):
-    raise Exception("TODO")
+def test_data_transfer_failed_data_deps(hq_env: HqEnv, tmp_path):
+    tmp_path.joinpath("job.toml").write_text(
+        """
+data_layer = true
+        
+[[task]]
+id = 1
+command = ["bash", "-c", "set -e; touch in.txt $HQ data put 1 in.txt"]
+[[task.request]]
+resources = { "a" = 1 }
+
+
+[[task]]
+id = 2
+command = ["bash", "-c", "sleep", "0"]
+[[task.request]]
+resources = { "b" = 1 }
+
+[[task.data_deps]]
+task_id = 1
+output_id = 0
+
+"""
+    )
+    with check_data_env(hq_env, tmp_path) as start_worker:
+        start_worker(args=["--resource", "a=sum(1)"], hostname="localhost")
+        start_worker(args=["--resource", "b=sum(1)"])
+        hq_env.command(["job", "submit-file", "job.toml"])
+        wait_for_job_state(hq_env, 1, "FAILED")
+        msg = hq_env.command(["task", "--output-mode", "json", "info", "1", "2"], as_json=True)[0]["error"]
+        assert "did not produced expected output(s): 0" in msg
+
+
+def test_data_transfer_big_file(hq_env: HqEnv, tmp_path):
+    tmp_path.joinpath("generator.py").write_text(
+        """
+import random
+r = random.Random(7890001)
+f = open("in.txt", "wb")
+for i in range(97):
+    f.write(r.randbytes(3 * 1024 * 1024))
+"""
+    )
+    tmp_path.joinpath("job.toml").write_text(
+        """
+data_layer = true
+        
+[[task]]
+id = 1
+command = ["bash", "-c", "set -e; python generator.py; touch in2.txt; $HQ data put 0 in.txt; $HQ data put 1 in2.txt"]
+[[task.request]]
+resources = { "a" = 1 }
+
+
+[[task]]
+id = 2
+command = ["bash", "-c", "set -e; $HQ data get 0 out.txt; $HQ data get 1 out2.txt"]
+[[task.request]]
+resources = { "b" = 1 }
+
+[[task.data_deps]]
+task_id = 1
+output_id = 0
+
+[[task.data_deps]]
+task_id = 1
+output_id = 1
+
+"""
+    )
+    with check_data_env(
+        # Running unencrypted because debug mode is slow
+        hq_env,
+        tmp_path,
+        server_args=["--disable-worker-authentication-and-encryption"],
+    ) as start_worker:
+        start_worker(args=["--resource", "a=sum(1)"], hostname="localhost")
+        start_worker(args=["--resource", "b=sum(1)"])
+        hq_env.command(["job", "submit-file", "job.toml"])
+        wait_for_job_state(hq_env, 1, "FINISHED")
+        with open("out.txt", "rb") as f:
+            assert hashlib.md5(f.read()).hexdigest() == "be44c343cf99772daab97b6d7588de33"
