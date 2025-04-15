@@ -1,7 +1,7 @@
 use crate::datasrv::DataObjectId;
 use crate::internal::worker::data::datanode_local_connection_handler;
 use crate::internal::worker::state::WorkerStateRef;
-use crate::{Map, TaskId};
+use crate::{MAX_FRAME_SIZE, Map, TaskId};
 use bstr::{BStr, BString, ByteSlice, ByteVec};
 use futures::StreamExt;
 use rand::Rng;
@@ -117,7 +117,9 @@ pub(crate) struct IntroMessage {
 }
 
 pub(crate) fn make_protocol_builder() -> Builder {
-    *LengthDelimitedCodec::builder().little_endian()
+    *LengthDelimitedCodec::builder()
+        .little_endian()
+        .max_frame_length(MAX_FRAME_SIZE)
 }
 
 async fn handle_connection(state_ref: WorkerStateRef, stream: UnixStream) -> crate::Result<()> {

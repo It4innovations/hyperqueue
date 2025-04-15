@@ -50,16 +50,16 @@ async fn create_local_data_client() -> crate::Result<LocalDataClient> {
 pub async fn command_task_data(_gsettings: &GlobalSettings, opts: DataOpts) -> anyhow::Result<()> {
     match opts.subcmd {
         DataCommand::Put(put_opts) => {
-            let data = std::fs::read(&put_opts.path)?;
             let mut client = create_local_data_client().await?;
             client
-                .put_data_object(put_opts.data_id, put_opts.mime_type, data)
+                .put_data_object_from_file(put_opts.data_id, put_opts.mime_type, &put_opts.path)
                 .await?;
         }
         DataCommand::Get(get_opts) => {
             let mut client = create_local_data_client().await?;
-            let data_obj = client.get_input(get_opts.input_id).await?;
-            std::fs::write(get_opts.path, data_obj.data())?;
+            client
+                .get_input_to_file(get_opts.input_id, &get_opts.path)
+                .await?;
         }
     }
     Ok(())

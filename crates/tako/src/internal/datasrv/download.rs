@@ -1,7 +1,10 @@
 use crate::connection::Connection;
 use crate::datasrv::DataObjectId;
-use crate::internal::datasrv::messages::{FromDataClientMessage, ToDataClientMessage};
-use crate::internal::datasrv::DataObjectRef;
+use crate::internal::datasrv::messages::{
+    DataDown, FromDataClientMessage, ToDataClientMessageDown,
+};
+use crate::internal::datasrv::utils::DataObjectComposer;
+use crate::internal::datasrv::{DataObject, DataObjectRef};
 use crate::internal::messages::worker::FromWorkerMessage;
 use crate::internal::worker::state::WorkerStateRef;
 use crate::internal::worker::task::TaskState;
@@ -14,14 +17,14 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::TcpStream;
-use tokio::sync::{oneshot, Notify, OwnedSemaphorePermit, Semaphore};
-use tokio::task::{spawn_local, AbortHandle, JoinSet};
+use tokio::sync::{Notify, OwnedSemaphorePermit, Semaphore, oneshot};
+use tokio::task::{AbortHandle, JoinSet, spawn_local};
 use tokio::time::Instant;
 
 const PROTOCOL_VERSION: u32 = 0;
 const MAX_IDLE_CONNECTIONS_PER_WORKER: usize = 4;
 
-pub(crate) type DataClientConnection = Connection<ToDataClientMessage, FromDataClientMessage>;
+pub(crate) type DataClientConnection = Connection<ToDataClientMessageDown, FromDataClientMessage>;
 
 pub(crate) trait DownloadInterface {
     fn find_placement(&self, data_id: DataObjectId) -> oneshot::Receiver<Option<String>>;
@@ -146,16 +149,47 @@ async fn download_from_address<I: DownloadInterface, P: Ord + Debug>(
     data_id: DataObjectId,
 ) -> crate::Result<DataObjectRef> {
     let mut connection = get_connection(dm_ref, &addr).await?;
+    log::debug!("Sending download request for object {data_id}");
     let message = FromDataClientMessage::GetObject { data_id };
     let message = connection.send_and_receive(message).await?;
     match message {
-        ToDataClientMessage::DataObject(data_obj) => {
+        ToDataClientMessageDown::DataObject {
+            mime_type,
+            size,
+            data: DataDown { data },
+        } => {
+            log::debug!(
+                "Downloading data object {data_id}, size={size}, mime_type={mime_type}, initial_data={}",
+                data.len(),
+            );
+            let mut composer = DataObjectComposer::new(size as usize, data);
+            while !composer.is_finished() {
+                match connection.receive().await.transpose()? {
+                    Some(ToDataClientMessageDown::DataObjectPart(DataDown { data })) => {
+                        let got = composer.add(data);
+                        log::debug!("Download data part of data object {data_id}: {got}/{size}")
+                    }
+                    Some(_) => {
+                        return Err(crate::Error::GenericError(
+                            "Unexpected message in download connection".to_string(),
+                        ));
+                    }
+                    None => {
+                        return Err(crate::Error::GenericError(
+                            "Unexpected close of download connection".to_string(),
+                        ));
+                    }
+                }
+            }
             dm_ref.get_mut().return_connection(&addr, connection);
-            Ok(data_obj)
+            Ok(DataObjectRef::new(composer.finish(mime_type)))
         }
-        ToDataClientMessage::DataObjectNotFound => Err(crate::Error::GenericError(
+        ToDataClientMessageDown::DataObjectNotFound => Err(crate::Error::GenericError(
             "Object not found in remote side".to_string(),
         )),
+        ToDataClientMessageDown::DataObjectPart(_) => {
+            Err(crate::Error::GenericError("Invalid message".to_string()))
+        }
     }
 }
 

@@ -63,6 +63,10 @@ impl DataObject {
     pub fn data(&self) -> &[u8] {
         &self.data
     }
+
+    pub fn mime_type(&self) -> &str {
+        &self.mime_type
+    }
 }
 
 pub type DataObjectRef = Rc<DataObject>;
