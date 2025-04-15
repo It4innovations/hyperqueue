@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize, Serializer};
+use std::fmt::Display;
 
 use crate::internal::common::error::DsError;
 use crate::internal::messages::common::TaskFailInfo;
@@ -300,6 +301,18 @@ impl LostWorkerReason {
             self,
             LostWorkerReason::ConnectionLost | LostWorkerReason::HeartbeatLost
         )
+    }
+}
+
+impl Display for LostWorkerReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            LostWorkerReason::Stopped => "stopped",
+            LostWorkerReason::ConnectionLost => "connection lost",
+            LostWorkerReason::HeartbeatLost => "heartbeat lost",
+            LostWorkerReason::IdleTimeout => "idle timeout",
+            LostWorkerReason::TimeLimitReached => "time limit reached",
+        })
     }
 }
 
