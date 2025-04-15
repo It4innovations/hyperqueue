@@ -230,9 +230,10 @@ async fn worker_rpc_loop(
     };
 
     log::info!(
-        "Worker {} connection closed (connection: {})",
+        "Worker {} ({}) connection closed: {}",
         worker_id,
-        connection.address
+        connection.address,
+        reason
     );
     let mut core = core_ref.get_mut();
     let mut comm = comm_ref.get_mut();
