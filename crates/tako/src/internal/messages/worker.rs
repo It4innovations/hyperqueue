@@ -84,6 +84,7 @@ pub struct TaskFailedMsg {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TaskRunningMsg {
     pub id: TaskId,
+    #[serde(with = "serde_bytes")]
     pub context: SerializedTaskContext,
 }
 
