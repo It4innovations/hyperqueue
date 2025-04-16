@@ -989,7 +989,7 @@ def test_zero_custom_error_message(hq_env: HqEnv):
     # print(table)
 
 
-@pytest.mark.parametrize("count", [None, 1, 7])
+@pytest.mark.parametrize("count", [None, 1, 2, 7])
 def test_crashing_job_status_default(count: Optional[int], hq_env: HqEnv):
     hq_env.start_server()
 

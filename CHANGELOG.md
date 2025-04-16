@@ -10,6 +10,7 @@
 ### Fixes
 
 * Fixed a problem with journal loading when task dependencies are used
+* Fixed restoring crash counters and instance ids from journal
 
 ## 0.22.0
 

@@ -129,7 +129,7 @@ pub struct TaskConfiguration {
 pub struct NewTasksMessage {
     pub tasks: Vec<TaskConfiguration>,
     pub shared_data: Vec<SharedTaskConfiguration>,
-    pub adjust_instance_id: Map<TaskId, InstanceId>,
+    pub adjust_instance_id_and_crash_counters: Map<TaskId, (InstanceId, u32)>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]

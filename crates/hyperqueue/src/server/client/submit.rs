@@ -321,7 +321,7 @@ fn build_tasks_array(
             priority: task_desc.priority,
             crash_limit: task_desc.crash_limit,
         }],
-        adjust_instance_id: Default::default(),
+        adjust_instance_id_and_crash_counters: Default::default(),
     }
 }
 
@@ -391,7 +391,7 @@ fn build_tasks_graph(
     NewTasksMessage {
         tasks: task_configs,
         shared_data,
-        adjust_instance_id: Default::default(),
+        adjust_instance_id_and_crash_counters: Default::default(),
     }
 }
 

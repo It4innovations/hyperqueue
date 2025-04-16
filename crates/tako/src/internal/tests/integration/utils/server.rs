@@ -194,7 +194,7 @@ impl ServerHandle {
         let msg = NewTasksMessage {
             tasks,
             shared_data: configurations,
-            adjust_instance_id: Default::default(),
+            adjust_instance_id_and_crash_counters: Default::default(),
         };
         self.send(FromGatewayMessage::NewTasks(msg)).await;
         wait_for_msg!(self, ToGatewayMessage::NewTasksResponse(NewTasksResponse { .. }) => ());
