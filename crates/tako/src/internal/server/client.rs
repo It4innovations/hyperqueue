@@ -218,10 +218,13 @@ fn handle_new_tasks(
         let task = Task::new(task.id, task.task_deps, conf.clone(), task.body);
         tasks.push(task);
     }
-    if !msg.adjust_instance_id.is_empty() {
+    if !msg.adjust_instance_id_and_crash_counters.is_empty() {
         for task in &mut tasks {
-            if let Some(instance_id) = msg.adjust_instance_id.get(&task.id) {
+            if let Some((instance_id, crash_counter)) =
+                msg.adjust_instance_id_and_crash_counters.get(&task.id)
+            {
                 task.instance_id = *instance_id;
+                task.crash_counter = *crash_counter;
             }
         }
     }

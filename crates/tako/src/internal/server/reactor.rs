@@ -135,8 +135,11 @@ pub(crate) fn on_remove_worker(
 
     comm.broadcast_worker_message(&ToWorkerMessage::LostWorker(worker_id));
 
-    // IMPORTANT: We have to announce error BEFORE we announce lost worker (+ running tasks)
-    // because HQ does not recognize switch from waiting to failed stated.
+    // IMPORTANT: We need to announce lost worker before failing the jobs
+    // so in journal restoration we can detect what tasks were running
+    // without explicit logging
+    comm.send_client_worker_lost(worker_id, running_tasks, reason);
+
     for task_id in crashed_tasks {
         let count = core.get_task(task_id).crash_counter;
         log::debug!("Task {} reached crash limit {}", task_id, count);
@@ -154,9 +157,6 @@ pub(crate) fn on_remove_worker(
             },
         );
     }
-
-    comm.send_client_worker_lost(worker_id, running_tasks, reason);
-
     comm.ask_for_scheduling();
 }
 

@@ -10,10 +10,12 @@ use crate::worker::start::RunningTaskContext;
 use crate::{JobId, JobTaskId, Map, make_tako_id, unwrap_tako_id};
 use std::path::Path;
 use tako::gateway::NewTasksMessage;
-use tako::{ItemId, WorkerId};
+use tako::{InstanceId, ItemId, WorkerId};
 
 struct RestorerTaskInfo {
     state: JobTaskState,
+    instance_id: Option<InstanceId>,
+    crash_counter: u32,
 }
 
 impl RestorerTaskInfo {
@@ -77,15 +79,17 @@ impl RestorerJob {
 
             for (task_id, job_task) in job.tasks.iter_mut() {
                 if let Some(task) = self.tasks.get_mut(task_id) {
+                    if task.crash_counter > 0 || task.instance_id.is_some() {
+                        new_tasks.adjust_instance_id_and_crash_counters.insert(
+                            make_tako_id(job_id, *task_id),
+                            (
+                                task.instance_id.map(|x| x.as_num() + 1).unwrap_or(0).into(),
+                                task.crash_counter,
+                            ),
+                        );
+                    }
                     match &task.state {
-                        JobTaskState::Waiting => continue,
-                        JobTaskState::Running { started_data } => {
-                            let instance_id = started_data.context.instance_id.as_num() + 1;
-                            new_tasks
-                                .adjust_instance_id
-                                .insert(make_tako_id(job_id, *task_id), instance_id.into());
-                            continue;
-                        }
+                        JobTaskState::Waiting | JobTaskState::Running { .. } => continue,
                         JobTaskState::Finished { .. } => job.counters.n_finished_tasks += 1,
                         JobTaskState::Failed { .. } => job.counters.n_failed_tasks += 1,
                         JobTaskState::Canceled { .. } => job.counters.n_canceled_tasks += 1,
@@ -111,6 +115,19 @@ impl RestorerJob {
 
     pub fn add_submit(&mut self, submit: SubmittedJobDescription) {
         self.submit_descs.push(submit)
+    }
+
+    pub fn increase_crash_counters(&mut self, worker_id: WorkerId) {
+        for task in self.tasks.values_mut() {
+            match &task.state {
+                JobTaskState::Running { started_data }
+                    if started_data.worker_ids.contains(&worker_id) =>
+                {
+                    task.crash_counter += 1;
+                }
+                _ => {}
+            }
+        }
     }
 }
 
@@ -183,7 +200,13 @@ impl StateRestorer {
                     log::debug!("Replaying: WorkerConnected {worker_id}");
                     self.max_worker_id = self.max_worker_id.max(worker_id.as_num());
                 }
-                EventPayload::WorkerLost(_, _) => {}
+                EventPayload::WorkerLost(worker_id, reason) => {
+                    if reason.is_failure() {
+                        for job in self.jobs.values_mut() {
+                            job.increase_crash_counters(worker_id);
+                        }
+                    }
+                }
                 EventPayload::WorkerOverviewReceived(_) => {}
                 EventPayload::Submit {
                     job_id,
@@ -232,6 +255,8 @@ impl StateRestorer {
                                         worker_ids: workers,
                                     },
                                 },
+                                instance_id: Some(instance_id),
+                                crash_counter: 0,
                             },
                         );
                     }
@@ -300,6 +325,8 @@ impl StateRestorer {
                                         started_data: None,
                                         cancelled_date: event.time,
                                     },
+                                    instance_id: None,
+                                    crash_counter: 0,
                                 },
                             );
                         }
