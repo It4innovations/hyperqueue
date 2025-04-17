@@ -550,6 +550,7 @@ impl Core {
 #[cfg(test)]
 mod tests {
     use crate::internal::server::core::Core;
+    use crate::internal::server::dataobj::ObjsToRemoveFromWorkers;
     use crate::internal::server::task::Task;
     use crate::internal::server::task::TaskRuntimeState;
     use crate::internal::server::worker::Worker;
@@ -639,8 +640,9 @@ mod tests {
         let mut core = Core::default();
         let t = task::task(101);
         core.add_task(t);
+        let mut objs_to_remove = ObjsToRemoveFromWorkers::new();
         assert!(matches!(
-            core.remove_task(101.into()),
+            core.remove_task(101.into(), &mut objs_to_remove),
             TaskRuntimeState::Waiting(_)
         ));
         assert_eq!(core.find_task(101.into()), None);

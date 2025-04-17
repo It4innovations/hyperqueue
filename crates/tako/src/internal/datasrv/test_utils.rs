@@ -1,17 +1,20 @@
 use crate::datasrv::DataObjectId;
 use crate::internal::datasrv::DataObjectRef;
-use crate::internal::datasrv::download::{DownloadInterface, DownloadManagerRef};
+use crate::internal::datasrv::download::{
+    DownloadInterface, DownloadManagerRef, download_manager_process,
+};
 use crate::internal::datasrv::upload::{UploadInterface, data_upload_service};
 use crate::{Map, WrappedRcRefCell};
 use std::net::SocketAddr;
 use std::str::FromStr;
+use std::time::Duration;
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::Receiver;
-use tokio::task::spawn_local;
+use tokio::task::{LocalSet, spawn_local};
 
 #[derive(Clone)]
-enum PlacementConfig {
+pub(crate) enum PlacementConfig {
     Valid(String),
     Unresolvable,
     Ignore,
@@ -61,7 +64,7 @@ impl DownloadInterface for TestDmInterface {
 }
 
 impl TestDmInterface {
-    pub fn register_hosts(&self, data_ids: &[DataObjectId], host: Option<String>) {
+    pub fn register_hosts(&self, data_ids: &[DataObjectId], host: PlacementConfig) {
         let mut dm = self.get_mut();
         for data_id in data_ids {
             dm.hosts.insert(*data_id, host.clone());
@@ -128,4 +131,21 @@ pub(crate) async fn start_test_upload_service(interface: TestUploadInterface) ->
     let listener_port = listener.local_addr().unwrap().port();
     spawn_local(data_upload_service(listener, None, interface));
     format!("127.0.0.1:{listener_port}")
+}
+
+pub(crate) fn start_download_manager(
+    dm_ref: &DownloadManagerRef<TestDmInterface, u32>,
+    timeout: u64,
+) {
+    let dm_ref = dm_ref.clone();
+    spawn_local(async move {
+        download_manager_process(
+            dm_ref,
+            2,
+            3,
+            Duration::from_secs(1),
+            Duration::from_secs(timeout),
+        )
+        .await
+    });
 }

@@ -5,6 +5,7 @@ use bytes::{Bytes, BytesMut};
 use futures::stream::{SplitSink, SplitStream};
 use futures::{Stream, StreamExt};
 use orion::aead::streaming::{StreamOpener, StreamSealer};
+use smallvec::smallvec;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::time::timeout;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
@@ -15,7 +16,7 @@ use crate::gateway::LostWorkerReason;
 use crate::internal::common::error::DsError;
 use crate::internal::common::taskgroup::TaskGroup;
 use crate::internal::messages::worker::{
-    FromWorkerMessage, NewWorkerMsg, WorkerRegistrationResponse, WorkerStopReason,
+    FromWorkerMessage, NewWorkerMsg, ToWorkerMessage, WorkerRegistrationResponse, WorkerStopReason,
 };
 use crate::internal::server::comm::{Comm, CommSenderRef};
 use crate::internal::server::core::CoreRef;
@@ -296,6 +297,10 @@ pub(crate) async fn worker_receive_loop<
                 if let Some(obj) = core.data_objects_mut().find_data_object_mut(data_id) {
                     obj.add_placement(worker_id);
                 } else {
+                    comm_ref.get_mut().send_worker_message(
+                        worker_id,
+                        &ToWorkerMessage::RemoveDataObjects(smallvec![data_id]),
+                    );
                     log::debug!("Placement for invalid object");
                 }
             }
