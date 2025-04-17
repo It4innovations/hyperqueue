@@ -6,20 +6,21 @@ use std::time::Duration;
 
 use bytes::{Bytes, BytesMut};
 use futures::{SinkExt, Stream, StreamExt};
-use orion::aead::streaming::StreamOpener;
 use orion::aead::SecretKey;
+use orion::aead::streaming::StreamOpener;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::time::sleep;
 use tokio::time::timeout;
 
+use crate::WorkerId;
 use crate::comm::{ConnectionRegistration, RegisterWorker};
 use crate::hwstats::WorkerHwStateMessage;
-use crate::internal::common::resources::map::ResourceMap;
-use crate::internal::common::resources::Allocation;
 use crate::internal::common::WrappedRcRefCell;
+use crate::internal::common::resources::Allocation;
+use crate::internal::common::resources::map::ResourceMap;
 use crate::internal::datasrv::download::download_manager_process;
 use crate::internal::datasrv::{
-    data_upload_service, download, DownloadManager, DownloadManagerRef,
+    DownloadManager, DownloadManagerRef, data_upload_service, download,
 };
 use crate::internal::messages::worker::{
     FromWorkerMessage, StealResponseMsg, TaskResourceAllocation, ToWorkerMessage, WorkerOverview,
@@ -32,7 +33,7 @@ use crate::internal::transfer::auth::{
 use crate::internal::transfer::transport::make_protocol_builder;
 use crate::internal::worker::comm::WorkerComm;
 use crate::internal::worker::configuration::{
-    sync_worker_configuration, OverviewConfiguration, ServerLostPolicy, WorkerConfiguration,
+    OverviewConfiguration, ServerLostPolicy, WorkerConfiguration, sync_worker_configuration,
 };
 use crate::internal::worker::hwmonitor::HwSampler;
 use crate::internal::worker::localcomm::handle_local_comm;
@@ -40,7 +41,6 @@ use crate::internal::worker::reactor::start_task;
 use crate::internal::worker::state::{WorkerState, WorkerStateRef};
 use crate::internal::worker::task::{Task, TaskState};
 use crate::launcher::TaskLauncher;
-use crate::WorkerId;
 use futures::future::Either;
 use tokio::sync::Notify;
 

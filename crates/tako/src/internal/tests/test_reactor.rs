@@ -54,6 +54,9 @@ fn test_worker_add() {
         idle_timeout: None,
         time_limit: None,
         on_server_lost: ServerLostPolicy::Stop,
+        max_parallel_downloads: 4,
+        max_download_tries: 6,
+        wait_between_download_tries: Duration::from_secs(1),
         extra: Default::default(),
         group: "default".to_string(),
     };
@@ -107,6 +110,9 @@ fn test_worker_add() {
         idle_timeout: None,
         time_limit: None,
         on_server_lost: ServerLostPolicy::Stop,
+        max_parallel_downloads: 4,
+        max_download_tries: 6,
+        wait_between_download_tries: Duration::from_secs(1),
         extra: Default::default(),
     };
 
@@ -1244,7 +1250,7 @@ fn test_data_deps_basic() {
     comm.check_need_scheduling();
     let messages = comm.take_worker_msgs(100, 1);
     assert!(
-        matches!(&messages[0], ToWorkerMessage::RemoveDataObjects(x) if *x == vec![DataObjectId::new(1.into(), 0.into())])
+        matches!(&messages[0], ToWorkerMessage::RemoveDataObjects(x) if x.len() == 1 && x[0] == DataObjectId::new(1.into(), 0.into()))
     );
     comm.take_client_task_finished(1);
     comm.emptiness_check();

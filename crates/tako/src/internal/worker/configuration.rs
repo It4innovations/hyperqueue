@@ -1,7 +1,7 @@
-use crate::hwstats::GpuFamily;
-use crate::internal::common::resources::ResourceDescriptor;
-use crate::internal::common::Map;
 use crate::Set;
+use crate::hwstats::GpuFamily;
+use crate::internal::common::Map;
+use crate::internal::common::resources::ResourceDescriptor;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::time::Duration;

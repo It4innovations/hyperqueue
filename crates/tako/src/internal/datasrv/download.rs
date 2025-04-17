@@ -26,16 +26,22 @@ const MAX_IDLE_CONNECTIONS_PER_WORKER: usize = 4;
 
 pub(crate) type DataClientConnection = Connection<ToDataClientMessageDown, FromDataClientMessage>;
 
-pub(crate) trait DownloadInterface {
+pub(crate) trait DownloadInterface: Clone {
     fn find_placement(&self, data_id: DataObjectId) -> oneshot::Receiver<Option<String>>;
     fn on_download_finished(&self, data_id: DataObjectId, data_ref: DataObjectRef);
     fn on_download_failed(&self, data_id: DataObjectId);
 }
 
+#[derive(Default)]
+pub(crate) struct DownloadInfo {
+    ref_counter: u32,
+    abort_handle: Option<AbortHandle>,
+}
+
 pub(crate) struct DownloadManager<I, P> {
     interface: I,
     download_queue: PriorityQueue<DataObjectId, P>,
-    running_downloads: Map<DataObjectId, AbortHandle>,
+    download_info: Map<DataObjectId, DownloadInfo>,
     notify_downloader: Rc<Notify>,
     idle_connections: Map<String, Vec<(DataClientConnection, Instant)>>,
     secret_key: Option<Arc<SecretKey>>,
@@ -49,7 +55,7 @@ impl<I: DownloadInterface, P: Ord> DownloadManagerRef<I, P> {
             interface,
             secret_key,
             download_queue: Default::default(),
-            running_downloads: Default::default(),
+            download_info: Default::default(),
             notify_downloader: Rc::new(Notify::new()),
             idle_connections: Map::new(),
         })
@@ -76,14 +82,28 @@ impl<I: DownloadInterface, P: Ord + Debug> DownloadManager<I, P> {
     }
 
     pub fn cancel_download(&mut self, data_id: DataObjectId) {
-        self.download_queue.remove(&data_id);
-        if let Some(r) = self.running_downloads.remove(&data_id) {
-            r.abort();
+        if let Some(info) = self.download_info.get_mut(&data_id) {
+            assert!(info.ref_counter > 0);
+            info.ref_counter -= 1;
+            if info.ref_counter == 0 {
+                let info = self.download_info.remove(&data_id).unwrap();
+                if let Some(abort_handle) = info.abort_handle {
+                    abort_handle.abort();
+                } else {
+                    self.download_queue.remove(&data_id);
+                }
+            }
         }
     }
 
     pub fn download_object(&mut self, data_object_id: DataObjectId, priority: P) {
         log::debug!("Dataobj {data_object_id} requested; priority: {priority:?}");
+        let entry = self.download_info.entry(data_object_id).or_default();
+        entry.ref_counter += 1;
+        if entry.abort_handle.is_some() {
+            log::debug!("Dataobj is already downloading");
+            return;
+        }
         if let Some(old_priority) = self.download_queue.get_priority(&data_object_id) {
             log::debug!("Dataobj already in queue");
             if priority > *old_priority {
@@ -91,10 +111,6 @@ impl<I: DownloadInterface, P: Ord + Debug> DownloadManager<I, P> {
                 self.download_queue
                     .change_priority(&data_object_id, priority);
             }
-            return;
-        }
-        if self.running_downloads.contains_key(&data_object_id) {
-            log::debug!("Dataobj is already downloading");
             return;
         }
         self.download_queue.push(data_object_id, priority);
@@ -109,8 +125,8 @@ impl<I: DownloadInterface, P: Ord + Debug> DownloadManager<I, P> {
     }
 
     #[cfg(test)]
-    pub fn running_downloads(&self) -> &Map<DataObjectId, AbortHandle> {
-        &self.running_downloads
+    pub fn download_info(&self) -> &Map<DataObjectId, DownloadInfo> {
+        &self.download_info
     }
 
     #[cfg(test)]
@@ -203,8 +219,8 @@ async fn download_process<I: DownloadInterface, P: Ord + Debug>(
     for i in 0..max_download_tries {
         log::debug!("Trying to resolve placement for {data_id}, try {i}");
         let resolver = {
-            let mut dm = dm_ref.get();
-            dm.interface.find_placement(data_id)
+            let mut interface = dm_ref.get().interface.clone();
+            interface.find_placement(data_id)
         };
         if let Ok(addr) = resolver.await {
             log::debug!("Placement for {data_id} was resolved as {addr:?}");
@@ -212,8 +228,8 @@ async fn download_process<I: DownloadInterface, P: Ord + Debug>(
                 match download_from_address(&dm_ref, &addr, data_id).await {
                     Ok(data_obj) => {
                         log::debug!("Download of {data_id} completed; size={}", data_obj.size());
-                        let mut dm = dm_ref.get_mut();
-                        dm.interface.on_download_finished(data_id, data_obj);
+                        let mut interface = dm_ref.get().interface.clone();
+                        interface.on_download_finished(data_id, data_obj);
                         return;
                     }
                     Err(e) => {
@@ -222,15 +238,15 @@ async fn download_process<I: DownloadInterface, P: Ord + Debug>(
                 };
             } else {
                 log::debug!("Placement for {data_id} is not resolvable.");
-                let mut dm = dm_ref.get_mut();
-                dm.interface.on_download_failed(data_id);
+                let mut interface = dm_ref.get().interface.clone();
+                interface.on_download_failed(data_id);
                 return;
             }
         }
         tokio::time::sleep(wait_between_download_tries * i).await;
     }
-    let dm = dm_ref.get();
-    dm.interface.on_download_failed(data_id);
+    let interface = dm_ref.get().interface.clone();
+    interface.on_download_failed(data_id);
 }
 
 pub(crate) async fn download_manager_process<
@@ -283,7 +299,9 @@ pub(crate) async fn download_manager_process<
                         max_download_tries,
                         wait_between_download_tries,
                     ));
-                    assert!(dm.running_downloads.insert(data_id, abort).is_none());
+                    let info = dm.download_info.get_mut(&data_id).unwrap();
+                    assert!(info.abort_handle.is_none());
+                    info.abort_handle = Some(abort);
                     dm.download_queue.is_empty()
                 } else {
                     true
