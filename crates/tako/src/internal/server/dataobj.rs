@@ -36,6 +36,10 @@ impl DataObjectHandle {
         }
     }
 
+    pub fn size(&self) -> u64 {
+        self.size
+    }
+
     #[must_use]
     #[inline]
     pub fn decrease_ref_count(&mut self) -> bool {

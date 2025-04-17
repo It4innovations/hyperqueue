@@ -52,9 +52,10 @@ impl TaskBuilder {
         self
     }
 
-    pub fn data_dep(mut self, task: &Task, data_id: OutputId) -> TaskBuilder {
+    pub fn data_dep(mut self, task: &Task, data_id: u32) -> TaskBuilder {
         self.task_deps.insert(task.id);
-        self.data_deps.push(DataObjectId::new(task.id, data_id));
+        self.data_deps
+            .push(DataObjectId::new(task.id, data_id.into()));
         self
     }
 
