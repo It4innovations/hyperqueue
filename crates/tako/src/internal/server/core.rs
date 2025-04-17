@@ -88,6 +88,13 @@ impl Core {
     }
 
     #[inline]
+    pub fn split_tasks_workers_dataobjs_mut(
+        &mut self,
+    ) -> (&mut TaskMap, &mut WorkerMap, &mut DataObjectMap) {
+        (&mut self.tasks, &mut self.workers, &mut self.data_objects)
+    }
+
+    #[inline]
     pub fn split_tasks_data_objects_mut(&mut self) -> (&mut TaskMap, &mut DataObjectMap) {
         (&mut self.tasks, &mut self.data_objects)
     }
@@ -280,7 +287,7 @@ impl Core {
     }
 
     #[inline(always)]
-    pub fn data_objects(&self) -> &DataObjectMap {
+    pub fn dataobj_map(&self) -> &DataObjectMap {
         &self.data_objects
     }
 

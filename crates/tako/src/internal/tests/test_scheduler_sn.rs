@@ -3,16 +3,20 @@
 use crate::TaskId;
 use crate::internal::common::Set;
 use crate::internal::common::index::ItemId;
-use crate::internal::messages::worker::{StealResponse, StealResponseMsg, ToWorkerMessage};
+use crate::internal::messages::worker::{
+    StealResponse, StealResponseMsg, TaskOutput, ToWorkerMessage,
+};
 use crate::internal::server::core::Core;
 use crate::internal::server::reactor::on_steal_response;
 use crate::internal::server::task::Task;
 use crate::internal::tests::utils::env::{TestEnv, create_test_comm};
 use crate::internal::tests::utils::schedule::{
-    create_test_scheduler, create_test_workers, finish_on_worker, submit_test_tasks,
+    create_test_scheduler, create_test_worker, create_test_workers, finish_on_worker,
+    start_and_finish_on_worker_with_data, submit_test_tasks,
 };
 use crate::internal::tests::utils::task::TaskBuilder;
 use crate::internal::tests::utils::task::task;
+use crate::internal::tests::utils::workflows::submit_example_4;
 use crate::resources::{ResourceAmount, ResourceDescriptorItem, ResourceUnits};
 use std::time::Duration;
 
@@ -762,4 +766,127 @@ fn test_generic_resource_variants2() {
             .len(),
         4
     );
+}
+
+#[test]
+fn test_task_data_deps_initial_placing() {
+    let mut test_data = vec![
+        (100, 100, 100_000, 100_000, 100_000, 100),
+        (100, 101, 100_000, 100_000, 100_000, 101),
+        (100, 101, 201_000, 100_000, 100_000, 100),
+        (100, 101, 100_000, 40_000, 80_000, 101),
+        (100, 101, 100_000, 40_000, 40_000, 100),
+    ];
+    let mut test_data2: Vec<(u32, u32, u64, u64, u64, u32)> = Vec::new();
+    let inverse = |w| if w == 100 { 101 } else { 100 };
+    for row in test_data {
+        test_data2.push(row);
+        test_data2.push((
+            inverse(row.0),
+            inverse(row.1),
+            row.2,
+            row.3,
+            row.4,
+            inverse(row.5),
+        ));
+    }
+
+    for (worker1, worker2, size1, size2a, size2b, target_worker) in &test_data2 {
+        let mut core = Core::default();
+        submit_example_4(&mut core);
+        create_test_workers(&mut core, &[1, 1]);
+        start_and_finish_on_worker_with_data(
+            &mut core,
+            1,
+            *worker1,
+            vec![TaskOutput {
+                id: 0.into(),
+                size: *size1,
+            }],
+        );
+        start_and_finish_on_worker_with_data(
+            &mut core,
+            2,
+            *worker2,
+            vec![
+                TaskOutput {
+                    id: 0.into(),
+                    size: *size2a,
+                },
+                TaskOutput {
+                    id: 1.into(),
+                    size: *size2b,
+                },
+            ],
+        );
+        core.assert_ready(&[3]);
+        let mut comm = create_test_comm();
+        let mut scheduler = create_test_scheduler();
+        scheduler.run_scheduling(&mut core, &mut comm);
+        assert_eq!(
+            core.get_task(3.into()).get_assigned_worker(),
+            Some((*target_worker).into())
+        );
+        //comm.emptiness_check();
+        core.sanity_check();
+    }
+}
+
+#[test]
+fn test_task_data_deps_balancing() {
+    for odd in [0, 1] {
+        for late_worker in [true, false] {
+            let mut core = Core::default();
+            let t1 = TaskBuilder::new(1).build();
+            let t2 = TaskBuilder::new(2).build();
+            let mut ts: Vec<_> = (10u32..110u32)
+                .map(|i| {
+                    TaskBuilder::new(TaskId::new(i as u64))
+                        .data_dep(&t1, i - 10)
+                        .data_dep(&t2, i - 10)
+                        .build()
+                })
+                .collect();
+            ts.insert(0, t1);
+            ts.insert(0, t2);
+            submit_test_tasks(&mut core, ts);
+            if late_worker {
+                create_test_workers(&mut core, &[1]);
+            } else {
+                create_test_workers(&mut core, &[1, 1]);
+            }
+            let mut set_data = |task_id: u64, worker_id: u32| {
+                start_and_finish_on_worker_with_data(
+                    &mut core,
+                    task_id,
+                    worker_id,
+                    (0u32..100u32)
+                        .map(|i| TaskOutput {
+                            id: i.into(),
+                            size: if (i % 2) as u64 == odd { 100 } else { 5_000 },
+                        })
+                        .collect(),
+                )
+            };
+            set_data(1, 100);
+            set_data(2, 100);
+
+            let ids: Vec<_> = (10..110).collect();
+            core.assert_ready(&ids);
+            if late_worker {
+                create_test_worker(&mut core, 101.into(), 1);
+            }
+            let mut comm = create_test_comm();
+            let mut scheduler = create_test_scheduler();
+            scheduler.run_scheduling(&mut core, &mut comm);
+
+            let worker = &core.get_worker_by_id(101.into()).unwrap();
+            let n1_count = worker
+                .sn_tasks()
+                .iter()
+                .map(|task_id| if task_id.as_num() % 2 == odd { 1 } else { 0 })
+                .sum::<u32>();
+            assert!(n1_count > 40);
+        }
+    }
 }
