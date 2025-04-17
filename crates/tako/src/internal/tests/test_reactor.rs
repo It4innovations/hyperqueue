@@ -26,7 +26,9 @@ use crate::internal::tests::utils::schedule::{
 use crate::internal::tests::utils::shared::{res_kind_groups, res_kind_sum};
 use crate::internal::tests::utils::sorted_vec;
 use crate::internal::tests::utils::task::{TaskBuilder, task, task_running_msg, task_with_deps};
-use crate::internal::tests::utils::workflows::{submit_example_1, submit_example_3};
+use crate::internal::tests::utils::workflows::{
+    submit_example_1, submit_example_3, submit_example_4,
+};
 use crate::internal::tests::utils::{env, schedule};
 use crate::internal::worker::configuration::OverviewConfiguration;
 use crate::resources::{ResourceAmount, ResourceDescriptorItem, ResourceMap};
@@ -1102,7 +1104,7 @@ fn test_data_deps_no_output() {
     let mut core = Core::default();
     create_test_workers(&mut core, &[4]);
     let t1 = TaskBuilder::new(1).build();
-    let t2 = TaskBuilder::new(2).data_dep(&t1, 11.into()).build();
+    let t2 = TaskBuilder::new(2).data_dep(&t1, 11).build();
     submit_test_tasks(&mut core, vec![t1, t2]);
     start_on_worker(&mut core, 1, 100);
     core.sanity_check();
@@ -1133,10 +1135,10 @@ fn test_data_deps_missing_outputs() {
     create_test_workers(&mut core, &[4]);
     let t1 = TaskBuilder::new(1).build();
     let t2 = TaskBuilder::new(2)
-        .data_dep(&t1, 10.into())
-        .data_dep(&t1, 11.into())
-        .data_dep(&t1, 100.into())
-        .data_dep(&t1, 101.into())
+        .data_dep(&t1, 10)
+        .data_dep(&t1, 11)
+        .data_dep(&t1, 100)
+        .data_dep(&t1, 101)
         .build();
     submit_test_tasks(&mut core, vec![t1, t2]);
     start_on_worker(&mut core, 1, 100);
@@ -1191,10 +1193,10 @@ fn test_data_deps_missing_outputs() {
 fn test_data_deps_basic() {
     let mut core = Core::default();
     let t1 = TaskBuilder::new(1).build();
-    let t2 = TaskBuilder::new(2).data_dep(&t1, 0.into()).build();
+    let t2 = TaskBuilder::new(2).data_dep(&t1, 0).build();
     let t3 = TaskBuilder::new(3)
-        .data_dep(&t2, 123.into())
-        .data_dep(&t2, 478.into())
+        .data_dep(&t2, 123)
+        .data_dep(&t2, 478)
         .build();
     submit_test_tasks(&mut core, vec![t1, t2, t3]);
     assert_eq!(core.get_task(2.into()).task_deps, [TaskId::new(1)]);
@@ -1225,7 +1227,7 @@ fn test_data_deps_basic() {
 
     start_on_worker(&mut core, 2, 100);
 
-    let o = core.data_objects();
+    let o = core.dataobj_map();
     assert_eq!(o.len(), 1);
     o.get_data_object(DataObjectId::new(1.into(), 0.into()));
 
@@ -1256,7 +1258,7 @@ fn test_data_deps_basic() {
     comm.emptiness_check();
     core.assert_ready(&[3]);
 
-    let o = core.data_objects();
+    let o = core.dataobj_map();
     assert_eq!(o.len(), 2);
     o.get_data_object(DataObjectId::new(2.into(), 123.into()));
     o.get_data_object(DataObjectId::new(2.into(), 478.into()));

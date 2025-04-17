@@ -5,18 +5,18 @@ use std::time::{Duration, Instant};
 use tokio::sync::Notify;
 use tokio::time::sleep;
 
+use super::metrics::compute_b_level_metric;
 use crate::internal::common::Map;
 use crate::internal::messages::worker::{TaskIdsMsg, ToWorkerMessage};
 use crate::internal::scheduler::multinode::MultiNodeAllocator;
 use crate::internal::server::comm::{Comm, CommSenderRef};
 use crate::internal::server::core::{Core, CoreRef};
+use crate::internal::server::dataobjmap::DataObjectMap;
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::worker::Worker;
 use crate::internal::server::workerload::ResourceRequestLowerBound;
 use crate::internal::server::workermap::WorkerMap;
 use crate::{TaskId, WorkerId};
-
-use super::metrics::compute_b_level_metric;
 
 // Long duration - 1 year
 const LONG_DURATION: std::time::Duration = std::time::Duration::from_secs(365 * 24 * 60 * 60);
@@ -96,12 +96,11 @@ impl SchedulerState {
         &mut self,
         task: &Task,
         worker_map: &Map<WorkerId, Worker>,
+        dataobj_map: &DataObjectMap,
         try_prev_worker: bool, // Enable heuristics that tries to fit tasks on fewer workers
     ) -> Option<WorkerId> {
         // Fast path
-        if try_prev_worker
-        /* LATER MIGRATE TO DATA OBJECTS, depending on task deps is wrong: && task.task_deps.is_empty()*/
-        {
+        if try_prev_worker && task.data_deps.is_empty() {
             // Note: We are *not* using "is_capable_to_run" but "have_immediate_resources_for_rq",
             // because we want to enable fast path only if task can be directly executed
             // We want to avoid creation of overloaded
@@ -116,10 +115,18 @@ impl SchedulerState {
         }
 
         self.tmp_workers.clear(); // This has to be called AFTER fast path
-
+        let mut best_cost = u64::MAX;
         for worker in worker_map.values() {
             if !worker.is_capable_to_run_rqv(&task.configuration.resources, self.now) {
                 continue;
+            }
+            let mut cost = compute_transfer_cost(dataobj_map, task, worker.id);
+            if cost >= best_cost {
+                continue;
+            }
+            if cost < best_cost {
+                best_cost = cost;
+                self.tmp_workers.clear();
             }
             self.tmp_workers.push(worker.id)
         }
@@ -374,7 +381,12 @@ impl SchedulerState {
                     }
 
                     if let Some(task) = core.find_task(task_id) {
-                        self.choose_worker_for_task(task, core.get_worker_map(), try_prev_worker)
+                        self.choose_worker_for_task(
+                            task,
+                            core.get_worker_map(),
+                            core.dataobj_map(),
+                            try_prev_worker,
+                        )
                     } else {
                         continue;
                     }
@@ -422,7 +434,7 @@ impl SchedulerState {
                     let task = tasks.get_task_mut(task_id);
                     if task.is_sn_running()
                         || (not_overloaded
-                            && (task.is_fresh()/*|| THIS SHOULD LATER BE MIGRATED TO DATA OBJECTS, not task deps !task.task_deps.is_empty()*/)
+                            && (task.is_fresh() && !task.data_deps.is_empty())
                             && worker.has_time_to_run_for_rqv(&task.configuration.resources, now))
                     {
                         continue;
@@ -452,8 +464,9 @@ impl SchedulerState {
 
         let mut underload_workers = Vec::new();
         let task_map = core.task_map();
+        let dataobj_map = core.dataobj_map();
         for worker in core.get_workers() {
-            // We could here also testing park flag, but it is already solved in the next condition
+            // We could here also test park flag, but it is already solved in the next condition
             if worker.have_immediate_resources_for_lb(&min_resource) {
                 log::debug!(
                     "Worker {} is underloaded ({} tasks)",
@@ -466,7 +479,7 @@ impl SchedulerState {
                 // and tN is the lowest cost to schedule here
                 ts.sort_by_cached_key(|&task_id| {
                     let task = task_map.get_task(task_id);
-                    let mut cost = 0; // TODO: Transfer costs
+                    let mut cost = compute_transfer_cost(dataobj_map, task, worker.id);
                     if !task.is_fresh() && task.get_assigned_worker() != Some(worker.id) {
                         cost += 10_000_000;
                     }
@@ -600,4 +613,27 @@ impl SchedulerState {
 
         log::debug!("Balancing finished");
     }
+}
+
+pub fn compute_transfer_cost(dataobj_map: &DataObjectMap, task: &Task, worker_id: WorkerId) -> u64 {
+    let mut cost = 0;
+    // TODO: When task become ready we can sort data deps by size, first n-th task is really most relevant
+    // but we need need remember the original order somewhere
+
+    if task.data_deps.len() > 32 {
+        for data_id in task.data_deps.iter().step_by(task.data_deps.len() / 16) {
+            let data_obj = dataobj_map.get_data_object(*data_id);
+            if !data_obj.placement().contains(&worker_id) {
+                cost += data_obj.size();
+            }
+        }
+    } else {
+        for data_id in task.data_deps.iter() {
+            let data_obj = dataobj_map.get_data_object(*data_id);
+            if !data_obj.placement().contains(&worker_id) {
+                cost += data_obj.size();
+            }
+        }
+    }
+    cost
 }

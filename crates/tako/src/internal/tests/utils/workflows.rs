@@ -67,3 +67,23 @@ pub fn submit_example_3(core: &mut Core) {
 
     submit_test_tasks(core, vec![t1, t2, t3, t4, t5, t6]);
 }
+
+pub fn submit_example_4(core: &mut Core) {
+    /* Task DATA deps
+       T1  T2
+        |  |\
+        0  0 1
+        \ / /
+         T3
+    */
+
+    let t1 = TaskBuilder::new(1).build();
+    let t2 = TaskBuilder::new(2).build();
+    let t3 = TaskBuilder::new(3)
+        .data_dep(&t1, 0)
+        .data_dep(&t2, 0)
+        .data_dep(&t2, 1)
+        .build();
+
+    submit_test_tasks(core, vec![t1, t2, t3]);
+}

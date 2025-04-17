@@ -593,7 +593,7 @@ pub(crate) fn on_resolve_placement(
 ) {
     // TODO: Maube randomize what placement to return?
     let placement = core
-        .data_objects()
+        .dataobj_map()
         .find_data_object(data_id)
         .and_then(|obj| obj.placement().iter().next().copied());
     comm.send_worker_message(
