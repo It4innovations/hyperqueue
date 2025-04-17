@@ -109,7 +109,7 @@ command = ["bash", "-c", "set -e; $HQ data get 0 out.txt; cat out.txt"]
 
 [[task.data_deps]]
 task_id = 12
-data_id = 3 
+output_id = 3 
 """
     )
     with check_data_env(hq_env, tmp_path) as start_worker:

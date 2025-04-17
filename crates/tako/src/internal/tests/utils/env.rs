@@ -120,6 +120,9 @@ impl TestEnv {
                 idle_timeout: None,
                 time_limit: *time_limit,
                 on_server_lost: ServerLostPolicy::Stop,
+                max_parallel_downloads: 4,
+                max_download_tries: 6,
+                wait_between_download_tries: Duration::from_secs(1),
                 extra: Default::default(),
             };
 

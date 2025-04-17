@@ -79,8 +79,11 @@ pub(super) fn create_worker_configuration(
             },
             idle_timeout,
             on_server_lost: ServerLostPolicy::Stop,
+            max_parallel_downloads: 4,
+            max_download_tries: 6,
             time_limit: None,
             extra: Default::default(),
+            wait_between_download_tries: Duration::from_secs(1),
         },
         secret_key,
     )
