@@ -91,4 +91,7 @@ pub trait Output {
     fn print_hw(&self, descriptor: &ResourceDescriptor);
 
     fn print_error(&self, error: anyhow::Error);
+
+    // this will be called before hq quits
+    fn finalize_output(&self);
 }
