@@ -216,8 +216,8 @@ async fn download_process<I: DownloadInterface, P: Ord + Debug>(
     max_download_tries: u32,
     wait_between_download_tries: Duration,
 ) {
-    for i in 0..max_download_tries {
-        log::debug!("Trying to resolve placement for {data_id}, try {i}");
+    for i in 1..=max_download_tries {
+        log::debug!("Trying to resolve placement for {data_id}, try {i}/{max_download_tries}");
         let resolver = {
             let mut interface = dm_ref.get().interface.clone();
             interface.find_placement(data_id)
@@ -228,24 +228,45 @@ async fn download_process<I: DownloadInterface, P: Ord + Debug>(
                 match download_from_address(&dm_ref, &addr, data_id).await {
                     Ok(data_obj) => {
                         log::debug!("Download of {data_id} completed; size={}", data_obj.size());
-                        let mut interface = dm_ref.get().interface.clone();
+                        let mut interface = {
+                            let mut dm = dm_ref.get_mut();
+                            dm.download_info.remove(&data_id);
+                            dm.interface.clone()
+                        };
                         interface.on_download_finished(data_id, data_obj);
                         return;
                     }
                     Err(e) => {
-                        log::debug!("Downloading of {data_id} failed: {e}");
+                        log::debug!(
+                            "Downloading of {data_id} failed (try {i}/{max_download_tries}): {e}"
+                        );
                     }
                 };
             } else {
                 log::debug!("Placement for {data_id} is not resolvable.");
-                let mut interface = dm_ref.get().interface.clone();
+                let mut interface = {
+                    let mut dm = dm_ref.get_mut();
+                    dm.download_info.remove(&data_id);
+                    dm.interface.clone()
+                };
                 interface.on_download_failed(data_id);
                 return;
             }
         }
-        tokio::time::sleep(wait_between_download_tries * i).await;
+        if i < max_download_tries - 1 && !wait_between_download_tries.is_zero() {
+            let sleep = wait_between_download_tries * i;
+            log::debug!("Sleeping for {sleep:?  }");
+            tokio::time::sleep(sleep).await;
+        }
     }
-    let interface = dm_ref.get().interface.clone();
+    log::debug!(
+        "Download of dataobj {data_id} fails and reaches the limit, marking dataobj as unreachable"
+    );
+    let mut interface = {
+        let mut dm = dm_ref.get_mut();
+        dm.download_info.remove(&data_id);
+        dm.interface.clone()
+    };
     interface.on_download_failed(data_id);
 }
 

@@ -88,7 +88,6 @@ impl TestDmInterface {
     }
     pub fn take_resolved_ids(&self, length: usize) -> Vec<DataObjectId> {
         let f = std::mem::take(&mut self.get_mut().resolved_ids);
-        dbg!(&f);
         assert_eq!(f.len(), length);
         f
     }
@@ -135,6 +134,7 @@ pub(crate) async fn start_test_upload_service(interface: TestUploadInterface) ->
 
 pub(crate) fn start_download_manager(
     dm_ref: &DownloadManagerRef<TestDmInterface, u32>,
+    repeat_timout: u64,
     timeout: u64,
 ) {
     let dm_ref = dm_ref.clone();
@@ -143,7 +143,7 @@ pub(crate) fn start_download_manager(
             dm_ref,
             2,
             3,
-            Duration::from_secs(1),
+            Duration::from_secs(repeat_timout),
             Duration::from_secs(timeout),
         )
         .await
