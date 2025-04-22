@@ -51,22 +51,50 @@ fn download_update_priorities() {
 #[tokio::test]
 async fn download_invalid_hostname() {
     let set = tokio::task::LocalSet::new();
-    let (dm_ref, interface) = test_download_manager();
+    set.run_until(async move {
+        let (dm_ref, interface) = test_download_manager();
 
-    let data_id1 = DataObjectId::new(1.into(), 5.into());
-    interface.get_mut().hosts.insert(
-        data_id1,
-        PlacementConfig::Valid("nonexistingx:1".to_string()),
-    );
+        let data_id1 = DataObjectId::new(1.into(), 5.into());
+        interface.get_mut().hosts.insert(
+            data_id1,
+            PlacementConfig::Valid("nonexistingx:1".to_string()),
+        );
 
-    let dm_ref2 = dm_ref.clone();
-    start_download_manager(&dm_ref2, 1);
-    dm_ref.get_mut().download_object(data_id1, 0);
-    set.run_until(tokio::time::sleep(Duration::new(3, 0))).await;
+        let dm_ref2 = dm_ref.clone();
+        start_download_manager(&dm_ref2, 1, 0);
+        dm_ref.get_mut().download_object(data_id1, 0);
+        tokio::time::sleep(Duration::new(3, 0)).await;
+        assert_eq!(interface.take_failed_downloads(1)[0], data_id1);
+        assert_eq!(
+            interface.take_resolved_ids(3),
+            vec![data_id1, data_id1, data_id1]
+        );
+        interface.check_empty();
+    })
+    .await;
+}
 
-    assert_eq!(interface.take_failed_downloads(1)[0], data_id1);
+#[tokio::test]
+async fn download_non_existing_placement() {
+    let set = tokio::task::LocalSet::new();
+    set.run_until(async move {
+        let (dm_ref, interface) = test_download_manager();
 
-    interface.check_empty();
+        let data_id1 = DataObjectId::new(1.into(), 5.into());
+        interface
+            .get_mut()
+            .hosts
+            .insert(data_id1, PlacementConfig::Unresolvable);
+
+        let dm_ref2 = dm_ref.clone();
+        start_download_manager(&dm_ref2, 1, 0);
+        dm_ref.get_mut().download_object(data_id1, 0);
+        tokio::time::sleep(Duration::new(3, 0)).await;
+        assert_eq!(interface.take_failed_downloads(1)[0], data_id1);
+        assert_eq!(interface.take_resolved_ids(1), vec![data_id1]);
+        interface.check_empty();
+    })
+    .await;
 }
 
 #[tokio::test]
@@ -83,22 +111,14 @@ async fn download_object_not_found() {
             .hosts
             .insert(data_id1, PlacementConfig::Valid(addr));
 
-        let dm_ref2 = dm_ref.clone();
-        spawn_local(async move {
-            download_manager_process(
-                dm_ref2,
-                4,
-                2,
-                Duration::from_secs(0),
-                Duration::from_secs(1),
-            )
-            .await;
-        });
+        start_download_manager(&dm_ref, 0, 1);
         dm_ref.get_mut().download_object(data_id1, 0);
-        tokio::time::sleep(Duration::new(3, 0)).await;
+        tokio::time::sleep(Duration::new(2, 0)).await;
 
         assert_eq!(interface.take_failed_downloads(1)[0], data_id1);
+        interface.take_resolved_ids(3);
         interface.check_empty();
+        assert!(dm_ref.get().download_info().is_empty());
     })
     .await;
 }
@@ -116,7 +136,7 @@ async fn download_parallel_limit() {
 
         interface.register_hosts(&[data_id2, data_id3], PlacementConfig::Ignore);
 
-        start_download_manager(&dm_ref, 1);
+        start_download_manager(&dm_ref, 5, 1);
 
         dm_ref.get_mut().download_object(data_id1, 0);
         dm_ref.get_mut().download_object(data_id2, 1);
@@ -124,8 +144,8 @@ async fn download_parallel_limit() {
         dm_ref.get_mut().download_object(data_id4, 0);
         tokio::time::sleep(Duration::new(1, 0)).await;
 
-        let ids = sorted_vec(interface.take_resolved_ids(4));
-        assert_eq!(ids, vec![data_id2, data_id2, data_id3, data_id3]);
+        let ids = sorted_vec(interface.take_resolved_ids(2));
+        assert_eq!(sorted_vec(ids), vec![data_id2, data_id3]);
         interface.check_empty();
     })
     .await;
@@ -159,7 +179,7 @@ async fn download_object_ok() {
             PlacementConfig::Valid(addr),
         );
 
-        start_download_manager(&dm_ref, 1);
+        start_download_manager(&dm_ref, 1, 10);
 
         dm_ref.get_mut().download_object(data_id1, 0);
         dm_ref.get_mut().download_object(data_id2, 1);
@@ -167,7 +187,7 @@ async fn download_object_ok() {
         dm_ref.get_mut().download_object(data_id4, 0);
 
         dm_ref.get_mut().download_object(data_id1, 0);
-        tokio::time::sleep(Duration::new(3, 0)).await;
+        tokio::time::sleep(Duration::from_secs(3)).await;
 
         let f = interface.take_finished_downloads(4);
         assert_eq!(f.get(&data_id1).unwrap().data(), obj1.data());
@@ -198,7 +218,7 @@ async fn download_close_idle_connection() {
         upload.insert_object(data_id1, obj1);
         interface.register_hosts(&[data_id1], PlacementConfig::Valid(addr));
 
-        start_download_manager(&dm_ref, 3);
+        start_download_manager(&dm_ref, 1, 3);
         dm_ref.get_mut().download_object(data_id1, 0);
         tokio::time::sleep(Duration::new(2, 0)).await;
         interface.take_finished_downloads(1);
