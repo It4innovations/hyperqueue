@@ -291,6 +291,7 @@ fn test_resource_balancing5() {
 
 #[test]
 fn test_resource_balancing6() {
+    let _ = env_logger::builder().is_test(true).try_init();
     let u = ResourceAmount::new_units;
     let mut rt = TestEnv::new();
     rt.new_workers(&[12, 12, 12, 12, 12]);
@@ -302,7 +303,7 @@ fn test_resource_balancing6() {
         &[12],
     ]);
     rt.balance();
-    rt.check_worker_load_lower_bounds(&[u(12), u(12), u(12)]);
+    rt.check_worker_load_lower_bounds(&[u(12), u(12), u(12), u(12), u(12)]);
 }
 
 #[test]
@@ -834,6 +835,7 @@ fn test_task_data_deps_initial_placing() {
 
 #[test]
 fn test_task_data_deps_balancing() {
+    let _ = env_logger::builder().is_test(true).try_init();
     for odd in [0, 1] {
         for late_worker in [true, false] {
             let mut core = Core::default();

@@ -42,11 +42,6 @@ impl TaskBuilder {
         self
     }
 
-    pub fn simple_deps(mut self, deps: &[&Task]) -> TaskBuilder {
-        self.task_deps = deps.iter().map(|&tr| tr.id).collect();
-        self
-    }
-
     pub fn task_deps(mut self, deps: &[&Task]) -> TaskBuilder {
         self.task_deps = deps.iter().map(|&tr| tr.id).collect();
         self
@@ -124,7 +119,7 @@ pub fn task<T: Into<TaskId>>(id: T) -> Task {
 }
 
 pub fn task_with_deps<T: Into<TaskId>>(id: T, deps: &[&Task]) -> Task {
-    TaskBuilder::new(id.into()).simple_deps(deps).build()
+    TaskBuilder::new(id.into()).task_deps(deps).build()
 }
 
 pub fn task_running_msg<T: Into<TaskId>>(task_id: T) -> TaskRunningMsg {

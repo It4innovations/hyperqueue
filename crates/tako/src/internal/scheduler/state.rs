@@ -80,7 +80,7 @@ impl SchedulerState {
 
     fn pick_worker(&mut self) -> Option<WorkerId> {
         match self.tmp_workers.len() {
-            1 => Some(self.tmp_workers.pop().unwrap()),
+            1 => Some(*self.tmp_workers.first().unwrap()),
             0 => None,
             n => {
                 self.choose_counter += 1;
@@ -109,6 +109,10 @@ impl SchedulerState {
                 if worker.has_time_to_run_for_rqv(&task.configuration.resources, self.now)
                     && worker.have_immediate_resources_for_rqv(&task.configuration.resources)
                 {
+                    log::debug!(
+                        "Worker was chosen on try_prev_worker heuristics for task {}: {worker_id}",
+                        task.id
+                    );
                     return Some(worker_id);
                 }
             }
@@ -121,7 +125,7 @@ impl SchedulerState {
                 continue;
             }
             let mut cost = compute_transfer_cost(dataobj_map, task, worker.id);
-            if cost >= best_cost {
+            if cost > best_cost {
                 continue;
             }
             if cost < best_cost {
@@ -429,14 +433,12 @@ impl SchedulerState {
             let (tasks, workers) = core.split_tasks_workers_mut();
             for worker in workers.values() {
                 let mut offered = 0;
-                let not_overloaded = !worker.is_overloaded();
+                if !worker.is_overloaded() {
+                    continue;
+                }
                 for &task_id in worker.sn_tasks() {
                     let task = tasks.get_task_mut(task_id);
-                    if task.is_sn_running()
-                        || (not_overloaded
-                            && (task.is_fresh() && !task.data_deps.is_empty())
-                            && worker.has_time_to_run_for_rqv(&task.configuration.resources, now))
-                    {
+                    if task.is_sn_running() {
                         continue;
                     }
                     task.set_take_flag(false);
@@ -514,13 +516,13 @@ impl SchedulerState {
             return;
         }
 
-        /* Micro heuristic, give small priority to workers with less tasks and with less remaining time */
+        /* Micro heuristic, give small priority to workers with fewer tasks and with less remaining time */
         underload_workers
             .sort_unstable_by_key(|(_, ts, _, remaining_time)| (ts.len(), *remaining_time));
 
-        /* Iteration 1 - try to assign tasks so workers are not longer underutilized */
-        /* This should be always relatively quick even with million of tasks and many workers,
-          since we require that each task need at least one core and we expect that number
+        /* Iteration 1 - try to assign tasks so workers are no longer underutilized */
+        /* This should be always relatively quick even with millions of tasks and many workers,
+          since we require that each task need at least one core, and we expect that number
           of cores per worker is low
         */
         loop {
