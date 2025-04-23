@@ -152,7 +152,7 @@ fn test_submit_jobs() {
 
     let t1 = task(501);
     let t2 = task_with_deps(502, &[&t1]);
-    on_new_tasks(&mut core, &mut comm, vec![t2, t1]);
+    on_new_tasks(&mut core, &mut comm, vec![t1, t2]);
 
     comm.check_need_scheduling();
     comm.emptiness_check();
