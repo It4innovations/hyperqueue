@@ -22,7 +22,7 @@ use crate::{TaskId, WorkerId};
 const LONG_DURATION: std::time::Duration = std::time::Duration::from_secs(365 * 24 * 60 * 60);
 
 // Knobs
-const MAX_TASKS_FOR_TRY_PREV_WORKER_HEURISTICS: usize = 1000;
+const MAX_TASKS_FOR_TRY_PREV_WORKER_HEURISTICS: usize = 300;
 
 pub struct SchedulerState {
     // Which tasks has modified state, this map holds the original state
@@ -369,9 +369,8 @@ impl SchedulerState {
 
         let ready_tasks = core.take_single_node_ready_to_assign();
         if !ready_tasks.is_empty() {
-            let try_prev_worker = ready_tasks.len() < MAX_TASKS_FOR_TRY_PREV_WORKER_HEURISTICS;
             let has_parked_resources = core.has_parked_resources();
-            for task_id in ready_tasks.into_iter() {
+            for (idx, task_id) in ready_tasks.into_iter().enumerate() {
                 let worker_id = {
                     if has_parked_resources {
                         let wakeup = if let Some(task) = core.find_task(task_id) {
@@ -389,12 +388,11 @@ impl SchedulerState {
                             task,
                             core.get_worker_map(),
                             core.dataobj_map(),
-                            try_prev_worker,
+                            idx < MAX_TASKS_FOR_TRY_PREV_WORKER_HEURISTICS,
                         )
                     } else {
                         continue;
                     }
-                    //log::debug!("Task {} initially assigned to {}", task.id, worker_id);
                 };
                 if let Some(worker_id) = worker_id {
                     debug_assert!(
