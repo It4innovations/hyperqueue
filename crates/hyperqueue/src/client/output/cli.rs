@@ -307,6 +307,15 @@ impl Output for CliOutput {
                     .cell(),
             ],
             vec![
+                "Overview interval".cell().bold(true),
+                configuration
+                    .overview_configuration
+                    .send_interval
+                    .map(|x| format_duration(x).to_string())
+                    .unwrap_or_else(|| "None".to_string())
+                    .cell(),
+            ],
+            vec![
                 "Resources".cell().bold(true),
                 resources_summary(&configuration.resources, true).cell(),
             ],

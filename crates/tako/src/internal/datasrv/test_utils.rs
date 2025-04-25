@@ -111,6 +111,10 @@ impl UploadInterface for TestUploadInterface {
     fn get_object(&self, data_id: DataObjectId) -> Option<DataObjectRef> {
         self.get().objects.get(&data_id).cloned()
     }
+
+    fn upload_finished(&self, _size: u64) {
+        /* Do nothing */
+    }
 }
 
 impl TestUploadInterface {

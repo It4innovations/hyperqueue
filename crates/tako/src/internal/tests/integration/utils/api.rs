@@ -14,29 +14,21 @@ use super::macros::wait_for_msg;
 pub async fn wait_for_worker_overview(
     handler: &mut ServerHandle,
     worker_id: WorkerId,
-) -> WorkerOverview {
+) -> Box<WorkerOverview> {
     handler.flush_messages();
-    wait_for_msg!(handler, ToGatewayMessage::WorkerOverview(WorkerOverview {
-        id,
-        running_tasks,
-        hw_state, data_node
-    }) if id == worker_id => WorkerOverview { id, running_tasks, hw_state, data_node})
+    wait_for_msg!(handler, ToGatewayMessage::WorkerOverview(o) if o.id == worker_id => o)
 }
 pub async fn wait_for_workers_overview(
     handler: &mut ServerHandle,
     worker_ids: &[WorkerId],
-) -> Map<WorkerId, WorkerOverview> {
+) -> Map<WorkerId, Box<WorkerOverview>> {
     handler.flush_messages();
 
     let mut worker_ids: Set<_> = worker_ids.iter().collect();
 
     let mut worker_map = Map::default();
     while !worker_ids.is_empty() {
-        let overview = wait_for_msg!(handler, ToGatewayMessage::WorkerOverview(WorkerOverview {
-            id,
-            running_tasks,
-            hw_state,data_node
-        }) if worker_ids.contains(&id) => WorkerOverview { id, running_tasks, hw_state, data_node});
+        let overview = wait_for_msg!(handler, ToGatewayMessage::WorkerOverview(o) if worker_ids.contains(&o.id) => o);
         worker_ids.remove(&overview.id);
         worker_map.insert(overview.id, overview);
     }

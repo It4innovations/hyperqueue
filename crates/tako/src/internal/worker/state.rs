@@ -365,6 +365,7 @@ impl WorkerState {
     }
 
     pub fn on_download_finished(&mut self, data_id: DataObjectId, data_ref: DataObjectRef) {
+        self.data_storage.add_stats_remote_download(data_ref.size());
         self.data_storage.put_object(data_id, data_ref).unwrap();
         self.comm
             .send_message_to_server(FromWorkerMessage::NewPlacement(data_id));

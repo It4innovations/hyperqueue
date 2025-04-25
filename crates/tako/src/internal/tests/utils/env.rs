@@ -254,7 +254,7 @@ pub struct TestComm {
 
     pub new_workers: Vec<(WorkerId, WorkerConfiguration)>,
     pub lost_workers: Vec<(WorkerId, Vec<TaskId>)>,
-    pub worker_overviews: Vec<WorkerOverview>,
+    pub worker_overviews: Vec<Box<WorkerOverview>>,
 
     pub need_scheduling: bool,
 }
@@ -381,7 +381,7 @@ impl Comm for TestComm {
         self.lost_workers.push((worker_id, running_tasks));
     }
 
-    fn send_client_worker_overview(&mut self, overview: WorkerOverview) {
+    fn send_client_worker_overview(&mut self, overview: Box<WorkerOverview>) {
         self.worker_overviews.push(overview);
     }
 }
