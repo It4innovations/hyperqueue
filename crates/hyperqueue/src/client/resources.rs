@@ -122,7 +122,7 @@ mod test {
     fn test_parse_zero_resources() {
         assert_eq!(
             expect_parser_error(all_consuming(p_resource_request()), "aa=0"),
-            "Unexpected end of input found, expected something else:\n  aa=0\n     |\n     --- Error: Zero resources cannot be requested\n",
+            "Unexpected end of input found, expected something else:\n  aa=0\n     |\n     --- Zero resources cannot be requested\n",
         );
     }
 
