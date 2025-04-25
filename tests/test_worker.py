@@ -95,7 +95,7 @@ def test_worker_stop_some(hq_env: HqEnv):
 
     wait_for_worker_state(hq_env, [1, 2, 3], "RUNNING")
     r = hq_env.command(["worker", "stop", "1-4"])
-    wait_for_worker_state(hq_env, [1, 2, 3], "STOPPED")
+    wait_for_worker_state(hq_env, [1, 2, 3], "STOPPED", check_running_processes=False)
 
     for process in processes:
         hq_env.check_process_exited(process)
@@ -108,7 +108,7 @@ def test_worker_stop_all(hq_env: HqEnv):
 
     wait_for_worker_state(hq_env, [1, 2, 3, 4], ["RUNNING" for _ in range(4)])
     hq_env.command(["worker", "stop", "all"])
-    wait_for_worker_state(hq_env, [1, 2, 3, 4], ["STOPPED" for _ in range(4)])
+    wait_for_worker_state(hq_env, [1, 2, 3, 4], ["STOPPED" for _ in range(4)], check_running_processes=False)
 
     for process in processes:
         hq_env.check_process_exited(process)
@@ -199,7 +199,7 @@ def test_worker_time_limit(hq_env: HqEnv):
     hq_env.start_server()
     w = hq_env.start_worker(args=["--time-limit", "1s 200ms"])
     wait_for_worker_state(hq_env, 1, "RUNNING")
-    wait_for_worker_state(hq_env, 1, "TIME LIMIT REACHED")
+    wait_for_worker_state(hq_env, 1, "TIME LIMIT REACHED", check_running_processes=False)
     hq_env.check_process_exited(w, expected_code=None)
 
     table = hq_env.command(["worker", "info", "1"], as_table=True)
@@ -317,8 +317,8 @@ def test_deploy_ssh_error(hq_env: HqEnv):
     with hq_env.mock.mock_program_with_code(
         "ssh",
         """
-            exit(42)
-    """,
+                exit(42)
+        """,
     ):
         nodefile = prepare_localhost_nodefile()
         hq_env.command(["worker", "deploy-ssh", nodefile], expect_fail="Worker exited with code 42")
@@ -351,9 +351,9 @@ def test_deploy_ssh_wait_for_worker(hq_env: HqEnv):
     with hq_env.mock.mock_program_with_code(
         "ssh",
         """
-                import time
-                time.sleep(1)
-    """,
+                    import time
+                    time.sleep(1)
+        """,
     ):
         nodefile = prepare_localhost_nodefile()
         hq_env.command(["worker", "deploy-ssh", nodefile])
@@ -364,12 +364,12 @@ def test_deploy_ssh_multiple_workers(hq_env: HqEnv):
     with hq_env.mock.mock_program_with_code(
         "ssh",
         """
-                import os
-    
-                os.makedirs("workers", exist_ok=True)
-                with open(f"workers/{os.getpid()}", "w") as f:
-                    f.write(str(os.getpid()))
-                """,
+                    import os
+        
+                    os.makedirs("workers", exist_ok=True)
+                    with open(f"workers/{os.getpid()}", "w") as f:
+                        f.write(str(os.getpid()))
+                    """,
     ):
         nodefile = prepare_localhost_nodefile(count=3)
         hq_env.command(["worker", "deploy-ssh", nodefile])
@@ -381,8 +381,8 @@ def test_deploy_ssh_show_output(hq_env: HqEnv):
     with hq_env.mock.mock_program_with_code(
         "ssh",
         """
-                print("FOOBAR")
-        """,
+                    print("FOOBAR")
+            """,
     ):
         nodefile = prepare_localhost_nodefile(count=3)
         output = hq_env.command(["worker", "deploy-ssh", "--show-output", nodefile])

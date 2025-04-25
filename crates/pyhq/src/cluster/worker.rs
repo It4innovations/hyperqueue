@@ -6,7 +6,10 @@ use hyperqueue::common::utils::network::get_hostname;
 use tokio::task::LocalSet;
 
 use hyperqueue::worker::bootstrap::{finalize_configuration, initialize_worker};
-use tako::internal::worker::configuration::OverviewConfiguration;
+use tako::internal::worker::configuration::{
+    DEFAULT_MAX_DOWNLOAD_TRIES, DEFAULT_MAX_PARALLEL_DOWNLOADS,
+    DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES, OverviewConfiguration,
+};
 use tako::resources::{
     CPU_RESOURCE_NAME, ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind,
     ResourceIndex,
@@ -49,6 +52,9 @@ impl RunningWorker {
                 idle_timeout: None,
                 time_limit: None,
                 on_server_lost: ServerLostPolicy::Stop,
+                max_parallel_downloads: DEFAULT_MAX_PARALLEL_DOWNLOADS,
+                max_download_tries: DEFAULT_MAX_DOWNLOAD_TRIES,
+                wait_between_download_tries: DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES,
                 extra: Default::default(),
             };
             finalize_configuration(&mut configuration);

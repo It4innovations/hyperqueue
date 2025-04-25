@@ -6,7 +6,10 @@ use crate::internal::messages::worker::{
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::tests::utils::resources::{ResourceRequestBuilder, ra_builder};
 use crate::internal::worker::comm::WorkerComm;
-use crate::internal::worker::configuration::OverviewConfiguration;
+use crate::internal::worker::configuration::{
+    DEFAULT_MAX_DOWNLOAD_TRIES, DEFAULT_MAX_PARALLEL_DOWNLOADS,
+    DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES, OverviewConfiguration,
+};
 use crate::internal::worker::rpc::process_worker_message;
 use crate::internal::worker::state::WorkerStateRef;
 use crate::launcher::{StopReason, TaskBuildContext, TaskLaunchData, TaskLauncher};
@@ -47,9 +50,9 @@ fn create_test_worker_config() -> WorkerConfiguration {
         idle_timeout: None,
         time_limit: None,
         on_server_lost: ServerLostPolicy::Stop,
-        max_parallel_downloads: 4,
-        max_download_tries: 6,
-        wait_between_download_tries: Duration::from_secs(1),
+        max_parallel_downloads: DEFAULT_MAX_PARALLEL_DOWNLOADS,
+        max_download_tries: DEFAULT_MAX_DOWNLOAD_TRIES,
+        wait_between_download_tries: DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES,
         extra: Default::default(),
     }
 }

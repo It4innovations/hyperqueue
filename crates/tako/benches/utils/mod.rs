@@ -1,5 +1,7 @@
 use std::rc::Rc;
+use std::time::Duration;
 use tako::ItemId;
+use tako::gateway::TaskDataFlags;
 use tako::internal::server::core::Core;
 use tako::internal::server::task::{Task, TaskConfiguration};
 use tako::internal::server::worker::Worker;
@@ -16,10 +18,16 @@ pub fn create_task(id: TaskId) -> Task {
         resources: Default::default(),
         user_priority: 0,
         time_limit: None,
-        n_outputs: 0,
         crash_limit: 5,
+        data_flags: TaskDataFlags::empty(),
     };
-    Task::new(id, Default::default(), Rc::new(conf), Default::default())
+    Task::new(
+        id,
+        Default::default(),
+        Default::default(),
+        Rc::new(conf),
+        Default::default(),
+    )
 }
 pub fn create_worker(id: u64) -> Worker {
     Worker::new(
@@ -38,6 +46,9 @@ pub fn create_worker(id: u64) -> Worker {
             idle_timeout: None,
             time_limit: None,
             on_server_lost: ServerLostPolicy::Stop,
+            max_parallel_downloads: 2,
+            max_download_tries: 2,
+            wait_between_download_tries: Duration::from_secs(1),
             extra: Default::default(),
         },
         Default::default(),

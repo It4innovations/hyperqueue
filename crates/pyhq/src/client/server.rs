@@ -2,6 +2,7 @@ use pyo3::{Py, PyResult, Python};
 use std::path::PathBuf;
 
 use hyperqueue::client::default_server_directory_path;
+use hyperqueue::common::error::HqError;
 use hyperqueue::server::bootstrap::get_client_session;
 use hyperqueue::transfer::messages::FromClientMessage;
 
