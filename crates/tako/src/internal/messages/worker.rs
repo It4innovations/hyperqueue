@@ -182,7 +182,7 @@ pub enum FromWorkerMessage {
     TaskFailed(TaskFailedMsg),
     TaskRunning(TaskRunningMsg),
     StealResponse(StealResponseMsg),
-    Overview(WorkerOverview),
+    Overview(Box<WorkerOverview>),
     Heartbeat,
     Stop(WorkerStopReason),
     PlacementQuery(DataObjectId),

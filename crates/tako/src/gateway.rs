@@ -356,7 +356,7 @@ pub struct NewWorkerAllocationResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-#[serde(tag = "op")]
+#[allow(clippy::large_enum_variant)] // This Enum will be removed soon
 pub enum ToGatewayMessage {
     NewTasksResponse(NewTasksResponse),
     CancelTasksResponse(CancelTasksResponse),
@@ -368,7 +368,7 @@ pub enum ToGatewayMessage {
     WorkerInfo(Option<WorkerRuntimeInfo>),
     NewWorker(NewWorkerMessage),
     LostWorker(LostWorkerMessage),
-    WorkerOverview(WorkerOverview),
+    WorkerOverview(Box<WorkerOverview>),
     WorkerStopped,
     NewWorkerAllocationQueryResponse(NewWorkerAllocationResponse),
 }
