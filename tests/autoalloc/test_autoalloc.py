@@ -6,14 +6,21 @@ from typing import Dict, Literal, Optional, Tuple, List
 
 from inline_snapshot import snapshot
 
-from .mock.slurm import SlurmCommandHandler
+from .mock.manager import (
+    CommandHandler,
+    CommandInput,
+    CommandOutput,
+    response,
+    default_job_id,
+    JobData,
+    JobId,
+    ManagerException,
+)
 from ..conftest import HqEnv, get_hq_binary
 from ..utils.wait import (
     wait_until,
 )
 from .flavor import ManagerFlavor, PbsManagerFlavor, SlurmManagerFlavor, all_flavors
-from .mock.command import CommandInput, CommandOutput, response
-from .mock.manager import JobData, WrappedManager, default_job_id, DefaultManager, JobId, ManagerException
 from .mock.mock import MockJobManager
 from .utils import (
     ExtractSubmitScriptPath,
@@ -30,9 +37,9 @@ from .utils import (
 
 
 def test_pbs_queue_qsub_args(hq_env: HqEnv):
-    manager = ExtractSubmitScriptPath()
+    manager = ExtractSubmitScriptPath(PbsManagerFlavor().create_adapter())
 
-    with MockJobManager(hq_env, PbsManagerFlavor().adapt(manager)):
+    with MockJobManager(hq_env, manager):
         hq_env.start_server()
         prepare_tasks(hq_env)
 
@@ -58,9 +65,9 @@ def test_pbs_queue_qsub_args(hq_env: HqEnv):
 
 
 def test_slurm_queue_sbatch_args(hq_env: HqEnv):
-    manager = ExtractSubmitScriptPath()
+    manager = ExtractSubmitScriptPath(SlurmManagerFlavor().create_adapter())
 
-    with MockJobManager(hq_env, SlurmManagerFlavor().adapt(manager)):
+    with MockJobManager(hq_env, manager):
         hq_env.start_server()
         prepare_tasks(hq_env)
 
@@ -85,9 +92,9 @@ def test_slurm_queue_sbatch_args(hq_env: HqEnv):
 
 
 def test_slurm_queue_sbatch_additional_output(hq_env: HqEnv):
-    class Handler(SlurmCommandHandler):
-        async def handle_submit(self, input: CommandInput) -> CommandOutput:
-            output = await super().handle_submit(input)
+    class Handler(CommandHandler):
+        async def handle_cli_submit(self, input: CommandInput) -> CommandOutput:
+            output = await super().handle_cli_submit(input)
             return response(
                 f"""
 No reservation for this job
@@ -100,7 +107,7 @@ No reservation for this job
 """
             )
 
-    with MockJobManager(hq_env, Handler(DefaultManager())):
+    with MockJobManager(hq_env, Handler(SlurmManagerFlavor().create_adapter())):
         hq_env.start_server()
         prepare_tasks(hq_env)
 
@@ -141,9 +148,9 @@ def normalize_output(hq_env: HqEnv, manager: Literal["pbs", "slurm"], output: st
 
 
 def test_pbs_multinode_allocation(hq_env: HqEnv):
-    manager = ExtractSubmitScriptPath()
+    manager = ExtractSubmitScriptPath(PbsManagerFlavor().create_adapter())
 
-    with MockJobManager(hq_env, PbsManagerFlavor().adapt(manager)):
+    with MockJobManager(hq_env, manager):
         hq_env.start_server()
         prepare_tasks(hq_env)
 
@@ -160,9 +167,9 @@ def test_pbs_multinode_allocation(hq_env: HqEnv):
 
 
 def test_slurm_multinode_allocation(hq_env: HqEnv):
-    manager = ExtractSubmitScriptPath()
+    manager = ExtractSubmitScriptPath(SlurmManagerFlavor().create_adapter())
 
-    with MockJobManager(hq_env, SlurmManagerFlavor().adapt(manager)):
+    with MockJobManager(hq_env, manager):
         hq_env.start_server()
         prepare_tasks(hq_env)
 
@@ -179,7 +186,7 @@ def test_slurm_multinode_allocation(hq_env: HqEnv):
 
 @all_flavors
 def test_allocations_job_lifecycle(hq_env: HqEnv, flavor: ManagerFlavor):
-    with MockJobManager(hq_env, flavor.default_handler()) as manager:
+    with MockJobManager(hq_env, flavor.default_handler()) as mock:
         hq_env.start_server()
         prepare_tasks(hq_env)
 
@@ -190,7 +197,7 @@ def test_allocations_job_lifecycle(hq_env: HqEnv, flavor: ManagerFlavor):
         wait_for_alloc(hq_env, "QUEUED", job_id)
 
         # Started
-        worker = manager.handler.add_worker(hq_env, job_id)
+        worker = mock.handler.add_worker(hq_env, job_id)
         wait_for_alloc(hq_env, "RUNNING", job_id)
 
         # Finished
@@ -206,12 +213,12 @@ def test_check_submit_working_directory(hq_env: HqEnv, flavor: ManagerFlavor):
 
     queue = CommQueue()
 
-    class Manager(WrappedManager):
-        async def handle_submit(self, input: CommandInput):
+    class Manager(CommandHandler):
+        async def handle_cli_submit(self, input: CommandInput):
             queue.put(input.cwd)
-            return await super().handle_submit(input)
+            return await super().handle_cli_submit(input)
 
-    with MockJobManager(hq_env, flavor.adapt(Manager())):
+    with MockJobManager(hq_env, Manager(flavor.create_adapter())):
         hq_env.start_server()
         prepare_tasks(hq_env)
 
@@ -223,8 +230,7 @@ def test_check_submit_working_directory(hq_env: HqEnv, flavor: ManagerFlavor):
 
 @all_flavors
 def test_cancel_jobs_on_server_stop(hq_env: HqEnv, flavor: ManagerFlavor):
-    manager = DefaultManager()
-    with MockJobManager(hq_env, flavor.adapt(manager)) as mock:
+    with MockJobManager(hq_env, CommandHandler(flavor.create_adapter())) as mock:
         process = hq_env.start_server()
         prepare_tasks(hq_env)
 
@@ -255,7 +261,7 @@ def test_cancel_jobs_on_server_stop(hq_env: HqEnv, flavor: ManagerFlavor):
         hq_env.check_process_exited(w2, expected_code="error")
 
         expected_job_ids = set(default_job_id(index) for index in range(4))
-        wait_until(lambda: expected_job_ids == manager.deleted_jobs)
+        wait_until(lambda: expected_job_ids == mock.handler.deleted_jobs)
 
 
 @all_flavors
@@ -289,8 +295,7 @@ def test_fail_on_remove_queue_with_running_jobs(hq_env: HqEnv, flavor: ManagerFl
 
 @all_flavors
 def test_cancel_active_jobs_on_forced_remove_queue(hq_env: HqEnv, flavor: ManagerFlavor):
-    manager = DefaultManager()
-    with MockJobManager(hq_env, flavor.adapt(manager)) as mock:
+    with MockJobManager(hq_env, CommandHandler(flavor.create_adapter())) as mock:
         hq_env.start_server()
         prepare_tasks(hq_env)
 
@@ -316,13 +321,12 @@ def test_cancel_active_jobs_on_forced_remove_queue(hq_env: HqEnv, flavor: Manage
         wait_until(lambda: len(hq_env.command(["alloc", "list"], as_table=True)) == 0)
 
         expected_job_ids = set(default_job_id(index) for index in range(4))
-        wait_until(lambda: expected_job_ids == manager.deleted_jobs)
+        wait_until(lambda: expected_job_ids == mock.handler.deleted_jobs)
 
 
 @all_flavors
 def test_refresh_allocation_remove_queued_job(hq_env: HqEnv, flavor: ManagerFlavor):
-    manager = DefaultManager()
-    with MockJobManager(hq_env, flavor.adapt(manager)):
+    with MockJobManager(hq_env, flavor.default_handler()) as mock:
         start_server_with_quick_refresh(hq_env)
         prepare_tasks(hq_env)
 
@@ -331,21 +335,20 @@ def test_refresh_allocation_remove_queued_job(hq_env: HqEnv, flavor: ManagerFlav
         job_id = default_job_id()
         wait_for_alloc(hq_env, "QUEUED", job_id)
 
-        manager.set_job_data(job_id, None)
+        mock.handler.set_job_data(job_id, None)
         wait_for_alloc(hq_env, "FAILED", job_id)
 
 
 @all_flavors
 def test_refresh_allocation_finish_queued_job(hq_env: HqEnv, flavor: ManagerFlavor):
-    manager = DefaultManager()
-    with MockJobManager(hq_env, flavor.adapt(manager)):
+    with MockJobManager(hq_env, flavor.default_handler()) as mock:
         start_server_with_quick_refresh(hq_env)
         prepare_tasks(hq_env)
 
         job_id = default_job_id()
         add_queue(hq_env, manager=flavor.manager_type(), name="foo")
         wait_for_alloc(hq_env, "QUEUED", job_id)
-        manager.set_job_data(
+        mock.handler.set_job_data(
             job_id,
             JobData.finished(),
         )
@@ -354,15 +357,14 @@ def test_refresh_allocation_finish_queued_job(hq_env: HqEnv, flavor: ManagerFlav
 
 @all_flavors
 def test_refresh_allocation_fail_queued_job(hq_env: HqEnv, flavor: ManagerFlavor):
-    manager = DefaultManager()
-    with MockJobManager(hq_env, flavor.adapt(manager)):
+    with MockJobManager(hq_env, flavor.default_handler()) as mock:
         start_server_with_quick_refresh(hq_env)
         prepare_tasks(hq_env)
 
         job_id = default_job_id()
         add_queue(hq_env, manager=flavor.manager_type(), name="foo")
         wait_for_alloc(hq_env, "QUEUED", job_id)
-        manager.set_job_data(
+        mock.handler.set_job_data(
             job_id,
             JobData.failed(),
         )
@@ -377,13 +379,13 @@ def test_repeated_status_error(hq_env: HqEnv, flavor: ManagerFlavor):
     """
     first_job = default_job_id()
 
-    class FailingStatusManager(WrappedManager):
-        async def handle_status(self, input: CommandInput, job_ids: List[JobId]) -> Dict[JobId, JobData]:
+    class FailingStatusManager(CommandHandler):
+        async def handle_status(self, job_ids: List[JobId]) -> Dict[JobId, JobData]:
             if first_job in job_ids:
                 raise ManagerException("Failed to get allocation status")
-            return await self.inner.handle_status(input)
+            return await super().handle_status(job_ids)
 
-    with MockJobManager(hq_env, flavor.adapt(FailingStatusManager())):
+    with MockJobManager(hq_env, FailingStatusManager(flavor.create_adapter())):
         start_server_with_quick_refresh(hq_env)
         prepare_tasks(hq_env)
 
@@ -453,9 +455,9 @@ def parse_exec_line(script_path: str) -> WorkerExecLine:
 
 @all_flavors
 def test_pass_cpu_and_resources_to_worker(hq_env: HqEnv, flavor: ManagerFlavor):
-    manager = ExtractSubmitScriptPath()
+    manager = ExtractSubmitScriptPath(flavor.create_adapter())
 
-    with MockJobManager(hq_env, flavor.adapt(manager)):
+    with MockJobManager(hq_env, manager):
         hq_env.start_server()
         prepare_tasks(hq_env)
 
@@ -487,9 +489,9 @@ def test_pass_cpu_and_resources_to_worker(hq_env: HqEnv, flavor: ManagerFlavor):
 
 @all_flavors
 def test_propagate_rust_log_env(hq_env: HqEnv, flavor: ManagerFlavor):
-    manager = ExtractSubmitScriptPath()
+    manager = ExtractSubmitScriptPath(flavor.create_adapter())
 
-    with MockJobManager(hq_env, flavor.adapt(manager)):
+    with MockJobManager(hq_env, manager):
         hq_env.start_server(env=dict(RUST_LOG="foo"))
         prepare_tasks(hq_env)
 
@@ -505,9 +507,9 @@ def test_propagate_rust_log_env(hq_env: HqEnv, flavor: ManagerFlavor):
 
 @all_flavors
 def test_pass_idle_timeout_to_worker(hq_env: HqEnv, flavor: ManagerFlavor):
-    manager = ExtractSubmitScriptPath()
+    manager = ExtractSubmitScriptPath(flavor.create_adapter())
 
-    with MockJobManager(hq_env, flavor.adapt(manager)):
+    with MockJobManager(hq_env, manager):
         hq_env.start_server()
         prepare_tasks(hq_env)
 
@@ -530,9 +532,9 @@ def test_pass_idle_timeout_to_worker(hq_env: HqEnv, flavor: ManagerFlavor):
 
 @all_flavors
 def test_pass_on_server_lost(hq_env: HqEnv, flavor: ManagerFlavor):
-    manager = ExtractSubmitScriptPath()
+    manager = ExtractSubmitScriptPath(flavor.create_adapter())
 
-    with MockJobManager(hq_env, flavor.adapt(manager)):
+    with MockJobManager(hq_env, manager):
         hq_env.start_server()
         prepare_tasks(hq_env)
 
@@ -551,9 +553,9 @@ def test_pass_on_server_lost(hq_env: HqEnv, flavor: ManagerFlavor):
 
 @all_flavors
 def test_pass_worker_time_limit(hq_env: HqEnv, flavor: ManagerFlavor):
-    manager = ExtractSubmitScriptPath()
+    manager = ExtractSubmitScriptPath(flavor.create_adapter())
 
-    with MockJobManager(hq_env, flavor.adapt(manager)):
+    with MockJobManager(hq_env, manager):
         hq_env.start_server()
         prepare_tasks(hq_env)
 
@@ -568,9 +570,9 @@ def test_pass_worker_time_limit(hq_env: HqEnv, flavor: ManagerFlavor):
 
 @all_flavors
 def test_start_stop_cmd(hq_env: HqEnv, flavor: ManagerFlavor):
-    manager = ExtractSubmitScriptPath()
+    manager = ExtractSubmitScriptPath(flavor.create_adapter())
 
-    with MockJobManager(hq_env, flavor.adapt(manager)):
+    with MockJobManager(hq_env, manager):
         hq_env.start_server()
         prepare_tasks(hq_env)
 
@@ -606,7 +608,7 @@ def test_do_not_submit_from_paused_queue(hq_env: HqEnv, flavor: ManagerFlavor):
 
 
 def test_slurm_allocation_name(hq_env: HqEnv):
-    manager = ExtractSubmitScriptPath()
+    manager = ExtractSubmitScriptPath(SlurmManagerFlavor().create_adapter())
 
     def check_name(path: str, name: str):
         with open(path) as f:
@@ -618,7 +620,7 @@ def test_slurm_allocation_name(hq_env: HqEnv):
                     return
             raise Exception(f"Slurm name {name} not found in {path}")
 
-    with MockJobManager(hq_env, SlurmManagerFlavor().adapt(manager)):
+    with MockJobManager(hq_env, manager):
         hq_env.start_server()
         prepare_tasks(hq_env)
 

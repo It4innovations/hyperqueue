@@ -1,11 +1,10 @@
 from queue import Queue
 from typing import List, Literal, Optional, Union
 
+from .mock.manager import CommandHandler, CommandInput, ManagerAdapter
 from ..utils.wait import TimeoutException, wait_until, DEFAULT_TIMEOUT
 
 from ..conftest import HqEnv
-from .mock.command import CommandInput
-from .mock.manager import Manager, WrappedManager
 
 
 def extract_script_args(script: str, prefix: str) -> List[str]:
@@ -91,15 +90,15 @@ class CommQueue:
         return self.queue.get(timeout=5)
 
 
-class ExtractSubmitScriptPath(WrappedManager):
-    def __init__(self, inner: Optional[Manager] = None):
-        super().__init__(inner=inner)
+class ExtractSubmitScriptPath(CommandHandler):
+    def __init__(self, adapter: ManagerAdapter):
+        super().__init__(adapter)
         self.queue = CommQueue()
 
-    async def handle_submit(self, input: CommandInput):
+    async def handle_cli_submit(self, input: CommandInput):
         script_path = input.arguments[0]
         self.queue.put(script_path)
-        return await super().handle_submit(input)
+        return await super().handle_cli_submit(input)
 
     def get_script_path(self) -> str:
         return self.queue.get()

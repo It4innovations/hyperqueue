@@ -1,55 +1,38 @@
 import datetime
 from subprocess import Popen
-from typing import List
+from typing import List, Dict
 
 from ...conftest import HqEnv
-from .command import (
-    CommandHandler,
-    CommandInput,
-    CommandOutput,
-    response,
-)
-from .manager import JobData, JobId, JobStatus, Manager
+from .manager import JobData, JobId, JobStatus, ManagerAdapter, CommandType, CommandInput, CommandOutput, response
 
 
-class SlurmCommandHandler(CommandHandler):
-    def __init__(self, manager: Manager):
-        self.manager = manager
-
-    def add_worker(self, hq_env: HqEnv, allocation_id: str) -> Popen:
-        self.manager.set_job_data(allocation_id, JobData.running())
-
-        return hq_env.start_worker(
-            env={"SLURM_JOB_ID": allocation_id},
-            args=["--manager", "slurm", "--time-limit", "30m"],
-        )
-
-    async def handle_command(self, input: CommandInput) -> CommandOutput:
+class SlurmAdapter(ManagerAdapter):
+    def parse_command_type(self, input: CommandInput) -> CommandType:
         cmd = input.command
         if cmd == "sbatch":
-            return await self.handle_submit(input)
+            return "submit"
         elif cmd == "scontrol":
-            return await self.handle_status(input)
+            return "status"
         elif cmd == "scancel":
-            return await self.handle_delete(input)
+            return "delete"
         else:
-            raise Exception(f"Unknown PBS command {cmd}")
+            raise Exception(f"Unknown Slurm command {cmd}")
 
-    async def handle_submit(self, input: CommandInput) -> CommandOutput:
-        job_id = await self.manager.handle_submit(input)
+    def format_submit_output(self, job_id: JobId) -> CommandOutput:
         # Job ID has to be the fourth item (separated by spaces)
         msg = f"Submitted batch job {job_id}"
         return response(stdout=msg)
 
-    async def handle_status(self, input: CommandInput) -> CommandOutput:
+    def parse_status_job_ids(self, input: CommandInput) -> List[JobId]:
         job_ids = parse_slurm_status_job_ids(input)
         assert len(job_ids) == 1
-        job_id = job_ids[0]
+        return job_ids
 
-        job_data = await self.manager.handle_status(input, job_ids)
+    def format_status_output(self, job_data: Dict[JobId, JobData]) -> CommandOutput:
+        assert len(job_data) == 1
 
         content = ""
-        job = job_data.get(job_id)
+        job = next(iter(job_data.values()))
         if job is not None:
             if job.status == JobStatus.Queued:
                 status = "PENDING"
@@ -75,9 +58,11 @@ class SlurmCommandHandler(CommandHandler):
             content += "\n"
         return response(content)
 
-    async def handle_delete(self, input: CommandInput) -> CommandOutput:
-        await self.manager.handle_delete(input, input.arguments[0])
-        return response()
+    def start_worker(self, hq_env: HqEnv, allocation_id: str) -> Popen:
+        return hq_env.start_worker(
+            env={"SLURM_JOB_ID": allocation_id},
+            args=["--manager", "slurm", "--time-limit", "30m"],
+        )
 
 
 def to_slurm_time(time: datetime.datetime) -> str:

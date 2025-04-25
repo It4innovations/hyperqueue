@@ -3,55 +3,46 @@ import json
 from subprocess import Popen
 from typing import List, Dict, Optional
 
-from .command import (
-    CommandOutput,
-    CommandInput,
-    response,
-    CommandHandler,
-)
-from .manager import JobData, JobStatus
-from .manager import Manager, JobId
+from .manager import JobData, JobStatus, ManagerAdapter, CommandInput, CommandType, CommandOutput, response, JobId
 from ...conftest import HqEnv
 
 
-class PbsCommandHandler(CommandHandler):
-    def __init__(self, manager: Manager):
-        self.manager = manager
+class PbsAdapter(ManagerAdapter):
+    def parse_command_type(self, input: CommandInput) -> CommandType:
+        cmd = input.command
+        if cmd == "qsub":
+            return "submit"
+        elif cmd == "qstat":
+            return "status"
+        elif cmd == "qdel":
+            return "delete"
+        else:
+            raise Exception(f"Unknown PBS command {cmd}")
 
-    def add_worker(self, hq_env: HqEnv, allocation_id: str) -> Popen:
-        self.manager.set_job_data(allocation_id, JobData.running())
+    def format_submit_output(self, job_id: JobId) -> CommandOutput:
+        return response(stdout=job_id)
 
+    def parse_status_job_ids(self, input: CommandInput) -> List[JobId]:
+        job_ids = []
+        args = input.arguments
+        for index, arg in enumerate(args[:-1]):
+            if arg == "-f":
+                job_ids.append(args[index + 1])
+        if not job_ids:
+            raise Exception(f"Did not find -f in arguments: {args}")
+
+        for job_id in job_ids:
+            assert job_id[0].isdigit()
+        return job_ids
+
+    def format_status_output(self, job_data: Dict[JobId, JobData]) -> CommandOutput:
+        return response(stdout=json.dumps({"Jobs": create_pbs_job_data(job_data)}))
+
+    def start_worker(self, hq_env: HqEnv, allocation_id: str) -> Popen:
         return hq_env.start_worker(
             env={"PBS_JOBID": allocation_id, "PBS_ENVIRONMENT": "1"},
             args=["--manager", "pbs", "--time-limit", "30m"],
         )
-
-    async def handle_command(self, input: CommandInput) -> CommandOutput:
-        cmd = input.command
-        if cmd == "qsub":
-            return await self.handle_submit(input)
-        elif cmd == "qstat":
-            return await self.handle_status(input)
-        elif cmd == "qdel":
-            return await self.handle_delete(input)
-        else:
-            raise Exception(f"Unknown PBS command {cmd}")
-
-    async def handle_submit(self, input: CommandInput) -> CommandOutput:
-        job_id = await self.manager.handle_submit(input)
-        return response(stdout=job_id)
-
-    async def handle_status(self, input: CommandInput) -> CommandOutput:
-        job_ids = parse_pbs_job_ids(input)
-        job_data = await self.manager.handle_status(input, job_ids)
-
-        return response(stdout=json.dumps({"Jobs": create_pbs_job_data(job_data)}))
-
-    async def handle_delete(self, input: CommandInput) -> CommandOutput:
-        assert len(input.arguments) == 1
-        job_id = input.arguments[0]
-        await self.manager.handle_delete(input, job_id)
-        return response()
 
 
 def to_pbs_time(time: datetime.datetime) -> str:

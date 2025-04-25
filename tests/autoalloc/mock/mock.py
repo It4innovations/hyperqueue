@@ -10,8 +10,9 @@ from aiohttp import web
 from pathlib import Path
 from typing import Optional
 
-from .command import CommandOutput, response_error, extract_mock_input, CommandHandler
-from .manager import ManagerException
+from aiohttp.web_request import Request
+
+from .manager import ManagerException, CommandHandler, response_error, CommandOutput, CommandInput
 from ...conftest import HqEnv
 
 
@@ -209,3 +210,14 @@ class BackgroundServer:
             raise exc
         except queue.Empty:
             logging.info("Server stopped")
+
+
+async def extract_mock_input(request: Request, cmd: str) -> CommandInput:
+    data = await request.json()
+    arguments = data["arguments"]
+    assert isinstance(arguments, list)
+    if len(arguments) > 0:
+        assert isinstance(arguments[0], str)
+    cwd = data["cwd"]
+    assert isinstance(cwd, str)
+    return CommandInput(command=cmd, arguments=arguments, cwd=cwd)
