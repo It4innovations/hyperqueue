@@ -3,17 +3,14 @@ use crate::internal::common::error::DsError;
 use crate::internal::datasrv::dataobj::{DataInputId, OutputId};
 use crate::internal::datasrv::messages::{
     DataDown, FromLocalDataClientMessageUp, PutDataUp, ToLocalDataClientMessageDown,
-    ToLocalDataClientMessageUp,
 };
 use crate::internal::datasrv::utils::UPLOAD_CHUNK_SIZE;
-use crate::internal::datasrv::{DataObject, DataObjectRef};
 use crate::internal::worker::localcomm::IntroMessage;
 use bstr::BStr;
 use futures::{SinkExt, StreamExt};
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
-use std::rc::Rc;
 use tokio::net::UnixStream;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
@@ -34,6 +31,7 @@ impl LocalDataClient {
         Ok(LocalDataClient { stream })
     }
 
+    #[allow(clippy::needless_lifetimes)]
     async fn send_message<'a>(
         &mut self,
         message: FromLocalDataClientMessageUp<'a>,
@@ -72,8 +70,7 @@ impl LocalDataClient {
         );
         let mut file = File::open(path)?;
         let size = file.metadata()?.len();
-        let mut buffer = Vec::new();
-        buffer.resize(UPLOAD_CHUNK_SIZE, 0);
+        let mut buffer = vec![0; UPLOAD_CHUNK_SIZE];
         let mut first = true;
         let mut written = 0;
         loop {

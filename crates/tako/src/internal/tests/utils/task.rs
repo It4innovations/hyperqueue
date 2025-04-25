@@ -1,5 +1,5 @@
 use super::resources::ResBuilder;
-use crate::datasrv::{DataObjectId, OutputId};
+use crate::datasrv::DataObjectId;
 use crate::gateway::TaskDataFlags;
 use crate::internal::common::resources::{
     NumOfNodes, ResourceAmount, ResourceId, ResourceRequestVariants,

@@ -1,7 +1,6 @@
 use crate::PriorityTuple;
 use crate::datasrv::DataObjectId;
 use crate::internal::datasrv::{DataObjectRef, DownloadInterface, DownloadManagerRef};
-use crate::internal::messages::worker::FromWorkerMessage;
 use crate::internal::worker::state::WorkerStateRef;
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::Receiver;

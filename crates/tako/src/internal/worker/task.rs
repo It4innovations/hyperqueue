@@ -8,7 +8,7 @@ use crate::{InstanceId, Priority, TaskId, WorkerId};
 use std::rc::Rc;
 use std::time::Duration;
 
-pub(crate) struct RunningState {
+pub struct RunningState {
     pub comm: RunningTaskComm,
     pub allocation: Rc<Allocation>,
     pub outputs: Vec<TaskOutput>,

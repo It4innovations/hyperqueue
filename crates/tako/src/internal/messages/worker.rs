@@ -144,7 +144,7 @@ pub struct DataObjectOverview {
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct DataStorageStats {
+pub struct DataStorageStats {
     locally_uploaded_objects: u32,
     locally_uploaded_bytes: u64,
     locally_downloaded_objects: u32,

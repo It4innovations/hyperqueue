@@ -1,6 +1,5 @@
 use crate::datasrv::DataObjectId;
 use crate::internal::datasrv::datastorage::DataStorage;
-use crate::internal::datasrv::download::download_manager_process;
 use crate::internal::datasrv::test_utils::{
     PlacementConfig, TestUploadInterface, start_download_manager, start_test_upload_service,
     test_download_manager,
@@ -8,7 +7,6 @@ use crate::internal::datasrv::test_utils::{
 use crate::internal::datasrv::{DataObject, DataObjectRef};
 use crate::internal::tests::utils::sorted_vec;
 use std::time::Duration;
-use tokio::task::spawn_local;
 
 #[test]
 fn storage_put_get() {
@@ -264,7 +262,7 @@ async fn download_cancel1() {
         dm.cancel_download(data_id2);
         drop(dm);
         tokio::time::sleep(Duration::new(1, 0)).await;
-        let mut dm = dm_ref.get_mut();
+        let dm = dm_ref.get_mut();
         assert!(dm.queue().is_empty());
         assert!(dm.download_info().is_empty());
         assert!(dm.idle_connections().is_empty());
@@ -306,7 +304,7 @@ async fn download_cancel2() {
             dm.cancel_download(data_id1);
         }
         tokio::time::sleep(Duration::new(1, 0)).await;
-        let mut dm = dm_ref.get_mut();
+        let dm = dm_ref.get_mut();
         assert!(dm.queue().is_empty());
         assert!(dm.download_info().is_empty());
         assert!(dm.idle_connections().is_empty());

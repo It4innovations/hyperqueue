@@ -1,12 +1,9 @@
+use crate::Map;
 use crate::datasrv::DataObjectId;
 use crate::internal::common::error::DsError;
 use crate::internal::datasrv::DataObjectRef;
-use crate::internal::datasrv::download::DownloadManager;
 use crate::internal::messages::worker::{DataNodeOverview, DataObjectOverview, DataStorageStats};
-use crate::{Map, WrappedRcRefCell};
 use hashbrown::hash_map::Entry;
-use serde::{Deserialize, Serialize};
-use std::rc::Rc;
 
 pub(crate) struct DataStorage {
     store: Map<DataObjectId, DataObjectRef>,

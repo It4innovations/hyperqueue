@@ -16,7 +16,6 @@ use crate::internal::worker::configuration::{
 use crate::resources::ResourceMap;
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
 use crate::{TaskId, WorkerId};
-use std::process::Output;
 use std::time::{Duration, Instant};
 
 pub fn create_test_worker_config(

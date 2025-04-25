@@ -1,18 +1,14 @@
 use crate::connection::Connection;
 use crate::datasrv::DataObjectId;
+use crate::internal::datasrv::DataObjectRef;
 use crate::internal::datasrv::messages::{
     DataDown, FromDataClientMessage, ToDataClientMessageDown,
 };
 use crate::internal::datasrv::utils::DataObjectComposer;
-use crate::internal::datasrv::{DataObject, DataObjectRef};
-use crate::internal::messages::worker::FromWorkerMessage;
-use crate::internal::worker::state::WorkerStateRef;
-use crate::internal::worker::task::TaskState;
-use crate::{Map, PriorityTuple, Set, TaskId, WorkerId, WrappedRcRefCell};
+use crate::{Map, WrappedRcRefCell};
 use orion::kex::SecretKey;
 use priority_queue::PriorityQueue;
 use std::fmt::Debug;
-use std::iter::Inspect;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
@@ -141,7 +137,7 @@ async fn get_connection<I: DownloadInterface, P: Ord + Debug>(
 ) -> crate::Result<DataClientConnection> {
     {
         let mut dm = dm_ref.get_mut();
-        if let Some(connection) = dm.get_idle_connection(&addr) {
+        if let Some(connection) = dm.get_idle_connection(addr) {
             log::debug!("Reusing connection {addr}");
             return Ok(connection);
         }
@@ -164,7 +160,7 @@ async fn download_from_address<I: DownloadInterface, P: Ord + Debug>(
     addr: &str,
     data_id: DataObjectId,
 ) -> crate::Result<DataObjectRef> {
-    let mut connection = get_connection(dm_ref, &addr).await?;
+    let mut connection = get_connection(dm_ref, addr).await?;
     log::debug!("Sending download request for object {data_id}");
     let message = FromDataClientMessage::GetObject { data_id };
     let message = connection.send_and_receive(message).await?;
@@ -197,10 +193,10 @@ async fn download_from_address<I: DownloadInterface, P: Ord + Debug>(
                     }
                 }
             }
-            dm_ref.get_mut().return_connection(&addr, connection);
+            dm_ref.get_mut().return_connection(addr, connection);
             Ok(DataObjectRef::new(composer.finish(mime_type)))
         }
-        ToDataClientMessageDown::DataObjectNotFound => Err(crate::Error::GenericError(
+        ToDataClientMessageDown::NotFound => Err(crate::Error::GenericError(
             "Object not found in remote side".to_string(),
         )),
         ToDataClientMessageDown::DataObjectPart(_) => {
@@ -219,7 +215,7 @@ async fn download_process<I: DownloadInterface, P: Ord + Debug>(
     for i in 1..=max_download_tries {
         log::debug!("Trying to resolve placement for {data_id}, try {i}/{max_download_tries}");
         let resolver = {
-            let mut interface = dm_ref.get().interface.clone();
+            let interface = dm_ref.get().interface.clone();
             interface.find_placement(data_id)
         };
         if let Ok(addr) = resolver.await {
@@ -228,7 +224,7 @@ async fn download_process<I: DownloadInterface, P: Ord + Debug>(
                 match download_from_address(&dm_ref, &addr, data_id).await {
                     Ok(data_obj) => {
                         log::debug!("Download of {data_id} completed; size={}", data_obj.size());
-                        let mut interface = {
+                        let interface = {
                             let mut dm = dm_ref.get_mut();
                             dm.download_info.remove(&data_id);
                             dm.interface.clone()
@@ -244,7 +240,7 @@ async fn download_process<I: DownloadInterface, P: Ord + Debug>(
                 };
             } else {
                 log::debug!("Placement for {data_id} is not resolvable.");
-                let mut interface = {
+                let interface = {
                     let mut dm = dm_ref.get_mut();
                     dm.download_info.remove(&data_id);
                     dm.interface.clone()
@@ -262,7 +258,7 @@ async fn download_process<I: DownloadInterface, P: Ord + Debug>(
     log::debug!(
         "Download of dataobj {data_id} fails and reaches the limit, marking dataobj as unreachable"
     );
-    let mut interface = {
+    let interface = {
         let mut dm = dm_ref.get_mut();
         dm.download_info.remove(&data_id);
         dm.interface.clone()
@@ -281,7 +277,7 @@ pub(crate) async fn download_manager_process<
     idle_connection_timeout: Duration,
 ) {
     let notify = {
-        let mut dm = dm_ref.get_mut();
+        let dm = dm_ref.get_mut();
         dm.notify_downloader.clone()
     };
     notify.notified().await;

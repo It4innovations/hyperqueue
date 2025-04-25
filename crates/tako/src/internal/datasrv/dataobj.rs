@@ -6,8 +6,6 @@ use std::rc::Rc;
 define_id_type!(OutputId, u32);
 define_id_type!(DataInputId, u32);
 
-pub(crate) type InputMap = crate::Map<DataInputId, DataObjectId>;
-
 #[derive(Clone, Copy, Eq, Hash, PartialEq, Serialize, Deserialize, PartialOrd, Ord)]
 pub struct DataObjectId {
     pub task_id: TaskId,

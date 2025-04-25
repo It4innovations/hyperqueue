@@ -1,12 +1,9 @@
 use crate::datasrv::DataObjectId;
-use crate::internal::common::resources::allocation::AllocationIndex;
 use crate::internal::common::stablemap::StableMap;
 use crate::internal::server::dataobj::{DataObjectHandle, ObjsToRemoveFromWorkers};
-use crate::{Map, WorkerId};
-use smallvec::SmallVec;
 
 #[derive(Default, Debug)]
-pub(crate) struct DataObjectMap {
+pub struct DataObjectMap {
     data_objs: StableMap<DataObjectId, DataObjectHandle>,
 }
 

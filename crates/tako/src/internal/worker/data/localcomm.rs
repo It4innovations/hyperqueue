@@ -4,8 +4,7 @@ use crate::datasrv::DataObjectId;
 use crate::internal::common::error::DsError;
 use crate::internal::datasrv::DataObjectRef;
 use crate::internal::datasrv::messages::{
-    DataDown, FromLocalDataClientMessageDown, ToLocalDataClientMessageDown,
-    ToLocalDataClientMessageUp,
+    DataDown, FromLocalDataClientMessageDown, ToLocalDataClientMessageUp,
 };
 use crate::internal::datasrv::utils::{DataObjectComposer, DataObjectDecomposer};
 use crate::internal::messages::worker::TaskOutput;

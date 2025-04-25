@@ -26,7 +26,7 @@ use crate::internal::worker::rqueue::ResourceWaitQueue;
 use crate::internal::worker::task::{RunningState, Task, TaskState};
 use crate::internal::worker::task_comm::RunningTaskComm;
 use crate::launcher::TaskLauncher;
-use crate::{Priority, PriorityTuple, TaskId};
+use crate::{PriorityTuple, TaskId};
 use orion::aead::SecretKey;
 use rand::SeedableRng;
 use rand::prelude::IndexedRandom;
@@ -95,12 +95,7 @@ impl WorkerState {
         }
     }
 
-    #[inline]
-    pub fn download_manager(&mut self) -> &WorkerDownloadManagerRef {
-        self.download_manager.as_ref().unwrap()
-    }
-
-    pub fn set_download_manager(&mut self, dm_ref: WorkerDownloadManagerRef) {
+    pub(crate) fn set_download_manager(&mut self, dm_ref: WorkerDownloadManagerRef) {
         self.download_manager = Some(dm_ref);
     }
 
@@ -114,7 +109,7 @@ impl WorkerState {
         self.tasks.find(&task_id)
     }
 
-    pub fn tasks_and_storage(&mut self) -> (&mut TaskMap, &mut DataStorage) {
+    pub(crate) fn tasks_and_storage(&mut self) -> (&mut TaskMap, &mut DataStorage) {
         (&mut self.tasks, &mut self.data_storage)
     }
 
@@ -188,12 +183,10 @@ impl WorkerState {
                 assert!(!just_finished);
                 if x == 0 {
                     self.ready_task_queue.remove_task(task_id);
-                } else {
-                    if let Some(data_deps) = task.data_deps {
-                        let mut dm = self.download_manager.as_ref().unwrap().get_mut();
-                        for data_id in data_deps.iter() {
-                            dm.cancel_download(*data_id);
-                        }
+                } else if let Some(data_deps) = task.data_deps {
+                    let mut dm = self.download_manager.as_ref().unwrap().get_mut();
+                    for data_id in data_deps.iter() {
+                        dm.cancel_download(*data_id);
                     }
                 }
                 Vec::new()

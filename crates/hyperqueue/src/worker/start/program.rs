@@ -8,7 +8,6 @@ use std::time::Duration;
 use bstr::{BStr, BString, ByteSlice};
 use futures::TryFutureExt;
 use futures::future::Either;
-use itertools::Itertools;
 use nix::sys::signal;
 use nix::sys::signal::Signal;
 use tempfile::TempDir;
