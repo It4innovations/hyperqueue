@@ -120,5 +120,5 @@ impl Comm for NullComm {
     ) {
     }
 
-    fn send_client_worker_overview(&mut self, _overview: WorkerOverview) {}
+    fn send_client_worker_overview(&mut self, _overview: Box<WorkerOverview>) {}
 }
