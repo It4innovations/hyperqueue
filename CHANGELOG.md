@@ -11,6 +11,11 @@
 
 * Fixed a problem with journal loading when task dependencies are used
 * Fixed restoring crash counters and instance ids from journal
+* Fixed some corner cases of load balancing in server scheduler
+
+### Experimental
+
+* Added direct data transfers between tasks. User API not stabilized
 
 ## 0.22.0
 
