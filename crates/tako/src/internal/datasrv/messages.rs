@@ -7,11 +7,10 @@
 */
 
 use crate::datasrv::DataObjectId;
+use crate::internal::datasrv::DataObject;
 use crate::internal::datasrv::dataobj::{DataInputId, OutputId};
-use crate::internal::datasrv::{DataObject, DataObjectRef};
 use serde::{Deserialize, Serialize, Serializer};
-use std::borrow::Cow;
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
 use std::rc::Rc;
 
 #[derive(Debug)]
@@ -83,6 +82,7 @@ pub(crate) enum ToLocalDataClientMessageUp {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)] // Remove once the mime type is used
 pub(crate) enum ToLocalDataClientMessageDown {
     Uploaded(OutputId),
     DataObject {
@@ -107,7 +107,7 @@ pub(crate) enum ToDataClientMessageUp {
         data: DataObjectSlice,
     },
     DataObjectPart(DataObjectSlice),
-    DataObjectNotFound,
+    NotFound,
 }
 
 #[derive(Debug, Deserialize)]
@@ -118,5 +118,5 @@ pub(crate) enum ToDataClientMessageDown {
         data: DataDown,
     },
     DataObjectPart(DataDown),
-    DataObjectNotFound,
+    NotFound,
 }

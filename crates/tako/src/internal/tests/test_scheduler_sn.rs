@@ -771,7 +771,7 @@ fn test_generic_resource_variants2() {
 
 #[test]
 fn test_task_data_deps_initial_placing() {
-    let mut test_data = vec![
+    let test_data = vec![
         (100, 100, 100_000, 100_000, 100_000, 100),
         (100, 101, 100_000, 100_000, 100_000, 101),
         (100, 101, 201_000, 100_000, 100_000, 100),

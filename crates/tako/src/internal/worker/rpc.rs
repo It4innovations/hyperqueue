@@ -19,9 +19,7 @@ use crate::internal::common::WrappedRcRefCell;
 use crate::internal::common::resources::Allocation;
 use crate::internal::common::resources::map::ResourceMap;
 use crate::internal::datasrv::download::download_manager_process;
-use crate::internal::datasrv::{
-    DownloadManager, DownloadManagerRef, data_upload_service, download,
-};
+use crate::internal::datasrv::{DownloadManagerRef, data_upload_service};
 use crate::internal::messages::worker::{
     FromWorkerMessage, StealResponseMsg, TaskResourceAllocation, ToWorkerMessage, WorkerOverview,
     WorkerRegistrationResponse, WorkerStopReason,
@@ -33,7 +31,7 @@ use crate::internal::transfer::auth::{
 use crate::internal::transfer::transport::make_protocol_builder;
 use crate::internal::worker::comm::WorkerComm;
 use crate::internal::worker::configuration::{
-    OverviewConfiguration, ServerLostPolicy, WorkerConfiguration, sync_worker_configuration,
+    ServerLostPolicy, WorkerConfiguration, sync_worker_configuration,
 };
 use crate::internal::worker::hwmonitor::HwSampler;
 use crate::internal::worker::localcomm::handle_local_comm;

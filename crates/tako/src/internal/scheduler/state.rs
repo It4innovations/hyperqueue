@@ -124,7 +124,7 @@ impl SchedulerState {
             if !worker.is_capable_to_run_rqv(&task.configuration.resources, self.now) {
                 continue;
             }
-            let mut cost = compute_transfer_cost(dataobj_map, task, worker.id);
+            let cost = compute_transfer_cost(dataobj_map, task, worker.id);
             if cost > best_cost {
                 continue;
             }
@@ -615,7 +615,7 @@ impl SchedulerState {
     }
 }
 
-pub fn compute_transfer_cost(dataobj_map: &DataObjectMap, task: &Task, worker_id: WorkerId) -> u64 {
+fn compute_transfer_cost(dataobj_map: &DataObjectMap, task: &Task, worker_id: WorkerId) -> u64 {
     let mut cost = 0;
     // TODO: When task become ready we can sort data deps by size, first n-th task is really most relevant
     // but we need need remember the original order somewhere

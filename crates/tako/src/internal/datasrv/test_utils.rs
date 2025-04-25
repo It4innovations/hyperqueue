@@ -11,7 +11,7 @@ use std::time::Duration;
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::Receiver;
-use tokio::task::{LocalSet, spawn_local};
+use tokio::task::spawn_local;
 
 #[derive(Clone)]
 pub(crate) enum PlacementConfig {
@@ -96,7 +96,7 @@ impl TestDmInterface {
 pub(crate) fn test_download_manager() -> (DownloadManagerRef<TestDmInterface, u32>, TestDmInterface)
 {
     let interface = TestDmInterface::default();
-    let mut dm_ref = DownloadManagerRef::new(interface.clone(), None);
+    let dm_ref = DownloadManagerRef::new(interface.clone(), None);
     (dm_ref, interface)
 }
 

@@ -82,11 +82,11 @@ mod tests {
     use crate::server::event::Event;
     use crate::server::event::journal::{JournalReader, JournalWriter};
     use crate::server::event::payload::EventPayload;
-    use bincode::ErrorKind;
+
     use chrono::Utc;
     use std::fs::{File, OpenOptions};
     use std::io::Write;
-    use std::ops::Deref;
+
     use tako::gateway::LostWorkerReason;
     use tempfile::TempDir;
 

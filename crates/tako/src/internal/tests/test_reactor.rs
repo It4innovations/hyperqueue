@@ -17,18 +17,16 @@ use crate::internal::server::reactor::{
 };
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::worker::Worker;
-use crate::internal::tests::utils::env::{TestComm, create_test_comm};
+use crate::internal::tests::utils::env::create_test_comm;
 use crate::internal::tests::utils::schedule::{
     create_test_scheduler, create_test_worker, create_test_workers, finish_on_worker, force_assign,
-    start_and_finish_on_worker, start_and_finish_on_worker_with_data, start_mn_task_on_worker,
-    start_on_worker, start_on_worker_running, submit_test_tasks,
+    start_and_finish_on_worker, start_mn_task_on_worker, start_on_worker, start_on_worker_running,
+    submit_test_tasks,
 };
 use crate::internal::tests::utils::shared::{res_kind_groups, res_kind_sum};
 use crate::internal::tests::utils::sorted_vec;
 use crate::internal::tests::utils::task::{TaskBuilder, task, task_running_msg, task_with_deps};
-use crate::internal::tests::utils::workflows::{
-    submit_example_1, submit_example_3, submit_example_4,
-};
+use crate::internal::tests::utils::workflows::{submit_example_1, submit_example_3};
 use crate::internal::tests::utils::{env, schedule};
 use crate::internal::worker::configuration::{
     DEFAULT_MAX_DOWNLOAD_TRIES, DEFAULT_MAX_PARALLEL_DOWNLOADS,
@@ -1181,7 +1179,6 @@ fn test_data_deps_missing_outputs() {
         "Task 1 did not produced expected output(s): 11, 100"
     );
     let messages = comm.take_worker_msgs(100, 2);
-    dbg!(&messages);
     assert!(
         matches!(&messages[0], ToWorkerMessage::RemoveDataObjects(x) if sorted_vec(x.to_vec()) == vec![DataObjectId::new(1.into(), 405.into()), DataObjectId::new(1.into(), 406.into())])
     );

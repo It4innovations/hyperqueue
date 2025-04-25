@@ -1,17 +1,15 @@
 use crate::datasrv::DataObjectId;
-use crate::internal::common::resources::allocation::AllocationIndex;
 use crate::internal::common::stablemap::ExtractKey;
 use crate::internal::messages::worker::ToWorkerMessage;
 use crate::internal::server::comm::Comm;
 use crate::{Map, WorkerId};
 use smallvec::SmallVec;
 use std::collections::HashSet;
-use tracing::Instrument;
 
 pub(crate) type RefCount = u32;
 
 #[derive(Debug)]
-pub(crate) struct DataObjectHandle {
+pub struct DataObjectHandle {
     // TODO: Optimize for small number of placements (enum?)
     id: DataObjectId,
     placement: HashSet<WorkerId>,
@@ -72,6 +70,12 @@ impl ExtractKey<DataObjectId> for DataObjectHandle {
 }
 
 pub struct ObjsToRemoveFromWorkers(Map<WorkerId, SmallVec<[DataObjectId; 1]>>);
+
+impl Default for ObjsToRemoveFromWorkers {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl ObjsToRemoveFromWorkers {
     pub fn new() -> Self {

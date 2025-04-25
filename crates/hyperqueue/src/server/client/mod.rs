@@ -29,7 +29,6 @@ use crate::{JobId, JobTaskCount, WorkerId, unwrap_tako_id};
 pub mod autoalloc;
 mod submit;
 
-use crate::common::error::HqError;
 use crate::common::serialization::Serialized;
 use crate::server::Senders;
 use crate::server::client::submit::handle_open_job;

@@ -122,6 +122,7 @@ pub(crate) fn make_protocol_builder() -> Builder {
         .max_frame_length(MAX_FRAME_SIZE)
 }
 
+#[allow(clippy::await_holding_refcell_ref)]
 async fn handle_connection(state_ref: WorkerStateRef, stream: UnixStream) -> crate::Result<()> {
     let (tx, mut rx) = make_protocol_builder().new_framed(stream).split();
     if let Some(data) = rx.next().await {

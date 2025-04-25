@@ -1,16 +1,9 @@
-use crate::comm::do_authentication;
-use crate::connection;
 use crate::connection::Connection;
 use crate::datasrv::DataObjectId;
 use crate::internal::datasrv::DataObjectRef;
-use crate::internal::datasrv::messages::{
-    DataObjectSlice, FromDataClientMessage, ToDataClientMessageUp,
-};
+use crate::internal::datasrv::messages::{FromDataClientMessage, ToDataClientMessageUp};
 use crate::internal::datasrv::utils::DataObjectDecomposer;
-use crate::internal::transfer::transport::make_protocol_builder;
-use futures::{StreamExt, TryFutureExt};
 use orion::kdf::SecretKey;
-use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::task::spawn_local;
@@ -26,8 +19,6 @@ pub(crate) async fn data_upload_service<I: UploadInterface + 'static>(
     secret_key: Option<Arc<SecretKey>>,
     interface: I,
 ) {
-    /*let listener = TcpListener::bind(listen_address).await?;
-    let listener_port = listener.local_addr().unwrap().port();*/
     loop {
         let (stream, _address) = match listener.accept().await {
             Ok(x) => x,
@@ -79,9 +70,7 @@ pub(crate) async fn handle_data_connection<I: UploadInterface>(
                     }
                 } else {
                     log::debug!("Request for invalid object {}", data_id);
-                    connection
-                        .send(ToDataClientMessageUp::DataObjectNotFound)
-                        .await?;
+                    connection.send(ToDataClientMessageUp::NotFound).await?;
                 }
             }
         }
