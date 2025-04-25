@@ -35,6 +35,10 @@ impl OverviewConfiguration {
     }
 }
 
+pub const DEFAULT_MAX_PARALLEL_DOWNLOADS: u32 = 4;
+pub const DEFAULT_MAX_DOWNLOAD_TRIES: u32 = 8;
+pub const DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES: Duration = Duration::from_secs(1);
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WorkerConfiguration {
     pub resources: ResourceDescriptor,

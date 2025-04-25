@@ -22,7 +22,7 @@ def test_kill_task_child_when_worker_is_cancelled(hq_env: HqEnv):
         hq_env.command(["job", "cancel", "1"])
         wait_for_job_state(hq_env, 1, "CANCELED")
 
-    check_task_processes_exited(hq_env, cancel)
+    check_task_processes_exited(hq_env, cancel, terminates_worker=False)
 
 
 def test_cancel_sigint_then_sigkill(hq_env: HqEnv):
@@ -113,7 +113,7 @@ time.sleep(3600)
     pid = wait_until(get_pid)
 
     worker_process.send_signal(signal)
-
+    hq_env.check_process_exited(worker_process, None)
     wait_for_pid_exit(pid)
 
 
@@ -153,13 +153,12 @@ def test_kill_task_child_when_worker_receives_sigkill(hq_env: HqEnv):
 def test_kill_task_child_when_worker_is_stopped(hq_env: HqEnv):
     def stop_worker(worker_process):
         hq_env.command(["worker", "stop", "1"])
-        wait_for_worker_state(hq_env, 1, "STOPPED")
-        hq_env.check_process_exited(worker_process)
+        wait_for_worker_state(hq_env, 1, "STOPPED", check_running_processes=False)
 
     check_task_processes_exited(hq_env, stop_worker)
 
 
-def check_task_processes_exited(hq_env: HqEnv, stop_fn: Callable[[subprocess.Popen], None]):
+def check_task_processes_exited(hq_env: HqEnv, stop_fn: Callable[[subprocess.Popen], None], terminates_worker=True):
     """
     Creates a task that spawns a child, and then calls `stop_fn`, which should kill either the task
     or the worker. The function then checks that both the task process and its child have been killed.
@@ -194,3 +193,5 @@ time.sleep(3600)
     parent, child = pids
     wait_for_pid_exit(parent)
     wait_for_pid_exit(child)
+    if terminates_worker:
+        hq_env.check_process_exited(worker_process, None)

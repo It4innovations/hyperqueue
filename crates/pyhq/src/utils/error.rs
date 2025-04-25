@@ -19,6 +19,12 @@ impl ToPyError for HqError {
     }
 }
 
+impl ToPyError for tako::Error {
+    fn to_py(self) -> PyErr {
+        HqError::from(self).to_py()
+    }
+}
+
 pub(crate) trait ToPyResult<T> {
     fn map_py_err(self) -> Result<T, PyErr>;
 }

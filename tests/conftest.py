@@ -62,15 +62,16 @@ class Env:
                 if p.process is process:
                     if process.poll() is None:
                         return True
+                    self.processes = [p for p in self.processes if p.process is not process]
                     if expected_code == "error":
                         assert process.returncode != 0
                     elif expected_code is not None:
                         assert process.returncode == expected_code
-
-                    self.processes = [p for p in self.processes if p.process is not process]
                     return False
             raise Exception(f"Process with pid {process.pid} not found")
 
+        if isinstance(process, ManagedProcess):
+            process = process.process
         wait_until(lambda: not is_process_alive())
 
     def check_running_processes(self):
@@ -114,7 +115,6 @@ class HqEnv(Env):
         Env.__init__(self, work_dir)
         self.mock = mock
         self.server = None
-        self.workers = {}
         self.id_counter = 0
         self.do_final_check = True
         self.server_dir = ""
@@ -220,11 +220,14 @@ class HqEnv(Env):
             wait_until(wait_for_worker)
         return r
 
-    def stop_server(self):
+    def stop_server(self, check_all_terminated=True):
         self.command(["server", "stop"])
         for _, p in self.get_processes_by_name("server"):
             p.process.wait()
             self.check_process_exited(p.process)
+        if check_all_terminated:
+            for p in self.processes:
+                self.check_process_exited(p.process, 1)
 
     def kill_server(self):
         self.kill_process("server")

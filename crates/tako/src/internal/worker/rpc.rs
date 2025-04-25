@@ -183,11 +183,7 @@ pub async fn run_worker(
         Some(timeout) => Either::Left(idle_timeout_process(timeout, state_ref.clone())),
         None => Either::Right(futures::future::pending()),
     };
-
-    let overview_fut = match overview_configuration {
-        None => Either::Left(futures::future::pending()),
-        Some(configuration) => Either::Right(send_overview_loop(state_ref.clone(), configuration)),
-    };
+    let overview_fut = send_overview_loop(state_ref.clone());
 
     let time_limit_fut = match time_limit {
         None => Either::Left(futures::future::pending::<()>()),
@@ -578,7 +574,7 @@ async fn send_overview_loop(state_ref: WorkerStateRef) -> crate::Result<()> {
                         })
                         .collect(),
                     hw_state: Some(WorkerHwStateMessage { state: hw_state }),
-                    data_node: worker_state.data_node.get_overview(),
+                    data_node: worker_state.data_storage.get_overview(),
                 });
                 worker_state.comm().send_message_to_server(message);
             }

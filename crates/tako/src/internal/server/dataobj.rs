@@ -71,7 +71,7 @@ impl ExtractKey<DataObjectId> for DataObjectHandle {
     }
 }
 
-pub(crate) struct ObjsToRemoveFromWorkers(Map<WorkerId, SmallVec<[DataObjectId; 1]>>);
+pub struct ObjsToRemoveFromWorkers(Map<WorkerId, SmallVec<[DataObjectId; 1]>>);
 
 impl ObjsToRemoveFromWorkers {
     pub fn new() -> Self {

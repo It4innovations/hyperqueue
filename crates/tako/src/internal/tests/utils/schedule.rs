@@ -9,7 +9,10 @@ use crate::internal::server::task::Task;
 use crate::internal::server::worker::Worker;
 use crate::internal::tests::utils::env::TestComm;
 use crate::internal::tests::utils::task::task_running_msg;
-use crate::internal::worker::configuration::OverviewConfiguration;
+use crate::internal::worker::configuration::{
+    DEFAULT_MAX_DOWNLOAD_TRIES, DEFAULT_MAX_PARALLEL_DOWNLOADS,
+    DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES, OverviewConfiguration,
+};
 use crate::resources::ResourceMap;
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
 use crate::{TaskId, WorkerId};
@@ -34,9 +37,9 @@ pub fn create_test_worker_config(
         idle_timeout: None,
         time_limit: None,
         on_server_lost: ServerLostPolicy::Stop,
-        max_parallel_downloads: 4,
-        max_download_tries: 6,
-        wait_between_download_tries: Duration::from_secs(1),
+        max_parallel_downloads: DEFAULT_MAX_PARALLEL_DOWNLOADS,
+        max_download_tries: DEFAULT_MAX_DOWNLOAD_TRIES,
+        wait_between_download_tries: DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES,
         extra: Default::default(),
     }
 }

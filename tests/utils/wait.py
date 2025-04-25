@@ -30,6 +30,7 @@ def wait_for_state(
     target_states: Union[str, List[str]],
     commands: List[str],
     state_index: int,
+    check_running_processes=True,
     **kwargs,
 ):
     if isinstance(ids, int):
@@ -46,7 +47,8 @@ def wait_for_state(
 
     def check():
         nonlocal last_table
-        env.check_running_processes()
+        if check_running_processes:
+            env.check_running_processes()
         table = env.command(commands, as_table=True)
         last_table = table
         items = [row[state_index].lower() for row in table if row[0].lstrip("*") in ids]

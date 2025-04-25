@@ -49,6 +49,9 @@ def test_print_worker_info(hq_env: HqEnv):
                 "work_dir": str,
                 "group": str,
                 "on_server_lost": "stop",
+                "max_download_tries": int,
+                "max_parallel_downloads": int,
+                "wait_between_download_tries": float,
             },
             "allocation": None,
             "started": str,
@@ -58,6 +61,9 @@ def test_print_worker_info(hq_env: HqEnv):
             "id": 1,
         }
     )
+    import json
+
+    print(json.dumps(output, indent=2, sort_keys=True))
     schema.validate(output)
 
 

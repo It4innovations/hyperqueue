@@ -17,7 +17,10 @@ use crate::internal::tests::utils::resources::cpus_compact;
 use crate::internal::tests::utils::schedule;
 use crate::internal::tests::utils::task::TaskBuilder;
 use crate::internal::transfer::auth::{deserialize, serialize};
-use crate::internal::worker::configuration::OverviewConfiguration;
+use crate::internal::worker::configuration::{
+    DEFAULT_MAX_DOWNLOAD_TRIES, DEFAULT_MAX_PARALLEL_DOWNLOADS,
+    DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES, OverviewConfiguration,
+};
 use crate::resources::{
     ResourceAmount, ResourceDescriptorItem, ResourceDescriptorKind, ResourceUnits,
 };
@@ -120,9 +123,9 @@ impl TestEnv {
                 idle_timeout: None,
                 time_limit: *time_limit,
                 on_server_lost: ServerLostPolicy::Stop,
-                max_parallel_downloads: 4,
-                max_download_tries: 6,
-                wait_between_download_tries: Duration::from_secs(1),
+                max_parallel_downloads: DEFAULT_MAX_PARALLEL_DOWNLOADS,
+                max_download_tries: DEFAULT_MAX_DOWNLOAD_TRIES,
+                wait_between_download_tries: DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES,
                 extra: Default::default(),
             };
 

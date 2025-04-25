@@ -5,11 +5,16 @@ use criterion::measurement::WallTime;
 use criterion::{BatchSize, BenchmarkGroup, BenchmarkId, Criterion};
 use smallvec::smallvec;
 use tako::ItemId;
+use tako::TaskId;
+use tako::gateway::TaskDataFlags;
 use tako::internal::messages::worker::ComputeTaskMsg;
 use tako::internal::tests::utils::shared::res_allocator_from_descriptor;
 use tako::internal::worker::comm::WorkerComm;
 use tako::internal::worker::rqueue::ResourceWaitQueue;
+use tako::internal::worker::state::{TaskMap, WorkerStateRef};
+use tako::internal::worker::task::{Task, TaskState};
 use tako::launcher::{StopReason, TaskBuildContext, TaskLaunchData, TaskLauncher, TaskResult};
+use tako::resources::ResourceAmount;
 use tako::resources::{
     AllocationRequest, CPU_RESOURCE_NAME, NVIDIA_GPU_RESOURCE_NAME, ResourceDescriptor,
     ResourceDescriptorItem, ResourceDescriptorKind, ResourceRequest, ResourceRequestEntry,
@@ -17,11 +22,6 @@ use tako::resources::{
 };
 use tokio::sync::Notify;
 use tokio::sync::mpsc::unbounded_channel;
-
-use tako::TaskId;
-use tako::internal::worker::state::{TaskMap, WorkerStateRef};
-use tako::internal::worker::task::Task;
-use tako::resources::ResourceAmount;
 
 use crate::create_worker;
 
@@ -58,17 +58,21 @@ fn create_worker_state() -> WorkerStateRef {
 }
 
 fn create_worker_task(id: u64) -> Task {
-    Task::new(ComputeTaskMsg {
-        id: TaskId::new(id as <TaskId as ItemId>::IdType),
-        instance_id: Default::default(),
-        user_priority: 0,
-        scheduler_priority: 0,
-        resources: Default::default(),
-        time_limit: None,
-        n_outputs: 0,
-        node_list: vec![],
-        body: Default::default(),
-    })
+    Task::new(
+        ComputeTaskMsg {
+            id: TaskId::new(id as <TaskId as ItemId>::IdType),
+            instance_id: Default::default(),
+            user_priority: 0,
+            scheduler_priority: 0,
+            resources: Default::default(),
+            time_limit: None,
+            node_list: vec![],
+            data_deps: vec![],
+            data_flags: TaskDataFlags::empty(),
+            body: Default::default(),
+        },
+        TaskState::Waiting(0),
+    )
 }
 
 macro_rules! measure_time {

@@ -1,10 +1,10 @@
 use criterion::measurement::WallTime;
 use criterion::{BatchSize, BenchmarkGroup, BenchmarkId, Criterion, black_box};
 use tako::ItemId;
-use tako::internal::server::core::Core;
-
 use tako::Set;
 use tako::TaskId;
+use tako::internal::server::core::Core;
+use tako::server::ObjsToRemoveFromWorkers;
 
 use crate::{add_tasks, create_task};
 
@@ -21,7 +21,8 @@ fn bench_remove_single_task(c: &mut BenchmarkGroup<WallTime>) {
                         (core, TaskId::new(0))
                     },
                     |(core, task_id)| {
-                        let _ = core.remove_task(*task_id);
+                        let mut objs_to_remove = ObjsToRemoveFromWorkers::new();
+                        let _ = core.remove_task(*task_id, &mut objs_to_remove);
                     },
                     BatchSize::SmallInput,
                 );
@@ -43,7 +44,8 @@ fn bench_remove_all_tasks(c: &mut BenchmarkGroup<WallTime>) {
                         (core, tasks)
                     },
                     |(core, tasks)| {
-                        core.remove_tasks_batched(tasks);
+                        let mut objs_to_remove = ObjsToRemoveFromWorkers::new();
+                        core.remove_tasks_batched(tasks, &mut objs_to_remove);
                     },
                     BatchSize::SmallInput,
                 );

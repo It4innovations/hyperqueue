@@ -132,7 +132,7 @@ def test_restore_partially_failed_task(hq_env: HqEnv, tmp_path):
     assert stats["failed"] == 2
 
     out = hq_env.command(["--output-mode=json", "task", "info", "1", "0"], as_json=True)
-    assert out[0]["error"] == "Error: Program terminated with exit code 1."
+    assert out[0]["error"] == "Program terminated with exit code 1."
 
     hq_env.start_worker(cpus=4)
     wait_for_job_state(hq_env, [1], "FAILED")
@@ -314,13 +314,14 @@ def test_flush_and_prune_journal(hq_env: HqEnv, tmp_path):
     journal_path = os.path.join(tmp_path, "my.journal")
     hq_env.start_server(args=["--journal", journal_path])
 
-    hq_env.start_workers(2)
+    ws = hq_env.start_workers(2)
 
     hq_env.command(["job", "open"])
     hq_env.command(["job", "submit", "--", "sleep", "0"])
     hq_env.command(["job", "submit", "--cpus=2", "--", "sleep", "0"])
     wait_for_job_state(hq_env, 2, "FINISHED")
     hq_env.command(["worker", "stop", "1"])
+    hq_env.check_process_exited(ws[0])
 
     hq_env.command(["journal", "flush"])
 
