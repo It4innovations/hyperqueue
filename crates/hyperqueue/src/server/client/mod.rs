@@ -4,7 +4,9 @@ use std::sync::Arc;
 
 use futures::{Sink, SinkExt, Stream, StreamExt};
 use orion::kdf::SecretKey;
-use tako::gateway::{CancelTasks, FromGatewayMessage, StopWorkerRequest, ToGatewayMessage};
+use tako::gateway::{
+    CancelTasks, FromGatewayMessage, StopWorkerRequest, ToGatewayMessage, WorkerOverviewListenerOp,
+};
 use tako::{Set, TaskGroup};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc::UnboundedSender;
