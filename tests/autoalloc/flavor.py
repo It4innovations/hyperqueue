@@ -1,9 +1,8 @@
 import pytest
 
-from .mock.command import CommandHandler
-from .mock.manager import DefaultManager, Manager
-from .mock.pbs import PbsCommandHandler
-from .mock.slurm import SlurmCommandHandler
+from .mock.manager import ManagerAdapter, CommandHandler
+from .mock.pbs import PbsAdapter
+from .mock.slurm import SlurmAdapter
 from .utils import ManagerType
 
 
@@ -19,11 +18,11 @@ class ManagerFlavor:
     def submit_program_name(self) -> str:
         raise NotImplementedError
 
-    def adapt(self, manager: Manager) -> CommandHandler:
+    def create_adapter(self) -> ManagerAdapter:
         raise NotImplementedError
 
     def default_handler(self) -> CommandHandler:
-        return self.adapt(DefaultManager())
+        return CommandHandler(self.create_adapter())
 
 
 class PbsManagerFlavor(ManagerFlavor):
@@ -33,8 +32,8 @@ class PbsManagerFlavor(ManagerFlavor):
     def submit_program_name(self) -> str:
         return "qsub"
 
-    def adapt(self, manager: Manager) -> CommandHandler:
-        return PbsCommandHandler(manager)
+    def create_adapter(self) -> ManagerAdapter:
+        return PbsAdapter()
 
 
 class SlurmManagerFlavor(ManagerFlavor):
@@ -44,8 +43,8 @@ class SlurmManagerFlavor(ManagerFlavor):
     def submit_program_name(self) -> str:
         return "sbatch"
 
-    def adapt(self, manager: Manager) -> CommandHandler:
-        return SlurmCommandHandler(manager)
+    def create_adapter(self) -> ManagerAdapter:
+        return SlurmAdapter()
 
 
 def all_flavors(fn):

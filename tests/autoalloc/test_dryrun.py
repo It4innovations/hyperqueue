@@ -5,8 +5,7 @@ import pytest
 from ..conftest import HqEnv
 from .conftest import PBS_AVAILABLE
 from .flavor import PbsManagerFlavor, all_flavors, ManagerFlavor
-from .mock.command import CommandInput
-from .mock.manager import WrappedManager, JobId, ManagerException, default_job_id
+from .mock.manager import JobId, ManagerException, default_job_id, CommandHandler
 from .mock.mock import MockJobManager
 from .utils import add_queue
 
@@ -22,22 +21,22 @@ def test_pbs_dry_run_missing_qsub(hq_env: HqEnv):
 
 @all_flavors
 def test_dry_run_submit_error(hq_env: HqEnv, flavor: ManagerFlavor):
-    class Manager(WrappedManager):
-        async def handle_submit(self, input: CommandInput) -> JobId:
+    class Manager(CommandHandler):
+        async def handle_submit(self) -> JobId:
             raise ManagerException("FOOBAR")
 
-    with MockJobManager(hq_env, flavor.adapt(Manager())):
+    with MockJobManager(hq_env, Manager(flavor.create_adapter())):
         hq_env.start_server()
         hq_env.command(dry_run_cmd(flavor), expect_fail="Stderr: FOOBAR")
 
 
 @all_flavors
 def test_dry_run_cancel_error(hq_env: HqEnv, flavor: ManagerFlavor):
-    class Manager(WrappedManager):
-        async def handle_delete(self, input: CommandInput, job_id: JobId):
+    class Manager(CommandHandler):
+        async def handle_delete(self, job_id: JobId):
             raise ManagerException()
 
-    with MockJobManager(hq_env, flavor.adapt(Manager())):
+    with MockJobManager(hq_env, Manager(flavor.create_adapter())):
         hq_env.start_server()
         hq_env.command(
             dry_run_cmd(flavor),
@@ -54,11 +53,11 @@ def test_dry_run_success(hq_env: HqEnv, flavor: ManagerFlavor):
 
 @all_flavors
 def test_add_queue_dry_run_fail(hq_env: HqEnv, flavor: ManagerFlavor):
-    class Manager(WrappedManager):
-        async def handle_submit(self, input: CommandInput) -> JobId:
+    class Manager(CommandHandler):
+        async def handle_submit(self) -> JobId:
             raise ManagerException()
 
-    with MockJobManager(hq_env, flavor.adapt(Manager())):
+    with MockJobManager(hq_env, Manager(flavor.create_adapter())):
         hq_env.start_server()
         add_queue(
             hq_env,
