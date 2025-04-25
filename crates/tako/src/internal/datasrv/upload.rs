@@ -12,6 +12,7 @@ pub(crate) type ToDataClientConnection = Connection<FromDataClientMessage, ToDat
 
 pub(crate) trait UploadInterface: Clone {
     fn get_object(&self, data_id: DataObjectId) -> Option<DataObjectRef>;
+    fn upload_finished(&self, size: u64);
 }
 
 pub(crate) async fn data_upload_service<I: UploadInterface + 'static>(
@@ -68,6 +69,8 @@ pub(crate) async fn handle_data_connection<I: UploadInterface>(
                             .send(ToDataClientMessageUp::DataObjectPart(data))
                             .await?;
                     }
+                    log::debug!("Upload of {data_id} is finished");
+                    interface.upload_finished(data_obj.size());
                 } else {
                     log::debug!("Request for invalid object {}", data_id);
                     connection.send(ToDataClientMessageUp::NotFound).await?;

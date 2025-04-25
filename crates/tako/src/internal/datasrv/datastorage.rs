@@ -42,6 +42,26 @@ impl DataStorage {
         }
     }
 
+    pub fn add_stats_local_upload(&mut self, bytes: u64) {
+        self.stats.locally_uploaded_objects += 1;
+        self.stats.locally_uploaded_bytes += bytes;
+    }
+
+    pub fn add_stats_local_download(&mut self, bytes: u64) {
+        self.stats.locally_downloaded_objects += 1;
+        self.stats.locally_downloaded_bytes += bytes;
+    }
+
+    pub fn add_stats_remote_upload(&mut self, bytes: u64) {
+        self.stats.remotely_uploaded_objects += 1;
+        self.stats.remotely_uploaded_bytes += bytes;
+    }
+
+    pub fn add_stats_remote_download(&mut self, bytes: u64) {
+        self.stats.remotely_downloaded_objects += 1;
+        self.stats.remotely_downloaded_bytes += bytes;
+    }
+
     pub fn remove_object(&mut self, data_object_id: DataObjectId) {
         log::debug!("Removing data object {:?}", data_object_id);
         if self.store.remove(&data_object_id).is_none() {

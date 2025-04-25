@@ -145,14 +145,14 @@ pub struct DataObjectOverview {
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct DataStorageStats {
-    locally_uploaded_objects: u32,
-    locally_uploaded_bytes: u64,
-    locally_downloaded_objects: u32,
-    locally_downloaded_bytes: u64,
-    remotely_uploaded_objects: u32,
-    remotely_uploaded_bytes: u64,
-    remotely_downloaded_objects: u32,
-    remotely_downloaded_bytes: u64,
+    pub locally_uploaded_objects: u32,
+    pub locally_uploaded_bytes: u64,
+    pub locally_downloaded_objects: u32,
+    pub locally_downloaded_bytes: u64,
+    pub remotely_uploaded_objects: u32,
+    pub remotely_uploaded_bytes: u64,
+    pub remotely_downloaded_objects: u32,
+    pub remotely_downloaded_bytes: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

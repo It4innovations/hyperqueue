@@ -66,6 +66,7 @@ async fn datanode_local_message_handler(
                 let (tasks, storage) = state.tasks_and_storage();
                 if let Some(task) = tasks.find_mut(&task_id) {
                     storage.put_object(DataObjectId::new(task_id, data_id), data_object)?;
+                    storage.add_stats_local_upload(size);
                     task.add_output(TaskOutput { id: data_id, size });
                     ToLocalDataClientMessageUp::Uploaded(data_id)
                 } else {
@@ -101,6 +102,8 @@ async fn datanode_local_message_handler(
                     while let Some(data) = decomposer.next() {
                         send_message(tx, ToLocalDataClientMessageUp::DataObjectPart(data)).await?;
                     }
+                    let mut state = state_ref.get_mut();
+                    state.data_storage.add_stats_local_download(size);
                 } else {
                     return Err(DsError::GenericError(format!(
                         "DataObject {data_id} (input {input_id}) not found"

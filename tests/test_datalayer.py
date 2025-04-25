@@ -13,8 +13,18 @@ import hashlib
 @contextmanager
 def check_data_env(hq_env: HqEnv, tmp_path, server_args=None):
     journal_path = os.path.join(tmp_path, "my.journal")
-    hq_env.start_server(args=["--journal", journal_path] + server_args if server_args else [])
-    yield lambda *args, **kwargs: hq_env.start_worker(*args, **kwargs)
+    hq_env.start_server(args=["--journal", journal_path] + (server_args if server_args else []))
+
+    def start_worker(**kwargs):
+        if "args" in kwargs:
+            args = kwargs["args"]
+        else:
+            args = []
+            kwargs["args"] = args
+        args.append("--overview-interval=200ms")
+        return hq_env.start_worker(**kwargs)
+
+    yield start_worker
     time.sleep(0.6)
     check_for_memory_leaks(hq_env)
 
@@ -25,21 +35,23 @@ def test_task_data_invalid_call(hq_env: HqEnv):
     )
 
 
-def check_for_memory_leaks(hq_env: HqEnv):
+def get_datanode_stats(hq_env: HqEnv):
     output = hq_env.command(["journal", "replay"], ignore_stderr=True)
-    events = []
     workers = {}
     for line in output.splitlines(keepends=False):
         e = json.loads(line)["event"]
         if "hw-state" in e:
             worker_id = e["id"]
             workers[worker_id] = e["data-node"]
+    return workers
 
+
+def check_for_memory_leaks(hq_env: HqEnv):
+    workers = get_datanode_stats(hq_env)
     for worker_id, data_node in workers.items():
         objects = data_node["objects"]
         if objects:
             raise Exception(f"Worker {worker_id} still holds some objects: {objects}")
-    return events
 
 
 def test_data_create_no_consumer(hq_env: HqEnv, tmp_path):
@@ -53,7 +65,7 @@ command = ["bash", "-c", "set -e; echo 'abc' > test.txt; $HQ data put 1 test.txt
 """
     )
     with check_data_env(hq_env, tmp_path) as start_worker:
-        start_worker(args=["--overview-interval=200ms"])
+        start_worker()
         hq_env.command(["job", "submit-file", "job.toml"])
         wait_for_job_state(hq_env, 1, "FINISHED")
 
@@ -118,6 +130,17 @@ output_id = 3
         wait_for_job_state(hq_env, 1, "FINISHED")
     with open(os.path.join(tmp_path, default_task_output(job_id=1, task_id=13, type="stdout"))) as f:
         assert f.read() == "abc\n"
+    stats = get_datanode_stats(hq_env)
+    assert stats[1]["stats"] == {
+        "locally_downloaded_bytes": 4,
+        "locally_downloaded_objects": 1,
+        "locally_uploaded_bytes": 4,
+        "locally_uploaded_objects": 1,
+        "remotely_downloaded_bytes": 0,
+        "remotely_downloaded_objects": 0,
+        "remotely_uploaded_bytes": 0,
+        "remotely_uploaded_objects": 0,
+    }
 
 
 def test_data_cleanup_when_task_failed(hq_env: HqEnv, tmp_path):
@@ -175,6 +198,27 @@ output_id = 22
         wait_for_job_state(hq_env, 1, "FINISHED")
     with open(os.path.join(tmp_path, default_task_output(job_id=1, task_id=2, type="stdout"))) as f:
         assert f.read() == "abc\n"
+    stats = get_datanode_stats(hq_env)
+    assert stats[1]["stats"] == {
+        "locally_downloaded_bytes": 0,
+        "locally_downloaded_objects": 0,
+        "locally_uploaded_bytes": 4,
+        "locally_uploaded_objects": 1,
+        "remotely_downloaded_bytes": 0,
+        "remotely_downloaded_objects": 0,
+        "remotely_uploaded_bytes": 4,
+        "remotely_uploaded_objects": 1,
+    }
+    assert stats[2]["stats"] == {
+        "locally_downloaded_bytes": 4,
+        "locally_downloaded_objects": 1,
+        "locally_uploaded_bytes": 0,
+        "locally_uploaded_objects": 0,
+        "remotely_downloaded_bytes": 4,
+        "remotely_downloaded_objects": 1,
+        "remotely_uploaded_bytes": 0,
+        "remotely_uploaded_objects": 0,
+    }
 
 
 def test_data_transfer_failed_worker(hq_env: HqEnv, tmp_path):
@@ -335,3 +379,24 @@ output_id = 1
         wait_for_job_state(hq_env, 1, "FINISHED")
         with open("out.txt", "rb") as f:
             assert hashlib.md5(f.read()).hexdigest() == "be44c343cf99772daab97b6d7588de33"
+    stats = get_datanode_stats(hq_env)
+    assert stats[1]["stats"] == {
+        "locally_downloaded_bytes": 0,
+        "locally_downloaded_objects": 0,
+        "locally_uploaded_bytes": 305135616,
+        "locally_uploaded_objects": 2,
+        "remotely_downloaded_bytes": 0,
+        "remotely_downloaded_objects": 0,
+        "remotely_uploaded_bytes": 305135616,
+        "remotely_uploaded_objects": 2,
+    }
+    assert stats[2]["stats"] == {
+        "locally_downloaded_bytes": 305135616,
+        "locally_downloaded_objects": 2,
+        "locally_uploaded_bytes": 0,
+        "locally_uploaded_objects": 0,
+        "remotely_downloaded_bytes": 305135616,
+        "remotely_downloaded_objects": 2,
+        "remotely_uploaded_bytes": 0,
+        "remotely_uploaded_objects": 0,
+    }
