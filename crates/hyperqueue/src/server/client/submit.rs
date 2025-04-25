@@ -440,7 +440,9 @@ mod tests {
     use tako::Priority;
     use tako::gateway::{
         NewTasksMessage, ResourceRequest, ResourceRequestEntry, ResourceRequestVariants,
+        TaskDataFlags,
     };
+    use tako::internal::tests::utils::sorted_vec;
     use tako::program::ProgramDefinition;
     use tako::resources::{AllocationRequest, CPU_RESOURCE_NAME, ResourceAmount};
 
@@ -507,7 +509,9 @@ mod tests {
             tasks: vec![TaskWithDependencies {
                 id: 102.into(),
                 task_desc: task_desc(None, 0, 1),
-                dependencies: vec![],
+                task_deps: vec![],
+                data_deps: vec![],
+                data_flags: TaskDataFlags::empty(),
             }],
         };
         assert!(validate_submit(None, &job_task_desc).is_none());
@@ -520,12 +524,16 @@ mod tests {
                 TaskWithDependencies {
                     id: 2.into(),
                     task_desc: task_desc(None, 0, 1),
-                    dependencies: vec![],
+                    task_deps: vec![],
+                    data_deps: vec![],
+                    data_flags: TaskDataFlags::empty(),
                 },
                 TaskWithDependencies {
                     id: 2.into(),
                     task_desc: task_desc(None, 0, 1),
-                    dependencies: vec![],
+                    task_deps: vec![],
+                    data_deps: vec![],
+                    data_flags: TaskDataFlags::empty(),
                 },
             ],
         };
@@ -537,7 +545,9 @@ mod tests {
             tasks: vec![TaskWithDependencies {
                 id: 2.into(),
                 task_desc: task_desc(None, 0, 1),
-                dependencies: vec![3.into()],
+                task_deps: vec![3.into()],
+                data_deps: vec![],
+                data_flags: TaskDataFlags::empty(),
             }],
         };
         assert!(matches!(
@@ -548,7 +558,9 @@ mod tests {
             tasks: vec![TaskWithDependencies {
                 id: 2.into(),
                 task_desc: task_desc(None, 0, 1),
-                dependencies: vec![2.into()],
+                task_deps: vec![2.into()],
+                data_deps: vec![],
+                data_flags: TaskDataFlags::empty(),
             }],
         };
         assert!(matches!(
@@ -570,10 +582,10 @@ mod tests {
 
         let msg = build_tasks_graph(1.into(), &tasks, &PathBuf::from("foo"), None);
         assert_eq!(
-            msg.tasks[0].task_deps,
+            sorted_vec(msg.tasks[0].task_deps.to_vec()),
             vec![
-                make_tako_id(1.into(), 2.into()),
-                make_tako_id(1.into(), 1.into())
+                make_tako_id(1.into(), 1.into()),
+                make_tako_id(1.into(), 2.into())
             ]
         );
         assert_eq!(
@@ -581,7 +593,7 @@ mod tests {
             vec![make_tako_id(1.into(), 0.into())]
         );
         assert_eq!(
-            msg.tasks[2].task_deps,
+            sorted_vec(msg.tasks[2].task_deps.to_vec()),
             vec![
                 make_tako_id(1.into(), 3.into()),
                 make_tako_id(1.into(), 4.into())
@@ -639,7 +651,9 @@ mod tests {
         TaskWithDependencies {
             id: id.into(),
             task_desc,
-            dependencies: dependencies.into_iter().map(|id| id.into()).collect(),
+            task_deps: dependencies.into_iter().map(|id| id.into()).collect(),
+            data_deps: vec![],
+            data_flags: TaskDataFlags::empty(),
         }
     }
 }
