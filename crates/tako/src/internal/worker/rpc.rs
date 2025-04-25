@@ -553,7 +553,7 @@ async fn send_overview_loop(state_ref: WorkerStateRef) -> crate::Result<()> {
             let _ = trigger_tx.send(()).await;
             if let Some(hw_state) = overview_rx.recv().await {
                 let mut worker_state = state_ref.get_mut();
-                let message = FromWorkerMessage::Overview(WorkerOverview {
+                let message = FromWorkerMessage::Overview(Box::new(WorkerOverview {
                     id: worker_state.worker_id,
                     running_tasks: worker_state
                         .running_tasks
@@ -573,7 +573,7 @@ async fn send_overview_loop(state_ref: WorkerStateRef) -> crate::Result<()> {
                         .collect(),
                     hw_state: Some(WorkerHwStateMessage { state: hw_state }),
                     data_node: worker_state.data_storage.get_overview(),
-                });
+                }));
                 worker_state.comm().send_message_to_server(message);
             }
             // If the current overview interval is different from before, switch to the current one

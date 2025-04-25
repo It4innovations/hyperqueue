@@ -44,7 +44,7 @@ pub trait Comm {
         running_tasks: Vec<TaskId>,
         reason: LostWorkerReason,
     );
-    fn send_client_worker_overview(&mut self, overview: WorkerOverview);
+    fn send_client_worker_overview(&mut self, overview: Box<WorkerOverview>);
 }
 
 type SchedulingCallback = Box<dyn FnOnce(&mut Core)>;
@@ -222,7 +222,7 @@ impl Comm for CommSender {
         }
     }
 
-    fn send_client_worker_overview(&mut self, overview: WorkerOverview) {
+    fn send_client_worker_overview(&mut self, overview: Box<WorkerOverview>) {
         if let Err(error) = self
             .client_sender
             .send(ToGatewayMessage::WorkerOverview(overview))

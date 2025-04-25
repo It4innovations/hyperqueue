@@ -57,9 +57,9 @@ impl EventStreamer {
     }
 
     #[inline]
-    pub fn on_overview_received(&self, worker_overview: WorkerOverview, persist_event: bool) {
+    pub fn on_overview_received(&self, worker_overview: Box<WorkerOverview>, persist_event: bool) {
         self.send_event(
-            EventPayload::WorkerOverviewReceived(Box::new(worker_overview)),
+            EventPayload::WorkerOverviewReceived(worker_overview),
             None,
             if persist_event {
                 ForwardMode::StreamAndPersist
