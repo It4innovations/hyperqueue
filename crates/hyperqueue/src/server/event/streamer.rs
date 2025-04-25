@@ -17,6 +17,14 @@ struct Inner {
     client_listeners: Vec<(mpsc::UnboundedSender<Event>, u32)>,
 }
 
+/// How should events be forwarded.
+enum ForwardMode {
+    /// Only stream the event to clients.
+    Stream,
+    /// Stream the event to clients and persist it.
+    StreamAndPersist,
+}
+
 #[derive(Clone)]
 pub struct EventStreamer {
     inner: WrappedRcRefCell<Inner>,
@@ -36,20 +44,37 @@ impl EventStreamer {
         self.send_event(
             EventPayload::WorkerConnected(id, Box::new(configuration)),
             None,
+            ForwardMode::StreamAndPersist,
         );
     }
 
     pub fn on_worker_lost(&self, id: WorkerId, reason: LostWorkerReason) {
-        self.send_event(EventPayload::WorkerLost(id, reason), None);
+        self.send_event(
+            EventPayload::WorkerLost(id, reason),
+            None,
+            ForwardMode::StreamAndPersist,
+        );
     }
 
     #[inline]
-    pub fn on_overview_received(&self, worker_overview: WorkerOverview) {
-        self.send_event(EventPayload::WorkerOverviewReceived(worker_overview), None);
+    pub fn on_overview_received(&self, worker_overview: WorkerOverview, persist_event: bool) {
+        self.send_event(
+            EventPayload::WorkerOverviewReceived(worker_overview),
+            None,
+            if persist_event {
+                ForwardMode::StreamAndPersist
+            } else {
+                ForwardMode::Stream
+            },
+        );
     }
 
     pub fn on_job_opened(&self, job_id: JobId, job_desc: JobDescription) {
-        self.send_event(EventPayload::JobOpen(job_id, job_desc), None);
+        self.send_event(
+            EventPayload::JobOpen(job_id, job_desc),
+            None,
+            ForwardMode::StreamAndPersist,
+        );
     }
 
     pub fn on_job_submitted(
@@ -71,13 +96,18 @@ impl EventStreamer {
                 serialized_desc: Serialized::new(submit_request)?,
             },
             None,
+            ForwardMode::StreamAndPersist,
         );
         Ok(())
     }
 
     #[inline]
     pub fn on_job_completed(&self, job_id: JobId, now: DateTime<Utc>) {
-        self.send_event(EventPayload::JobCompleted(job_id), Some(now));
+        self.send_event(
+            EventPayload::JobCompleted(job_id),
+            Some(now),
+            ForwardMode::StreamAndPersist,
+        );
     }
 
     #[inline]
@@ -97,16 +127,25 @@ impl EventStreamer {
                 workers: worker_ids,
             },
             Some(now),
+            ForwardMode::StreamAndPersist,
         );
     }
 
     #[inline]
     pub fn on_task_finished(&self, job_id: JobId, task_id: JobTaskId, now: DateTime<Utc>) {
-        self.send_event(EventPayload::TaskFinished { job_id, task_id }, Some(now));
+        self.send_event(
+            EventPayload::TaskFinished { job_id, task_id },
+            Some(now),
+            ForwardMode::StreamAndPersist,
+        );
     }
 
     pub fn on_task_canceled(&self, job_id: JobId, task_id: JobTaskId, now: DateTime<Utc>) {
-        self.send_event(EventPayload::TaskCanceled { job_id, task_id }, Some(now));
+        self.send_event(
+            EventPayload::TaskCanceled { job_id, task_id },
+            Some(now),
+            ForwardMode::StreamAndPersist,
+        );
     }
 
     #[inline]
@@ -124,6 +163,7 @@ impl EventStreamer {
                 error,
             },
             Some(now),
+            ForwardMode::StreamAndPersist,
         );
     }
 
@@ -131,11 +171,16 @@ impl EventStreamer {
         self.send_event(
             EventPayload::AllocationQueueCreated(id, Box::new(parameters)),
             None,
-        )
+            ForwardMode::StreamAndPersist,
+        );
     }
 
     pub fn on_allocation_queue_removed(&self, id: QueueId) {
-        self.send_event(EventPayload::AllocationQueueRemoved(id), None)
+        self.send_event(
+            EventPayload::AllocationQueueRemoved(id),
+            None,
+            ForwardMode::StreamAndPersist,
+        );
     }
 
     pub fn on_allocation_queued(
@@ -151,13 +196,15 @@ impl EventStreamer {
                 worker_count,
             },
             None,
-        )
+            ForwardMode::StreamAndPersist,
+        );
     }
 
     pub fn on_allocation_started(&self, queue_id: QueueId, allocation_id: AllocationId) {
         self.send_event(
             EventPayload::AllocationStarted(queue_id, allocation_id),
             None,
+            ForwardMode::StreamAndPersist,
         );
     }
 
@@ -165,6 +212,7 @@ impl EventStreamer {
         self.send_event(
             EventPayload::AllocationFinished(queue_id, allocation_id),
             None,
+            ForwardMode::StreamAndPersist,
         );
     }
 
@@ -172,7 +220,12 @@ impl EventStreamer {
         self.inner.get().storage_sender.is_some()
     }
 
-    fn send_event(&self, payload: EventPayload, now: Option<DateTime<Utc>>) {
+    fn send_event(
+        &self,
+        payload: EventPayload,
+        now: Option<DateTime<Utc>>,
+        forward_mode: ForwardMode,
+    ) {
         let mut inner = self.inner.get_mut();
         if inner.storage_sender.is_none() && inner.client_listeners.is_empty() {
             return;
@@ -185,14 +238,20 @@ impl EventStreamer {
             .client_listeners
             .retain(|(listener, _)| listener.send(event.clone()).is_ok());
         if let Some(ref streamer) = inner.storage_sender {
-            if streamer.send(EventStreamMessage::Event(event)).is_err() {
+            if matches!(forward_mode, ForwardMode::StreamAndPersist)
+                && streamer.send(EventStreamMessage::Event(event)).is_err()
+            {
                 log::error!("Event streaming queue has been closed.");
             }
         }
     }
 
     pub fn on_server_stop(&self) {
-        self.send_event(EventPayload::ServerStop, None);
+        self.send_event(
+            EventPayload::ServerStop,
+            None,
+            ForwardMode::StreamAndPersist,
+        );
     }
 
     pub fn on_server_start(&self, server_uid: &str) {
@@ -201,6 +260,7 @@ impl EventStreamer {
                 server_uid: server_uid.to_string(),
             },
             None,
+            ForwardMode::StreamAndPersist,
         );
     }
 

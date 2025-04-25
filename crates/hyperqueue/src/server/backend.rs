@@ -111,7 +111,19 @@ impl Backend {
                             .get_mut()
                             .process_worker_lost(&state_ref, &senders, msg),
                         ToGatewayMessage::WorkerOverview(overview) => {
-                            senders.events.on_overview_received(overview);
+                            let state = state_ref.get();
+                            if let Some(worker) = state.get_worker(overview.id) {
+                                // We only want to persist worker overviews for workers that have
+                                // the overview interval explicitly enabled. If the overviews are
+                                // sent temporarily (because a client, e.g. a dashboard, is
+                                // streaming events), we only want to stream the event, but not
+                                // persist it.
+                                let persist_event = worker
+                                    .configuration
+                                    .overview_configuration
+                                    .is_overview_enabled();
+                                senders.events.on_overview_received(overview, persist_event);
+                            }
                         }
                         ToGatewayMessage::NewTasksResponse(_)
                         | ToGatewayMessage::CancelTasksResponse(_)

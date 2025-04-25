@@ -28,6 +28,11 @@ impl OverviewConfiguration {
             gpu_families: Default::default(),
         }
     }
+
+    /// Returns true if the user explicitly enabled overview for this worker.
+    pub fn is_overview_enabled(&self) -> bool {
+        self.send_interval.is_some()
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
