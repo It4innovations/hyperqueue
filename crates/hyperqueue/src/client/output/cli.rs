@@ -18,8 +18,7 @@ use crate::transfer::messages::{
     ServerInfo, TaskDescription, TaskKind, TaskKindProgram, WaitForJobsResponse, WorkerExitInfo,
     WorkerInfo,
 };
-use crate::WorkerId;
-use tako::{JobId, JobTaskCount, JobTaskId};
+use tako::{JobId, JobTaskCount, JobTaskId, WorkerId};
 
 use chrono::{DateTime, Local, SubsecRound, Utc};
 use core::time::Duration;

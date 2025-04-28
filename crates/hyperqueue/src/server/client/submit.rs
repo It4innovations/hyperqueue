@@ -24,8 +24,8 @@ use crate::transfer::messages::{
     SubmitResponse, TaskBuildDescription, TaskDescription, TaskIdSelector, TaskKind,
     TaskKindProgram, TaskSelector, TaskStatusSelector, TaskWithDependencies, ToClientMessage,
 };
-use crate::{make_tako_id, Priority, TakoTaskId};
-use tako::{JobId, JobTaskCount, JobTaskId};
+use crate::{make_tako_id, TakoTaskId};
+use tako::{JobId, JobTaskCount, JobTaskId, Priority};
 
 fn create_new_task_message(
     job_id: JobId,

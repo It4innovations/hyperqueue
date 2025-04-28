@@ -1,7 +1,7 @@
 use crate::rpc_call;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{FromClientMessage, ToClientMessage};
-use crate::{Map, WorkerId};
+use tako::{Map, WorkerId};
 
 /// Maps worker IDs to hostnames.
 pub type WorkerMap = Map<WorkerId, String>;

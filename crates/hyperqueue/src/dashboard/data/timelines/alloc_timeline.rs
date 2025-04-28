@@ -1,9 +1,9 @@
-use crate::Map;
 use crate::server::autoalloc::{AllocationId, QueueId};
-use crate::server::event::Event;
 use crate::server::event::payload::EventPayload;
+use crate::server::event::Event;
 use crate::transfer::messages::AllocationQueueParams;
 use std::time::SystemTime;
+use tako::Map;
 
 pub struct AllocationQueueInfo {
     pub queue_params: AllocationQueueParams,

@@ -1,8 +1,8 @@
-use crate::Map;
 use crate::common::manager::common::format_duration;
 use crate::common::utils::time::parse_hms_time;
 use std::process::Command;
 use std::time::Duration;
+use tako::Map;
 
 /// Format a duration as a SLURM time string, e.g. 01:05:02
 pub fn format_slurm_duration(duration: &Duration) -> String {
