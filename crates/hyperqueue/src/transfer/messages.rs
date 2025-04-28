@@ -9,13 +9,14 @@ use crate::common::manager::info::ManagerType;
 use crate::server::autoalloc::{Allocation, QueueId, QueueInfo};
 use crate::server::event::Event;
 use crate::server::job::{JobTaskCounters, JobTaskInfo, SubmittedJobDescription};
-use crate::{JobDataObjectId, JobId, JobTaskCount, JobTaskId, Map, WorkerId};
+use crate::JobDataObjectId;
 use bstr::BString;
 use std::path::PathBuf;
 use std::time::Duration;
 use tako::gateway::{LostWorkerReason, ResourceRequestVariants, TaskDataFlags, WorkerRuntimeInfo};
 use tako::program::ProgramDefinition;
 use tako::worker::WorkerConfiguration;
+use tako::{JobId, JobTaskCount, JobTaskId, Map, WorkerId};
 
 // Messages client -> server
 #[allow(clippy::large_enum_variant)]

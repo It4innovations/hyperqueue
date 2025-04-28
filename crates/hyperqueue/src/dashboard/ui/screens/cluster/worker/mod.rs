@@ -1,6 +1,5 @@
-use crate::JobTaskId;
-use crate::dashboard::data::DashboardData;
 use crate::dashboard::data::timelines::job_timeline::TaskInfo;
+use crate::dashboard::data::DashboardData;
 use crate::dashboard::ui::screens::cluster::worker::cpu_util_table::render_cpu_util_table;
 use crate::dashboard::ui::screens::cluster::worker::worker_config_table::WorkerConfigTable;
 use crate::dashboard::ui::screens::cluster::worker::worker_utilization_chart::WorkerUtilizationChart;
@@ -12,8 +11,8 @@ use crate::dashboard::ui::widgets::tasks_table::TasksTable;
 use crate::dashboard::ui::widgets::text::draw_text;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use tako::WorkerId;
 use tako::hwstats::MemoryStats;
+use tako::{JobTaskId, WorkerId};
 
 mod cpu_util_table;
 mod worker_config_table;

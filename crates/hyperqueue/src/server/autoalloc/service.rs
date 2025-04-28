@@ -7,7 +7,7 @@ use tako::WorkerId;
 use tako::gateway::LostWorkerReason;
 use tako::worker::WorkerConfiguration;
 
-use crate::JobId;
+use tako::JobId;
 use crate::common::manager::info::{GetManagerInfo, ManagerInfo};
 use crate::common::rpc::{ResponseToken, RpcSender, initiate_request, make_rpc_queue};
 use crate::server::autoalloc::process::autoalloc_process;

@@ -1,15 +1,15 @@
-use crate::JobTaskId;
-use crate::client::status::{Status, job_status};
+use crate::client::status::{job_status, Status};
 use crate::common::placeholders::{
-    CompletePlaceholderCtx, ResolvablePaths, fill_placeholders_in_paths,
+    fill_placeholders_in_paths, CompletePlaceholderCtx, ResolvablePaths,
 };
 use crate::server::job::JobTaskState;
 use crate::transfer::messages::{
     JobDetail, JobInfo, JobTaskDescription, TaskDescription, TaskKind, TaskKindProgram,
 };
 use std::path::PathBuf;
-use tako::Map;
 use tako::program::StdioDef;
+use tako::JobTaskId;
+use tako::Map;
 
 pub struct ResolvedTaskPaths {
     pub cwd: PathBuf,
@@ -29,7 +29,7 @@ pub fn resolve_task_paths(job: &JobDetail, server_uid: &str) -> TaskToPathsMap {
             JobTaskDescription::Array { task_desc, ids, .. } => {
                 for id in ids.iter() {
                     task_to_desc_map.insert(
-                        JobTaskId(id),
+                        JobTaskId::new(id),
                         (submit_desc.description().submit_dir.as_path(), task_desc),
                     );
                 }

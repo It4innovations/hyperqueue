@@ -7,10 +7,10 @@ use crate::server::job::{Job, JobTaskState, StartedTaskData, SubmittedJobDescrip
 use crate::server::state::State;
 use crate::transfer::messages::{AllocationQueueParams, JobDescription, SubmitRequest};
 use crate::worker::start::RunningTaskContext;
-use crate::{JobId, JobTaskId, Map, make_tako_id, unwrap_tako_id};
+use crate::{make_tako_id, unwrap_tako_id};
 use std::path::Path;
 use tako::gateway::NewTasksMessage;
-use tako::{InstanceId, ItemId, WorkerId};
+use tako::{InstanceId, ItemId, JobId, JobTaskId, Map, WorkerId};
 
 struct RestorerTaskInfo {
     state: JobTaskState,

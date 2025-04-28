@@ -19,14 +19,11 @@ pub type Error = crate::common::error::HqError;
 pub type Result<T> = std::result::Result<T, Error>;
 
 // ID types
-use tako::define_id_type;
+use tako::{JobId, JobTaskId};
 
 pub use tako::WorkerId;
 pub type TakoTaskId = tako::TaskId;
 pub type Priority = tako::Priority;
-
-define_id_type!(JobId, u32);
-define_id_type!(JobTaskId, u32);
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct JobDataObjectId {
@@ -40,15 +37,12 @@ impl JobDataObjectId {
     }
 }
 
-pub type JobTaskCount = u32;
-pub type JobTaskStep = u32;
-
 pub const DEFAULT_WORKER_GROUP_NAME: &str = "default";
 
 // Reexports
 pub use tako;
-pub use tako::WrappedRcRefCell;
 use tako::datasrv::{DataObjectId, OutputId};
+pub use tako::WrappedRcRefCell;
 
 pub const HQ_VERSION: &str = {
     match option_env!("HQ_BUILD_VERSION") {
@@ -71,7 +65,7 @@ pub fn unwrap_tako_id(tako_task_id: TakoTaskId) -> (JobId, JobTaskId) {
 
 #[cfg(test)]
 mod test {
-    use crate::{JobId, JobTaskId, make_tako_id, unwrap_tako_id};
+    use crate::{make_tako_id, unwrap_tako_id, JobId, JobTaskId};
 
     #[test]
     fn test_make_tako_id() {

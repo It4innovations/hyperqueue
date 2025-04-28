@@ -1,6 +1,6 @@
-use crate::JobId;
 use crate::server::event::journal::{JournalReader, JournalWriter};
 use crate::server::event::payload::EventPayload;
+use tako::JobId;
 use tako::{Set, WorkerId};
 
 pub(crate) fn prune_journal(

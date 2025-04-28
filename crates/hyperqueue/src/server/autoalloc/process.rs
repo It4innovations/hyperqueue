@@ -28,7 +28,8 @@ use crate::server::autoalloc::{Allocation, AllocationId, AutoAllocResult, QueueI
 use crate::server::event::streamer::EventStreamer;
 use crate::server::state::StateRef;
 use crate::transfer::messages::{AllocationQueueParams, QueueData, QueueState};
-use crate::{JobId, get_or_return};
+use crate::get_or_return;
+use tako::{JobId};
 
 #[derive(Copy, Clone)]
 enum RefreshReason {
