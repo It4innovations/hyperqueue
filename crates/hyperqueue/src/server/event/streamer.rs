@@ -8,7 +8,7 @@ use chrono::{DateTime, Utc};
 use smallvec::SmallVec;
 use tako::gateway::LostWorkerReason;
 use tako::worker::{WorkerConfiguration, WorkerOverview};
-use tako::{InstanceId, JobId, JobTaskId, Set, WorkerId, WrappedRcRefCell};
+use tako::{InstanceId, JobId, Set, TaskId, WorkerId, WrappedRcRefCell};
 use tokio::sync::{mpsc, oneshot};
 
 struct Inner {
@@ -111,15 +111,13 @@ impl EventStreamer {
     #[inline]
     pub fn on_task_started(
         &self,
-        job_id: JobId,
-        task_id: JobTaskId,
+        task_id: TaskId,
         instance_id: InstanceId,
         worker_ids: SmallVec<[WorkerId; 1]>,
         now: DateTime<Utc>,
     ) {
         self.send_event(
             EventPayload::TaskStarted {
-                job_id,
                 task_id,
                 instance_id,
                 workers: worker_ids,
@@ -130,36 +128,26 @@ impl EventStreamer {
     }
 
     #[inline]
-    pub fn on_task_finished(&self, job_id: JobId, task_id: JobTaskId, now: DateTime<Utc>) {
+    pub fn on_task_finished(&self, task_id: TaskId, now: DateTime<Utc>) {
         self.send_event(
-            EventPayload::TaskFinished { job_id, task_id },
+            EventPayload::TaskFinished { task_id },
             Some(now),
             ForwardMode::StreamAndPersist,
         );
     }
 
-    pub fn on_task_canceled(&self, job_id: JobId, task_id: JobTaskId, now: DateTime<Utc>) {
+    pub fn on_task_canceled(&self, task_id: TaskId, now: DateTime<Utc>) {
         self.send_event(
-            EventPayload::TaskCanceled { job_id, task_id },
+            EventPayload::TaskCanceled { task_id },
             Some(now),
             ForwardMode::StreamAndPersist,
         );
     }
 
     #[inline]
-    pub fn on_task_failed(
-        &self,
-        job_id: JobId,
-        task_id: JobTaskId,
-        error: String,
-        now: DateTime<Utc>,
-    ) {
+    pub fn on_task_failed(&self, task_id: TaskId, error: String, now: DateTime<Utc>) {
         self.send_event(
-            EventPayload::TaskFailed {
-                job_id,
-                task_id,
-                error,
-            },
+            EventPayload::TaskFailed { task_id, error },
             Some(now),
             ForwardMode::StreamAndPersist,
         );

@@ -3,7 +3,7 @@ use crate::server::event::Event;
 use crate::transfer::messages::{JobDescription, JobSubmitDescription};
 use chrono::{DateTime, Utc};
 use std::time::SystemTime;
-use tako::{JobId, JobTaskId, Map, WorkerId};
+use tako::{JobId, JobTaskId, Map, TaskId, WorkerId};
 
 pub struct DashboardJobInfo {
     pub job: JobDescription,
@@ -81,14 +81,13 @@ impl JobTimeline {
                 }
 
                 EventPayload::TaskStarted {
-                    job_id,
                     task_id,
                     instance_id: _,
                     workers,
                 } => {
-                    if let Some(info) = self.job_timeline.get_mut(job_id) {
+                    if let Some(info) = self.job_timeline.get_mut(&task_id.job_id()) {
                         info.job_tasks_info.insert(
-                            *task_id,
+                            task_id.job_task_id(),
                             TaskInfo {
                                 worker_id: workers[0],
                                 start_time: event.time.into(),
@@ -98,23 +97,17 @@ impl JobTimeline {
                         );
                     }
                 }
-                EventPayload::TaskFinished { job_id, task_id } => {
+                EventPayload::TaskFinished { task_id } => {
                     update_task_status(
                         &mut self.job_timeline,
-                        *job_id,
                         *task_id,
                         DashboardTaskState::Finished,
                         event.time,
                     );
                 }
-                EventPayload::TaskFailed {
-                    job_id,
-                    task_id,
-                    error: _,
-                } => {
+                EventPayload::TaskFailed { task_id, error: _ } => {
                     update_task_status(
                         &mut self.job_timeline,
-                        *job_id,
                         *task_id,
                         DashboardTaskState::Failed,
                         event.time,
@@ -168,13 +161,12 @@ impl JobTimeline {
 
 fn update_task_status(
     job_timeline: &mut Map<JobId, DashboardJobInfo>,
-    job_id: JobId,
-    task_id: JobTaskId,
+    task_id: TaskId,
     task_status: DashboardTaskState,
     at_time: DateTime<Utc>,
 ) {
-    if let Some(job_info) = job_timeline.get_mut(&job_id) {
-        if let Some(task_info) = job_info.job_tasks_info.get_mut(&task_id) {
+    if let Some(job_info) = job_timeline.get_mut(&task_id.job_id()) {
+        if let Some(task_info) = job_info.job_tasks_info.get_mut(&task_id.job_task_id()) {
             task_info.set_end_time_and_status(&at_time.into(), task_status);
         }
     }
