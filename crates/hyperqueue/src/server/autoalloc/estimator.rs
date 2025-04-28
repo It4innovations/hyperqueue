@@ -1,11 +1,11 @@
-use crate::JobId;
-use crate::server::autoalloc::QueueInfo;
 use crate::server::autoalloc::state::AllocationQueue;
+use crate::server::autoalloc::QueueInfo;
 use crate::server::job::Job;
 use crate::server::state::State;
 use crate::server::worker::Worker;
 use crate::transfer::messages::{JobTaskDescription, TaskDescription};
 use std::time::Duration;
+use tako::JobId;
 use tako::Map;
 
 pub type WaitingTaskCount = u64;

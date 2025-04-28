@@ -4,7 +4,7 @@ use tako::worker::WorkerConfiguration;
 
 use crate::server::worker::WorkerState::Offline;
 use crate::transfer::messages::{TaskTimestamp, WorkerExitInfo, WorkerInfo};
-use crate::{JobId, JobTaskId, WorkerId};
+use tako::{JobId, JobTaskId, WorkerId};
 
 #[derive(Default)]
 pub struct ConnectedWorkerData {

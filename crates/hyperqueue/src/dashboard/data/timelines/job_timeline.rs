@@ -1,10 +1,9 @@
-use crate::server::event::Event;
 use crate::server::event::payload::EventPayload;
+use crate::server::event::Event;
 use crate::transfer::messages::{JobDescription, JobSubmitDescription};
-use crate::{JobId, JobTaskId, WorkerId};
 use chrono::{DateTime, Utc};
 use std::time::SystemTime;
-use tako::Map;
+use tako::{JobId, JobTaskId, Map, WorkerId};
 
 pub struct DashboardJobInfo {
     pub job: JobDescription,

@@ -1,4 +1,4 @@
-use crate::JobId;
+use tako::JobId;
 use crate::common::utils::str::pluralize;
 use crate::server::event::Event;
 use crate::server::event::journal::JournalReader;

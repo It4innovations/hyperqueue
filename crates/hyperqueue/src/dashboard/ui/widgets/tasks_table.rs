@@ -1,7 +1,6 @@
 use crate::common::format::human_duration;
 use crate::dashboard::data::timelines::job_timeline::{DashboardTaskState, TaskInfo};
 
-use crate::JobTaskId;
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};
 use chrono::{DateTime, Local};
@@ -10,7 +9,7 @@ use ratatui::layout::{Constraint, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::widgets::{Cell, Row};
 use std::time::SystemTime;
-use tako::WorkerId;
+use tako::{JobTaskId, WorkerId};
 
 // Task State Strings
 const RUNNING: &str = "RUNNING";

@@ -6,20 +6,21 @@ use tokio::time::sleep;
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::job::get_worker_map;
 use crate::client::output::cli::{
-    TASK_COLOR_CANCELED, TASK_COLOR_FAILED, TASK_COLOR_FINISHED, TASK_COLOR_RUNNING,
-    job_progress_bar,
+    job_progress_bar, TASK_COLOR_CANCELED, TASK_COLOR_FAILED, TASK_COLOR_FINISHED,
+    TASK_COLOR_RUNNING,
 };
-use crate::client::status::{Status, is_terminated};
+use crate::client::status::{is_terminated, Status};
 use crate::common::arraydef::IntArray;
 use crate::common::utils::str::pluralize;
+use crate::rpc_call;
 use crate::server::job::JobTaskCounters;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
     FromClientMessage, IdSelector, JobDetailRequest, JobInfo, JobInfoRequest, TaskIdSelector,
     TaskSelector, TaskStatusSelector, ToClientMessage, WaitForJobsRequest,
 };
-use crate::{JobId, JobTaskCount, rpc_call};
 use colored::Colorize;
+use tako::{JobId, JobTaskCount};
 
 pub async fn wait_for_jobs(
     gsettings: &GlobalSettings,

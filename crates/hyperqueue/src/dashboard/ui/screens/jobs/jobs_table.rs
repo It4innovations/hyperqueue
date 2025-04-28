@@ -1,16 +1,16 @@
-use crate::dashboard::data::DashboardData;
 use crate::dashboard::data::timelines::job_timeline::DashboardJobInfo;
+use crate::dashboard::data::DashboardData;
 
 use crate::dashboard::ui::terminal::DashboardFrame;
 
 use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};
 
-use crate::JobId;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Alignment, Constraint, Rect};
 use ratatui::style::Style;
 use ratatui::text::Text;
 use ratatui::widgets::{Cell, Row};
+use tako::JobId;
 
 #[derive(Default)]
 pub struct JobsTable {

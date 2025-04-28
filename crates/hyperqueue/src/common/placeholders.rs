@@ -11,7 +11,7 @@ use tako::InstanceId;
 use tako::program::{ProgramDefinition, StdioDef};
 
 use crate::common::parser::NomResult;
-use crate::{JobId, JobTaskId, Map};
+use tako::{JobId, JobTaskId, Map};
 
 pub const SERVER_UID_PLACEHOLDER: &str = "SERVER_UID";
 pub const TASK_ID_PLACEHOLDER: &str = "TASK_ID";
@@ -249,12 +249,12 @@ mod tests {
     use std::path::{Path, PathBuf};
     use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
 
-    use crate::Map;
     use crate::common::env::{HQ_INSTANCE_ID, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
     use crate::common::placeholders::{
-        CompletePlaceholderCtx, ResolvablePaths, StringPart, fill_placeholders_after_submit,
-        fill_placeholders_in_paths, parse_resolvable_string,
+        fill_placeholders_after_submit, fill_placeholders_in_paths, parse_resolvable_string,
+        CompletePlaceholderCtx, ResolvablePaths, StringPart,
     };
+    use crate::Map;
 
     #[test]
     fn test_parse_empty_string() {
