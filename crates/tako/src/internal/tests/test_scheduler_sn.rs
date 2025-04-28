@@ -394,7 +394,7 @@ fn test_resources_no_workers2() {
         let unschedulable_index = task_cpu_counts
             .iter()
             .position(|&count| count > 10)
-            .unwrap() as <TaskId as ItemId>::IdType
+            .unwrap() as u32
             + rt.task_id_counter;
 
         rt.new_workers(&[8, 8, 8]);
@@ -415,7 +415,7 @@ fn test_resources_no_workers2() {
 
         let sn = rt.core().take_sleeping_tasks();
         assert_eq!(sn.len(), 1);
-        assert_eq!(sn[0], TaskId::new(unschedulable_index));
+        assert_eq!(sn[0], TaskId::new_test(unschedulable_index));
     }
 
     check(&[9, 10, 11]);
@@ -537,7 +537,7 @@ fn test_generic_resource_assign2() {
             .unwrap()
             .sn_tasks()
             .iter()
-            .all(|task_id| task_id.as_num() < 50)
+            .all(|task_id| task_id.job_task_id().as_num() < 50)
     );
 
     assert!(!rt.worker(100).is_parked());
@@ -836,14 +836,14 @@ fn test_task_data_deps_initial_placing() {
 #[test]
 fn test_task_data_deps_balancing() {
     let _ = env_logger::builder().is_test(true).try_init();
-    for odd in [0, 1] {
+    for odd in [0u32, 1u32] {
         for late_worker in [true, false] {
             let mut core = Core::default();
             let t1 = TaskBuilder::new(1).build();
             let t2 = TaskBuilder::new(2).build();
             let mut ts: Vec<_> = (10u32..110u32)
                 .map(|i| {
-                    TaskBuilder::new(TaskId::new(i as u64))
+                    TaskBuilder::new(TaskId::new_test(i as u32))
                         .data_dep(&t1, i - 10)
                         .data_dep(&t2, i - 10)
                         .build()
@@ -857,7 +857,7 @@ fn test_task_data_deps_balancing() {
             } else {
                 create_test_workers(&mut core, &[1, 1]);
             }
-            let mut set_data = |task_id: u64, worker_id: u32| {
+            let mut set_data = |task_id: u32, worker_id: u32| {
                 start_and_finish_on_worker_with_data(
                     &mut core,
                     task_id,
@@ -865,7 +865,7 @@ fn test_task_data_deps_balancing() {
                     (0u32..100u32)
                         .map(|i| TaskOutput {
                             id: i.into(),
-                            size: if (i % 2) as u64 == odd { 100 } else { 5_000 },
+                            size: if (i % 2) == odd { 100 } else { 5_000 },
                         })
                         .collect(),
                 )
@@ -886,7 +886,13 @@ fn test_task_data_deps_balancing() {
             let n1_count = worker
                 .sn_tasks()
                 .iter()
-                .map(|task_id| if task_id.as_num() % 2 == odd { 1 } else { 0 })
+                .map(|task_id| {
+                    if task_id.job_task_id().as_num() % 2 == odd {
+                        1
+                    } else {
+                        0
+                    }
+                })
                 .sum::<u32>();
             assert!(n1_count > 40);
         }

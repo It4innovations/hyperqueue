@@ -7,18 +7,18 @@ use derive_builder::Builder;
 use smallvec::smallvec;
 use thin_vec::ThinVec;
 
-use crate::TaskId;
 use crate::gateway::{
     ResourceRequest, ResourceRequestEntry, ResourceRequestVariants, SharedTaskConfiguration,
     TaskConfiguration, TaskDataFlags,
 };
-use crate::internal::common::Map;
 use crate::internal::common::resources::NumOfNodes;
+use crate::internal::common::Map;
 use crate::program::{ProgramDefinition, StdioDef};
 use crate::resources::{AllocationRequest, ResourceAmount};
+use crate::TaskId;
 
 pub struct GraphBuilder {
-    id_counter: u64,
+    id_counter: u32,
     tasks: Vec<TaskConfiguration>,
     configurations: Vec<SharedTaskConfiguration>,
 }
@@ -119,7 +119,7 @@ pub fn build_task_def_from_config(
     };
     (
         TaskConfiguration {
-            id: TaskId::new(id.unwrap_or(1) as <TaskId as ItemId>::IdType),
+            id: TaskId::new_test(id.unwrap_or(1)),
             shared_data_index: 0,
             task_deps: ThinVec::new(),
             dataobj_deps: ThinVec::new(),
@@ -133,7 +133,7 @@ pub fn build_task_def_from_config(
 #[builder(pattern = "owned")]
 pub struct TaskConfig {
     #[builder(default)]
-    pub id: Option<u64>,
+    pub id: Option<u32>,
 
     #[builder(default)]
     time_limit: Option<Duration>,
@@ -195,7 +195,7 @@ pub fn simple_args(args: &[&'static str]) -> Vec<String> {
     args.iter().map(|&v| v.to_string()).collect()
 }
 
-pub fn simple_task(args: &[&'static str], id: u64) -> TaskConfigBuilder {
+pub fn simple_task(args: &[&'static str], id: u32) -> TaskConfigBuilder {
     TaskConfigBuilder::default()
         .args(simple_args(args))
         .id(Some(id))

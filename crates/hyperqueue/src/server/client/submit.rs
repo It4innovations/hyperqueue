@@ -4,11 +4,11 @@ use std::time::Duration;
 
 use bstr::BString;
 use chrono::{DateTime, Utc};
+use tako::Set;
 use tako::gateway::{
     FromGatewayMessage, NewTasksMessage, ResourceRequestVariants, SharedTaskConfiguration,
     TaskConfiguration, TaskDataFlags, ToGatewayMessage,
 };
-use tako::Set;
 use tako::{Map, TaskId};
 use thin_vec::ThinVec;
 
@@ -16,9 +16,9 @@ use crate::common::arraydef::IntArray;
 use crate::common::placeholders::{
     fill_placeholders_after_submit, fill_placeholders_log, normalize_path,
 };
+use crate::server::Senders;
 use crate::server::job::{Job, SubmittedJobDescription};
 use crate::server::state::{State, StateRef};
-use crate::server::Senders;
 use crate::transfer::messages::{
     JobDescription, JobSubmitDescription, JobTaskDescription, OpenJobResponse, SubmitRequest,
     SubmitResponse, TaskBuildDescription, TaskDescription, TaskIdSelector, TaskKind,
@@ -425,7 +425,6 @@ pub(crate) fn handle_open_job(
 #[cfg(test)]
 mod tests {
     use crate::common::arraydef::IntArray;
-    use crate::make_tako_id;
     use crate::server::client::submit::build_tasks_graph;
     use crate::server::client::validate_submit;
     use crate::server::job::{Job, SubmittedJobDescription};
@@ -443,8 +442,8 @@ mod tests {
     };
     use tako::internal::tests::utils::sorted_vec;
     use tako::program::ProgramDefinition;
-    use tako::resources::{AllocationRequest, ResourceAmount, CPU_RESOURCE_NAME};
-    use tako::Priority;
+    use tako::resources::{AllocationRequest, CPU_RESOURCE_NAME, ResourceAmount};
+    use tako::{Priority, TaskId};
 
     #[test]
     fn test_build_graph_deduplicate_shared_confs() {
@@ -584,25 +583,25 @@ mod tests {
         assert_eq!(
             sorted_vec(msg.tasks[0].task_deps.to_vec()),
             vec![
-                make_tako_id(1.into(), 1.into()),
-                make_tako_id(1.into(), 2.into())
+                TaskId::new(1.into(), 1.into()),
+                TaskId::new(1.into(), 2.into())
             ]
         );
         assert_eq!(
             msg.tasks[1].task_deps,
-            vec![make_tako_id(1.into(), 0.into())]
+            vec![TaskId::new(1.into(), 0.into())]
         );
         assert_eq!(
             sorted_vec(msg.tasks[2].task_deps.to_vec()),
             vec![
-                make_tako_id(1.into(), 3.into()),
-                make_tako_id(1.into(), 4.into())
+                TaskId::new(1.into(), 3.into()),
+                TaskId::new(1.into(), 4.into())
             ]
         );
         assert_eq!(msg.tasks[3].task_deps, vec![]);
         assert_eq!(
             msg.tasks[4].task_deps,
-            vec![make_tako_id(1.into(), 0.into()),]
+            vec![TaskId::new(1.into(), 0.into()),]
         );
     }
 

@@ -43,4 +43,19 @@ impl TaskId {
     pub fn job_task_id(&self) -> JobTaskId {
         self.job_task_id
     }
+
+    #[cfg(test)]
+    pub fn new_test(job_task_id: u32) -> Self {
+        Self {
+            job_id: 0.into(),
+            job_task_id: job_task_id.into(),
+        }
+    }
+}
+
+#[cfg(test)]
+impl From<u32> for TaskId {
+    fn from(value: u32) -> Self {
+        Self::new_test(value)
+    }
 }

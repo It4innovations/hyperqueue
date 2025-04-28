@@ -297,13 +297,13 @@ impl ResourceRequestLowerBound {
 
 #[cfg(test)]
 mod tests {
-    use crate::TaskId;
     use crate::internal::common::resources::ResourceRequestVariants;
     use crate::internal::server::workerload::{
         ResourceRequestLowerBound, WorkerLoad, WorkerResources,
     };
-    use crate::internal::tests::utils::resources::{ResBuilder, cpus_compact, ra_builder};
+    use crate::internal::tests::utils::resources::{cpus_compact, ra_builder, ResBuilder};
     use crate::resources::{ResourceAmount, ResourceUnits};
+    use crate::TaskId;
     use smallvec::smallvec;
 
     pub fn wr_builder(units: &[ResourceUnits]) -> WorkerResources {
@@ -365,32 +365,32 @@ mod tests {
         let rq2 = ResBuilder::default().add(0, 4).finish();
         let rqv = ResourceRequestVariants::new(smallvec![rq1, rq2]);
 
-        load.add_request(TaskId::new(1), &rqv, &wr);
+        load.add_request(TaskId::new_test(1), &rqv, &wr);
         assert_eq!(load.n_resources, ra_builder(&[2, 2, 0]));
         assert!(load.non_first_rq.is_empty());
 
-        load.add_request(TaskId::new(2), &rqv, &wr);
+        load.add_request(TaskId::new_test(2), &rqv, &wr);
         assert_eq!(load.n_resources, ra_builder(&[4, 4, 0]));
         assert!(load.non_first_rq.is_empty());
 
-        load.add_request(TaskId::new(3), &rqv, &wr);
+        load.add_request(TaskId::new_test(3), &rqv, &wr);
         assert_eq!(load.n_resources, ra_builder(&[8, 4, 0]));
         assert_eq!(load.non_first_rq.len(), 1);
-        assert_eq!(load.non_first_rq.get(&TaskId::new(3)), Some(&1));
+        assert_eq!(load.non_first_rq.get(&TaskId::new_test(3)), Some(&1));
 
-        load.add_request(TaskId::new(4), &rqv, &wr);
+        load.add_request(TaskId::new_test(4), &rqv, &wr);
         assert_eq!(load.n_resources, ra_builder(&[12, 4, 0]));
         assert_eq!(load.non_first_rq.len(), 2);
-        assert_eq!(load.non_first_rq.get(&TaskId::new(4)), Some(&1));
+        assert_eq!(load.non_first_rq.get(&TaskId::new_test(4)), Some(&1));
 
-        load.add_request(TaskId::new(5), &rqv, &wr);
+        load.add_request(TaskId::new_test(5), &rqv, &wr);
         assert!(
             load.n_resources == ra_builder(&[16, 4, 0])
                 || load.n_resources == ra_builder(&[14, 6, 0])
         );
         let resources = load.n_resources.clone();
 
-        load.remove_request(TaskId::new(3), &rqv, &wr);
+        load.remove_request(TaskId::new_test(3), &rqv, &wr);
         assert_eq!(
             load.n_resources,
             vec![
@@ -400,9 +400,9 @@ mod tests {
             ]
             .into()
         );
-        assert!(load.non_first_rq.get(&TaskId::new(3)).is_none());
+        assert!(load.non_first_rq.get(&TaskId::new_test(3)).is_none());
 
-        load.remove_request(TaskId::new(1), &rqv, &wr);
+        load.remove_request(TaskId::new_test(1), &rqv, &wr);
         assert_eq!(
             load.n_resources,
             vec![
@@ -412,6 +412,6 @@ mod tests {
             ]
             .into()
         );
-        assert!(load.non_first_rq.get(&TaskId::new(1)).is_none());
+        assert!(load.non_first_rq.get(&TaskId::new_test(1)).is_none());
     }
 }
