@@ -7,10 +7,9 @@ use crate::server::job::{Job, JobTaskState, StartedTaskData, SubmittedJobDescrip
 use crate::server::state::State;
 use crate::transfer::messages::{AllocationQueueParams, JobDescription, SubmitRequest};
 use crate::worker::start::RunningTaskContext;
-use crate::{make_tako_id, unwrap_tako_id};
 use std::path::Path;
 use tako::gateway::NewTasksMessage;
-use tako::{InstanceId, ItemId, JobId, JobTaskId, Map, WorkerId};
+use tako::{InstanceId, ItemId, JobId, JobTaskId, Map, TaskId, WorkerId};
 
 struct RestorerTaskInfo {
     state: JobTaskState,
@@ -71,17 +70,16 @@ impl RestorerJob {
             let job = state.get_job_mut(job_id).unwrap();
 
             new_tasks.tasks.retain_mut(|t| {
-                let (_, task_id) = unwrap_tako_id(t.id);
                 t.task_deps
-                    .retain(|d| !is_task_completed(&self.tasks, unwrap_tako_id(*d).1));
-                !is_task_completed(&self.tasks, task_id)
+                    .retain(|d| !is_task_completed(&self.tasks, d.job_task_id()));
+                !is_task_completed(&self.tasks, t.id.job_task_id())
             });
 
             for (task_id, job_task) in job.tasks.iter_mut() {
                 if let Some(task) = self.tasks.get_mut(task_id) {
                     if task.crash_counter > 0 || task.instance_id.is_some() {
                         new_tasks.adjust_instance_id_and_crash_counters.insert(
-                            make_tako_id(job_id, *task_id),
+                            TaskId::new(job_id, *task_id),
                             (
                                 task.instance_id.map(|x| x.as_num() + 1).unwrap_or(0).into(),
                                 task.crash_counter,
@@ -236,17 +234,14 @@ impl StateRestorer {
                     self.jobs.remove(&job_id);
                 }
                 EventPayload::TaskStarted {
-                    job_id,
                     task_id,
                     instance_id,
                     workers,
                 } => {
-                    log::debug!(
-                        "Replaying: TaskStarted {job_id} {task_id} {instance_id} {workers:?}"
-                    );
-                    if let Some(job) = self.jobs.get_mut(&job_id) {
+                    log::debug!("Replaying: TaskStarted {task_id} {instance_id} {workers:?}");
+                    if let Some(job) = self.jobs.get_mut(&task_id.job_id()) {
                         job.tasks.insert(
-                            task_id,
+                            task_id.job_task_id(),
                             RestorerTaskInfo {
                                 state: JobTaskState::Running {
                                     started_data: StartedTaskData {
@@ -261,10 +256,10 @@ impl StateRestorer {
                         );
                     }
                 }
-                EventPayload::TaskFinished { job_id, task_id } => {
-                    log::debug!("Replaying: TaskFinished {job_id} {task_id}");
-                    if let Some(job) = self.jobs.get_mut(&job_id) {
-                        let task = job.tasks.get_mut(&task_id).unwrap();
+                EventPayload::TaskFinished { task_id } => {
+                    log::debug!("Replaying: TaskFinished {task_id}");
+                    if let Some(job) = self.jobs.get_mut(&task_id.job_id()) {
+                        let task = job.tasks.get_mut(&task_id.job_task_id()).unwrap();
                         task.state = match std::mem::replace(&mut task.state, JobTaskState::Waiting)
                         {
                             JobTaskState::Running { started_data } => JobTaskState::Finished {
@@ -275,14 +270,10 @@ impl StateRestorer {
                         }
                     }
                 }
-                EventPayload::TaskFailed {
-                    job_id,
-                    task_id,
-                    error,
-                } => {
-                    log::debug!("Replaying: TaskFailed {job_id} {task_id}");
-                    if let Some(job) = self.jobs.get_mut(&job_id) {
-                        let task = job.tasks.get_mut(&task_id).unwrap();
+                EventPayload::TaskFailed { task_id, error } => {
+                    log::debug!("Replaying: TaskFailed {task_id}");
+                    if let Some(job) = self.jobs.get_mut(&task_id.job_id()) {
+                        let task = job.tasks.get_mut(&task_id.job_task_id()).unwrap();
                         task.state = match std::mem::replace(&mut task.state, JobTaskState::Waiting)
                         {
                             JobTaskState::Waiting => JobTaskState::Failed {
@@ -299,10 +290,10 @@ impl StateRestorer {
                         }
                     }
                 }
-                EventPayload::TaskCanceled { job_id, task_id } => {
-                    log::debug!("Replaying: TaskCanceled {job_id} {task_id}");
-                    if let Some(job) = self.jobs.get_mut(&job_id) {
-                        let task = job.tasks.get_mut(&task_id);
+                EventPayload::TaskCanceled { task_id } => {
+                    log::debug!("Replaying: TaskCanceled {task_id}");
+                    if let Some(job) = self.jobs.get_mut(&task_id.job_id()) {
+                        let task = job.tasks.get_mut(&task_id.job_task_id());
                         if let Some(task) = task {
                             task.state =
                                 match std::mem::replace(&mut task.state, JobTaskState::Waiting) {
@@ -319,7 +310,7 @@ impl StateRestorer {
                                 }
                         } else {
                             job.tasks.insert(
-                                task_id,
+                                task_id.job_task_id(),
                                 RestorerTaskInfo {
                                     state: JobTaskState::Canceled {
                                         started_data: None,

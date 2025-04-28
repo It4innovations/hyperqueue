@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use tako::gateway::LostWorkerReason;
 use tako::worker::{WorkerConfiguration, WorkerOverview};
-use tako::{static_assert_size, InstanceId};
-use tako::{JobId, JobTaskId, WorkerId};
+use tako::{static_assert_size, InstanceId, TaskId};
+use tako::{JobId, WorkerId};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum EventPayload {
@@ -33,26 +33,22 @@ pub enum EventPayload {
     JobClose(JobId),
     /// Task has started to execute on some worker
     TaskStarted {
-        job_id: JobId,
-        task_id: JobTaskId,
+        task_id: TaskId,
         instance_id: InstanceId,
         workers: SmallVec<[WorkerId; 1]>,
     },
     /// Task has been finished
     TaskFinished {
-        job_id: JobId,
-        task_id: JobTaskId,
+        task_id: TaskId,
     },
     /// Task has failed to execute
     TaskFailed {
-        job_id: JobId,
-        task_id: JobTaskId,
+        task_id: TaskId,
         error: String,
     },
     /// Task has been canceled
     TaskCanceled {
-        job_id: JobId,
-        task_id: JobTaskId,
+        task_id: TaskId,
     },
     /// New allocation queue has been created
     AllocationQueueCreated(QueueId, Box<AllocationQueueParams>),

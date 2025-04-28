@@ -366,15 +366,7 @@ impl Output for CliOutput {
             vec![
                 "Last task started".cell().bold(true),
                 last_task_started
-                    .map(|t| {
-                        format!(
-                            "Job: {}; Task: {}; Time: {}",
-                            t.job_id,
-                            t.task_id,
-                            format_datetime(t.time)
-                        )
-                        .cell()
-                    })
+                    .map(|t| format!("{}; Time: {}", t.task_id, format_datetime(t.time)).cell())
                     .unwrap_or_else(|| "".cell()),
             ],
         ];

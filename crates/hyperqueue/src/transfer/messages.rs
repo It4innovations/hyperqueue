@@ -16,7 +16,7 @@ use std::time::Duration;
 use tako::gateway::{LostWorkerReason, ResourceRequestVariants, TaskDataFlags, WorkerRuntimeInfo};
 use tako::program::ProgramDefinition;
 use tako::worker::WorkerConfiguration;
-use tako::{JobId, JobTaskCount, JobTaskId, Map, WorkerId};
+use tako::{JobId, JobTaskCount, JobTaskId, Map, TaskId, WorkerId};
 
 // Messages client -> server
 #[allow(clippy::large_enum_variant)]
@@ -426,8 +426,7 @@ pub struct WorkerExitInfo {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TaskTimestamp {
-    pub job_id: JobId,
-    pub task_id: JobTaskId,
+    pub task_id: TaskId,
     pub time: DateTime<Utc>,
 }
 
