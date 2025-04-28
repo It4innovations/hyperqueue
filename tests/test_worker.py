@@ -80,7 +80,7 @@ def test_worker_stop(hq_env: HqEnv):
 
     wait_for_worker_state(hq_env, 1, "RUNNING")
     hq_env.command(["worker", "stop", "1"])
-    wait_for_worker_state(hq_env, 1, "STOPPED")
+    wait_for_worker_state(hq_env, 1, "STOPPED", check_running_processes=False)
     hq_env.check_process_exited(process)
 
     response = hq_env.command(["worker", "stop", "1"])
@@ -120,7 +120,7 @@ def test_worker_stop_last(hq_env: HqEnv):
 
     wait_for_worker_state(hq_env, [1, 2, 3, 4], ["RUNNING" for _ in range(4)])
     hq_env.command(["worker", "stop", "last"])
-    wait_for_worker_state(hq_env, [4], ["STOPPED" for _ in range(4)])
+    wait_for_worker_state(hq_env, [4], ["STOPPED" for _ in range(4)], check_running_processes=False)
 
     hq_env.check_process_exited(processes[3])
 
@@ -296,7 +296,7 @@ def test_server_lost_finish_running_explicit_stop(hq_env: HqEnv):
     )
     wait_for_job_state(hq_env, 1, "RUNNING")
     hq_env.command(["worker", "stop", "1"])
-    wait_for_worker_state(hq_env, 1, "STOPPED")
+    wait_for_worker_state(hq_env, 1, "STOPPED", check_running_processes=False)
     hq_env.check_process_exited(worker)
 
 
@@ -365,7 +365,7 @@ def test_deploy_ssh_multiple_workers(hq_env: HqEnv):
         "ssh",
         """
                     import os
-        
+
                     os.makedirs("workers", exist_ok=True)
                     with open(f"workers/{os.getpid()}", "w") as f:
                         f.write(str(os.getpid()))
