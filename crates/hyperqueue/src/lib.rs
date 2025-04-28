@@ -13,7 +13,6 @@ pub mod worker;
 pub(crate) mod tests;
 
 use serde::{Deserialize, Serialize};
-pub use tako::{Map, Set};
 
 pub type Error = crate::common::error::HqError;
 pub type Result<T> = std::result::Result<T, Error>;
@@ -21,9 +20,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 // ID types
 use tako::{JobId, JobTaskId};
 
-pub use tako::WorkerId;
 pub type TakoTaskId = tako::TaskId;
-pub type Priority = tako::Priority;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct JobDataObjectId {
