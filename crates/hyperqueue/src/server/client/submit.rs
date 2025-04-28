@@ -24,7 +24,6 @@ use crate::transfer::messages::{
     SubmitResponse, TaskBuildDescription, TaskDescription, TaskIdSelector, TaskKind,
     TaskKindProgram, TaskSelector, TaskStatusSelector, TaskWithDependencies, ToClientMessage,
 };
-use crate::TakoTaskId;
 use tako::{JobId, JobTaskCount, JobTaskId, Priority};
 
 fn create_new_task_message(
@@ -269,7 +268,7 @@ fn build_tasks_array(
     submit_dir: &PathBuf,
     stream_path: Option<&PathBuf>,
 ) -> NewTasksMessage {
-    let build_task_conf = |body: Box<[u8]>, tako_id: TakoTaskId| TaskConfiguration {
+    let build_task_conf = |body: Box<[u8]>, tako_id: TaskId| TaskConfiguration {
         id: tako_id,
         shared_data_index: 0,
         task_deps: ThinVec::new(),

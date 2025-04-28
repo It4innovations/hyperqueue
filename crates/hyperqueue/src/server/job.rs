@@ -7,7 +7,6 @@ use crate::transfer::messages::{
     TaskSelector, TaskStatusSelector,
 };
 use crate::worker::start::RunningTaskContext;
-use crate::TakoTaskId;
 use chrono::{DateTime, Utc};
 use smallvec::SmallVec;
 use std::sync::Arc;
@@ -272,7 +271,7 @@ impl Job {
             .map(|(task_id, task_info)| (*task_id, &task_info.state))
     }
 
-    pub fn non_finished_task_ids(&self) -> Vec<TakoTaskId> {
+    pub fn non_finished_task_ids(&self) -> Vec<TaskId> {
         self.iter_task_states()
             .filter_map(|(task_id, state)| match state {
                 JobTaskState::Waiting | JobTaskState::Running { .. } => {
