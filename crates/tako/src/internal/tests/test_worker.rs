@@ -111,7 +111,7 @@ fn test_worker_start_task() {
     comm.check_start_task_notifications(1);
     comm.check_emptiness();
 
-    assert_eq!(state.find_task(7.into()).unwrap().id, TaskId::new(7));
+    assert_eq!(state.find_task(7.into()).unwrap().id, TaskId::new_test(7));
     assert!(state.running_tasks.is_empty());
     let requests = state.ready_task_queue.requests();
     assert_eq!(requests.len(), 1);
@@ -133,7 +133,7 @@ fn test_worker_start_task_resource_variants() {
     comm.check_start_task_notifications(1);
     comm.check_emptiness();
 
-    assert_eq!(state.find_task(7.into()).unwrap().id, TaskId::new(7));
+    assert_eq!(state.find_task(7.into()).unwrap().id, TaskId::new_test(7));
     assert!(state.running_tasks.is_empty());
     let requests = state.ready_task_queue.requests();
     assert_eq!(requests.len(), 1);
