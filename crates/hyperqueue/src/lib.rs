@@ -20,8 +20,6 @@ pub type Result<T> = std::result::Result<T, Error>;
 // ID types
 use tako::{JobId, JobTaskId};
 
-pub type TakoTaskId = tako::TaskId;
-
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct JobDataObjectId {
     pub task_id: JobTaskId,

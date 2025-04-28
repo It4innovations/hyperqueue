@@ -1,7 +1,7 @@
 use std::cmp::min;
 
 use chrono::Utc;
-use tako::ItemId;
+use tako::{ItemId, TaskId};
 use tako::define_wrapped_type;
 use tako::gateway::{
     CancelTasks, FromGatewayMessage, LostWorkerMessage, NewWorkerMessage, TaskFailedMessage,
@@ -14,7 +14,6 @@ use crate::server::job::Job;
 use crate::server::restore::StateRestorer;
 use crate::server::worker::Worker;
 use crate::transfer::messages::ServerInfo;
-use crate::TakoTaskId;
 use tako::{JobId, Map, WorkerId};
 use crate::{WrappedRcRefCell};
 
@@ -31,7 +30,7 @@ fn cancel_tasks_from_callback(
     state_ref: &StateRef,
     senders: &Senders,
     job_id: JobId,
-    tasks: Vec<TakoTaskId>,
+    tasks: Vec<TaskId>,
 ) {
     if tasks.is_empty() {
         return;
