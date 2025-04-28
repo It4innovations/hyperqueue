@@ -1,15 +1,14 @@
 use crate::common::serialization::Serialized;
 use crate::server::autoalloc::{AllocationId, QueueId};
-use crate::server::event::Event;
 use crate::server::event::journal::{EventStreamMessage, EventStreamSender};
 use crate::server::event::payload::EventPayload;
+use crate::server::event::Event;
 use crate::transfer::messages::{AllocationQueueParams, JobDescription, SubmitRequest};
-use crate::{JobId, JobTaskId, WorkerId};
 use chrono::{DateTime, Utc};
 use smallvec::SmallVec;
 use tako::gateway::LostWorkerReason;
 use tako::worker::{WorkerConfiguration, WorkerOverview};
-use tako::{InstanceId, Set, WrappedRcRefCell};
+use tako::{InstanceId, JobId, JobTaskId, Set, WorkerId, WrappedRcRefCell};
 use tokio::sync::{mpsc, oneshot};
 
 struct Inner {

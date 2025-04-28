@@ -7,13 +7,13 @@ use crate::server::autoalloc::Allocation;
 use crate::stream::reader::outputlog::Summary;
 use std::path::Path;
 
-use crate::client::output::Verbosity;
 use crate::client::output::common::TaskToPathsMap;
+use crate::client::output::Verbosity;
 use crate::common::arraydef::IntArray;
 use crate::server::job::JobTaskInfo;
-use crate::{JobId, JobTaskId};
 use core::time::Duration;
 use tako::resources::ResourceDescriptor;
+use tako::{JobId, JobTaskId};
 
 pub const MAX_DISPLAYED_WORKERS: usize = 2;
 

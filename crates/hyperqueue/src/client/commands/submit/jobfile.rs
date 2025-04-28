@@ -1,5 +1,5 @@
 use crate::client::commands::submit::command::{
-    DEFAULT_STDERR_PATH, DEFAULT_STDOUT_PATH, send_submit_request,
+    send_submit_request, DEFAULT_STDERR_PATH, DEFAULT_STDOUT_PATH,
 };
 use crate::client::commands::submit::defs::{
     ArrayDef, JobDef, StdioDefFull, StdioDefInput, TaskDef,
@@ -13,13 +13,13 @@ use crate::transfer::messages::{
     JobDescription, JobSubmitDescription, JobTaskDescription, PinMode, SubmitRequest,
     TaskDescription, TaskKind, TaskKindProgram, TaskWithDependencies,
 };
-use crate::{JobId, JobTaskCount, JobTaskId};
 use clap::Parser;
 use smallvec::smallvec;
 use std::path::PathBuf;
-use tako::Map;
 use tako::gateway::{ResourceRequest, ResourceRequestVariants, TaskDataFlags};
 use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
+use tako::Map;
+use tako::{JobId, JobTaskCount, JobTaskId};
 
 #[derive(Parser)]
 pub struct JobSubmitFileOpts {
@@ -128,7 +128,7 @@ fn build_job_desc_individual_tasks(
         .map(|t| t.id)
         .max()
         .flatten()
-        .unwrap_or(JobTaskId(0));
+        .unwrap_or(JobTaskId::new(0));
 
     /* Topological sort */
     let original_len = tasks.len();

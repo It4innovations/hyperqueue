@@ -1,9 +1,9 @@
-use crate::JobId;
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::arraydef::IntArray;
 use crate::stream::reader::outputlog::OutputLog;
 use clap::Parser;
 use std::path::PathBuf;
+use tako::JobId;
 
 #[derive(Parser)]
 pub struct OutputLogOpts {

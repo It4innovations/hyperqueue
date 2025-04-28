@@ -6,18 +6,18 @@ use anyhow::Error;
 use chrono::{DateTime, Utc};
 use serde::{Serialize, Serializer};
 use serde_json;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
-use tako::Map;
 use tako::gateway::ResourceRequest;
 use tako::program::{ProgramDefinition, StdioDef};
 use tako::resources::{ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind};
 use tako::worker::WorkerConfiguration;
+use tako::Map;
 
 use crate::client::job::WorkerMap;
-use crate::client::output::Verbosity;
-use crate::client::output::common::{TaskToPathsMap, group_jobs_by_status, resolve_task_paths};
+use crate::client::output::common::{group_jobs_by_status, resolve_task_paths, TaskToPathsMap};
 use crate::client::output::outputs::{Output, OutputStream};
+use crate::client::output::Verbosity;
 use crate::common::arraydef::IntArray;
 use crate::common::manager::info::{GetManagerInfo, ManagerType};
 use crate::server::autoalloc::{Allocation, AllocationState, QueueId};
@@ -27,7 +27,7 @@ use crate::transfer::messages::{
     AutoAllocListResponse, JobDetail, JobInfo, JobTaskDescription, PinMode, QueueData, ServerInfo,
     TaskDescription, TaskKind, TaskKindProgram, WaitForJobsResponse, WorkerInfo,
 };
-use crate::{JobId, JobTaskId};
+use tako::{JobId, JobTaskId};
 
 #[derive(Default)]
 pub struct JsonOutput;

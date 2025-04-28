@@ -8,9 +8,9 @@ use crate::dashboard::data::{Time, TimeRange};
 use crate::server::autoalloc::{AllocationId, QueueId};
 use crate::server::event::Event;
 use crate::transfer::messages::AllocationQueueParams;
-use crate::{JobId, JobTaskId};
 use std::time::{Duration, SystemTime};
 use tako::WorkerId;
+use tako::{JobId, JobTaskId};
 
 pub struct DashboardData {
     /// Tracks worker connection and loss events

@@ -3,7 +3,7 @@ use crate::common::arraydef::IntArray;
 use crate::common::arrayparser::parse_array;
 use crate::common::error::HqError;
 use crate::common::utils::time::parse_human_time;
-use crate::{JobDataObjectId, JobTaskCount, JobTaskId};
+use crate::JobDataObjectId;
 use bstr::BString;
 use serde::de::MapAccess;
 use serde::{Deserialize, Deserializer};
@@ -13,7 +13,7 @@ use std::time::Duration;
 use tako::gateway::{ResourceRequest, ResourceRequestEntries, ResourceRequestEntry};
 use tako::program::FileOnCloseBehavior;
 use tako::resources::{AllocationRequest, NumOfNodes, ResourceAmount};
-use tako::{Map, Priority};
+use tako::{JobTaskCount, JobTaskId, Map, Priority};
 
 #[derive(Deserialize)]
 #[serde(untagged)]

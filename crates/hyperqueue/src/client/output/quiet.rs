@@ -9,10 +9,10 @@ use tako::resources::ResourceDescriptor;
 use crate::client::job::WorkerMap;
 use crate::client::output::cli::print_job_output;
 use crate::client::output::common::{
-    JOB_SUMMARY_STATUS_ORDER, TaskToPathsMap, Verbosity, group_jobs_by_status,
+    group_jobs_by_status, TaskToPathsMap, Verbosity, JOB_SUMMARY_STATUS_ORDER,
 };
 use crate::client::output::outputs::{Output, OutputStream};
-use crate::client::status::{Status, job_status};
+use crate::client::status::{job_status, Status};
 use crate::common::arraydef::IntArray;
 use crate::server::autoalloc::Allocation;
 use crate::server::job::JobTaskInfo;
@@ -21,7 +21,7 @@ use crate::transfer::messages::{
     AutoAllocListResponse, JobDetail, JobInfo, ServerInfo, WaitForJobsResponse, WorkerExitInfo,
     WorkerInfo,
 };
-use crate::{JobId, JobTaskId};
+use tako::{JobId, JobTaskId};
 
 #[derive(Default)]
 pub struct Quiet;

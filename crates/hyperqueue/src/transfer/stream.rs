@@ -1,9 +1,8 @@
-use crate::{JobId, JobTaskId};
 use chrono::serde::ts_milliseconds;
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use serde::Serialize;
-use tako::InstanceId;
+use tako::{InstanceId, JobId, JobTaskId};
 
 pub type ChannelId = u32;
 

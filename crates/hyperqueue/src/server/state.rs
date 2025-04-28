@@ -14,7 +14,8 @@ use crate::server::job::Job;
 use crate::server::restore::StateRestorer;
 use crate::server::worker::Worker;
 use crate::transfer::messages::ServerInfo;
-use crate::{JobId, Map, TakoTaskId, WorkerId};
+use crate::TakoTaskId;
+use tako::{JobId, Map, WorkerId};
 use crate::{WrappedRcRefCell, unwrap_tako_id};
 
 pub struct State {

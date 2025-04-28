@@ -4,8 +4,7 @@ use crate::common::error::HqError;
 use crate::common::serialization::SerializationConfig;
 use crate::stream::StreamSerializationConfig;
 use crate::transfer::stream::{ChannelId, StreamChunkHeader};
-use crate::worker::streamer::{STREAM_FILE_HEADER, STREAM_FILE_SUFFIX, StreamFileHeader};
-use crate::{JobId, JobTaskId, Set};
+use crate::worker::streamer::{StreamFileHeader, STREAM_FILE_HEADER, STREAM_FILE_SUFFIX};
 use bincode::Options;
 use chrono::{DateTime, Utc};
 use colored::{Color, Colorize};
@@ -19,7 +18,7 @@ use std::io::{BufReader, BufWriter, Read, Seek, Write};
 use std::num::NonZeroUsize;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
-use tako::InstanceId;
+use tako::{InstanceId, JobId, JobTaskId, Set};
 
 #[derive(Clone)]
 pub struct ChunkInfo {

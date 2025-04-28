@@ -4,27 +4,28 @@ use std::time::Duration;
 
 use bstr::BString;
 use chrono::{DateTime, Utc};
-use tako::Map;
-use tako::Set;
 use tako::gateway::{
     FromGatewayMessage, NewTasksMessage, ResourceRequestVariants, SharedTaskConfiguration,
     TaskConfiguration, TaskDataFlags, ToGatewayMessage,
 };
+use tako::Map;
+use tako::Set;
 use thin_vec::ThinVec;
 
 use crate::common::arraydef::IntArray;
 use crate::common::placeholders::{
     fill_placeholders_after_submit, fill_placeholders_log, normalize_path,
 };
-use crate::server::Senders;
 use crate::server::job::{Job, SubmittedJobDescription};
 use crate::server::state::{State, StateRef};
+use crate::server::Senders;
 use crate::transfer::messages::{
     JobDescription, JobSubmitDescription, JobTaskDescription, OpenJobResponse, SubmitRequest,
     SubmitResponse, TaskBuildDescription, TaskDescription, TaskIdSelector, TaskKind,
     TaskKindProgram, TaskSelector, TaskStatusSelector, TaskWithDependencies, ToClientMessage,
 };
-use crate::{JobId, JobTaskCount, JobTaskId, Priority, TakoTaskId, make_tako_id};
+use crate::{make_tako_id, Priority, TakoTaskId};
+use tako::{JobId, JobTaskCount, JobTaskId};
 
 fn create_new_task_message(
     job_id: JobId,
@@ -437,14 +438,14 @@ mod tests {
     use smallvec::smallvec;
     use std::path::PathBuf;
     use std::time::Duration;
-    use tako::Priority;
     use tako::gateway::{
         NewTasksMessage, ResourceRequest, ResourceRequestEntry, ResourceRequestVariants,
         TaskDataFlags,
     };
     use tako::internal::tests::utils::sorted_vec;
     use tako::program::ProgramDefinition;
-    use tako::resources::{AllocationRequest, CPU_RESOURCE_NAME, ResourceAmount};
+    use tako::resources::{AllocationRequest, ResourceAmount, CPU_RESOURCE_NAME};
+    use tako::Priority;
 
     #[test]
     fn test_build_graph_deduplicate_shared_confs() {
