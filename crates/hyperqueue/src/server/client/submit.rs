@@ -8,8 +8,8 @@ use tako::gateway::{
     FromGatewayMessage, NewTasksMessage, ResourceRequestVariants, SharedTaskConfiguration,
     TaskConfiguration, TaskDataFlags, ToGatewayMessage,
 };
-use tako::Map;
 use tako::Set;
+use tako::{Map, TaskId};
 use thin_vec::ThinVec;
 
 use crate::common::arraydef::IntArray;
@@ -24,7 +24,7 @@ use crate::transfer::messages::{
     SubmitResponse, TaskBuildDescription, TaskDescription, TaskIdSelector, TaskKind,
     TaskKindProgram, TaskSelector, TaskStatusSelector, TaskWithDependencies, ToClientMessage,
 };
-use crate::{make_tako_id, TakoTaskId};
+use crate::TakoTaskId;
 use tako::{JobId, JobTaskCount, JobTaskId, Priority};
 
 fn create_new_task_message(
@@ -290,7 +290,7 @@ fn build_tasks_array(
                         submit_dir,
                         stream_path,
                     ),
-                    make_tako_id(job_id, task_id.into()),
+                    TaskId::new(job_id, task_id.into()),
                 )
             })
             .collect(),
@@ -307,7 +307,7 @@ fn build_tasks_array(
                         submit_dir,
                         stream_path,
                     ),
-                    make_tako_id(job_id, task_id.into()),
+                    TaskId::new(job_id, task_id.into()),
                 )
             })
             .collect(),
@@ -390,11 +390,11 @@ fn build_tasks_graph(
 
         let task_deps = task_dep_ids
             .into_iter()
-            .map(|task_id| make_tako_id(job_id, task_id))
+            .map(|task_id| TaskId::new(job_id, task_id))
             .collect();
 
         task_configs.push(TaskConfiguration {
-            id: make_tako_id(job_id, task.id),
+            id: TaskId::new(job_id, task.id),
             shared_data_index,
             task_deps,
             dataobj_deps,

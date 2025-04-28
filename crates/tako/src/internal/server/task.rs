@@ -3,17 +3,17 @@ use std::rc::Rc;
 use std::time::Duration;
 use thin_vec::ThinVec;
 
-use crate::WorkerId;
-use crate::internal::common::Set;
 use crate::internal::common::stablemap::ExtractKey;
+use crate::internal::common::Set;
+use crate::WorkerId;
 
 use crate::gateway::TaskDataFlags;
 use crate::internal::datasrv::dataobj::DataObjectId;
 
 use crate::internal::messages::worker::{ComputeTaskMsg, ToWorkerMessage};
 use crate::internal::server::taskmap::TaskMap;
+use crate::{static_assert_size, TaskId};
 use crate::{InstanceId, Priority};
-use crate::{TaskId, static_assert_size};
 
 #[cfg_attr(test, derive(Eq, PartialEq))]
 pub struct WaitingInfo {
@@ -213,7 +213,7 @@ impl Task {
     }
 
     pub(crate) fn increment_instance_id(&mut self) {
-        self.instance_id = InstanceId(self.instance_id.as_num() + 1);
+        self.instance_id = InstanceId::new(self.instance_id.as_num() + 1);
     }
 
     pub(crate) fn increment_crash_counter(&mut self) -> bool {

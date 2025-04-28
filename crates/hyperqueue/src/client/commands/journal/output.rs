@@ -1,6 +1,6 @@
 use crate::client::output::json::format_datetime;
-use crate::server::event::Event;
 use crate::server::event::payload::EventPayload;
+use crate::server::event::Event;
 use crate::transfer::messages::{JobDescription, SubmitRequest};
 use serde_json::json;
 use tako::worker::WorkerOverview;
@@ -76,32 +76,26 @@ fn format_payload(event: EventPayload) -> serde_json::Value {
                 "allocation-id": allocation_id,
             })
         }
-        EventPayload::TaskStarted {
-            job_id, task_id, ..
-        } => json!({
+        EventPayload::TaskStarted { task_id, .. } => json!({
             "type": "task-started",
-            "job": job_id,
-            "task": task_id,
+            "job": task_id.job_id(),
+            "task": task_id.job_task_id(),
             "worker": -1
         }),
-        EventPayload::TaskFinished { job_id, task_id } => json!({
+        EventPayload::TaskFinished { task_id } => json!({
             "type": "task-finished",
-            "job": job_id,
-            "task": task_id
+            "job": task_id.job_id(),
+            "task": task_id.job_task_id(),
         }),
-        EventPayload::TaskCanceled { job_id, task_id } => json!({
+        EventPayload::TaskCanceled { task_id } => json!({
             "type": "task-canceled",
-            "job": job_id,
-            "task": task_id
+            "job": task_id.job_id(),
+            "task": task_id.job_task_id(),
         }),
-        EventPayload::TaskFailed {
-            job_id,
-            task_id,
-            error,
-        } => json!({
+        EventPayload::TaskFailed { task_id, error } => json!({
             "type": "task-failed",
-            "job": job_id,
-            "task": task_id,
+            "job": task_id.job_id(),
+            "task": task_id.job_task_id(),
             "error": error
         }),
         EventPayload::Submit {

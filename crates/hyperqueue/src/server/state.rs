@@ -16,7 +16,7 @@ use crate::server::worker::Worker;
 use crate::transfer::messages::ServerInfo;
 use crate::TakoTaskId;
 use tako::{JobId, Map, WorkerId};
-use crate::{WrappedRcRefCell, unwrap_tako_id};
+use crate::{WrappedRcRefCell};
 
 pub struct State {
     jobs: Map<JobId, Job>,
@@ -50,9 +50,8 @@ fn cancel_tasks_from_callback(
                     log::debug!("Tasks {:?} canceled", msg.cancelled_tasks);
                     log::debug!("Tasks {:?} already finished", msg.already_finished);
                     for tako_id in msg.cancelled_tasks {
-                        let (j_id, task_id) = unwrap_tako_id(tako_id);
-                        assert_eq!(j_id, job.job_id);
-                        job.set_cancel_state(task_id, &senders2);
+                        assert_eq!(tako_id.job_id(), job.job_id);
+                        job.set_cancel_state(tako_id.job_task_id(), &senders2);
                     }
                 }
             }
@@ -154,18 +153,17 @@ impl State {
     ) {
         log::debug!("Task id={} failed: {:?}", msg.id, msg.info);
 
-        let (job_id, task_id) = unwrap_tako_id(msg.id);
+        let job_id = msg.id.job_id();
         let job = self.get_job_mut(job_id).unwrap();
         for tako_id in msg.cancelled_tasks {
             log::debug!(
                 "Task id={} canceled because of task dependency fails",
                 tako_id
             );
-            let (j_id, task_id) = unwrap_tako_id(tako_id);
-            assert_eq!(job_id, j_id);
-            job.set_cancel_state(task_id, senders);
+            assert_eq!(tako_id.job_id(), job_id);
+            job.set_cancel_state(tako_id.job_task_id(), senders);
         }
-        job.set_failed_state(task_id, msg.info.message, senders);
+        job.set_failed_state(msg.id.job_task_id(), msg.info.message, senders);
 
         if let Some(max_fails) = &job.job_desc.max_fails {
             if job.counters.n_failed_tasks > *max_fails {
@@ -183,18 +181,16 @@ impl State {
                 worker_ids,
                 context,
             } => {
-                let (job_id, task_id) = unwrap_tako_id(msg.id);
-                let job = self.get_job_mut(job_id).unwrap();
+                let job = self.get_job_mut(msg.id.job_id()).unwrap();
                 let now = Utc::now();
-                job.set_running_state(task_id, worker_ids.clone(), context, now);
+                job.set_running_state(msg.id.job_task_id(), worker_ids.clone(), context, now);
                 for worker_id in &worker_ids {
                     if let Some(worker) = self.workers.get_mut(worker_id) {
-                        worker.update_task_started(job_id, task_id, now);
+                        worker.update_task_started(msg.id, now);
                     }
                 }
                 senders.events.on_task_started(
-                    job_id,
-                    task_id,
+                    msg.id,
                     instance_id,
                     worker_ids.clone(),
                     now,
@@ -202,14 +198,12 @@ impl State {
             }
             TaskState::Finished => {
                 let now = Utc::now();
-                let (job_id, task_id) = unwrap_tako_id(msg.id);
-                let job = self.get_job_mut(job_id).unwrap();
-                job.set_finished_state(task_id, now, senders);
+                let job = self.get_job_mut(msg.id.job_id()).unwrap();
+                job.set_finished_state(msg.id.job_task_id(), now, senders);
             }
             TaskState::Waiting => {
-                let (job_id, task_id) = unwrap_tako_id(msg.id);
-                let job = self.get_job_mut(job_id).unwrap();
-                job.set_waiting_state(task_id);
+                let job = self.get_job_mut(msg.id.job_id()).unwrap();
+                job.set_waiting_state(msg.id.job_task_id());
             }
             TaskState::Invalid => {
                 unreachable!()
@@ -237,9 +231,8 @@ impl State {
     ) {
         log::debug!("Worker lost id={}", msg.worker_id);
         for tako_id in msg.running_tasks {
-            let (job_id, task_id) = unwrap_tako_id(tako_id);
-            let job = self.get_job_mut(job_id).unwrap();
-            job.set_waiting_state(task_id);
+            let job = self.get_job_mut(tako_id.job_id()).unwrap();
+            job.set_waiting_state(tako_id.job_task_id());
         }
 
         let worker = self.workers.get_mut(&msg.worker_id).unwrap();

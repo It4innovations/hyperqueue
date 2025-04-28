@@ -16,11 +16,7 @@ pub use crate::internal::common::utils::format_comma_delimited;
 pub use crate::internal::common::WrappedRcRefCell;
 pub use crate::internal::common::{Map, Set};
 
-define_id_type!(JobId, u32);
-define_id_type!(JobTaskId, u32);
-define_id_type!(WorkerId, u32);
-define_id_type!(TaskId, u64);
-define_id_type!(InstanceId, u32);
+pub use crate::internal::common::ids::{InstanceId, JobId, JobTaskId, TaskId, WorkerId};
 
 pub type JobTaskCount = u32;
 

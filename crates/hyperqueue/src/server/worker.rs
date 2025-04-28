@@ -4,7 +4,7 @@ use tako::worker::WorkerConfiguration;
 
 use crate::server::worker::WorkerState::Offline;
 use crate::transfer::messages::{TaskTimestamp, WorkerExitInfo, WorkerInfo};
-use tako::{JobId, JobTaskId, WorkerId};
+use tako::{TaskId, WorkerId};
 
 #[derive(Default)]
 pub struct ConnectedWorkerData {
@@ -52,12 +52,8 @@ impl Worker {
         }
     }
 
-    pub fn update_task_started(&mut self, job_id: JobId, task_id: JobTaskId, now: DateTime<Utc>) {
-        self.last_task_started = Some(TaskTimestamp {
-            job_id,
-            task_id,
-            time: now,
-        });
+    pub fn update_task_started(&mut self, task_id: TaskId, now: DateTime<Utc>) {
+        self.last_task_started = Some(TaskTimestamp { task_id, time: now });
     }
 
     pub fn set_offline_state(&mut self, reason: LostWorkerReason) {

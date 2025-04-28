@@ -20,11 +20,13 @@ pub(crate) fn prune_journal(
             EventPayload::Submit { job_id, .. }
             | EventPayload::JobCompleted(job_id)
             | EventPayload::JobOpen(job_id, _)
-            | EventPayload::JobClose(job_id)
-            | EventPayload::TaskStarted { job_id, .. }
-            | EventPayload::TaskFinished { job_id, .. }
-            | EventPayload::TaskFailed { job_id, .. }
-            | EventPayload::TaskCanceled { job_id, .. } => live_job_ids.contains(job_id),
+            | EventPayload::JobClose(job_id) => live_job_ids.contains(job_id),
+            EventPayload::TaskStarted { task_id, .. }
+            | EventPayload::TaskFinished { task_id, .. }
+            | EventPayload::TaskFailed { task_id, .. }
+            | EventPayload::TaskCanceled { task_id, .. } => {
+                live_job_ids.contains(&task_id.job_id())
+            }
             EventPayload::AllocationQueueCreated(_, _)
             | EventPayload::AllocationQueueRemoved(_)
             | EventPayload::AllocationQueued { .. }

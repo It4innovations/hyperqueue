@@ -7,7 +7,7 @@ use orion::kdf::SecretKey;
 use tako::gateway::{
     CancelTasks, FromGatewayMessage, StopWorkerRequest, ToGatewayMessage, WorkerOverviewListenerOp,
 };
-use tako::{Set, TaskGroup};
+use tako::{Set, TaskGroup, TaskId};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::{mpsc, Notify};
@@ -24,7 +24,6 @@ use crate::transfer::messages::{
     TaskSelector, ToClientMessage, WorkerListResponse,
 };
 use crate::transfer::messages::{ForgetJobResponse, WaitForJobsResponse};
-use crate::unwrap_tako_id;
 use tako::{JobId, JobTaskCount, WorkerId};
 
 pub mod autoalloc;
@@ -338,8 +337,7 @@ fn reconstruct_historical_events(
                 events.push(Event::at(
                     started_data.start_date,
                     EventPayload::TaskStarted {
-                        job_id: job.job_id,
-                        task_id: *id,
+                        task_id: TaskId::new(job.job_id, *id),
                         instance_id: started_data.context.instance_id,
                         workers: started_data.worker_ids.clone(),
                     },
@@ -353,8 +351,7 @@ fn reconstruct_historical_events(
                     events.push(Event::at(
                         *end_date,
                         EventPayload::TaskFinished {
-                            job_id: job.job_id,
-                            task_id: *id,
+                            task_id: TaskId::new(job.job_id, *id),
                         },
                     ));
                 }
@@ -364,8 +361,7 @@ fn reconstruct_historical_events(
                     events.push(Event::at(
                         *end_date,
                         EventPayload::TaskFailed {
-                            job_id: job.job_id,
-                            task_id: *id,
+                            task_id: TaskId::new(job.job_id, *id),
                             error: error.clone(),
                         },
                     ));
@@ -374,8 +370,7 @@ fn reconstruct_historical_events(
                     events.push(Event::at(
                         *cancelled_date,
                         EventPayload::TaskCanceled {
-                            job_id: job.job_id,
-                            task_id: *id,
+                            task_id: TaskId::new(job.job_id, *id),
                         },
                     ));
                 }
@@ -719,8 +714,8 @@ async fn cancel_job(state_ref: &StateRef, senders: &Senders, job_id: JobId) -> C
         let canceled_ids: Vec<_> = canceled_tasks
             .iter()
             .map(|tako_id| {
-                let (j_id, task_id) = unwrap_tako_id(*tako_id);
-                assert_eq!(j_id, job_id);
+                assert_eq!(tako_id.job_id(), job_id);
+                let task_id = tako_id.job_task_id();
                 job.set_cancel_state(task_id, senders);
                 task_id
             })

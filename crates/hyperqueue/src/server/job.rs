@@ -7,13 +7,13 @@ use crate::transfer::messages::{
     TaskSelector, TaskStatusSelector,
 };
 use crate::worker::start::RunningTaskContext;
-use crate::{make_tako_id, TakoTaskId};
+use crate::TakoTaskId;
 use chrono::{DateTime, Utc};
 use smallvec::SmallVec;
 use std::sync::Arc;
 use tako::comm::deserialize;
 use tako::task::SerializedTaskContext;
-use tako::{JobId, JobTaskCount, JobTaskId, Map, WorkerId};
+use tako::{JobId, JobTaskCount, JobTaskId, Map, TaskId, WorkerId};
 use tokio::sync::oneshot;
 
 /// State of a task that has been started at least once.
@@ -276,7 +276,7 @@ impl Job {
         self.iter_task_states()
             .filter_map(|(task_id, state)| match state {
                 JobTaskState::Waiting | JobTaskState::Running { .. } => {
-                    Some(make_tako_id(self.job_id, task_id))
+                    Some(TaskId::new(self.job_id, task_id))
                 }
                 JobTaskState::Finished { .. }
                 | JobTaskState::Failed { .. }
@@ -355,7 +355,9 @@ impl Job {
                 task.state
             ),
         };
-        senders.events.on_task_finished(self.job_id, task_id, now);
+        senders
+            .events
+            .on_task_finished(TaskId::new(self.job_id, task_id), now);
         self.check_termination(senders, now);
     }
 
@@ -400,7 +402,7 @@ impl Job {
 
         senders
             .events
-            .on_task_failed(self.job_id, task_id, error, now);
+            .on_task_failed(TaskId::new(self.job_id, task_id), error, now);
         self.check_termination(senders, now);
         task_id
     }
@@ -425,7 +427,9 @@ impl Job {
             state => panic!("Invalid job state that is being canceled: {task_id:?} {state:?}"),
         }
 
-        senders.events.on_task_canceled(self.job_id, task_id, now);
+        senders
+            .events
+            .on_task_canceled(TaskId::new(self.job_id, task_id), now);
         self.counters.n_canceled_tasks += 1;
         self.check_termination(senders, now);
         task_id
