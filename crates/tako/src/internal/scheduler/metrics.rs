@@ -45,7 +45,6 @@ fn crawl<F1: Fn(&Task) -> &Set<TaskId>>(tasks: &mut TaskMap, predecessor_fn: F1)
 #[cfg(test)]
 mod tests {
     use crate::TaskId;
-    use crate::internal::common::index::ItemId;
     use crate::internal::scheduler::metrics::compute_b_level_metric;
     use crate::internal::server::core::Core;
     use crate::internal::tests::utils::workflows::submit_example_2;
@@ -65,8 +64,8 @@ mod tests {
         check_task_priority(&core, 1, 4);
     }
 
-    fn check_task_priority(core: &Core, task_id: u64, priority: i32) {
-        let task_id = TaskId::new(task_id as <TaskId as ItemId>::IdType);
+    fn check_task_priority(core: &Core, task_id: u32, priority: i32) {
+        let task_id = TaskId::new_test(task_id);
         assert_eq!(core.get_task(task_id).get_scheduler_priority(), priority);
     }
 }

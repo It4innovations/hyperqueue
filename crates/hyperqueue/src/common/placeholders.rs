@@ -254,7 +254,7 @@ mod tests {
         fill_placeholders_after_submit, fill_placeholders_in_paths, parse_resolvable_string,
         CompletePlaceholderCtx, ResolvablePaths, StringPart,
     };
-    use crate::Map;
+    use tako::Map;
 
     #[test]
     fn test_parse_empty_string() {

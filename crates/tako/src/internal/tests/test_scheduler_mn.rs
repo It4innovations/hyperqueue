@@ -220,7 +220,7 @@ fn test_schedule_mn_fill() {
         assert!(w.mn_task().is_some());
     }
     for t in &[1, 2, 3, 4] {
-        assert!(core.get_task(TaskId::new(*t)).is_mn_running());
+        assert!(core.get_task(TaskId::new_test(*t)).is_mn_running());
     }
 }
 
@@ -242,7 +242,7 @@ fn test_mn_not_enough() {
         assert!(w.mn_task().is_none());
     }
     for t in &[1, 2, 3, 4] {
-        assert!(core.get_task(TaskId::new(*t)).is_waiting());
+        assert!(core.get_task(TaskId::new_test(*t)).is_waiting());
     }
 
     let (mn_queue, _, _) = core.multi_node_queue_split();

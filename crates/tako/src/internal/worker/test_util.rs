@@ -1,7 +1,7 @@
 use crate::datasrv::DataObjectId;
 use crate::gateway::TaskDataFlags;
-use crate::internal::common::Map;
 use crate::internal::common::resources::{Allocation, ResourceRequest, ResourceRequestVariants};
+use crate::internal::common::Map;
 use crate::internal::messages::worker::ComputeTaskMsg;
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::tests::utils::resources::cpus_compact;
@@ -110,19 +110,19 @@ impl ResourceQueueBuilder {
         self.queue.new_worker(worker_id, wr);
     }
 
-    pub fn start_tasks(&mut self) -> Map<u64, Rc<Allocation>> {
+    pub fn start_tasks(&mut self) -> Map<u32, Rc<Allocation>> {
         self.queue
             .try_start_tasks(&self.task_map, None)
             .into_iter()
-            .map(|(t, a, _)| (t.as_num(), a))
+            .map(|(t, a, _)| (t.job_task_id().as_num(), a))
             .collect()
     }
 
-    pub fn start_tasks_duration(&mut self, duration: Duration) -> Map<u64, Rc<Allocation>> {
+    pub fn start_tasks_duration(&mut self, duration: Duration) -> Map<u32, Rc<Allocation>> {
         self.queue
             .try_start_tasks(&self.task_map, Some(duration))
             .into_iter()
-            .map(|(t, a, _)| (t.as_num(), a))
+            .map(|(t, a, _)| (t.job_task_id().as_num(), a))
             .collect()
     }
 }

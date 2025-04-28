@@ -2,7 +2,6 @@ use std::time::Duration;
 
 use crate::datasrv::DataObjectId;
 use crate::gateway::LostWorkerReason;
-use crate::internal::common::index::AsIdVec;
 use crate::internal::common::resources::ResourceDescriptor;
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{
@@ -82,8 +81,8 @@ fn test_worker_add() {
 
     assert!(
         matches!(comm.take_broadcasts(1)[0], ToWorkerMessage::NewWorker(NewWorkerMsg {
-            worker_id: WorkerId(402), address: ref _a, resources: ref r,
-        }) if r.n_resources == vec![ResourceAmount::new_units(4)])
+            worker_id, address: ref _a, resources: ref r,
+        }) if worker_id.as_num() == 402 && r.n_resources == vec![ResourceAmount::new_units(4)])
     );
 
     comm.check_need_scheduling();
@@ -137,8 +136,8 @@ fn test_worker_add() {
 
     assert!(
         matches!(comm.take_broadcasts(1)[0], ToWorkerMessage::NewWorker(NewWorkerMsg {
-            worker_id: WorkerId(502), address: ref a, resources: ref r,
-        }) if a == "test2:123" && r.n_resources == vec![ResourceAmount::new_units(5), ResourceAmount::new_units(0), ResourceAmount::new_units(100_000_000)])
+            worker_id, address: ref a, resources: ref r,
+        }) if worker_id.as_num() == 502 && a == "test2:123" && r.n_resources == vec![ResourceAmount::new_units(5), ResourceAmount::new_units(0), ResourceAmount::new_units(100_000_000)])
     );
     comm.check_need_scheduling();
     comm.emptiness_check();
@@ -190,7 +189,7 @@ fn test_submit_jobs() {
     assert_eq!(t6.get_unfinished_deps(), 4);
 }
 
-fn no_data_task_finished(task_id: u64) -> TaskFinishedMsg {
+fn no_data_task_finished(task_id: u32) -> TaskFinishedMsg {
     TaskFinishedMsg {
         id: task_id.into(),
         outputs: vec![],
@@ -241,23 +240,26 @@ fn test_assignments_and_finish() {
     assert!(matches!(
         msgs[0],
         ToWorkerMessage::ComputeTask(ComputeTaskMsg {
-            id: TaskId(11),
+            id,
             user_priority: 12,
             ..
-        })
+        }) if id.job_task_id().as_num() == 11
     ));
     assert!(matches!(
         msgs[1],
         ToWorkerMessage::ComputeTask(ComputeTaskMsg {
-            id: TaskId(15),
+            id,
             scheduler_priority: 0,
             ..
-        })
+        }) if id.job_task_id().as_num() == 15
     ));
     let msgs = comm.take_worker_msgs(101, 1);
     assert!(matches!(
         msgs[0],
-        ToWorkerMessage::ComputeTask(ComputeTaskMsg { id: TaskId(12), .. })
+        ToWorkerMessage::ComputeTask(ComputeTaskMsg {
+            id,
+            ..
+        }) if id.job_task_id().as_num() == 12
     ));
     comm.emptiness_check();
 
@@ -275,7 +277,7 @@ fn test_assignments_and_finish() {
     check_worker_tasks_exact(&core, 102, &[]);
 
     comm.check_need_scheduling();
-    assert_eq!(comm.take_client_task_finished(1)[0], TaskId::new(15));
+    assert_eq!(comm.take_client_task_finished(1)[0], TaskId::new_test(15));
     comm.emptiness_check();
 
     assert!(core.find_task(15.into()).is_none());
@@ -291,7 +293,7 @@ fn test_assignments_and_finish() {
     check_worker_tasks_exact(&core, 102, &[]);
 
     comm.check_need_scheduling();
-    assert_eq!(comm.take_client_task_finished(1)[0], TaskId::new(12));
+    assert_eq!(comm.take_client_task_finished(1)[0], TaskId::new_test(12));
     comm.emptiness_check();
 
     on_task_finished(&mut core, &mut comm, 100.into(), no_data_task_finished(11));
@@ -304,10 +306,13 @@ fn test_assignments_and_finish() {
     let msgs = comm.take_worker_msgs(101, 1);
     assert!(matches!(
         msgs[0],
-        ToWorkerMessage::ComputeTask(ComputeTaskMsg { id: TaskId(13), .. })
+        ToWorkerMessage::ComputeTask(ComputeTaskMsg {
+            id,
+            ..
+        }) if id.job_task_id().as_num() == 13
     ));
 
-    assert_eq!(comm.take_client_task_finished(1)[0], TaskId::new(11));
+    assert_eq!(comm.take_client_task_finished(1)[0], TaskId::new_test(11));
     comm.emptiness_check();
     core.sanity_check();
 
@@ -315,7 +320,10 @@ fn test_assignments_and_finish() {
 
     comm.check_need_scheduling();
 
-    assert_eq!(comm.take_client_task_finished(1), vec![13].to_ids());
+    assert_eq!(
+        comm.take_client_task_finished(1),
+        vec![TaskId::new_test(13)]
+    );
     comm.emptiness_check();
     core.sanity_check();
 
@@ -349,8 +357,15 @@ fn test_running_task_on_error() {
 
     let mut msgs = comm.take_client_task_errors(1);
     let (id, cs, _) = msgs.pop().unwrap();
-    assert_eq!(id.as_num(), 13);
-    assert_eq!(sorted_vec(cs), vec![15, 16, 17].to_ids());
+    assert_eq!(id.job_task_id().as_num(), 13);
+    assert_eq!(
+        sorted_vec(cs),
+        vec![
+            TaskId::new_test(15),
+            TaskId::new_test(16),
+            TaskId::new_test(17)
+        ]
+    );
     comm.emptiness_check();
 
     assert!(core.find_task(16.into()).is_none());
@@ -383,7 +398,7 @@ fn test_steal_tasks_ok() {
 
     let msgs = comm.take_worker_msgs(101, 1);
     assert!(
-        matches!(&msgs[0], ToWorkerMessage::StealTasks(ids) if ids.ids == vec![task_id].to_ids())
+        matches!(&msgs[0], ToWorkerMessage::StealTasks(ids) if ids.ids == vec![TaskId::new_test(task_id)])
     );
     comm.emptiness_check();
 
@@ -406,7 +421,8 @@ fn test_steal_tasks_ok() {
     let msgs = comm.take_worker_msgs(100, 1);
     assert!(matches!(
         &msgs[0],
-        ToWorkerMessage::ComputeTask(ComputeTaskMsg { id: TaskId(13), .. })
+        ToWorkerMessage::ComputeTask(ComputeTaskMsg { id, .. })
+        if id.job_task_id().as_num() == 13
     ));
     comm.emptiness_check();
     core.sanity_check();
@@ -428,7 +444,9 @@ fn test_steal_tasks_running() {
     scheduler.finish_scheduling(&mut core, &mut comm);
 
     let msgs = comm.take_worker_msgs(101, 1);
-    assert!(matches!(&msgs[0], ToWorkerMessage::StealTasks(ids) if ids.ids == vec![13].to_ids()));
+    assert!(
+        matches!(&msgs[0], ToWorkerMessage::StealTasks(ids) if ids.ids == vec![TaskId::new_test(13)])
+    );
     comm.emptiness_check();
 
     assert!(!worker_has_task(&core, 101, 13));
@@ -471,7 +489,7 @@ fn finish_task_without_outputs() {
     let mut comm = create_test_comm();
     on_task_finished(&mut core, &mut comm, 100.into(), no_data_task_finished(1));
     comm.check_need_scheduling();
-    assert_eq!(comm.take_client_task_finished(1)[0], TaskId::new(1));
+    assert_eq!(comm.take_client_task_finished(1)[0], TaskId::new_test(1));
     comm.emptiness_check();
     core.sanity_check();
 }
@@ -514,16 +532,19 @@ fn test_task_cancel() {
             .map(|id| id.into())
             .collect::<Vec<_>>()
     );
-    assert_eq!(sorted_vec(ft), vec![11, 33].to_ids());
+    assert_eq!(
+        sorted_vec(ft),
+        vec![TaskId::new_test(11), TaskId::new_test(33)]
+    );
 
     let msgs = comm.take_worker_msgs(100, 1);
     assert!(
-        matches!(&msgs[0], &ToWorkerMessage::CancelTasks(TaskIdsMsg { ref ids }) if ids == &vec![41].to_ids())
+        matches!(&msgs[0], &ToWorkerMessage::CancelTasks(TaskIdsMsg { ref ids }) if ids == &vec![TaskId::new_test(41)])
     );
 
     let msgs = comm.take_worker_msgs(101, 1);
     assert!(
-        matches!(&msgs[0], &ToWorkerMessage::CancelTasks(TaskIdsMsg { ref ids }) if sorted_vec(ids.clone()) == vec![12, 40].to_ids())
+        matches!(&msgs[0], &ToWorkerMessage::CancelTasks(TaskIdsMsg { ref ids }) if sorted_vec(ids.clone()) == vec![TaskId::new_test(12), TaskId::new_test(40)])
     );
 
     assert_eq!(core.task_map().len(), 1);
@@ -542,7 +563,7 @@ fn test_worker_lost_with_mn_task_non_root() {
     submit_test_tasks(&mut core, vec![task1]);
     start_mn_task_on_worker(
         &mut core,
-        TaskId::new(1),
+        TaskId::new_test(1),
         vec![WorkerId::new(103), WorkerId::new(101), WorkerId::new(100)],
     );
     let mut comm = create_test_comm();
@@ -556,15 +577,14 @@ fn test_worker_lost_with_mn_task_non_root() {
     assert_eq!(comm.take_lost_workers().len(), 1);
     let msgs = comm.take_worker_msgs(103, 1);
     assert!(
-        matches!(&msgs[0], &ToWorkerMessage::CancelTasks(TaskIdsMsg { ref ids }) if ids == &vec![1].to_ids())
+        matches!(&msgs[0], &ToWorkerMessage::CancelTasks(TaskIdsMsg { ref ids }) if ids == &vec![TaskId::new_test(1)])
     );
     assert!(matches!(
         comm.take_broadcasts(1)[0],
-        ToWorkerMessage::LostWorker(WorkerId(101))
-    ));
+        ToWorkerMessage::LostWorker(w) if w.as_num() == 101));
     comm.check_need_scheduling();
     comm.emptiness_check();
-    assert!(core.get_task(TaskId::new(1)).is_waiting());
+    assert!(core.get_task(TaskId::new_test(1)).is_waiting());
 }
 
 #[test]
@@ -575,7 +595,7 @@ fn test_worker_lost_with_mn_task_root() {
     submit_test_tasks(&mut core, vec![task1]);
     start_mn_task_on_worker(
         &mut core,
-        TaskId::new(1),
+        TaskId::new_test(1),
         vec![WorkerId::new(103), WorkerId::new(101), WorkerId::new(100)],
     );
     let mut comm = create_test_comm();
@@ -589,11 +609,11 @@ fn test_worker_lost_with_mn_task_root() {
     assert_eq!(comm.take_lost_workers().len(), 1);
     assert!(matches!(
         comm.take_broadcasts(1)[0],
-        ToWorkerMessage::LostWorker(WorkerId(103))
+        ToWorkerMessage::LostWorker(w) if w.as_num() == 103
     ));
     comm.check_need_scheduling();
     comm.emptiness_check();
-    assert!(core.get_task(TaskId::new(1)).is_waiting());
+    assert!(core.get_task(TaskId::new_test(1)).is_waiting());
 }
 
 #[test]
@@ -602,7 +622,7 @@ fn test_worker_crashing_task() {
 
     let t1 = task(1);
     submit_test_tasks(&mut core, vec![t1]);
-    assert_eq!(core.get_task(TaskId::new(1)).crash_counter, 0);
+    assert_eq!(core.get_task(TaskId::new_test(1)).crash_counter, 0);
 
     for x in 1..=5 {
         let mut comm = create_test_comm();
@@ -620,20 +640,20 @@ fn test_worker_crashing_task() {
         comm.check_need_scheduling();
         assert!(matches!(
             comm.take_broadcasts(1)[0],
-            ToWorkerMessage::LostWorker(WorkerId(wid))
-            if worker_id == wid
+            ToWorkerMessage::LostWorker(w)
+            if worker_id == w.as_num()
         ));
         if x == 5 {
             let errs = comm.take_client_task_errors(1);
-            assert_eq!(errs[0].0, TaskId::new(1));
+            assert_eq!(errs[0].0, TaskId::new_test(1));
             assert_eq!(
                 errs[0].2.message,
                 "Task was running on a worker that was lost; the task has occurred 5 times in this situation and limit was reached."
             );
-            assert_eq!(std::mem::take(&mut lw[0].1), vec![].to_ids());
+            assert_eq!(std::mem::take(&mut lw[0].1), vec![]);
         } else {
-            assert_eq!(std::mem::take(&mut lw[0].1), vec![1].to_ids());
-            assert_eq!(core.get_task(TaskId::new(1)).crash_counter, x);
+            assert_eq!(std::mem::take(&mut lw[0].1), vec![TaskId::new_test(1)]);
+            assert_eq!(core.get_task(TaskId::new_test(1)).crash_counter, x);
         }
         comm.emptiness_check();
     }
@@ -647,7 +667,7 @@ fn test_task_mn_fail() {
     submit_test_tasks(&mut core, vec![task1]);
     start_mn_task_on_worker(
         &mut core,
-        TaskId::new(1),
+        TaskId::new_test(1),
         vec![WorkerId::new(103), WorkerId::new(101), WorkerId::new(100)],
     );
     let mut comm = create_test_comm();
@@ -662,7 +682,7 @@ fn test_task_mn_fail() {
     );
     core.sanity_check();
     let msgs = comm.take_client_task_errors(1);
-    assert_eq!(msgs[0].0, TaskId::new(1));
+    assert_eq!(msgs[0].0, TaskId::new_test(1));
     comm.emptiness_check();
     assert!(core.find_task(1.into()).is_none());
     for w in &[100, 101, 102, 103] {
@@ -683,20 +703,20 @@ fn test_task_mn_cancel() {
     submit_test_tasks(&mut core, vec![task1]);
     start_mn_task_on_worker(
         &mut core,
-        TaskId::new(1),
+        TaskId::new_test(1),
         vec![WorkerId::new(103), WorkerId::new(101), WorkerId::new(100)],
     );
     let mut comm = create_test_comm();
-    let (ct, ft) = on_cancel_tasks(&mut core, &mut comm, &[TaskId(1)]);
+    let (ct, ft) = on_cancel_tasks(&mut core, &mut comm, &[TaskId::new_test(1)]);
     core.sanity_check();
     let msgs = comm.take_worker_msgs(103, 1);
     assert!(
-        matches!(&msgs[0], &ToWorkerMessage::CancelTasks(TaskIdsMsg { ref ids }) if ids == &vec![1].to_ids())
+        matches!(&msgs[0], &ToWorkerMessage::CancelTasks(TaskIdsMsg { ref ids }) if ids == &vec![TaskId::new_test(1)])
     );
     comm.check_need_scheduling();
     comm.emptiness_check();
     assert!(ft.is_empty());
-    assert_eq!(ct, vec![TaskId::new(1)]);
+    assert_eq!(ct, vec![TaskId::new_test(1)]);
 
     let mut scheduler = create_test_scheduler();
     scheduler.run_scheduling(&mut core, &mut comm);
@@ -732,26 +752,26 @@ fn test_running_task() {
     comm.emptiness_check();
 
     on_task_running(&mut core, &mut comm, 101.into(), task_running_msg(1));
-    assert_eq!(comm.take_client_task_running(1), vec![1].to_ids());
+    assert_eq!(comm.take_client_task_running(1), vec![TaskId::new_test(1)]);
     comm.emptiness_check();
 
     on_task_running(&mut core, &mut comm, 101.into(), task_running_msg(2));
-    assert_eq!(comm.take_client_task_running(1)[0], TaskId::new(2));
+    assert_eq!(comm.take_client_task_running(1)[0], TaskId::new_test(2));
     comm.emptiness_check();
 
     assert!(matches!(
         core.task(1).state,
         TaskRuntimeState::Running {
-            worker_id: WorkerId(101),
+            worker_id,
             ..
-        }
+        } if worker_id.as_num() == 101
     ));
     assert!(matches!(
         core.task(2).state,
         TaskRuntimeState::Running {
-            worker_id: WorkerId(101),
+            worker_id,
             ..
-        }
+        } if worker_id.as_num() == 101
     ));
 
     on_remove_worker(
@@ -764,12 +784,12 @@ fn test_running_task() {
     assert_eq!(lw[0].0, WorkerId::new(101));
     assert_eq!(
         sorted_vec(std::mem::take(&mut lw[0].1)),
-        vec![1, 2].to_ids()
+        vec![TaskId::new_test(1), TaskId::new_test(2)]
     );
     comm.check_need_scheduling();
     assert!(matches!(
         comm.take_broadcasts(1)[0],
-        ToWorkerMessage::LostWorker(WorkerId(101))
+        ToWorkerMessage::LostWorker(w) if w.as_num() == 101
     ));
     comm.emptiness_check();
 }
@@ -788,7 +808,7 @@ fn test_finished_before_steal_response() {
     on_task_finished(&mut core, &mut comm, 101.into(), no_data_task_finished(1));
 
     comm.check_need_scheduling();
-    assert_eq!(comm.take_client_task_finished(1)[0], TaskId::new(1));
+    assert_eq!(comm.take_client_task_finished(1)[0], TaskId::new_test(1));
     comm.emptiness_check();
 
     assert!(!worker_has_task(&core, 101, 1));
@@ -822,7 +842,7 @@ fn test_running_before_steal_response() {
     let mut comm = create_test_comm();
     on_task_running(&mut core, &mut comm, 101.into(), task_running_msg(1));
     comm.check_need_scheduling();
-    assert_eq!(comm.take_client_task_running(1)[0], TaskId::new(1));
+    assert_eq!(comm.take_client_task_running(1)[0], TaskId::new_test(1));
     comm.emptiness_check();
 
     assert!(worker_has_task(&core, 101, 1));
@@ -940,7 +960,7 @@ fn lost_worker_with_running_and_assign_tasks() {
 
     assert_eq!(
         comm.take_lost_workers(),
-        vec![(WorkerId::new(101), vec![12].to_ids())]
+        vec![(WorkerId::new(101), vec![TaskId::new_test(12)])]
     );
 
     assert_eq!(core.take_single_node_ready_to_assign().len(), 3);
@@ -951,12 +971,12 @@ fn lost_worker_with_running_and_assign_tasks() {
     core.assert_fresh(&[11, 12, 40]);
     assert!(matches!(
         core.get_task(41.into()).state,
-        TaskRuntimeState::Stealing(WorkerId(100), None)
+        TaskRuntimeState::Stealing(w, None) if w.as_num() == 100
     ));
 
     assert!(matches!(
         comm.take_broadcasts(1)[0],
-        ToWorkerMessage::LostWorker(WorkerId(101))
+        ToWorkerMessage::LostWorker(w) if w.as_num() == 101
     ));
 
     comm.check_need_scheduling();
@@ -1119,12 +1139,12 @@ fn test_data_deps_no_output() {
             outputs: vec![],
         },
     );
-    assert_eq!(comm.take_client_task_finished(1), vec![TaskId::new(1)]);
+    assert_eq!(comm.take_client_task_finished(1), vec![TaskId::new_test(1)]);
     let errors = comm.take_client_task_errors(1);
-    assert_eq!(errors[0].0, TaskId::new(2));
+    assert_eq!(errors[0].0, TaskId::new_test(2));
     assert_eq!(
         &errors[0].2.message,
-        "Task 1 did not produced expected output(s): 11"
+        "Task 0@1 did not produced expected output(s): 11"
     );
     comm.check_need_scheduling();
     comm.emptiness_check();
@@ -1171,12 +1191,12 @@ fn test_data_deps_missing_outputs() {
             ],
         },
     );
-    assert_eq!(comm.take_client_task_finished(1), vec![TaskId::new(1)]);
+    assert_eq!(comm.take_client_task_finished(1), vec![TaskId::new_test(1)]);
     let errors = comm.take_client_task_errors(1);
-    assert_eq!(errors[0].0, TaskId::new(2));
+    assert_eq!(errors[0].0, TaskId::new_test(2));
     assert_eq!(
         &errors[0].2.message,
-        "Task 1 did not produced expected output(s): 11, 100"
+        "Task 0@1 did not produced expected output(s): 11, 100"
     );
     let messages = comm.take_worker_msgs(100, 2);
     assert!(
@@ -1199,7 +1219,7 @@ fn test_data_deps_basic() {
         .data_dep(&t2, 478)
         .build();
     submit_test_tasks(&mut core, vec![t1, t2, t3]);
-    assert_eq!(core.get_task(2.into()).task_deps, [TaskId::new(1)]);
+    assert_eq!(core.get_task(2.into()).task_deps, [TaskId::new_test(1)]);
     core.assert_waiting(&[2, 3]);
     core.assert_ready(&[1]);
     create_test_workers(&mut core, &[4]);
