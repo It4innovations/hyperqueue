@@ -3,7 +3,6 @@ use std::time::Duration;
 
 use orion::aead::SecretKey;
 
-use crate::gateway::ServerInfo;
 use crate::internal::common::resources::map::{ResourceIdAllocator, ResourceMap};
 use crate::internal::common::resources::{ResourceId, ResourceRequestVariants};
 use crate::internal::common::{Set, WrappedRcRefCell};
@@ -173,12 +172,6 @@ impl Core {
 
     pub fn take_sleeping_tasks(&mut self) -> Vec<TaskId> {
         std::mem::take(&mut self.sleeping_sn_tasks)
-    }
-
-    pub fn get_server_info(&self) -> ServerInfo {
-        ServerInfo {
-            worker_listen_port: self.worker_listen_port,
-        }
     }
 
     pub fn sn_ready_to_assign(&self) -> &[TaskId] {

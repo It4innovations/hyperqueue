@@ -406,32 +406,38 @@ impl Job {
         task_id
     }
 
-    pub fn set_cancel_state(&mut self, task_id: JobTaskId, senders: &Senders) -> JobTaskId {
-        let task = self.tasks.get_mut(&task_id).unwrap();
+    pub fn set_cancel_state(&mut self, task_ids: Vec<TaskId>, senders: &Senders) {
+        if task_ids.is_empty() {
+            return;
+        }
         let now = Utc::now();
-        match &task.state {
-            JobTaskState::Running { started_data, .. } => {
-                task.state = JobTaskState::Canceled {
-                    started_data: Some(started_data.clone()),
-                    cancelled_date: now,
-                };
-                self.counters.n_running_tasks -= 1;
+        for task_id in &task_ids {
+            assert_eq!(task_id.job_id(), self.job_id);
+            let task = self.tasks.get_mut(&task_id.job_task_id()).unwrap();
+            match &task.state {
+                JobTaskState::Running { started_data, .. } => {
+                    task.state = JobTaskState::Canceled {
+                        started_data: Some(started_data.clone()),
+                        cancelled_date: now,
+                    };
+                    self.counters.n_running_tasks -= 1;
+                }
+                JobTaskState::Waiting => {
+                    task.state = JobTaskState::Canceled {
+                        started_data: None,
+                        cancelled_date: now,
+                    };
+                }
+                state => panic!("Invalid job state that is being canceled: {task_id:?} {state:?}"),
             }
-            JobTaskState::Waiting => {
-                task.state = JobTaskState::Canceled {
-                    started_data: None,
-                    cancelled_date: now,
-                };
-            }
-            state => panic!("Invalid job state that is being canceled: {task_id:?} {state:?}"),
         }
 
-        senders
-            .events
-            .on_task_canceled(TaskId::new(self.job_id, task_id), now);
-        self.counters.n_canceled_tasks += 1;
+        self.counters.n_canceled_tasks += task_ids.len() as JobTaskCount;
+        // TODO: on_task_canceled should take vec
+        for task_id in task_ids {
+            senders.events.on_task_canceled(task_id, now);
+        }
         self.check_termination(senders, now);
-        task_id
     }
 
     /// Subscribes to the completion event of this job.

@@ -4,10 +4,8 @@ use bytes::Bytes;
 use tokio::sync::Notify;
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::gateway::{
-    LostWorkerMessage, LostWorkerReason, NewWorkerMessage, TaskFailedMessage, TaskState,
-    TaskUpdate, ToGatewayMessage,
-};
+use crate::events::EventProcessor;
+use crate::gateway::LostWorkerReason;
 use crate::internal::common::{Map, WrappedRcRefCell};
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{ToWorkerMessage, WorkerOverview};
@@ -18,33 +16,33 @@ use crate::task::SerializedTaskContext;
 use crate::{InstanceId, TaskId, WorkerId};
 
 pub trait Comm {
-    fn send_worker_message(&mut self, worker_id: WorkerId, message: &ToWorkerMessage);
-    fn broadcast_worker_message(&mut self, message: &ToWorkerMessage);
+    fn send_worker_message(&self, worker_id: WorkerId, message: &ToWorkerMessage);
+    fn broadcast_worker_message(&self, message: &ToWorkerMessage);
     fn ask_for_scheduling(&mut self);
 
-    fn send_client_task_finished(&mut self, task_id: TaskId);
+    fn send_client_task_finished(&self, task_id: TaskId);
     fn send_client_task_started(
-        &mut self,
+        &self,
         task_id: TaskId,
         instance_id: InstanceId,
         worker_ids: &[WorkerId],
         context: SerializedTaskContext,
     );
     fn send_client_task_error(
-        &mut self,
+        &self,
         task_id: TaskId,
         consumers_id: Vec<TaskId>,
         error_info: TaskFailInfo,
-    );
+    ) -> Vec<TaskId>;
 
-    fn send_client_worker_new(&mut self, worker_id: WorkerId, configuration: &WorkerConfiguration);
+    fn send_client_worker_new(&self, worker_id: WorkerId, configuration: &WorkerConfiguration);
     fn send_client_worker_lost(
-        &mut self,
+        &self,
         worker_id: WorkerId,
-        running_tasks: Vec<TaskId>,
+        running_tasks: &[TaskId],
         reason: LostWorkerReason,
     );
-    fn send_client_worker_overview(&mut self, overview: Box<WorkerOverview>);
+    fn send_client_worker_overview(&self, overview: Box<WorkerOverview>);
 }
 
 type SchedulingCallback = Box<dyn FnOnce(&mut Core)>;
@@ -53,7 +51,7 @@ pub struct CommSender {
     workers: Map<WorkerId, UnboundedSender<Bytes>>,
     need_scheduling: bool,
     scheduler_wakeup: Rc<Notify>,
-    client_sender: UnboundedSender<ToGatewayMessage>,
+    client_events: Option<Box<dyn EventProcessor>>,
     after_scheduling_callbacks: Vec<SchedulingCallback>,
     panic_on_worker_lost: bool,
 }
@@ -61,19 +59,19 @@ pub struct CommSender {
 pub type CommSenderRef = WrappedRcRefCell<CommSender>;
 
 impl CommSenderRef {
-    pub fn new(
-        scheduler_wakeup: Rc<Notify>,
-        client_sender: UnboundedSender<ToGatewayMessage>,
-        panic_on_worker_lost: bool,
-    ) -> Self {
+    pub fn new(scheduler_wakeup: Rc<Notify>, panic_on_worker_lost: bool) -> Self {
         WrappedRcRefCell::wrap(CommSender {
             workers: Default::default(),
             scheduler_wakeup,
-            client_sender,
+            client_events: None,
             after_scheduling_callbacks: Vec::new(),
             need_scheduling: false,
             panic_on_worker_lost,
         })
+    }
+
+    pub fn set_client_events(&self, client_events: Box<dyn EventProcessor>) {
+        self.get_mut().client_events = Some(client_events);
     }
 }
 
@@ -114,7 +112,7 @@ impl CommSender {
 }
 
 impl Comm for CommSender {
-    fn send_worker_message(&mut self, worker_id: WorkerId, message: &ToWorkerMessage) {
+    fn send_worker_message(&self, worker_id: WorkerId, message: &ToWorkerMessage) {
         let data = serialize(&message).unwrap();
         self.workers
             .get(&worker_id)
@@ -123,7 +121,7 @@ impl Comm for CommSender {
             .expect("Send to worker failed");
     }
 
-    fn broadcast_worker_message(&mut self, message: &ToWorkerMessage) {
+    fn broadcast_worker_message(&self, message: &ToWorkerMessage) {
         let data: Bytes = serialize(&message).unwrap().into();
         for sender in self.workers.values() {
             sender.send(data.clone()).expect("Send to worker failed");
@@ -139,95 +137,63 @@ impl Comm for CommSender {
     }
 
     #[inline]
-    fn send_client_task_finished(&mut self, task_id: TaskId) {
-        log::debug!("Informing client about finished task={}", task_id);
-        if let Err(error) = self
-            .client_sender
-            .send(ToGatewayMessage::TaskUpdate(TaskUpdate {
-                id: task_id,
-                state: TaskState::Finished,
-            }))
-        {
-            log::error!("Error while task finished message to client: {error:?}");
-        }
+    fn send_client_task_finished(&self, task_id: TaskId) {
+        self.client_events
+            .as_ref()
+            .unwrap()
+            .on_task_finished(task_id);
     }
 
     fn send_client_task_started(
-        &mut self,
+        &self,
         task_id: TaskId,
         instance_id: InstanceId,
         worker_ids: &[WorkerId],
         context: SerializedTaskContext,
     ) {
-        log::debug!("Informing client about running task={}", task_id);
-        if let Err(error) = self
-            .client_sender
-            .send(ToGatewayMessage::TaskUpdate(TaskUpdate {
-                id: task_id,
-                state: TaskState::Running {
-                    instance_id,
-                    worker_ids: worker_ids.into(),
-                    context,
-                },
-            }))
-        {
-            log::error!("Error while task started message to client: {error:?}");
-        }
+        self.client_events.as_ref().unwrap().on_task_started(
+            task_id,
+            instance_id,
+            worker_ids,
+            context,
+        );
     }
 
     fn send_client_task_error(
-        &mut self,
+        &self,
         task_id: TaskId,
         consumers_id: Vec<TaskId>,
         error_info: TaskFailInfo,
-    ) {
-        if let Err(error) = self.client_sender.send(ToGatewayMessage::TaskFailed({
-            TaskFailedMessage {
-                id: task_id,
-                info: error_info,
-                cancelled_tasks: consumers_id,
-            }
-        })) {
-            log::error!("Error while task error message to client: {error:?}");
-        }
+    ) -> Vec<TaskId> {
+        self.client_events
+            .as_ref()
+            .unwrap()
+            .on_task_error(task_id, consumers_id, error_info)
     }
 
-    fn send_client_worker_new(&mut self, worker_id: WorkerId, configuration: &WorkerConfiguration) {
-        if let Err(error) = self
-            .client_sender
-            .send(ToGatewayMessage::NewWorker(NewWorkerMessage {
-                worker_id,
-                configuration: configuration.clone(),
-            }))
-        {
-            log::error!("Error while new worker message to client: {error:?}");
-        }
+    fn send_client_worker_new(&self, worker_id: WorkerId, configuration: &WorkerConfiguration) {
+        self.client_events
+            .as_ref()
+            .unwrap()
+            .on_worker_new(worker_id, configuration);
     }
 
     fn send_client_worker_lost(
-        &mut self,
+        &self,
         worker_id: WorkerId,
-        running_tasks: Vec<TaskId>,
+        running_tasks: &[TaskId],
         reason: LostWorkerReason,
     ) {
-        if let Err(error) =
-            self.client_sender
-                .send(ToGatewayMessage::LostWorker(LostWorkerMessage {
-                    worker_id,
-                    running_tasks,
-                    reason,
-                }))
-        {
-            log::error!("Error while sending worker lost message to client: {error:?}");
-        }
+        self.client_events
+            .as_ref()
+            .unwrap()
+            .on_worker_lost(worker_id, running_tasks, reason);
     }
 
-    fn send_client_worker_overview(&mut self, overview: Box<WorkerOverview>) {
-        if let Err(error) = self
-            .client_sender
-            .send(ToGatewayMessage::WorkerOverview(overview))
-        {
-            log::error!("Error while sending worker overview message to client: {error:?}");
-        }
+    fn send_client_worker_overview(&self, overview: Box<WorkerOverview>) {
+        self.client_events
+            .as_ref()
+            .unwrap()
+            .on_worker_overview(overview);
     }
 }

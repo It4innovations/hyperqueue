@@ -5,6 +5,8 @@ pub mod internal;
 
 pub mod comm;
 pub mod connection;
+pub mod control;
+pub mod events;
 pub mod gateway;
 pub mod hwstats;
 pub mod launcher;
@@ -48,9 +50,9 @@ pub mod resources {
 }
 
 pub mod server {
+    pub use crate::control::server_start;
     pub use crate::internal::server::dataobj::ObjsToRemoveFromWorkers;
     pub use crate::internal::server::rpc::ConnectionDescriptor;
-    pub use crate::internal::server::start::server_start;
 }
 
 pub mod worker {

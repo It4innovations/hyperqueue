@@ -5,18 +5,18 @@ use std::sync::Arc;
 
 use orion::kdf::SecretKey;
 use tako::WorkerId;
-use tako::gateway::{FromGatewayMessage, ToGatewayMessage};
-use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::sync::oneshot;
 use tokio::time::Duration;
 
-use crate::WrappedRcRefCell;
 use crate::common::error::error;
-use crate::server::Senders;
 use crate::server::autoalloc::AutoAllocService;
 use crate::server::event::streamer::EventStreamer;
 use crate::server::state::StateRef;
+use crate::server::Senders;
+use crate::WrappedRcRefCell;
 
+/*
 struct InnerBackend {
     tako_sender: UnboundedSender<FromGatewayMessage>,
     tako_responses: VecDeque<oneshot::Sender<ToGatewayMessage>>,
@@ -178,7 +178,6 @@ impl Backend {
 #[cfg(test)]
 mod tests {
     use crate::server::autoalloc::test_alloc_service;
-    use tako::gateway::{FromGatewayMessage, ServerInfo, ToGatewayMessage};
     use tokio::net::TcpStream;
 
     use crate::server::backend::Backend;
@@ -219,3 +218,4 @@ mod tests {
         .await;
     }
 }
+*/

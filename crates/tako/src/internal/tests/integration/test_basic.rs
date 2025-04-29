@@ -1,17 +1,14 @@
-use crate::gateway::{
-    FromGatewayMessage, NewWorkerAllocationResponse, NewWorkerQuery, ToGatewayMessage,
-    WorkerTypeQuery,
-};
+use crate::control::{NewWorkerAllocationResponse, WorkerTypeQuery};
 use crate::internal::tests::integration::utils::api::cancel;
 use crate::internal::tests::integration::utils::check_file_contents;
-use crate::internal::tests::integration::utils::server::{ServerHandle, run_test};
+use crate::internal::tests::integration::utils::server::{run_test, ServerHandle};
 use crate::internal::tests::integration::utils::task::ResourceRequestConfigBuilder;
 use crate::internal::tests::integration::utils::task::{
-    GraphBuilder, TaskConfigBuilder, simple_args, simple_task,
+    simple_args, simple_task, GraphBuilder, TaskConfigBuilder,
 };
 use crate::program::StdioDef;
 use crate::resources::ResourceDescriptor;
-use crate::{TaskId, wait_for_msg};
+use crate::{wait_for_msg, TaskId};
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -175,12 +172,13 @@ async fn query_helper(
     handler: &mut ServerHandle,
     worker_queries: Vec<WorkerTypeQuery>,
 ) -> NewWorkerAllocationResponse {
-    handler
-        .send(FromGatewayMessage::NewWorkerQuery(NewWorkerQuery {
-            worker_queries,
-        }))
-        .await;
-    wait_for_msg!(handler, ToGatewayMessage::NewWorkerAllocationQueryResponse(msg) => msg)
+    todo!()
+    // handler
+    //     .send(FromGatewayMessage::NewWorkerQuery(NewWorkerQuery {
+    //         worker_queries,
+    //     }))
+    //     .await;
+    // wait_for_msg!(handler, ToGatewayMessage::NewWorkerAllocationQueryResponse(msg) => msg)
 }
 
 #[tokio::test]

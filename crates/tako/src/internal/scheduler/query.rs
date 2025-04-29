@@ -1,4 +1,5 @@
-use crate::gateway::{MultiNodeAllocationResponse, NewWorkerAllocationResponse, WorkerTypeQuery};
+use crate::control::{NewWorkerAllocationResponse, WorkerTypeQuery};
+use crate::gateway::MultiNodeAllocationResponse;
 use crate::internal::server::core::Core;
 use crate::internal::server::workerload::{WorkerLoad, WorkerResources};
 

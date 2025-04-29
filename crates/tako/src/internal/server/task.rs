@@ -3,17 +3,17 @@ use std::rc::Rc;
 use std::time::Duration;
 use thin_vec::ThinVec;
 
-use crate::WorkerId;
-use crate::internal::common::Set;
 use crate::internal::common::stablemap::ExtractKey;
+use crate::internal::common::Set;
+use crate::WorkerId;
 
 use crate::gateway::TaskDataFlags;
 use crate::internal::datasrv::dataobj::DataObjectId;
 
 use crate::internal::messages::worker::{ComputeTaskMsg, ToWorkerMessage};
 use crate::internal::server::taskmap::TaskMap;
+use crate::{static_assert_size, TaskId};
 use crate::{InstanceId, Priority};
-use crate::{TaskId, static_assert_size};
 
 #[cfg_attr(test, derive(Eq, PartialEq))]
 pub struct WaitingInfo {
@@ -197,19 +197,19 @@ impl Task {
         self.flags.contains(TaskFlags::TAKE)
     }
 
-    pub(crate) fn collect_consumers(&self, taskmap: &TaskMap) -> Set<TaskId> {
+    pub(crate) fn collect_recursive_consumers(&self, taskmap: &TaskMap, out: &mut Set<TaskId>) {
+        for consumer in &self.consumers {
+            out.insert(*consumer);
+        }
         let mut stack: Vec<_> = self.consumers.iter().copied().collect();
-        let mut result: Set<TaskId> = stack.iter().copied().collect();
-
         while let Some(task_id) = stack.pop() {
             let task = taskmap.get_task(task_id);
             for &consumer_id in &task.consumers {
-                if result.insert(consumer_id) {
+                if out.insert(consumer_id) {
                     stack.push(consumer_id);
                 }
             }
         }
-        result
     }
 
     pub(crate) fn increment_instance_id(&mut self) {
@@ -331,8 +331,6 @@ mod tests {
     use crate::internal::tests::utils::task;
     use crate::internal::tests::utils::task::task_with_deps;
 
-    //use crate::test_util::{submit_test_tasks, task, task_with_deps};
-
     impl Task {
         pub fn get_unfinished_deps(&self) -> u32 {
             match &self.state {
@@ -345,7 +343,9 @@ mod tests {
     #[test]
     fn task_consumers_empty() {
         let a = task::task(0);
-        assert_eq!(a.collect_consumers(&Default::default()), Default::default());
+        let mut s = crate::Set::new();
+        a.collect_recursive_consumers(&Default::default(), &mut s);
+        assert!(s.is_empty());
     }
 
     #[test]
@@ -361,7 +361,8 @@ mod tests {
         submit_test_tasks(&mut core, vec![a, b, c, d, e]);
 
         assert_eq!(
-            core.get_task(0.into()).collect_consumers(core.task_map()),
+            core.get_task(0.into())
+                .collect_recursive_consumers(core.task_map()),
             expected_ids.into_iter().collect()
         );
     }
