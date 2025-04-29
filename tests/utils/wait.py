@@ -10,7 +10,7 @@ class TimeoutException(BaseException):
     pass
 
 
-def wait_until(fn, sleep_s=0.2, timeout_s=DEFAULT_TIMEOUT):
+def wait_until(fn, sleep_s=0.2, on_timeout=None, timeout_s=DEFAULT_TIMEOUT):
     end = time.time() + timeout_s
 
     while time.time() < end:
@@ -18,7 +18,12 @@ def wait_until(fn, sleep_s=0.2, timeout_s=DEFAULT_TIMEOUT):
         if value is not None and value is not False:
             return value
         time.sleep(sleep_s)
-    raise TimeoutException(f"Wait timeouted after {timeout_s} seconds")
+    extra_info = None
+    if on_timeout is not None:
+        extra_info = on_timeout()
+    if extra_info is None:
+        extra_info = ""
+    raise TimeoutException(f"Wait timeouted after {timeout_s} seconds\n{extra_info}")
 
 
 TERMINAL_STATES = ["failed", "cancelled", "finished"]
@@ -60,12 +65,11 @@ def wait_for_state(
                 raise Exception(f"Waiting for {target_states} but job(s) are already in terminal states: {items}")
         return r
 
-    try:
-        wait_until(check, **kwargs)
-    except TimeoutException as e:
+    def on_timeout():
         if last_table is not None:
-            raise Exception(f"{e}, most recent table:\n{last_table}")
-        raise e
+            return "most recent table:\n{last_table}"
+
+    wait_until(check, on_timeout=on_timeout, **kwargs)
 
 
 def wait_for_job_state(env, ids: Union[int, List[int]], target_states: Union[str, List[str]], **kwargs):
