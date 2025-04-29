@@ -7,7 +7,6 @@ use tako::WorkerId;
 use tako::gateway::LostWorkerReason;
 use tako::worker::WorkerConfiguration;
 
-use tako::JobId;
 use crate::common::manager::info::{GetManagerInfo, ManagerInfo};
 use crate::common::rpc::{ResponseToken, RpcSender, initiate_request, make_rpc_queue};
 use crate::server::autoalloc::process::autoalloc_process;
@@ -16,6 +15,7 @@ use crate::server::autoalloc::{Allocation, QueueId};
 use crate::server::event::streamer::EventStreamer;
 use crate::server::state::StateRef;
 use crate::transfer::messages::{AllocationQueueParams, QueueData};
+use tako::JobId;
 
 #[derive(Debug)]
 pub enum AutoAllocMessage {

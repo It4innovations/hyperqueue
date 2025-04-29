@@ -13,10 +13,10 @@ use crate::client::globalsettings::GlobalSettings;
 use crate::client::resources::{parse_allocation_request, parse_resource_request};
 use crate::common::arraydef::IntArray;
 use crate::common::cli::OptsWithMatches;
-use crate::common::parser2::{all_consuming, CharParser, ParseError};
+use crate::common::parser2::{CharParser, ParseError, all_consuming};
 use crate::common::placeholders::{
-    get_unknown_placeholders, parse_resolvable_string, StringPart, CWD_PLACEHOLDER,
-    JOB_ID_PLACEHOLDER, TASK_ID_PLACEHOLDER,
+    CWD_PLACEHOLDER, JOB_ID_PLACEHOLDER, StringPart, TASK_ID_PLACEHOLDER, get_unknown_placeholders,
+    parse_resolvable_string,
 };
 use crate::common::utils::fs::get_current_dir;
 use crate::common::utils::str::pluralize;
@@ -30,16 +30,16 @@ use crate::transfer::messages::{
 };
 use anyhow::{anyhow, bail};
 use bstr::BString;
+use chumsky::Parser as ChumskyParser;
 use chumsky::primitive::{filter, just};
 use chumsky::text::TextParser;
-use chumsky::Parser as ChumskyParser;
 use clap::{ArgMatches, Parser};
 use smallvec::smallvec;
 use tako::gateway::{
     ResourceRequest, ResourceRequestEntries, ResourceRequestEntry, ResourceRequestVariants,
 };
 use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
-use tako::resources::{AllocationRequest, NumOfNodes, ResourceAmount, CPU_RESOURCE_NAME};
+use tako::resources::{AllocationRequest, CPU_RESOURCE_NAME, NumOfNodes, ResourceAmount};
 use tako::{JobId, JobTaskCount, Map};
 
 const SUBMIT_ARRAY_LIMIT: JobTaskCount = 999;
@@ -969,7 +969,7 @@ fn make_entries_from_json(filename: &Path) -> anyhow::Result<Vec<BString>> {
 #[cfg(test)]
 mod tests {
     use crate::client::commands::submit::command::{
-        parse_stdio_def, stdio_def_parser, StdioDefInput,
+        StdioDefInput, parse_stdio_def, stdio_def_parser,
     };
     use crate::common::parser2::all_consuming;
     use crate::tests::utils::expect_parser_error;

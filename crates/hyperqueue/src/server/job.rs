@@ -452,29 +452,31 @@ impl Job {
                 self.tasks.reserve(ids.id_count() as usize);
                 ids.iter().for_each(|task_id| {
                     let task_id = JobTaskId::new(task_id);
-                    assert!(self
-                        .tasks
-                        .insert(
-                            task_id,
-                            JobTaskInfo {
-                                state: JobTaskState::Waiting,
-                            },
-                        )
-                        .is_none());
+                    assert!(
+                        self.tasks
+                            .insert(
+                                task_id,
+                                JobTaskInfo {
+                                    state: JobTaskState::Waiting,
+                                },
+                            )
+                            .is_none()
+                    );
                 })
             }
             JobTaskDescription::Graph { tasks } => {
                 self.tasks.reserve(tasks.len());
                 tasks.iter().for_each(|task| {
-                    assert!(self
-                        .tasks
-                        .insert(
-                            task.id,
-                            JobTaskInfo {
-                                state: JobTaskState::Waiting,
-                            },
-                        )
-                        .is_none());
+                    assert!(
+                        self.tasks
+                            .insert(
+                                task.id,
+                                JobTaskInfo {
+                                    state: JobTaskState::Waiting,
+                                },
+                            )
+                            .is_none()
+                    );
                 })
             }
         };

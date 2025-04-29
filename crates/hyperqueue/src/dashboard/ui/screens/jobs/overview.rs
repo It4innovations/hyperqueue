@@ -5,8 +5,8 @@ use crossterm::event::{KeyCode, KeyEvent};
 use std::default::Default;
 use std::time::SystemTime;
 
-use crate::dashboard::data::timelines::job_timeline::TaskInfo;
 use crate::dashboard::data::DashboardData;
+use crate::dashboard::data::timelines::job_timeline::TaskInfo;
 
 use crate::dashboard::ui::screens::jobs::jobs_table::JobsTable;
 use crate::dashboard::ui::widgets::tasks_table::TasksTable;

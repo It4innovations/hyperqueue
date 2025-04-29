@@ -3,7 +3,7 @@ use crate::client::globalsettings::GlobalSettings;
 use crate::client::job::get_worker_map;
 use crate::client::output::{Verbosity, VerbosityFlag};
 use crate::common::arraydef::IntArray;
-use crate::common::cli::{parse_last_range, parse_last_single_id, TaskSelectorArg};
+use crate::common::cli::{TaskSelectorArg, parse_last_range, parse_last_single_id};
 use crate::common::error::HqError;
 use crate::rpc_call;
 use crate::transfer::connection::ClientSession;

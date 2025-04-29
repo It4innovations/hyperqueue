@@ -1,8 +1,8 @@
 use crate::common::serialization::Serialized;
 use crate::server::autoalloc::{AllocationId, QueueId};
+use crate::server::event::Event;
 use crate::server::event::journal::{EventStreamMessage, EventStreamSender};
 use crate::server::event::payload::EventPayload;
-use crate::server::event::Event;
 use crate::transfer::messages::{AllocationQueueParams, JobDescription, SubmitRequest};
 use chrono::{DateTime, Utc};
 use smallvec::SmallVec;

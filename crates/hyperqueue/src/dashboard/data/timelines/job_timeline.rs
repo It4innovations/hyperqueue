@@ -1,5 +1,5 @@
-use crate::server::event::payload::EventPayload;
 use crate::server::event::Event;
+use crate::server::event::payload::EventPayload;
 use crate::transfer::messages::{JobDescription, JobSubmitDescription};
 use chrono::{DateTime, Utc};
 use std::time::SystemTime;

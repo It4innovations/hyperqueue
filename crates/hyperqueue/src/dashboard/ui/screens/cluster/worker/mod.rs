@@ -1,5 +1,5 @@
-use crate::dashboard::data::timelines::job_timeline::TaskInfo;
 use crate::dashboard::data::DashboardData;
+use crate::dashboard::data::timelines::job_timeline::TaskInfo;
 use crate::dashboard::ui::screens::cluster::worker::cpu_util_table::render_cpu_util_table;
 use crate::dashboard::ui::screens::cluster::worker::worker_config_table::WorkerConfigTable;
 use crate::dashboard::ui::screens::cluster::worker::worker_utilization_chart::WorkerUtilizationChart;

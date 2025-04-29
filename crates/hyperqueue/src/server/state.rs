@@ -1,13 +1,14 @@
 use std::cmp::min;
 
 use chrono::Utc;
-use tako::{ItemId, TaskId};
 use tako::define_wrapped_type;
 use tako::gateway::{
     CancelTasks, FromGatewayMessage, LostWorkerMessage, NewWorkerMessage, TaskFailedMessage,
     TaskState, TaskUpdate, ToGatewayMessage,
 };
+use tako::{ItemId, TaskId};
 
+use crate::WrappedRcRefCell;
 use crate::server::Senders;
 use crate::server::autoalloc::LostWorkerDetails;
 use crate::server::job::Job;
@@ -15,7 +16,6 @@ use crate::server::restore::StateRestorer;
 use crate::server::worker::Worker;
 use crate::transfer::messages::ServerInfo;
 use tako::{JobId, Map, WorkerId};
-use crate::{WrappedRcRefCell};
 
 pub struct State {
     jobs: Map<JobId, Job>,
@@ -188,12 +188,9 @@ impl State {
                         worker.update_task_started(msg.id, now);
                     }
                 }
-                senders.events.on_task_started(
-                    msg.id,
-                    instance_id,
-                    worker_ids.clone(),
-                    now,
-                );
+                senders
+                    .events
+                    .on_task_started(msg.id, instance_id, worker_ids.clone(), now);
             }
             TaskState::Finished => {
                 let now = Utc::now();

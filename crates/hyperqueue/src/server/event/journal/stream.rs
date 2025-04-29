@@ -1,4 +1,3 @@
-use tako::JobId;
 use crate::common::utils::str::pluralize;
 use crate::server::event::Event;
 use crate::server::event::journal::JournalReader;
@@ -10,6 +9,7 @@ use std::fs::{remove_file, rename};
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+use tako::JobId;
 use tako::{Set, WorkerId};
 use tokio::sync::mpsc;
 
