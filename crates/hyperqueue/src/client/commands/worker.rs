@@ -1,12 +1,12 @@
 use crate::client::commands::duration_doc;
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use chrono::Utc;
 use std::fmt::{Display, Formatter};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
 use tako::resources::{
-    ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind, CPU_RESOURCE_NAME,
+    CPU_RESOURCE_NAME, ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind,
 };
 use tako::worker::{ServerLostPolicy, WorkerConfiguration};
 use tako::{Map, Set};
@@ -21,7 +21,7 @@ use tokio::task::JoinSet;
 use tokio::time::sleep;
 
 use crate::client::globalsettings::GlobalSettings;
-use crate::client::utils::{passthrough_parser, PassThroughArgument};
+use crate::client::utils::{PassThroughArgument, passthrough_parser};
 use crate::common::cli::DeploySshOpts;
 use crate::common::manager::info::{ManagerInfo, WORKER_EXTRA_MANAGER_KEY};
 use crate::common::utils::fs::get_hq_binary_path;
@@ -37,10 +37,10 @@ use crate::worker::bootstrap::{
     finalize_configuration, initialize_worker, try_get_pbs_info, try_get_slurm_info,
 };
 use crate::worker::hwdetect::{
-    detect_additional_resources, detect_cpus, prune_hyper_threading, GPU_ENVIRONMENTS,
+    GPU_ENVIRONMENTS, detect_additional_resources, detect_cpus, prune_hyper_threading,
 };
 use crate::worker::parser::{parse_cpu_definition, parse_resource_definition};
-use crate::{rpc_call, DEFAULT_WORKER_GROUP_NAME};
+use crate::{DEFAULT_WORKER_GROUP_NAME, rpc_call};
 use tako::WorkerId;
 
 #[derive(clap::ValueEnum, Clone)]

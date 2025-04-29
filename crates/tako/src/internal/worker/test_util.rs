@@ -1,7 +1,7 @@
 use crate::datasrv::DataObjectId;
 use crate::gateway::TaskDataFlags;
-use crate::internal::common::resources::{Allocation, ResourceRequest, ResourceRequestVariants};
 use crate::internal::common::Map;
+use crate::internal::common::resources::{Allocation, ResourceRequest, ResourceRequestVariants};
 use crate::internal::messages::worker::ComputeTaskMsg;
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::tests::utils::resources::cpus_compact;

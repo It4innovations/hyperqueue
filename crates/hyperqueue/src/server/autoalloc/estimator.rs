@@ -1,5 +1,5 @@
-use crate::server::autoalloc::state::AllocationQueue;
 use crate::server::autoalloc::QueueInfo;
+use crate::server::autoalloc::state::AllocationQueue;
 use crate::server::job::Job;
 use crate::server::state::State;
 use crate::server::worker::Worker;

@@ -6,15 +6,15 @@ use derive_builder::Builder;
 use smallvec::smallvec;
 use thin_vec::ThinVec;
 
+use crate::TaskId;
 use crate::gateway::{
     ResourceRequest, ResourceRequestEntry, ResourceRequestVariants, SharedTaskConfiguration,
     TaskConfiguration, TaskDataFlags,
 };
-use crate::internal::common::resources::NumOfNodes;
 use crate::internal::common::Map;
+use crate::internal::common::resources::NumOfNodes;
 use crate::program::{ProgramDefinition, StdioDef};
 use crate::resources::{AllocationRequest, ResourceAmount};
-use crate::TaskId;
 
 pub struct GraphBuilder {
     id_counter: u32,

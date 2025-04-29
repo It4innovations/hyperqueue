@@ -1,9 +1,9 @@
+use crate::JobDataObjectId;
 use crate::client::resources::parse_allocation_request;
 use crate::common::arraydef::IntArray;
 use crate::common::arrayparser::parse_array;
 use crate::common::error::HqError;
 use crate::common::utils::time::parse_human_time;
-use crate::JobDataObjectId;
 use bstr::BString;
 use serde::de::MapAccess;
 use serde::{Deserialize, Deserializer};
