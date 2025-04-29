@@ -9,6 +9,7 @@ use hyperqueue::client::resources::parse_allocation_request;
 use hyperqueue::client::status::{Status, is_terminated};
 use hyperqueue::common::arraydef::IntArray;
 use hyperqueue::common::utils::fs::get_current_dir;
+use hyperqueue::rpc_call;
 use hyperqueue::server::job::JobTaskState;
 use hyperqueue::transfer::messages::{
     ForgetJobRequest, FromClientMessage, IdSelector, JobDescription, JobDetailRequest,
@@ -17,7 +18,6 @@ use hyperqueue::transfer::messages::{
     TaskKind, TaskKindProgram, TaskSelector, TaskStatusSelector, TaskWithDependencies,
     ToClientMessage,
 };
-use hyperqueue::{JobTaskCount, Set, rpc_call, tako};
 use pyo3::exceptions::PyException;
 use pyo3::prelude::PyAnyMethods;
 use pyo3::types::PyTuple;
@@ -30,6 +30,7 @@ use tako::gateway::{
 };
 use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
 use tako::resources::{AllocationRequest, NumOfNodes, ResourceAmount};
+use tako::{JobTaskCount, Set};
 
 #[derive(Debug, FromPyObject)]
 enum AllocationValue {

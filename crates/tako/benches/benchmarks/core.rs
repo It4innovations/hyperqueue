@@ -64,7 +64,7 @@ fn bench_add_task(c: &mut BenchmarkGroup<WallTime>) {
                         let mut core = Core::default();
                         add_tasks(&mut core, task_count);
 
-                        let task = create_task(TaskId::new_test((task_count + 1)));
+                        let task = create_task(TaskId::new_test(task_count + 1));
                         (core, Some(task))
                     },
                     |(core, task)| {
