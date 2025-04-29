@@ -7,8 +7,8 @@ use std::process::ExitStatus;
 use std::time::Duration;
 
 use bstr::{BStr, BString, ByteSlice};
-use futures::future::Either;
 use futures::TryFutureExt;
+use futures::future::Either;
 use nix::sys::signal;
 use nix::sys::signal::Signal;
 use tempfile::TempDir;
@@ -20,7 +20,7 @@ use crate::common::env::{
     HQ_NODE_FILE, HQ_NUM_NODES, HQ_PIN, HQ_SUBMIT_DIR, HQ_TASK_DIR, HQ_TASK_ID,
 };
 use crate::common::placeholders::{
-    fill_placeholders_in_paths, CompletePlaceholderCtx, ResolvablePaths,
+    CompletePlaceholderCtx, ResolvablePaths, fill_placeholders_in_paths,
 };
 use crate::common::utils::fs::{bytes_to_path, is_implicit_path, path_has_extension};
 use crate::transfer::messages::{PinMode, TaskKindProgram};
@@ -30,14 +30,14 @@ use crate::worker::streamer::StreamSender;
 use crate::worker::streamer::StreamerRef;
 use tako::comm::serialize;
 use tako::launcher::{
-    command_from_definitions, StopReason, TaskBuildContext, TaskLaunchData, TaskResult,
+    StopReason, TaskBuildContext, TaskLaunchData, TaskResult, command_from_definitions,
 };
 use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
 use tako::resources::{
-    Allocation, ResourceAllocation, AMD_GPU_RESOURCE_NAME, CPU_RESOURCE_ID, CPU_RESOURCE_NAME,
-    NVIDIA_GPU_RESOURCE_NAME,
+    AMD_GPU_RESOURCE_NAME, Allocation, CPU_RESOURCE_ID, CPU_RESOURCE_NAME,
+    NVIDIA_GPU_RESOURCE_NAME, ResourceAllocation,
 };
-use tako::{format_comma_delimited, InstanceId, JobId, JobTaskId};
+use tako::{InstanceId, TaskId, format_comma_delimited};
 
 const MAX_CUSTOM_ERROR_LENGTH: usize = 2048; // 2KiB
 
@@ -56,26 +56,24 @@ pub(super) fn build_program_task(
         task_dir,
     } = program;
     let SharedTaskDescription {
-        job_id,
         task_id,
         submit_dir,
         stream_path,
         entry,
     } = shared;
 
-    let (program, job_id, job_task_id, instance_id, task_dir): (
+    let (program, task_id, instance_id, task_dir): (
         ProgramDefinition,
-        JobId,
-        JobTaskId,
+        TaskId,
         InstanceId,
         Option<TempDir>,
     ) = {
         program
             .env
-            .insert(HQ_JOB_ID.into(), job_id.to_string().into());
+            .insert(HQ_JOB_ID.into(), task_id.job_id().to_string().into());
         program
             .env
-            .insert(HQ_TASK_ID.into(), task_id.to_string().into());
+            .insert(HQ_TASK_ID.into(), task_id.job_task_id().to_string().into());
         program.env.insert(
             HQ_SUBMIT_DIR.into(),
             BString::from(submit_dir.to_string_lossy().as_bytes()),
@@ -170,7 +168,6 @@ pub(super) fn build_program_task(
         }
 
         let ctx = CompletePlaceholderCtx {
-            job_id,
             task_id,
             instance_id: build_ctx.instance_id(),
             submit_dir: &submit_dir,
@@ -192,7 +189,7 @@ pub(super) fn build_program_task(
             )
         })?;
 
-        (program, job_id, task_id, build_ctx.instance_id(), task_dir)
+        (program, task_id, build_ctx.instance_id(), task_dir)
     };
 
     let context = RunningTaskContext { instance_id };
@@ -201,8 +198,7 @@ pub(super) fn build_program_task(
     let task_future = create_task_future(
         streamer_ref.clone(),
         program,
-        job_id,
-        job_task_id,
+        task_id,
         instance_id,
         stop_receiver,
         task_dir,
@@ -216,14 +212,13 @@ pub(super) fn build_program_task(
 }
 
 async fn resend_stdio(
-    job_id: JobId,
-    job_task_id: JobTaskId,
+    task_id: TaskId,
     channel: ChannelId,
     stdio: Option<impl tokio::io::AsyncRead + Unpin>,
     stream: StreamSender,
 ) -> tako::Result<()> {
     if let Some(mut stdio) = stdio {
-        log::debug!("Resending stream {}/{}/{}", job_id, job_task_id, channel);
+        log::debug!("Resending stream {task_id}/{channel}");
         loop {
             let mut buffer = vec![0; STDIO_BUFFER_SIZE];
             let size = stdio.read(&mut buffer[..]).await?;
@@ -503,8 +498,7 @@ fn check_error_filename(task_dir: TempDir) -> Option<tako::Error> {
 async fn create_task_future(
     streamer_ref: StreamerRef,
     program: ProgramDefinition,
-    job_id: JobId,
-    job_task_id: JobTaskId,
+    task_id: TaskId,
     instance_id: InstanceId,
     end_receiver: Receiver<StopReason>,
     task_dir: Option<TempDir>,
@@ -562,8 +556,7 @@ async fn create_task_future(
             .get_stream(
                 &streamer_ref,
                 stream_path.as_ref().unwrap(),
-                job_id,
-                job_task_id,
+                task_id,
                 instance_id,
             )
             .map_err(|e| tako::Error::GenericError(e.to_string()))?;
@@ -575,13 +568,12 @@ async fn create_task_future(
             let stderr = child.stderr.take();
             let response = tokio::try_join!(
                 child_wait(child, &program.stdin).map_err(tako::Error::from),
-                resend_stdio(job_id, job_task_id, 0, stdout, stream2.clone())
-                    .map_err(streamer_error),
-                resend_stdio(job_id, job_task_id, 1, stderr, stream2).map_err(streamer_error),
+                resend_stdio(task_id, 0, stdout, stream2.clone()).map_err(streamer_error),
+                resend_stdio(task_id, 1, stderr, stream2).map_err(streamer_error),
             );
             status_to_result(response?.0)
         };
-        let r = handle_task_with_signals(main_fut, pid, job_id, job_task_id, end_receiver).await;
+        let r = handle_task_with_signals(main_fut, pid, task_id, end_receiver).await;
         stream.flush().await?;
         r
     } else {
@@ -594,7 +586,7 @@ async fn create_task_future(
             .await;
             result
         };
-        handle_task_with_signals(task_fut, pid, job_id, job_task_id, end_receiver).await
+        handle_task_with_signals(task_fut, pid, task_id, end_receiver).await
     }
 }
 
@@ -660,8 +652,7 @@ async fn cleanup_task_file(result: Option<&TaskResult>, stdio: &StdioDef) {
 async fn handle_task_with_signals<F: Future<Output = tako::Result<TaskResult>>>(
     task_future: F,
     pid: u32,
-    job_id: JobId,
-    job_task_id: JobTaskId,
+    task_id: TaskId,
     end_receiver: Receiver<StopReason>,
 ) -> tako::Result<TaskResult> {
     let send_signal = |signal: Signal| -> tako::Result<()> {
@@ -675,9 +666,7 @@ async fn handle_task_with_signals<F: Future<Output = tako::Result<TaskResult>>>(
     let event_fut = async move {
         let stop_reason = end_receiver.await;
         let stop_reason = stop_reason.expect("Stop reason could not be received");
-        log::debug!(
-            "Received stop command, attempting to end task {job_id}/{job_task_id} with SIGINT"
-        );
+        log::debug!("Received stop command, attempting to end task {task_id} with SIGINT");
 
         // We have received a stop command for this task.
         // We should attempt to kill it and wait until the child process from `task_future` resolves.
@@ -696,17 +685,15 @@ async fn handle_task_with_signals<F: Future<Output = tako::Result<TaskResult>>>(
             match tokio::time::timeout(Duration::from_secs(1), fut).await {
                 Ok(_) => {
                     // The task has finished gracefully
-                    log::debug!("Task {job_id}/{job_task_id} has ended gracefully after a signal");
+                    log::debug!("Task {task_id} has ended gracefully after a signal");
                     result
                 }
                 Err(_) => {
                     // The task did not exit, kill it
                     if let Err(error) = send_signal(Signal::SIGKILL) {
-                        log::error!(
-                            "Unable to kill process Task {job_id}/{job_task_id}: {error:?}"
-                        );
+                        log::error!("Unable to kill process Task {task_id}: {error:?}");
                     } else {
-                        log::debug!("Task {job_id}/{job_task_id} has been killed");
+                        log::debug!("Task {task_id} has been killed");
                     }
                     result
                 }
@@ -714,7 +701,7 @@ async fn handle_task_with_signals<F: Future<Output = tako::Result<TaskResult>>>(
         }
         // The task has finished
         Either::Right((result, _)) => {
-            log::debug!("Task {job_id}/{job_task_id} has finished normally");
+            log::debug!("Task {task_id} has finished normally");
             result
         }
     }

@@ -4,7 +4,6 @@ use std::time::Duration;
 use criterion::measurement::WallTime;
 use criterion::{BatchSize, BenchmarkGroup, BenchmarkId, Criterion};
 use smallvec::smallvec;
-use tako::ItemId;
 use tako::TaskId;
 use tako::gateway::TaskDataFlags;
 use tako::internal::messages::worker::ComputeTaskMsg;
@@ -57,10 +56,10 @@ fn create_worker_state() -> WorkerStateRef {
     )
 }
 
-fn create_worker_task(id: u64) -> Task {
+fn create_worker_task(id: u32) -> Task {
     Task::new(
         ComputeTaskMsg {
-            id: TaskId::new(id as <TaskId as ItemId>::IdType),
+            id: TaskId::new_test(id),
             instance_id: Default::default(),
             user_priority: 0,
             scheduler_priority: 0,
@@ -155,7 +154,7 @@ fn bench_cancel_waiting_task(c: &mut BenchmarkGroup<WallTime>) {
                                 state.add_task(create_worker_task(id));
                             }
                         }
-                        (state, TaskId::new(0))
+                        (state, TaskId::new_test(0))
                     },
                     |(state, task_id)| {
                         let mut state = state.get_mut();

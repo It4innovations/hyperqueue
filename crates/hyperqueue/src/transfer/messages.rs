@@ -3,13 +3,13 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::borrow::Cow;
 
+use crate::JobDataObjectId;
 use crate::client::status::Status;
 use crate::common::arraydef::IntArray;
 use crate::common::manager::info::ManagerType;
 use crate::server::autoalloc::{Allocation, QueueId, QueueInfo};
 use crate::server::event::Event;
 use crate::server::job::{JobTaskCounters, JobTaskInfo, SubmittedJobDescription};
-use crate::JobDataObjectId;
 use bstr::BString;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -72,8 +72,7 @@ impl PinMode {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TaskBuildDescription<'a> {
     pub task_kind: Cow<'a, TaskKind>,
-    pub job_id: JobId,
-    pub task_id: JobTaskId,
+    pub task_id: TaskId,
     pub submit_dir: Cow<'a, PathBuf>,
     pub stream_path: Option<Cow<'a, PathBuf>>,
     pub entry: Option<BString>,

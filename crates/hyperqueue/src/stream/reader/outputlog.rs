@@ -4,7 +4,7 @@ use crate::common::error::HqError;
 use crate::common::serialization::SerializationConfig;
 use crate::stream::StreamSerializationConfig;
 use crate::transfer::stream::{ChannelId, StreamChunkHeader};
-use crate::worker::streamer::{StreamFileHeader, STREAM_FILE_HEADER, STREAM_FILE_SUFFIX};
+use crate::worker::streamer::{STREAM_FILE_HEADER, STREAM_FILE_SUFFIX, StreamFileHeader};
 use bincode::Options;
 use chrono::{DateTime, Utc};
 use colored::{Color, Colorize};
@@ -175,8 +175,8 @@ impl OutputLog {
             let mut file = BufReader::new(File::open(path)?);
             let _header = OutputLog::check_header(&mut file)?;
             while let Some(chunk_header) = Self::read_chunk(&mut file)? {
-                let job = index.entry(chunk_header.job).or_default();
-                let task = job.entry(chunk_header.task).or_default();
+                let job = index.entry(chunk_header.task.job_id()).or_default();
+                let task = job.entry(chunk_header.task.job_task_id()).or_default();
                 if task
                     .instances
                     .last()
