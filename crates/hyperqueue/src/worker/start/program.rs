@@ -621,8 +621,7 @@ fn signal_name(signal: i32) -> &'static str {
 async fn create_task_future(
     _streamer_ref: StreamerRef,
     _program: ProgramDefinition,
-    _job_id: JobId,
-    _job_task_id: JobTaskId,
+    _task_id: TaskId,
     _instance_id: InstanceId,
     _end_receiver: Receiver<StopReason>,
     _task_dir: Option<TempDir>,
