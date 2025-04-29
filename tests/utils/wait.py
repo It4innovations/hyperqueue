@@ -90,12 +90,17 @@ def wait_for_task_state(env, job_id: int, task_ids: Union[int, List[int]], state
 
     ids = ",".join(str(t) for t in task_ids)
     states = [s.lower() for s in states]
+    result = None
 
     def check():
+        nonlocal result
         result = env.command(["--output-mode=json", "task", "info", str(job_id), ids], as_json=True)
         return [r["state"] for r in result] == states
 
-    wait_until(check, **kwargs)
+    def on_timeout():
+        return f"most recent output:\n{result}"
+
+    wait_until(check, on_timeout=on_timeout, **kwargs)
 
 
 def wait_for_pid_exit(pid: int):
