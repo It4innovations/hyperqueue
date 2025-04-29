@@ -4,9 +4,9 @@ use std::time::{Duration, SystemTime};
 
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
-use tako::gateway::LostWorkerReason;
 use tako::Set;
 use tako::WorkerId;
+use tako::gateway::LostWorkerReason;
 
 use crate::common::idcounter::IdCounter;
 use crate::common::manager::info::ManagerType;
@@ -196,10 +196,11 @@ impl AllocationQueue {
     }
 
     pub fn add_allocation(&mut self, allocation: Allocation) {
-        assert!(self
-            .allocations
-            .insert(allocation.id.clone(), allocation)
-            .is_none());
+        assert!(
+            self.allocations
+                .insert(allocation.id.clone(), allocation)
+                .is_none()
+        );
     }
 
     pub fn get_allocation_mut(&mut self, id: &str) -> Option<&mut Allocation> {

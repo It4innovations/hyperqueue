@@ -1,8 +1,8 @@
 use crate::common::arraydef::{IntArray, IntRange};
-use crate::common::parser2::{all_consuming, parse_u32, CharParser, ParseError};
+use crate::common::parser2::{CharParser, ParseError, all_consuming, parse_u32};
+use chumsky::Parser;
 use chumsky::primitive::just;
 use chumsky::text::TextParser;
-use chumsky::Parser;
 use tako::Set;
 
 /// Parse integer range in the format n[-end][:step].

@@ -10,9 +10,9 @@ use tako::gateway::{
 use tako::{Set, TaskGroup, TaskId};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc::UnboundedSender;
-use tokio::sync::{mpsc, Notify};
+use tokio::sync::{Notify, mpsc};
 
-use crate::client::status::{job_status, Status};
+use crate::client::status::{Status, job_status};
 use crate::common::serverdir::ServerDir;
 use crate::server::event::Event;
 use crate::server::job::{JobTaskCounters, JobTaskState};
@@ -30,9 +30,9 @@ pub mod autoalloc;
 mod submit;
 
 use crate::common::serialization::Serialized;
+use crate::server::Senders;
 use crate::server::client::submit::handle_open_job;
 use crate::server::event::payload::EventPayload;
-use crate::server::Senders;
 pub(crate) use submit::{submit_job_desc, validate_submit};
 
 pub async fn handle_client_connections(

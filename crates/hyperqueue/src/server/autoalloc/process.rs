@@ -9,6 +9,7 @@ use tempfile::TempDir;
 
 use crate::common::manager::info::{ManagerInfo, ManagerType};
 use crate::common::rpc::RpcReceiver;
+use crate::get_or_return;
 use crate::server::autoalloc::config::{
     MAX_QUEUED_STATUS_ERROR_COUNT, MAX_RUNNING_STATUS_ERROR_COUNT, MAX_SUBMISSION_FAILS,
     SUBMISSION_DELAYS, get_refresh_timeout, get_status_check_interval, max_allocation_fails,
@@ -28,8 +29,7 @@ use crate::server::autoalloc::{Allocation, AllocationId, AutoAllocResult, QueueI
 use crate::server::event::streamer::EventStreamer;
 use crate::server::state::StateRef;
 use crate::transfer::messages::{AllocationQueueParams, QueueData, QueueState};
-use crate::get_or_return;
-use tako::{JobId};
+use tako::JobId;
 
 #[derive(Copy, Clone)]
 enum RefreshReason {

@@ -291,13 +291,7 @@ fn build_tasks_array(
             .map(|(job_task_id, entry)| {
                 let task_id = TaskId::new(job_id, job_task_id.into());
                 build_task_conf(
-                    serialize_task_body(
-                        task_id,
-                        Some(entry),
-                        task_desc,
-                        submit_dir,
-                        stream_path,
-                    ),
+                    serialize_task_body(task_id, Some(entry), task_desc, submit_dir, stream_path),
                     task_id,
                 )
             })

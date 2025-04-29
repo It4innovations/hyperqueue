@@ -1,5 +1,5 @@
 use crate::client::commands::submit::command::{
-    send_submit_request, DEFAULT_STDERR_PATH, DEFAULT_STDOUT_PATH,
+    DEFAULT_STDERR_PATH, DEFAULT_STDOUT_PATH, send_submit_request,
 };
 use crate::client::commands::submit::defs::{
     ArrayDef, JobDef, StdioDefFull, StdioDefInput, TaskDef,
@@ -16,9 +16,9 @@ use crate::transfer::messages::{
 use clap::Parser;
 use smallvec::smallvec;
 use std::path::PathBuf;
+use tako::Map;
 use tako::gateway::{ResourceRequest, ResourceRequestVariants, TaskDataFlags};
 use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
-use tako::Map;
 use tako::{JobId, JobTaskCount, JobTaskId};
 
 #[derive(Parser)]
