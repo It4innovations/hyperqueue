@@ -8,7 +8,7 @@ use crate::server::state::State;
 use crate::transfer::messages::{AllocationQueueParams, JobDescription, SubmitRequest};
 use crate::worker::start::RunningTaskContext;
 use std::path::Path;
-use tako::gateway::NewTasksMessage;
+use tako::gateway::TaskSubmit;
 use tako::{InstanceId, ItemId, JobId, JobTaskId, Map, TaskId, WorkerId};
 
 struct RestorerTaskInfo {
@@ -49,11 +49,11 @@ impl RestorerJob {
         mut self,
         job_id: JobId,
         state: &mut State,
-    ) -> crate::Result<Vec<NewTasksMessage>> {
+    ) -> crate::Result<Vec<TaskSubmit>> {
         log::debug!("Restoring job {}", job_id);
         let job = Job::new(job_id, self.job_desc, self.is_open);
         state.add_job(job);
-        let mut result: Vec<NewTasksMessage> = Vec::new();
+        let mut result: Vec<TaskSubmit> = Vec::new();
         for submit in self.submit_descs {
             if let Some(e) = validate_submit(state.get_job(job_id), &submit.description().task_desc)
             {
@@ -161,7 +161,7 @@ impl StateRestorer {
     pub fn restore_jobs_and_queues(
         self,
         state: &mut State,
-    ) -> crate::Result<(Vec<NewTasksMessage>, Vec<Queue>)> {
+    ) -> crate::Result<(Vec<TaskSubmit>, Vec<Queue>)> {
         let mut jobs = Vec::new();
         for (job_id, job) in self.jobs {
             let mut new_jobs = job.restore_job(job_id, state)?;

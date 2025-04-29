@@ -1,7 +1,4 @@
-use crate::gateway::{
-    FromGatewayMessage, NewWorkerAllocationResponse, NewWorkerQuery, ToGatewayMessage,
-    WorkerTypeQuery,
-};
+use crate::internal::server::control::{NewWorkerAllocationResponse, WorkerTypeQuery};
 use crate::internal::tests::integration::utils::api::cancel;
 use crate::internal::tests::integration::utils::check_file_contents;
 use crate::internal::tests::integration::utils::server::{ServerHandle, run_test};
@@ -175,12 +172,13 @@ async fn query_helper(
     handler: &mut ServerHandle,
     worker_queries: Vec<WorkerTypeQuery>,
 ) -> NewWorkerAllocationResponse {
-    handler
-        .send(FromGatewayMessage::NewWorkerQuery(NewWorkerQuery {
-            worker_queries,
-        }))
-        .await;
-    wait_for_msg!(handler, ToGatewayMessage::NewWorkerAllocationQueryResponse(msg) => msg)
+    todo!()
+    // handler
+    //     .send(FromGatewayMessage::NewWorkerQuery(NewWorkerQuery {
+    //         worker_queries,
+    //     }))
+    //     .await;
+    // wait_for_msg!(handler, ToGatewayMessage::NewWorkerAllocationQueryResponse(msg) => msg)
 }
 
 #[tokio::test]

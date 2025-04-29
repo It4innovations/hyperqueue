@@ -5,7 +5,6 @@ pub(crate) mod dataobj;
 pub(crate) mod dataobjmap;
 pub mod reactor;
 pub mod rpc;
-pub(crate) mod start;
 pub mod task;
 pub mod taskmap;
 pub mod worker;

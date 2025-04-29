@@ -17,12 +17,12 @@ use crate::common::serverdir::{
 };
 use crate::server::Senders;
 use crate::server::autoalloc::{QueueId, create_autoalloc_service};
-use crate::server::backend::Backend;
 use crate::server::event::journal::JournalWriter;
 use crate::server::event::journal::start_event_streaming;
 use crate::server::event::streamer::EventStreamer;
 use crate::server::restore::StateRestorer;
 use crate::server::state::StateRef;
+use crate::server::tako_events::UpstreamEventProcessor;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::ServerInfo;
 use chrono::Utc;
@@ -31,7 +31,6 @@ use rand::Rng;
 use rand::distr::Alphanumeric;
 use std::time::Duration;
 use tako::WorkerId;
-use tako::gateway::{FromGatewayMessage, ToGatewayMessage};
 
 enum ServerStatus {
     Offline,
@@ -152,6 +151,13 @@ pub async fn initialize_server(
     .with_context(|| "Cannot create HQ server socket".to_string())?;
     let client_port = client_listener.local_addr()?.port();
 
+    let worker_listen_address = SocketAddr::new(
+        Ipv4Addr::UNSPECIFIED.into(),
+        server_cfg.worker_port.unwrap_or(0),
+    );
+    log::debug!("Waiting for workers on {:?}", worker_listen_address);
+    let worker_listener = TcpListener::bind(worker_listen_address).await?;
+
     let server_uid = server_cfg
         .server_uid
         .take()
@@ -162,14 +168,14 @@ pub async fn initialize_server(
     if worker_key.is_none() {
         log::warn!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
         log::warn!("Server is started with unprotected worker connections");
-        log::warn!("Anyone can connect as worker");
+        log::warn!("Anyone can connect as a worker");
         log::warn!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
     }
 
     if client_key.is_none() {
         log::warn!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
         log::warn!("Server is started with unprotected client connections");
-        log::warn!("Anyone can connect as client");
+        log::warn!("Anyone can connect as a client");
         log::warn!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
     }
 
@@ -191,19 +197,19 @@ pub async fn initialize_server(
     let (autoalloc_service, autoalloc_process) =
         create_autoalloc_service(state_ref.clone(), queue_id_initial_value, events.clone());
 
-    let (backend, comm_fut) = Backend::start(
-        state_ref.clone(),
-        events.clone(),
-        autoalloc_service.clone(),
+    let msd = Duration::from_millis(20);
+    let (server_ref, comm_fut) = tako::server::server_start(
+        worker_listener,
         worker_key.clone(),
+        msd,
+        false,
         server_cfg.idle_timeout,
-        server_cfg.worker_port,
+        None,
+        state_ref.get().server_info().server_uid.clone(),
         worker_id_initial_value,
-    )
-    .await?;
+    )?;
 
-    let worker_port = backend.worker_port();
-
+    let worker_port = server_ref.get_worker_listen_port();
     state_ref.get_mut().set_worker_port(worker_port);
 
     let record = FullAccessRecord::new(
@@ -246,10 +252,15 @@ pub async fn initialize_server(
     let state_ref2 = state_ref.clone();
 
     let senders = Senders {
-        backend,
+        server_control: server_ref.clone(),
         events,
         autoalloc: autoalloc_service.clone(),
     };
+
+    server_ref.set_client_events(Box::new(UpstreamEventProcessor::new(
+        state_ref.clone(),
+        senders.clone(),
+    )));
 
     let senders2 = senders.clone();
     let fut = async move {
@@ -362,16 +373,8 @@ async fn start_server(
         let server_dir = gsettings.server_directory().to_path_buf();
         local_set.spawn_local(async move {
             log::debug!("Restoring old tasks into Tako");
-            for msg in new_tasks {
-                match senders
-                    .backend
-                    .send_tako_message(FromGatewayMessage::NewTasks(msg))
-                    .await
-                    .unwrap()
-                {
-                    ToGatewayMessage::NewTasksResponse(_) => { /* Ok */ }
-                    r => panic!("Invalid response: {r:?}"),
-                };
+            for new in new_tasks {
+                senders.server_control.add_new_tasks(new).unwrap();
             }
             log::debug!("Restoration of old tasks is completed");
             for queue in new_queues {

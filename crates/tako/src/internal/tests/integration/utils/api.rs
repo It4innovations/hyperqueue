@@ -1,7 +1,4 @@
-use crate::gateway::{
-    CancelTasks, CancelTasksResponse, FromGatewayMessage, LostWorkerMessage, LostWorkerReason,
-    NewWorkerMessage, TaskState, TaskUpdate, ToGatewayMessage,
-};
+use crate::gateway::LostWorkerReason;
 use crate::internal::common::{Map, Set};
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::WorkerOverview;

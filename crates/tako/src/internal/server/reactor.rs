@@ -40,7 +40,6 @@ pub(crate) fn on_remove_worker(
     let mut ready_to_assign = Vec::new();
     let mut removes = Vec::new();
     let mut running_tasks = Vec::new();
-    let mut crashed_tasks = Vec::new();
 
     let (task_map, worker_map) = core.split_tasks_workers_mut();
     let task_ids: Vec<_> = task_map.task_ids().collect();
@@ -58,11 +57,7 @@ pub(crate) fn on_remove_worker(
                     task.set_fresh_flag(true);
                     ready_to_assign.push(task_id);
                     if task.is_sn_running() {
-                        if reason.is_failure() && task.increment_crash_counter() {
-                            crashed_tasks.push(task_id);
-                        } else {
-                            running_tasks.push(task_id);
-                        }
+                        running_tasks.push(task_id);
                     }
                     TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 })
                 } else {
@@ -145,22 +140,27 @@ pub(crate) fn on_remove_worker(
     // IMPORTANT: We need to announce lost worker before failing the jobs
     // so in journal restoration we can detect what tasks were running
     // without explicit logging
-    comm.send_client_worker_lost(worker_id, running_tasks, reason);
+    comm.send_client_worker_lost(worker_id, &running_tasks, reason.clone());
 
-    for task_id in crashed_tasks {
-        let count = core.get_task(task_id).crash_counter;
-        log::debug!("Task {} reached crash limit {}", task_id, count);
-        fail_task_helper(
-            core,
-            comm,
-            None,
-            task_id,
-            TaskFailInfo {
-                message: format!(
-                    "Task was running on a worker that was lost; the task has occurred {count} times in this situation and limit was reached."
-                ),
-            },
-        );
+    if reason.is_failure() {
+        for task_id in running_tasks {
+            let mut task = core.get_task_mut(task_id);
+            if task.increment_crash_counter() {
+                let count = task.crash_counter;
+                log::debug!("Task {} reached crash limit {}", task_id, count);
+                fail_task_helper(
+                    core,
+                    comm,
+                    None,
+                    task_id,
+                    TaskFailInfo {
+                        message: format!(
+                            "Task was running on a worker that was lost; the task has occurred {count} times in this situation and limit was reached."
+                        ),
+                    },
+                );
+            }
+        }
     }
     comm.ask_for_scheduling();
 }
@@ -469,7 +469,9 @@ fn fail_task_helper(
             } else {
                 assert!(task.is_waiting())
             }
-            task.collect_consumers(tasks).into_iter().collect()
+            let mut s = Set::new();
+            task.collect_consumers(tasks, &mut s);
+            s.into_iter().collect()
         } else {
             log::debug!("Unknown task failed");
             return;
@@ -512,46 +514,33 @@ pub(crate) fn on_task_error(
     fail_task_helper(core, comm, Some(worker_id), task_id, error_info)
 }
 
-pub(crate) fn on_cancel_tasks(
-    core: &mut Core,
-    comm: &mut impl Comm,
-    task_ids: &[TaskId],
-) -> (Vec<TaskId>, Vec<TaskId>) {
+pub(crate) fn on_cancel_tasks(core: &mut Core, comm: &mut impl Comm, task_ids: &[TaskId]) {
     let mut to_unregister = Set::with_capacity(task_ids.len());
     let mut running_ids: Map<WorkerId, Vec<TaskId>> = Map::default();
-    let mut already_finished: Vec<TaskId> = Vec::new();
 
     log::debug!("Canceling {} tasks", task_ids.len());
 
+    let (tasks, workers) = core.split_tasks_workers_mut();
     for &task_id in task_ids {
         log::debug!("Canceling task id={}", task_id);
-
-        if core.find_task(task_id).is_none() {
-            log::debug!("Task is not here");
-            already_finished.push(task_id);
-            continue;
-        }
-
-        {
-            let (tasks, workers) = core.split_tasks_workers_mut();
-            let task = tasks.get_task(task_id);
+        if let Some(task) = tasks.find_task(task_id) {
             match task.state {
                 TaskRuntimeState::Waiting(_) => {
                     to_unregister.insert(task_id);
-                    to_unregister.extend(task.collect_consumers(tasks).into_iter());
+                    task.collect_consumers(tasks, &mut to_unregister);
                 }
                 TaskRuntimeState::Assigned(w_id)
                 | TaskRuntimeState::Running {
                     worker_id: w_id, ..
                 } => {
                     to_unregister.insert(task_id);
-                    to_unregister.extend(task.collect_consumers(tasks).into_iter());
+                    task.collect_consumers(tasks, &mut to_unregister);
                     workers.get_worker_mut(w_id).remove_sn_task(task);
                     running_ids.entry(w_id).or_default().push(task_id);
                 }
                 TaskRuntimeState::RunningMultiNode(ref ws) => {
                     to_unregister.insert(task_id);
-                    to_unregister.extend(task.collect_consumers(tasks).into_iter());
+                    task.collect_consumers(tasks, &mut to_unregister);
                     for w_id in ws {
                         workers.get_worker_mut(*w_id).reset_mn_task();
                     }
@@ -559,16 +548,16 @@ pub(crate) fn on_cancel_tasks(
                 }
                 TaskRuntimeState::Stealing(from_id, to_id) => {
                     to_unregister.insert(task_id);
-                    to_unregister.extend(task.collect_consumers(tasks).into_iter());
+                    task.collect_consumers(tasks, &mut to_unregister);
                     if let Some(to_id) = to_id {
                         workers.get_worker_mut(to_id).remove_sn_task(task);
                     }
                     running_ids.entry(from_id).or_default().push(task_id);
                 }
-                TaskRuntimeState::Finished => {
-                    already_finished.push(task_id);
-                }
+                TaskRuntimeState::Finished => unreachable!(),
             };
+        } else {
+            log::debug!("Task is not here");
         }
     }
 
@@ -578,11 +567,8 @@ pub(crate) fn on_cancel_tasks(
     for (w_id, ids) in running_ids {
         comm.send_worker_message(w_id, &ToWorkerMessage::CancelTasks(TaskIdsMsg { ids }));
     }
-
     objs_to_remove.send(comm); // This needs to be sent after tasks are cancelled
-
     comm.ask_for_scheduling();
-    (to_unregister.into_iter().collect(), already_finished)
 }
 
 pub(crate) fn on_resolve_placement(

@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use tokio::time::sleep;
 
-use crate::gateway::{LostWorkerReason, ToGatewayMessage};
+use crate::gateway::LostWorkerReason;
 use crate::internal::tests::integration::utils::api::{
     wait_for_task_start, wait_for_worker_connected, wait_for_worker_lost, wait_for_worker_overview,
 };

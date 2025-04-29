@@ -1,5 +1,5 @@
-use crate::gateway::WorkerTypeQuery;
 use crate::internal::scheduler::query::compute_new_worker_query;
+use crate::internal::server::control::WorkerTypeQuery;
 use crate::internal::server::core::Core;
 use crate::internal::tests::utils::env::{TestEnv, create_test_comm};
 use crate::internal::tests::utils::schedule::{

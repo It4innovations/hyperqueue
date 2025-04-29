@@ -197,19 +197,17 @@ impl Task {
         self.flags.contains(TaskFlags::TAKE)
     }
 
-    pub(crate) fn collect_consumers(&self, taskmap: &TaskMap) -> Set<TaskId> {
+    pub(crate) fn collect_consumers(&self, taskmap: &TaskMap, out: &mut Set<TaskId>) {
         let mut stack: Vec<_> = self.consumers.iter().copied().collect();
-        let mut result: Set<TaskId> = stack.iter().copied().collect();
 
         while let Some(task_id) = stack.pop() {
             let task = taskmap.get_task(task_id);
             for &consumer_id in &task.consumers {
-                if result.insert(consumer_id) {
+                if out.insert(consumer_id) {
                     stack.push(consumer_id);
                 }
             }
         }
-        result
     }
 
     pub(crate) fn increment_instance_id(&mut self) {

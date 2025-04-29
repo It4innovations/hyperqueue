@@ -9,12 +9,8 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use tokio::task::{JoinHandle, LocalSet};
 use tokio::time::timeout;
 
-use crate::gateway::{
-    FromGatewayMessage, NewTasksMessage, NewTasksResponse, SharedTaskConfiguration,
-    StopWorkerRequest, TaskConfiguration, ToGatewayMessage,
-};
+use crate::gateway::{SharedTaskConfiguration, TaskConfiguration};
 use crate::internal::common::{Map, Set};
-use crate::internal::server::client::process_client_message;
 use crate::internal::server::comm::CommSenderRef;
 use crate::internal::server::core::CoreRef;
 use crate::internal::tests::integration::utils::api::{TaskWaitResultMap, wait_for_tasks};
