@@ -1,21 +1,21 @@
+use crate::WrappedRcRefCell;
 use crate::common::error::HqError;
 use crate::common::serialization::SerializationConfig;
 use crate::stream::StreamSerializationConfig;
 use crate::transfer::stream::{ChannelId, StreamChunkHeader};
-use crate::WrappedRcRefCell;
 use bincode::Options;
 use chrono::Utc;
-use rand::distr::Alphanumeric;
 use rand::Rng;
+use rand::distr::Alphanumeric;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
-use tako::{define_wrapped_type, InstanceId, WorkerId};
-use tako::{JobId, JobTaskId, Map};
+use tako::{InstanceId, TaskId, WorkerId, define_wrapped_type};
+use tako::Map;
 use tokio::fs::File;
 use tokio::io::{AsyncWriteExt, BufWriter};
 use tokio::sync::mpsc::Sender;
-use tokio::sync::mpsc::{channel, Receiver};
+use tokio::sync::mpsc::{Receiver, channel};
 use tokio::sync::oneshot;
 use tokio::task::spawn_local;
 
@@ -55,22 +55,15 @@ impl Streamer {
         &mut self,
         streamer_ref: &StreamerRef,
         stream_path: &Path,
-        job_id: JobId,
-        job_task_id: JobTaskId,
+        task_id: TaskId,
         instance_id: InstanceId,
     ) -> crate::Result<StreamSender> {
-        log::debug!(
-            "New stream for {}/{} ({})",
-            job_id,
-            job_task_id,
-            stream_path.display()
-        );
+        log::debug!("New stream for {task_id} ({})", stream_path.display());
         let sender = if let Some(ref mut info) = self.streams.get_mut(stream_path) {
             info.sender.clone()
         } else {
             log::debug!(
-                "Starting a new stream instance for job_id = {}, stream_path = {}",
-                job_id,
+                "Starting a new stream instance, stream_path = {}",
                 stream_path.display()
             );
             if !stream_path.is_dir() {
@@ -98,8 +91,7 @@ impl Streamer {
             queue_sender
         };
         Ok(StreamSender {
-            job_id,
-            job_task_id,
+            task_id,
             instance_id,
             sender,
         })
@@ -122,8 +114,7 @@ impl StreamerRef {
 #[derive(Clone)]
 pub struct StreamSender {
     sender: Sender<StreamerMessage>,
-    job_id: JobId,
-    job_task_id: JobTaskId,
+    task_id: TaskId,
     instance_id: InstanceId,
 }
 
@@ -150,8 +141,7 @@ impl StreamSender {
             .send(StreamerMessage::Write {
                 header: StreamChunkHeader {
                     time: Utc::now(),
-                    job: self.job_id,
-                    task: self.job_task_id,
+                    task: self.task_id,
                     instance: self.instance_id,
                     channel,
                     size: data.len() as u64,

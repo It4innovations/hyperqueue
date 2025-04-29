@@ -2,7 +2,6 @@
 
 use crate::TaskId;
 use crate::internal::common::Set;
-use crate::internal::common::index::ItemId;
 use crate::internal::messages::worker::{
     StealResponse, StealResponseMsg, TaskOutput, ToWorkerMessage,
 };
@@ -843,7 +842,7 @@ fn test_task_data_deps_balancing() {
             let t2 = TaskBuilder::new(2).build();
             let mut ts: Vec<_> = (10u32..110u32)
                 .map(|i| {
-                    TaskBuilder::new(TaskId::new_test(i as u32))
+                    TaskBuilder::new(TaskId::new_test(i))
                         .data_dep(&t1, i - 10)
                         .data_dep(&t2, i - 10)
                         .build()

@@ -44,7 +44,6 @@ impl TaskId {
         self.job_task_id
     }
 
-    #[cfg(test)]
     pub fn new_test(job_task_id: u32) -> Self {
         Self {
             job_id: 0.into(),

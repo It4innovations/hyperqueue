@@ -2,7 +2,6 @@ use bincode::Options;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use crate::internal::common::index::ItemId;
 use derive_builder::Builder;
 use smallvec::smallvec;
 use thin_vec::ThinVec;
