@@ -1,5 +1,6 @@
 from .conftest import HqEnv
 from .utils import wait_for_job_state, wait_for_task_state
+from .utils.wait import wait_until
 from .utils.job import default_task_output
 
 from contextlib import contextmanager
@@ -25,7 +26,6 @@ def check_data_env(hq_env: HqEnv, tmp_path, server_args=None):
         return hq_env.start_worker(**kwargs)
 
     yield start_worker
-    time.sleep(0.6)
     check_for_memory_leaks(hq_env)
 
 
@@ -43,15 +43,28 @@ def get_datanode_stats(hq_env: HqEnv):
         if "hw-state" in e:
             worker_id = e["id"]
             workers[worker_id] = e["data-node"]
+        elif e["type"] == "worker-lost":
+            del workers[e["id"]]
     return workers
 
 
 def check_for_memory_leaks(hq_env: HqEnv):
-    workers = get_datanode_stats(hq_env)
-    for worker_id, data_node in workers.items():
-        objects = data_node["objects"]
-        if objects:
-            raise Exception(f"Worker {worker_id} still holds some objects: {objects}")
+    objects = None
+    worker_id = None
+
+    def check():
+        nonlocal objects, worker_id
+        workers = get_datanode_stats(hq_env)
+        for worker_id, data_node in workers.items():
+            objects = data_node["objects"]
+            if objects:
+                return False
+        return True
+
+    def on_timeout():
+        return f"Worker {worker_id} still holds some objects: {objects}"
+
+    wait_until(check, on_timeout=on_timeout)
 
 
 def test_data_create_no_consumer(hq_env: HqEnv, tmp_path):
@@ -130,6 +143,7 @@ output_id = 3
         wait_for_job_state(hq_env, 1, "FINISHED")
     with open(os.path.join(tmp_path, default_task_output(job_id=1, task_id=13, type="stdout"))) as f:
         assert f.read() == "abc\n"
+    time.sleep(1)
     stats = get_datanode_stats(hq_env)
     assert stats[1]["stats"] == {
         "locally_downloaded_bytes": 4,
@@ -198,6 +212,7 @@ output_id = 22
         wait_for_job_state(hq_env, 1, "FINISHED")
     with open(os.path.join(tmp_path, default_task_output(job_id=1, task_id=2, type="stdout"))) as f:
         assert f.read() == "abc\n"
+    time.sleep(1)
     stats = get_datanode_stats(hq_env)
     assert stats[1]["stats"] == {
         "locally_downloaded_bytes": 0,
