@@ -348,7 +348,7 @@ def test_flush_and_prune_journal(hq_env: HqEnv, tmp_path):
 def test_restore_dependencies1(hq_env: HqEnv, tmp_path):
     journal_path = os.path.join(tmp_path, "my.journal")
     hq_env.start_server(args=["--journal", journal_path])
-    hq_env.start_worker()
+    hq_env.start_worker(cpus=2)
     tmp_path.joinpath("sleep_time").write_text("100")
     tmp_path.joinpath("job.toml").write_text(
         """
