@@ -1,6 +1,5 @@
 use std::rc::Rc;
 use std::time::Duration;
-use tako::ItemId;
 use tako::gateway::TaskDataFlags;
 use tako::internal::server::core::Core;
 use tako::internal::server::task::{Task, TaskConfiguration};
@@ -55,10 +54,10 @@ pub fn create_worker(id: u64) -> Worker {
     )
 }
 
-pub fn add_tasks(core: &mut Core, count: usize) -> Vec<TaskId> {
-    let mut tasks = Vec::with_capacity(count);
+pub fn add_tasks(core: &mut Core, count: u32) -> Vec<TaskId> {
+    let mut tasks = Vec::with_capacity(count as usize);
     for id in 0..count {
-        let task_id = TaskId::new(id as <TaskId as ItemId>::IdType);
+        let task_id = TaskId::new_test(id);
         let task = create_task(task_id);
         core.add_task(task);
         tasks.push(task_id);

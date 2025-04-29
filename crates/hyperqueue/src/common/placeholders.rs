@@ -6,12 +6,12 @@ use std::path::{Path, PathBuf};
 use nom::bytes::complete::take_until;
 use nom::sequence::delimited;
 use nom_supreme::tag::complete::tag;
-use tako::InstanceId;
+use tako::{InstanceId, TaskId};
 
 use tako::program::{ProgramDefinition, StdioDef};
 
 use crate::common::parser::NomResult;
-use tako::{JobId, JobTaskId, Map};
+use tako::{JobId, Map};
 
 pub const SERVER_UID_PLACEHOLDER: &str = "SERVER_UID";
 pub const TASK_ID_PLACEHOLDER: &str = "TASK_ID";
@@ -32,8 +32,7 @@ const KNOWN_PLACEHOLDERS: [&str; 6] = [
 type PlaceholderMap<'a> = Map<&'static str, Cow<'a, str>>;
 
 pub struct CompletePlaceholderCtx<'a> {
-    pub job_id: JobId,
-    pub task_id: JobTaskId,
+    pub task_id: TaskId,
     pub instance_id: InstanceId,
     pub submit_dir: &'a Path,
     pub server_uid: &'a str,
@@ -58,8 +57,11 @@ impl<'a> ResolvablePaths<'a> {
 /// Fills all known placeholders in the given paths.
 pub fn fill_placeholders_in_paths(paths: ResolvablePaths, ctx: CompletePlaceholderCtx) {
     let mut placeholders = PlaceholderMap::new();
-    placeholders.insert(JOB_ID_PLACEHOLDER, ctx.job_id.to_string().into());
-    placeholders.insert(TASK_ID_PLACEHOLDER, ctx.task_id.to_string().into());
+    placeholders.insert(JOB_ID_PLACEHOLDER, ctx.task_id.job_id().to_string().into());
+    placeholders.insert(
+        TASK_ID_PLACEHOLDER,
+        ctx.task_id.job_task_id().to_string().into(),
+    );
     placeholders.insert(INSTANCE_ID_PLACEHOLDER, ctx.instance_id.to_string().into());
     placeholders.insert(
         SUBMIT_DIR_PLACEHOLDER,
@@ -251,10 +253,10 @@ mod tests {
 
     use crate::common::env::{HQ_INSTANCE_ID, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
     use crate::common::placeholders::{
-        fill_placeholders_after_submit, fill_placeholders_in_paths, parse_resolvable_string,
-        CompletePlaceholderCtx, ResolvablePaths, StringPart,
+        CompletePlaceholderCtx, ResolvablePaths, StringPart, fill_placeholders_after_submit,
+        fill_placeholders_in_paths, parse_resolvable_string,
     };
-    use tako::Map;
+    use tako::{Map, TaskId};
 
     #[test]
     fn test_parse_empty_string() {
@@ -443,14 +445,13 @@ mod tests {
 
     fn ctx<'a>(
         job_id: u32,
-        task_id: u32,
+        job_task_id: u32,
         instance_id: u32,
         submit_dir: &'a Path,
         server_uid: &'a str,
     ) -> CompletePlaceholderCtx<'a> {
         CompletePlaceholderCtx {
-            job_id: job_id.into(),
-            task_id: task_id.into(),
+            task_id: TaskId::new(job_id.into(), job_task_id.into()),
             instance_id: instance_id.into(),
             submit_dir,
             server_uid,

@@ -239,8 +239,7 @@ fn prepare_job(job_id: JobId, submit_desc: &mut JobSubmitDescription, state: &mu
 }
 
 fn serialize_task_body(
-    job_id: JobId,
-    task_id: JobTaskId,
+    task_id: TaskId,
     entry: Option<BString>,
     task_desc: &TaskDescription,
     submit_dir: &PathBuf,
@@ -248,7 +247,6 @@ fn serialize_task_body(
 ) -> Box<[u8]> {
     let body_msg = TaskBuildDescription {
         task_kind: Cow::Borrowed(&task_desc.kind),
-        job_id,
         task_id,
         submit_dir: Cow::Borrowed(submit_dir),
         stream_path: stream_path.map(Cow::Borrowed),
@@ -279,34 +277,28 @@ fn build_tasks_array(
     let tasks = match entries {
         None => ids
             .iter()
-            .map(|task_id| {
+            .map(|job_task_id| {
+                let task_id = TaskId::new(job_id, job_task_id.into());
                 build_task_conf(
-                    serialize_task_body(
-                        job_id,
-                        task_id.into(),
-                        None,
-                        task_desc,
-                        submit_dir,
-                        stream_path,
-                    ),
-                    TaskId::new(job_id, task_id.into()),
+                    serialize_task_body(task_id, None, task_desc, submit_dir, stream_path),
+                    task_id,
                 )
             })
             .collect(),
         Some(entries) => ids
             .iter()
             .zip(entries)
-            .map(|(task_id, entry)| {
+            .map(|(job_task_id, entry)| {
+                let task_id = TaskId::new(job_id, job_task_id.into());
                 build_task_conf(
                     serialize_task_body(
-                        job_id,
-                        task_id.into(),
+                        task_id,
                         Some(entry),
                         task_desc,
                         submit_dir,
                         stream_path,
                     ),
-                    TaskId::new(job_id, task_id.into()),
+                    task_id,
                 )
             })
             .collect(),
@@ -366,8 +358,7 @@ fn build_tasks_graph(
     let mut task_configs = Vec::with_capacity(tasks.len());
     for task in tasks {
         let body = serialize_task_body(
-            job_id,
-            task.id,
+            TaskId::new(job_id, task.id),
             None,
             &task.task_desc,
             submit_dir,

@@ -1,6 +1,5 @@
 use criterion::measurement::WallTime;
 use criterion::{BatchSize, BenchmarkGroup, BenchmarkId, Criterion, black_box};
-use tako::ItemId;
 use tako::Set;
 use tako::TaskId;
 use tako::internal::server::core::Core;
@@ -18,7 +17,7 @@ fn bench_remove_single_task(c: &mut BenchmarkGroup<WallTime>) {
                     || {
                         let mut core = Core::default();
                         add_tasks(&mut core, task_count);
-                        (core, TaskId::new(0))
+                        (core, TaskId::new_test(0))
                     },
                     |(core, task_id)| {
                         let mut objs_to_remove = ObjsToRemoveFromWorkers::new();
@@ -65,9 +64,7 @@ fn bench_add_task(c: &mut BenchmarkGroup<WallTime>) {
                         let mut core = Core::default();
                         add_tasks(&mut core, task_count);
 
-                        let task = create_task(TaskId::new(
-                            (task_count + 1) as <TaskId as ItemId>::IdType,
-                        ));
+                        let task = create_task(TaskId::new_test((task_count + 1)));
                         (core, Some(task))
                     },
                     |(core, task)| {
@@ -90,7 +87,7 @@ fn bench_add_tasks(c: &mut BenchmarkGroup<WallTime>) {
                     || {
                         let core = Core::default();
                         let tasks: Vec<_> = (0..task_count)
-                            .map(|id| create_task(TaskId::new(id as <TaskId as ItemId>::IdType)))
+                            .map(|id| create_task(TaskId::new_test(id as u32)))
                             .collect();
                         (core, tasks)
                     },
@@ -121,7 +118,7 @@ fn bench_iterate_tasks(c: &mut BenchmarkGroup<WallTime>) {
                     |ref mut core| {
                         let mut sum = 0;
                         for task in core.task_map().tasks() {
-                            sum += task.id().as_num();
+                            sum += task.id().job_task_id().as_num();
                         }
                         black_box(sum);
                     },

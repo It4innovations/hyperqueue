@@ -2,7 +2,6 @@ use crate::gateway::{
     FromGatewayMessage, NewWorkerAllocationResponse, NewWorkerQuery, ToGatewayMessage,
     WorkerTypeQuery,
 };
-use crate::internal::common::index::AsIdVec;
 use crate::internal::tests::integration::utils::api::cancel;
 use crate::internal::tests::integration::utils::check_file_contents;
 use crate::internal::tests::integration::utils::server::{run_test, ServerHandle};
