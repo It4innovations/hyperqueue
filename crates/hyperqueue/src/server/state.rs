@@ -1,11 +1,8 @@
 use std::cmp::min;
 
 use chrono::Utc;
-use tako::define_wrapped_type;
-use tako::gateway::{
-    CancelTasks, FromGatewayMessage, LostWorkerMessage, NewWorkerMessage, TaskFailedMessage,
-    TaskState, TaskUpdate, ToGatewayMessage,
-};
+use smallvec::SmallVec;
+use tako::{InstanceId, define_wrapped_type};
 use tako::{ItemId, TaskId};
 
 use crate::WrappedRcRefCell;
@@ -15,6 +12,10 @@ use crate::server::job::Job;
 use crate::server::restore::StateRestorer;
 use crate::server::worker::Worker;
 use crate::transfer::messages::ServerInfo;
+use tako::gateway::LostWorkerReason;
+use tako::internal::messages::common::TaskFailInfo;
+use tako::task::SerializedTaskContext;
+use tako::worker::WorkerConfiguration;
 use tako::{JobId, Map, WorkerId};
 
 pub struct State {
@@ -25,44 +26,6 @@ pub struct State {
 }
 
 define_wrapped_type!(StateRef, State, pub);
-
-fn cancel_tasks_from_callback(
-    state_ref: &StateRef,
-    senders: &Senders,
-    job_id: JobId,
-    tasks: Vec<TaskId>,
-) {
-    if tasks.is_empty() {
-        return;
-    }
-    log::debug!("Canceling {:?} tasks", tasks);
-    let senders2 = senders.clone();
-    let state_ref = state_ref.clone();
-    tokio::task::spawn_local(async move {
-        let message = FromGatewayMessage::CancelTasks(CancelTasks { tasks });
-        let response = senders2.backend.send_tako_message(message).await.unwrap();
-
-        match response {
-            ToGatewayMessage::CancelTasksResponse(msg) => {
-                let mut state = state_ref.get_mut();
-                if let Some(job) = state.get_job_mut(job_id) {
-                    log::debug!("Tasks {:?} canceled", msg.cancelled_tasks);
-                    log::debug!("Tasks {:?} already finished", msg.already_finished);
-                    for tako_id in msg.cancelled_tasks {
-                        assert_eq!(tako_id.job_id(), job.job_id);
-                        job.set_cancel_state(tako_id.job_task_id(), &senders2);
-                    }
-                }
-            }
-            ToGatewayMessage::Error(msg) => {
-                log::debug!("Canceling job {} failed: {}", job_id, msg.message);
-            }
-            _ => {
-                panic!("Invalid message");
-            }
-        };
-    });
-}
 
 impl State {
     pub fn get_job(&self, job_id: JobId) -> Option<&Job> {
@@ -146,103 +109,142 @@ impl State {
 
     pub fn process_task_failed(
         &mut self,
-        state_ref: &StateRef,
         senders: &Senders,
-        msg: TaskFailedMessage,
-    ) {
-        log::debug!("Task id={} failed: {:?}", msg.id, msg.info);
+        task_id: TaskId,
+        cancelled_tasks: Vec<TaskId>,
+        info: TaskFailInfo,
+    ) -> Vec<TaskId> {
+        log::debug!("Task id={} failed: {:?}", task_id, info);
 
-        let job_id = msg.id.job_id();
+        let job_id = task_id.job_id();
         let job = self.get_job_mut(job_id).unwrap();
-        for tako_id in msg.cancelled_tasks {
-            log::debug!(
-                "Task id={} canceled because of task dependency fails",
-                tako_id
-            );
-            assert_eq!(tako_id.job_id(), job_id);
-            job.set_cancel_state(tako_id.job_task_id(), senders);
-        }
-        job.set_failed_state(msg.id.job_task_id(), msg.info.message, senders);
+        log::debug!(
+            "Tasks id={:?} canceled because of task dependency fails",
+            &cancelled_tasks
+        );
+
+        job.set_cancel_state(cancelled_tasks, senders);
+        job.set_failed_state(task_id.job_task_id(), info.message, senders);
 
         if let Some(max_fails) = &job.job_desc.max_fails {
             if job.counters.n_failed_tasks > *max_fails {
+                log::debug!("Max task fails reached for job {}", job.job_id);
                 let task_ids = job.non_finished_task_ids();
-                cancel_tasks_from_callback(state_ref, senders, job.job_id, task_ids);
+                job.set_cancel_state(task_ids.clone(), senders);
+                return task_ids;
+                // return job.non_finished_task_ids();
             }
         }
+        Vec::new()
     }
 
-    pub fn process_task_update(&mut self, msg: TaskUpdate, senders: &Senders) {
-        log::debug!("Task id={} updated {:?}", msg.id, msg.state);
-        match msg.state {
+    pub fn process_task_started(
+        &mut self,
+        senders: &Senders,
+        task_id: TaskId,
+        instance_id: InstanceId,
+        worker_ids: &[WorkerId],
+        context: SerializedTaskContext,
+    ) {
+        let job = self.get_job_mut(task_id.job_id()).unwrap();
+        let now = Utc::now();
+        let worker_ids: SmallVec<_> = worker_ids.iter().copied().collect();
+
+        job.set_running_state(task_id.job_task_id(), worker_ids.clone(), context, now);
+        for worker_id in &worker_ids {
+            if let Some(worker) = self.workers.get_mut(worker_id) {
+                worker.update_task_started(task_id, now);
+            }
+        }
+        senders
+            .events
+            .on_task_started(task_id, instance_id, worker_ids, now);
+    }
+
+    pub fn process_task_finished(&mut self, senders: &Senders, id: TaskId) {
+        let now = Utc::now();
+        let job = self.get_job_mut(id.job_id()).unwrap();
+        job.set_finished_state(id.job_task_id(), now, senders);
+    }
+
+    /*
+    pub fn process_task_update(&mut self, id: TaskId, state: TaskState, senders: &Senders) {
+        log::debug!("Task id={} updated {:?}", id, state);
+        match state {
             TaskState::Running {
                 instance_id,
                 worker_ids,
                 context,
             } => {
-                let job = self.get_job_mut(msg.id.job_id()).unwrap();
+                let job = self.get_job_mut(id.job_id()).unwrap();
                 let now = Utc::now();
-                job.set_running_state(msg.id.job_task_id(), worker_ids.clone(), context, now);
+                job.set_running_state(id.job_task_id(), worker_ids.clone(), context, now);
                 for worker_id in &worker_ids {
                     if let Some(worker) = self.workers.get_mut(worker_id) {
-                        worker.update_task_started(msg.id, now);
+                        worker.update_task_started(id, now);
                     }
                 }
                 senders
                     .events
-                    .on_task_started(msg.id, instance_id, worker_ids.clone(), now);
+                    .on_task_started(id, instance_id, worker_ids.clone(), now);
             }
             TaskState::Finished => {
                 let now = Utc::now();
-                let job = self.get_job_mut(msg.id.job_id()).unwrap();
-                job.set_finished_state(msg.id.job_task_id(), now, senders);
+                let job = self.get_job_mut(id.job_id()).unwrap();
+                job.set_finished_state(id.job_task_id(), now, senders);
             }
             TaskState::Waiting => {
-                let job = self.get_job_mut(msg.id.job_id()).unwrap();
-                job.set_waiting_state(msg.id.job_task_id());
+                let job = self.get_job_mut(id.job_id()).unwrap();
+                job.set_waiting_state(id.job_task_id());
             }
             TaskState::Invalid => {
                 unreachable!()
             }
         };
-    }
+    }*/
 
-    pub fn process_worker_new(&mut self, msg: NewWorkerMessage, senders: &Senders) {
-        log::debug!("New worker id={}", msg.worker_id);
-        self.add_worker(Worker::new(msg.worker_id, msg.configuration.clone()));
+    pub fn process_worker_new(
+        &mut self,
+        senders: &Senders,
+        worker_id: WorkerId,
+        configuration: &WorkerConfiguration,
+    ) {
+        log::debug!("New worker id={}", worker_id);
+        self.add_worker(Worker::new(worker_id, configuration.clone()));
         // TODO: use observer in event storage instead of sending these messages directly
         senders
             .autoalloc
-            .on_worker_connected(msg.worker_id, &msg.configuration);
+            .on_worker_connected(worker_id, &configuration);
         senders
             .events
-            .on_worker_added(msg.worker_id, msg.configuration);
+            .on_worker_added(worker_id, configuration.clone());
     }
 
     pub fn process_worker_lost(
         &mut self,
-        _state_ref: &StateRef,
         senders: &Senders,
-        msg: LostWorkerMessage,
+        worker_id: WorkerId,
+        running_tasks: &[TaskId],
+        reason: LostWorkerReason,
     ) {
-        log::debug!("Worker lost id={}", msg.worker_id);
-        for tako_id in msg.running_tasks {
+        log::debug!("Worker lost id={}", worker_id);
+        for tako_id in running_tasks {
             let job = self.get_job_mut(tako_id.job_id()).unwrap();
             job.set_waiting_state(tako_id.job_task_id());
         }
 
-        let worker = self.workers.get_mut(&msg.worker_id).unwrap();
-        worker.set_offline_state(msg.reason.clone());
+        let worker = self.workers.get_mut(&worker_id).unwrap();
+        worker.set_offline_state(reason.clone());
 
         senders.autoalloc.on_worker_lost(
-            msg.worker_id,
+            worker_id,
             &worker.configuration,
             LostWorkerDetails {
-                reason: msg.reason.clone(),
+                reason: reason.clone(),
                 lifetime: (Utc::now() - worker.started_at()).to_std().unwrap(),
             },
         );
-        senders.events.on_worker_lost(msg.worker_id, msg.reason);
+        senders.events.on_worker_lost(worker_id, reason);
     }
 
     pub(crate) fn restore_state(&mut self, restorer: &StateRestorer) {

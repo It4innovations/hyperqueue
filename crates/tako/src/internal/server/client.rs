@@ -1,11 +1,8 @@
 use crate::internal::common::resources::{ResourceRequest, ResourceRequestVariants};
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::gateway::{
-    CancelTasksResponse, FromGatewayMessage, NewTasksMessage, NewTasksResponse,
-    SharedTaskConfiguration, TaskInfo, TaskState, TasksInfoResponse, ToGatewayMessage,
-    WorkerOverviewListenerOp,
-};
+use crate::gateway::{SharedTaskConfiguration, TaskSubmit};
+
 use crate::internal::common::resources::request::ResourceRequestEntry;
 use crate::internal::messages::worker::ToWorkerMessage;
 use crate::internal::scheduler::query::compute_new_worker_query;
@@ -14,6 +11,7 @@ use crate::internal::server::core::{Core, CoreRef};
 use crate::internal::server::reactor::{on_cancel_tasks, on_new_tasks};
 use crate::internal::server::task::{Task, TaskConfiguration, TaskRuntimeState};
 use crate::internal::server::worker::DEFAULT_WORKER_OVERVIEW_INTERVAL;
+use crate::{InstanceId, Map, TaskId};
 use std::rc::Rc;
 
 fn create_task_configuration(
@@ -52,184 +50,17 @@ fn create_task_configuration(
     }
 }
 
-pub(crate) async fn process_client_message(
-    core_ref: &CoreRef,
-    comm_ref: &CommSenderRef,
-    client_sender: &UnboundedSender<ToGatewayMessage>,
-    message: FromGatewayMessage,
-) -> Option<String> {
-    match message {
-        FromGatewayMessage::NewTasks(msg) => handle_new_tasks(
-            &mut core_ref.get_mut(),
-            &mut comm_ref.get_mut(),
-            client_sender,
-            msg,
-        ),
-        FromGatewayMessage::ServerInfo => {
-            let core = core_ref.get();
-            assert!(
-                client_sender
-                    .send(ToGatewayMessage::ServerInfo(core.get_server_info()))
-                    .is_ok()
-            );
-            None
-        }
-        FromGatewayMessage::GetTaskInfo(request) => {
-            log::debug!("Client asked for task info");
-            if !request.tasks.is_empty() {
-                todo!();
-            }
-            let core = core_ref.get();
-            let task_map = core.task_map();
-            let task_infos = task_map
-                .task_ids()
-                .map(|task_id| {
-                    let task = task_map.get_task(task_id);
-                    TaskInfo {
-                        id: task.id,
-                        state: match task.state {
-                            TaskRuntimeState::Waiting(_) => TaskState::Waiting,
-                            TaskRuntimeState::Assigned(_) => TaskState::Waiting,
-                            TaskRuntimeState::Stealing(_, _) => TaskState::Waiting,
-                            TaskRuntimeState::Running { .. } => TaskState::Waiting,
-                            TaskRuntimeState::RunningMultiNode(_) => TaskState::Waiting,
-                            TaskRuntimeState::Finished => TaskState::Finished,
-                        },
-                    }
-                })
-                .collect();
-            assert!(
-                client_sender
-                    .send(ToGatewayMessage::TaskInfo(TasksInfoResponse {
-                        tasks: task_infos
-                    }))
-                    .is_ok()
-            );
-            None
-        }
-        FromGatewayMessage::CancelTasks(msg) => {
-            log::debug!("Client asked for canceling tasks");
-            let mut core = core_ref.get_mut();
-            let mut comm = comm_ref.get_mut();
-            let (cancelled_tasks, already_finished) =
-                on_cancel_tasks(&mut core, &mut *comm, &msg.tasks);
-            assert!(
-                client_sender
-                    .send(ToGatewayMessage::CancelTasksResponse(CancelTasksResponse {
-                        cancelled_tasks,
-                        already_finished
-                    }))
-                    .is_ok()
-            );
-            None
-        }
-        FromGatewayMessage::StopWorker(msg) => {
-            let mut core = core_ref.get_mut();
-            if let Some(ref mut worker) = core.get_worker_mut(msg.worker_id) {
-                worker.set_stopping_flag(true);
-                let mut comm = comm_ref.get_mut();
-                comm.send_worker_message(msg.worker_id, &ToWorkerMessage::Stop);
-                assert!(client_sender.send(ToGatewayMessage::WorkerStopped).is_ok());
-                None
-            } else {
-                Some(format!("Worker with id {} not found", msg.worker_id))
-            }
-        }
-        FromGatewayMessage::NewWorkerQuery(msg) => {
-            for query in &msg.worker_queries {
-                if let Err(e) = query.descriptor.validate() {
-                    return Some(format!("Invalid descriptor: {e:?}"));
-                }
-            }
-            let response = if comm_ref.get().get_scheduling_flag() {
-                let (sx, rx) = tokio::sync::oneshot::channel();
-                comm_ref
-                    .get_mut()
-                    .add_after_scheduling_callback(Box::new(move |core| {
-                        let _ = sx.send(compute_new_worker_query(core, &msg.worker_queries));
-                    }));
-                rx.await.unwrap()
-            } else {
-                let core = core_ref.get();
-                compute_new_worker_query(&core, &msg.worker_queries)
-            };
-            assert!(
-                client_sender
-                    .send(ToGatewayMessage::NewWorkerAllocationQueryResponse(response))
-                    .is_ok()
-            );
-            None
-        }
-        FromGatewayMessage::TryReleaseMemory => {
-            let mut core = core_ref.get_mut();
-            core.try_release_memory();
-            None
-        }
-        FromGatewayMessage::WorkerInfo(worker_id) => {
-            let core = core_ref.get();
-            let response = core
-                .get_worker_map()
-                .get(&worker_id)
-                .map(|w| w.worker_info(core.task_map()));
-            assert!(
-                client_sender
-                    .send(ToGatewayMessage::WorkerInfo(response))
-                    .is_ok()
-            );
-            None
-        }
-        FromGatewayMessage::ModifyWorkerOverviewListeners(op) => {
-            modify_worker_overview_listeners(op, &mut core_ref.get_mut(), &mut comm_ref.get_mut());
-            None
-        }
-    }
-}
-
-/// Modify the count of clients that want to receive worker overviews.
-/// If the count wasn't zero and becomes zero or if it was zero and becomes non-zero,
-/// messages are sent to workers.
-pub fn modify_worker_overview_listeners(
-    op: WorkerOverviewListenerOp,
-    core: &mut Core,
-    sender: &mut CommSender,
-) {
-    let previous = core.worker_overview_listeners();
-    match op {
-        WorkerOverviewListenerOp::Add => {
-            *core.worker_overview_listeners_mut() += 1;
-        }
-        WorkerOverviewListenerOp::Remove => {
-            *core.worker_overview_listeners_mut() =
-                core.worker_overview_listeners().saturating_sub(1);
-        }
-    }
-    match (previous, core.worker_overview_listeners()) {
-        // Enable worker overview
-        (0, 1..) => {
-            sender.broadcast_worker_message(&ToWorkerMessage::SetOverviewIntervalOverride(Some(
-                DEFAULT_WORKER_OVERVIEW_INTERVAL,
-            )));
-        }
-        // Stop overriding worker overviews
-        (1.., 0) => {
-            sender.broadcast_worker_message(&ToWorkerMessage::SetOverviewIntervalOverride(None));
-        }
-        _ => {}
-    }
-}
-
-fn handle_new_tasks(
+pub(crate) fn handle_new_tasks(
     core: &mut Core,
     comm: &mut CommSender,
-    client_sender: &UnboundedSender<ToGatewayMessage>,
-    msg: NewTasksMessage,
-) -> Option<String> {
-    log::debug!("Client sends {} tasks", msg.tasks.len());
-    if msg.tasks.is_empty() {
-        return Some("Task submission is empty".to_string());
+    task_submit: TaskSubmit,
+) -> crate::Result<()> {
+    log::debug!("Client sends {} tasks", task_submit.tasks.len());
+    if task_submit.tasks.is_empty() {
+        return Ok(());
     }
 
-    let configurations: Vec<_> = msg
+    let configurations: Vec<_> = task_submit
         .shared_data
         .into_iter()
         .map(|c| Rc::new(create_task_configuration(core, c)))
@@ -237,18 +68,18 @@ fn handle_new_tasks(
 
     for cfg in &configurations {
         if let Err(e) = cfg.resources.validate() {
-            return Some(format!("Invalid task request {e:?}"));
+            return Err(format!("Invalid task request {e:?}").into());
         }
     }
 
-    let mut tasks: Vec<Task> = Vec::with_capacity(msg.tasks.len());
-    for task in msg.tasks {
+    let mut tasks: Vec<Task> = Vec::with_capacity(task_submit.tasks.len());
+    for task in task_submit.tasks {
         if core.is_used_task_id(task.id) {
-            return Some(format!("Task id={} is already taken", task.id));
+            return Err(format!("Task id={} is already taken", task.id).into());
         }
         let idx = task.shared_data_index as usize;
         if idx >= configurations.len() {
-            return Some(format!("Invalid configuration index {idx}"));
+            return Err(format!("Invalid configuration index {idx}").into());
         }
         let conf = &configurations[idx];
         let mut task = Task::new(
@@ -261,10 +92,11 @@ fn handle_new_tasks(
         task.scheduler_priority = -(task.id.job_id().as_num() as i32);
         tasks.push(task);
     }
-    if !msg.adjust_instance_id_and_crash_counters.is_empty() {
+    if !task_submit.adjust_instance_id_and_crash_counters.is_empty() {
         for task in &mut tasks {
-            if let Some((instance_id, crash_counter)) =
-                msg.adjust_instance_id_and_crash_counters.get(&task.id)
+            if let Some((instance_id, crash_counter)) = task_submit
+                .adjust_instance_id_and_crash_counters
+                .get(&task.id)
             {
                 task.instance_id = *instance_id;
                 task.crash_counter = *crash_counter;
@@ -272,13 +104,5 @@ fn handle_new_tasks(
         }
     }
     on_new_tasks(core, comm, tasks);
-
-    assert!(
-        client_sender
-            .send(ToGatewayMessage::NewTasksResponse(NewTasksResponse {
-                n_waiting_for_workers: 0 // TODO
-            }))
-            .is_ok()
-    );
-    None
+    Ok(())
 }

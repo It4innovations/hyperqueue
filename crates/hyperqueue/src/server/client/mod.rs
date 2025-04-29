@@ -4,9 +4,6 @@ use std::sync::Arc;
 
 use futures::{Sink, SinkExt, Stream, StreamExt};
 use orion::kdf::SecretKey;
-use tako::gateway::{
-    CancelTasks, FromGatewayMessage, StopWorkerRequest, ToGatewayMessage, WorkerOverviewListenerOp,
-};
 use tako::{Set, TaskGroup, TaskId};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc::UnboundedSender;
@@ -144,20 +141,19 @@ pub async fn client_rpc_loop<
             Ok(message) => {
                 let response = match message {
                     FromClientMessage::Submit(msg) => {
-                        submit::handle_submit(&state_ref, senders, msg).await
+                        submit::handle_submit(&state_ref, senders, msg)
                     }
                     FromClientMessage::JobInfo(msg) => compute_job_info(&state_ref, &msg.selector),
                     FromClientMessage::Stop => {
                         end_flag.notify_one();
                         break;
                     }
-                    FromClientMessage::WorkerList => handle_worker_list(&state_ref).await,
+                    FromClientMessage::WorkerList => handle_worker_list(&state_ref),
                     FromClientMessage::WorkerInfo(msg) => {
                         handle_worker_info(&state_ref, senders, msg.worker_id, msg.runtime_info)
-                            .await
                     }
                     FromClientMessage::StopWorker(msg) => {
-                        handle_worker_stop(&state_ref, senders, msg.selector).await
+                        handle_worker_stop(&state_ref, senders, msg.selector)
                     }
                     FromClientMessage::Cancel(msg) => {
                         handle_job_cancel(&state_ref, senders, &msg.selector).await
@@ -184,13 +180,8 @@ pub async fn client_rpc_loop<
                     FromClientMessage::StreamEvents(msg) => {
                         let enable_worker_overviews = msg.enable_worker_overviews;
                         if enable_worker_overviews {
-                            senders.backend.send_tako_message_no_wait(
-                                FromGatewayMessage::ModifyWorkerOverviewListeners(
-                                    WorkerOverviewListenerOp::Add,
-                                ),
-                            );
+                            senders.server_control.add_worker_overview_listener();
                         }
-
                         log::debug!("Start streaming events to client");
                         /* We create two event queues, one for historic events and one for live events
                         So while historic events are loaded from the file and streamed, live events are already
@@ -222,13 +213,8 @@ pub async fn client_rpc_loop<
                         }
 
                         if enable_worker_overviews {
-                            senders.backend.send_tako_message_no_wait(
-                                FromGatewayMessage::ModifyWorkerOverviewListeners(
-                                    WorkerOverviewListenerOp::Remove,
-                                ),
-                            );
+                            senders.server_control.remove_worker_overview_listener();
                         }
-
                         break;
                     }
                     FromClientMessage::ServerInfo => {
@@ -498,7 +484,7 @@ async fn handle_wait_for_jobs_message(
     ToClientMessage::WaitForJobsResponse(response)
 }
 
-async fn handle_worker_stop(
+fn handle_worker_stop(
     state_ref: &StateRef,
     senders: &Senders,
     selector: IdSelector,
@@ -533,23 +519,10 @@ async fn handle_worker_stop(
             responses.push((worker_id, StopWorkerResponse::InvalidWorker));
             continue;
         }
-        let response = senders
-            .backend
-            .send_tako_message(FromGatewayMessage::StopWorker(StopWorkerRequest {
-                worker_id,
-            }))
-            .await;
+        let response = senders.server_control.stop_worker(worker_id);
 
         match response {
-            Ok(result) => match result {
-                ToGatewayMessage::WorkerStopped => {
-                    responses.push((worker_id, StopWorkerResponse::Stopped))
-                }
-                ToGatewayMessage::Error(error) => {
-                    responses.push((worker_id, StopWorkerResponse::Failed(error.message)))
-                }
-                msg => panic!("Received invalid response to worker: {worker_id} stop: {msg:?}"),
-            },
+            Ok(()) => responses.push((worker_id, StopWorkerResponse::Stopped)),
             Err(err) => {
                 responses.push((worker_id, StopWorkerResponse::Failed(err.to_string())));
                 log::error!("Unable to stop worker: {} error: {:?}", worker_id, err);
@@ -678,50 +651,30 @@ async fn handle_job_close(
 }
 
 async fn cancel_job(state_ref: &StateRef, senders: &Senders, job_id: JobId) -> CancelJobResponse {
-    let tako_task_ids;
-    {
-        let n_tasks = match state_ref.get().get_job(job_id) {
-            None => {
-                return CancelJobResponse::InvalidJob;
-            }
-            Some(job) => {
-                tako_task_ids = job.non_finished_task_ids();
-                job.n_tasks()
-            }
-        };
-        if tako_task_ids.is_empty() {
-            return CancelJobResponse::Canceled(Vec::new(), n_tasks);
+    let task_ids = match state_ref.get().get_job(job_id) {
+        None => {
+            return CancelJobResponse::InvalidJob;
         }
-    }
-
-    let canceled_tasks = match senders
-        .backend
-        .send_tako_message(FromGatewayMessage::CancelTasks(CancelTasks {
-            tasks: tako_task_ids,
-        }))
-        .await
-        .unwrap()
-    {
-        ToGatewayMessage::CancelTasksResponse(msg) => msg.cancelled_tasks,
-        ToGatewayMessage::Error(msg) => {
-            return CancelJobResponse::Failed(msg.message);
+        Some(job) => {
+            let tasks = job.non_finished_task_ids();
+            if tasks.is_empty() {
+                return CancelJobResponse::Canceled(Vec::new(), job.n_tasks());
+            }
+            tasks
         }
-        _ => panic!("Invalid message"),
     };
-
+    if !task_ids.is_empty() {
+        senders.server_control.cancel_tasks(&task_ids);
+    }
     let mut state = state_ref.get_mut();
     if let Some(job) = state.get_job_mut(job_id) {
-        let canceled_ids: Vec<_> = canceled_tasks
+        let already_finished = job.n_tasks() - task_ids.len() as JobTaskCount;
+        let job_task_ids = task_ids
             .iter()
-            .map(|tako_id| {
-                assert_eq!(tako_id.job_id(), job_id);
-                let task_id = tako_id.job_task_id();
-                job.set_cancel_state(task_id, senders);
-                task_id
-            })
+            .map(|task_id| task_id.job_task_id())
             .collect();
-        let already_finished = job.n_tasks() - canceled_ids.len() as JobTaskCount;
-        CancelJobResponse::Canceled(canceled_ids, already_finished)
+        job.set_cancel_state(task_ids, senders);
+        CancelJobResponse::Canceled(job_task_ids, already_finished)
     } else {
         CancelJobResponse::Canceled(vec![], 0)
     }
@@ -750,16 +703,14 @@ fn handle_job_forget(
         }
     }
     state.try_release_memory();
-    senders
-        .backend
-        .send_tako_message_no_wait(FromGatewayMessage::TryReleaseMemory);
+    senders.server_control.try_release_memory();
 
     let ignored = job_ids.len() - forgotten;
 
     ToClientMessage::ForgetJobResponse(ForgetJobResponse { forgotten, ignored })
 }
 
-async fn handle_worker_list(state_ref: &StateRef) -> ToClientMessage {
+fn handle_worker_list(state_ref: &StateRef) -> ToClientMessage {
     let state = state_ref.get();
 
     ToClientMessage::WorkerListResponse(WorkerListResponse {
@@ -771,34 +722,18 @@ async fn handle_worker_list(state_ref: &StateRef) -> ToClientMessage {
     })
 }
 
-async fn handle_worker_info(
+fn handle_worker_info(
     state_ref: &StateRef,
     senders: &Senders,
     worker_id: WorkerId,
     runtime_info: bool,
 ) -> ToClientMessage {
-    let runtime_info = if runtime_info
-        && state_ref
-            .get()
-            .get_workers()
-            .get(&worker_id)
-            .is_some_and(|w| w.is_running())
-    {
-        match senders
-            .backend
-            .send_tako_message(FromGatewayMessage::WorkerInfo(worker_id))
-            .await
-        {
-            Ok(ToGatewayMessage::WorkerInfo(info)) => info,
-            _ => unreachable!(),
-        }
-    } else {
-        None
-    };
     let state = state_ref.get();
-    ToClientMessage::WorkerInfoResponse(
-        state
-            .get_worker(worker_id)
-            .map(|w| w.make_info(runtime_info)),
-    )
+    ToClientMessage::WorkerInfoResponse(state.get_worker(worker_id).map(|w| {
+        w.make_info(if runtime_info && w.is_running() {
+            senders.server_control.worker_info(worker_id)
+        } else {
+            None
+        })
+    }))
 }
