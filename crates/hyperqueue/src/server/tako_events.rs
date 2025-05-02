@@ -1,5 +1,5 @@
-use crate::server::Senders;
 use crate::server::state::StateRef;
+use crate::server::Senders;
 use tako::events::EventProcessor;
 use tako::gateway::LostWorkerReason;
 use tako::internal::messages::common::TaskFailInfo;
@@ -71,6 +71,20 @@ impl EventProcessor for UpstreamEventProcessor {
     }
 
     fn on_worker_overview(&self, overview: Box<WorkerOverview>) {
-        todo!()
+        let state = self.state_ref.get();
+        if let Some(worker) = state.get_worker(overview.id) {
+            // We only want to persist worker overviews for workers that have
+            // the overview interval explicitly enabled. If the overviews are
+            // sent temporarily (because a client, e.g. a dashboard, is
+            // streaming events), we only want to stream the event, but not
+            // persist it.
+            let persist_event = worker
+                .configuration
+                .overview_configuration
+                .is_overview_enabled();
+            self.senders
+                .events
+                .on_overview_received(overview, persist_event);
+        }
     }
 }

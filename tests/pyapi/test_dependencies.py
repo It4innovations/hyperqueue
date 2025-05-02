@@ -32,7 +32,9 @@ def test_dep_failed(hq_env: HqEnv):
     job.program(args=bash("echo 'hello' > foo2.txt"), deps=[t2])
     job.program(args=bash("exit 0"))
     submitted_job = client.submit(job)
-
+    time.sleep(0.5)
+    table = hq_env.command(["task", "list", "1"], as_table=True)
+    print(table)
     wait_for_job_state(hq_env, submitted_job.id, "FAILED")
 
     table = hq_env.command(["task", "list", "1"], as_table=True)

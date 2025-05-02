@@ -470,7 +470,8 @@ fn fail_task_helper(
                 assert!(task.is_waiting())
             }
             let mut s = Set::new();
-            task.collect_consumers(tasks, &mut s);
+            task.collect_recursive_consumers(tasks, &mut s);
+            dbg!(&s);
             s.into_iter().collect()
         } else {
             log::debug!("Unknown task failed");
@@ -482,6 +483,7 @@ fn fail_task_helper(
 
     for &consumer in &consumers {
         log::debug!("Task={} canceled because of failed dependency", consumer);
+        dbg!(&core.get_task(consumer).state);
         assert!(matches!(
             core.remove_task(consumer, &mut objs_to_remove),
             TaskRuntimeState::Waiting(_)
@@ -524,31 +526,24 @@ pub(crate) fn on_cancel_tasks(core: &mut Core, comm: &mut impl Comm, task_ids: &
     for &task_id in task_ids {
         log::debug!("Canceling task id={}", task_id);
         if let Some(task) = tasks.find_task(task_id) {
+            to_unregister.insert(task_id);
+            task.collect_recursive_consumers(tasks, &mut to_unregister);
             match task.state {
-                TaskRuntimeState::Waiting(_) => {
-                    to_unregister.insert(task_id);
-                    task.collect_consumers(tasks, &mut to_unregister);
-                }
+                TaskRuntimeState::Waiting(_) => {}
                 TaskRuntimeState::Assigned(w_id)
                 | TaskRuntimeState::Running {
                     worker_id: w_id, ..
                 } => {
-                    to_unregister.insert(task_id);
-                    task.collect_consumers(tasks, &mut to_unregister);
                     workers.get_worker_mut(w_id).remove_sn_task(task);
                     running_ids.entry(w_id).or_default().push(task_id);
                 }
                 TaskRuntimeState::RunningMultiNode(ref ws) => {
-                    to_unregister.insert(task_id);
-                    task.collect_consumers(tasks, &mut to_unregister);
                     for w_id in ws {
                         workers.get_worker_mut(*w_id).reset_mn_task();
                     }
                     running_ids.entry(ws[0]).or_default().push(task_id);
                 }
                 TaskRuntimeState::Stealing(from_id, to_id) => {
-                    to_unregister.insert(task_id);
-                    task.collect_consumers(tasks, &mut to_unregister);
                     if let Some(to_id) = to_id {
                         workers.get_worker_mut(to_id).remove_sn_task(task);
                     }

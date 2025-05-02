@@ -3,17 +3,17 @@ use std::rc::Rc;
 use std::time::Duration;
 use thin_vec::ThinVec;
 
-use crate::WorkerId;
-use crate::internal::common::Set;
 use crate::internal::common::stablemap::ExtractKey;
+use crate::internal::common::Set;
+use crate::WorkerId;
 
 use crate::gateway::TaskDataFlags;
 use crate::internal::datasrv::dataobj::DataObjectId;
 
 use crate::internal::messages::worker::{ComputeTaskMsg, ToWorkerMessage};
 use crate::internal::server::taskmap::TaskMap;
+use crate::{static_assert_size, TaskId};
 use crate::{InstanceId, Priority};
-use crate::{TaskId, static_assert_size};
 
 #[cfg_attr(test, derive(Eq, PartialEq))]
 pub struct WaitingInfo {
@@ -197,9 +197,11 @@ impl Task {
         self.flags.contains(TaskFlags::TAKE)
     }
 
-    pub(crate) fn collect_consumers(&self, taskmap: &TaskMap, out: &mut Set<TaskId>) {
+    pub(crate) fn collect_recursive_consumers(&self, taskmap: &TaskMap, out: &mut Set<TaskId>) {
+        for consumer in &self.consumers {
+            out.insert(*consumer);
+        }
         let mut stack: Vec<_> = self.consumers.iter().copied().collect();
-
         while let Some(task_id) = stack.pop() {
             let task = taskmap.get_task(task_id);
             for &consumer_id in &task.consumers {
@@ -343,7 +345,10 @@ mod tests {
     #[test]
     fn task_consumers_empty() {
         let a = task::task(0);
-        assert_eq!(a.collect_consumers(&Default::default()), Default::default());
+        assert_eq!(
+            a.collect_recursive_consumers(&Default::default()),
+            Default::default()
+        );
     }
 
     #[test]
@@ -359,7 +364,8 @@ mod tests {
         submit_test_tasks(&mut core, vec![a, b, c, d, e]);
 
         assert_eq!(
-            core.get_task(0.into()).collect_consumers(core.task_map()),
+            core.get_task(0.into())
+                .collect_recursive_consumers(core.task_map()),
             expected_ids.into_iter().collect()
         );
     }
