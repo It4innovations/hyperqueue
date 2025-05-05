@@ -39,7 +39,7 @@ pub(crate) struct PutDataUp<'a> {
 pub(crate) enum FromLocalDataClientMessageUp<'a> {
     PutDataObject {
         data_id: OutputId,
-        mime_type: &'a str,
+        mime_type: Option<&'a str>,
         size: u64,
         data: PutDataUp<'a>,
     },

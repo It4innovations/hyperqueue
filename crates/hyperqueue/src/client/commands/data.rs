@@ -25,8 +25,8 @@ pub struct PutOpts {
     /// Path of file/directory that should be uploaded
     path: PathBuf,
     /// DataId of task output
-    #[arg(long, default_value = "")]
-    mime_type: String,
+    #[arg(long)]
+    mime_type: Option<String>,
 }
 
 #[derive(Parser)]

@@ -59,11 +59,11 @@ impl LocalDataClient {
     pub async fn put_data_object_from_file(
         &mut self,
         data_id: OutputId,
-        mime_type: String,
+        mime_type: Option<String>,
         path: &Path,
     ) -> crate::Result<()> {
         log::debug!(
-            "Uploading file {} as data_obj={} (mime_type={})",
+            "Uploading file {} as data_obj={} (mime_type={:?})",
             path.display(),
             data_id,
             &mime_type
@@ -81,23 +81,30 @@ impl LocalDataClient {
             if first {
                 self.send_message(FromLocalDataClientMessageUp::PutDataObject {
                     data_id,
-                    mime_type: mime_type.as_str(),
+                    mime_type: mime_type.as_ref().map(|x| x.as_str()),
                     size,
                     data: PutDataUp { data },
                 })
                 .await?;
                 first = false;
-                if bytes_read == 0 {
-                    break;
-                }
             } else {
                 if bytes_read == 0 {
-                    break;
+                    return Err(DsError::GenericError(
+                        "File changed size during upload".to_string(),
+                    ));
                 }
                 self.send_message(FromLocalDataClientMessageUp::PutDataObjectPart(PutDataUp {
                     data,
                 }))
                 .await?;
+            }
+            if written as u64 >= size {
+                if written as u64 > size {
+                    return Err(DsError::GenericError(
+                        "File changed size during upload".to_string(),
+                    ));
+                }
+                break;
             }
         }
         log::debug!("Waiting for confirmation of upload");

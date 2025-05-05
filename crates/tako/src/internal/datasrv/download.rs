@@ -1,10 +1,10 @@
 use crate::connection::Connection;
 use crate::datasrv::DataObjectId;
+use crate::internal::datasrv::DataObjectRef;
 use crate::internal::datasrv::messages::{
     DataDown, FromDataClientMessage, ToDataClientMessageDown,
 };
 use crate::internal::datasrv::utils::DataObjectComposer;
-use crate::internal::datasrv::DataObjectRef;
 use crate::{Map, WrappedRcRefCell};
 use orion::kex::SecretKey;
 use priority_queue::PriorityQueue;
@@ -13,8 +13,8 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::TcpStream;
-use tokio::sync::{oneshot, Notify, OwnedSemaphorePermit, Semaphore};
-use tokio::task::{spawn_local, AbortHandle, JoinSet};
+use tokio::sync::{Notify, OwnedSemaphorePermit, Semaphore, oneshot};
+use tokio::task::{AbortHandle, JoinSet, spawn_local};
 use tokio::time::Instant;
 
 const PROTOCOL_VERSION: u32 = 0;
