@@ -1,10 +1,10 @@
 use crate::connection::Connection;
 use crate::datasrv::DataObjectId;
-use crate::internal::datasrv::DataObjectRef;
 use crate::internal::datasrv::messages::{
     DataDown, FromDataClientMessage, ToDataClientMessageDown,
 };
 use crate::internal::datasrv::utils::DataObjectComposer;
+use crate::internal::datasrv::DataObjectRef;
 use crate::{Map, WrappedRcRefCell};
 use orion::kex::SecretKey;
 use priority_queue::PriorityQueue;
@@ -13,8 +13,8 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::TcpStream;
-use tokio::sync::{Notify, OwnedSemaphorePermit, Semaphore, oneshot};
-use tokio::task::{AbortHandle, JoinSet, spawn_local};
+use tokio::sync::{oneshot, Notify, OwnedSemaphorePermit, Semaphore};
+use tokio::task::{spawn_local, AbortHandle, JoinSet};
 use tokio::time::Instant;
 
 const PROTOCOL_VERSION: u32 = 0;
@@ -304,29 +304,28 @@ pub(crate) async fn download_manager_process<
     let mut join_set = JoinSet::new();
     let semaphore = Arc::new(Semaphore::new(max_parallel_downloads as usize));
     loop {
-        {
-            let permit = semaphore.clone().acquire_owned().await.unwrap();
-            let is_empty = {
-                let mut dm = dm_ref.get_mut();
-                if let Some((data_id, _)) = dm.download_queue.pop() {
-                    let abort = join_set.spawn_local(download_process(
-                        dm_ref.clone(),
-                        data_id,
-                        permit,
-                        max_download_tries,
-                        wait_between_download_tries,
-                    ));
-                    let info = dm.download_info.get_mut(&data_id).unwrap();
-                    assert!(info.abort_handle.is_none());
-                    info.abort_handle = Some(abort);
-                    dm.download_queue.is_empty()
-                } else {
-                    true
-                }
-            };
-            if is_empty {
-                notify.notified().await;
+        let permit = semaphore.clone().acquire_owned().await.unwrap();
+        let is_empty = {
+            let mut dm = dm_ref.get_mut();
+            if let Some((data_id, _)) = dm.download_queue.pop() {
+                let abort = join_set.spawn_local(download_process(
+                    dm_ref.clone(),
+                    data_id,
+                    permit,
+                    max_download_tries,
+                    wait_between_download_tries,
+                ));
+                let info = dm.download_info.get_mut(&data_id).unwrap();
+                assert!(info.abort_handle.is_none());
+                info.abort_handle = Some(abort);
+                dm.download_queue.is_empty()
+            } else {
+                true
             }
         };
+        if is_empty {
+            notify.notified().await;
+        }
+        while let Some(_) = join_set.try_join_next() { /* Do nothing */ }
     }
 }
