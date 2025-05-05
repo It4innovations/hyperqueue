@@ -30,7 +30,7 @@ async fn datanode_local_message_handler(
         } => {
             let message = {
                 log::debug!(
-                    "Getting object from local connection: data_id={data_id} mime_type={mime_type} size={size} first_data: {}",
+                    "Getting object from local connection: data_id={data_id} mime_type={mime_type:?} size={size} first_data: {}",
                     data.len(),
                 );
                 log::debug!("Initial data size: {}", data.len());
@@ -87,7 +87,7 @@ async fn datanode_local_message_handler(
                     .get_object(*data_id)
                     .cloned();
                 if let Some(data_obj) = data_obj {
-                    let mime_type = data_obj.mime_type().to_string();
+                    let mime_type = data_obj.mime_type().cloned();
                     let size = data_obj.size();
                     let (mut decomposer, first_data) = DataObjectDecomposer::new(data_obj);
                     send_message(

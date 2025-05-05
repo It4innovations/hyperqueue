@@ -2,7 +2,7 @@ use crate::internal::datasrv::DataObject;
 use crate::internal::datasrv::messages::DataObjectSlice;
 use std::rc::Rc;
 
-pub(crate) const UPLOAD_CHUNK_SIZE: usize = 32 * 1024 * 1024; // 32MiB
+pub(crate) const UPLOAD_CHUNK_SIZE: usize = 128 * 1024; // 128KiB
 
 pub(crate) struct DataObjectDecomposer {
     data_obj: Rc<DataObject>,
@@ -48,8 +48,9 @@ pub(crate) struct DataObjectComposer {
 
 impl DataObjectComposer {
     pub fn new(size: usize, mut data: Vec<u8>) -> Self {
+        assert!(size >= data.len());
         if data.len() != size {
-            data.reserve(size);
+            data.reserve(size - data.len());
         }
         DataObjectComposer { size, data }
     }
@@ -64,7 +65,7 @@ impl DataObjectComposer {
         self.size == self.data.len()
     }
 
-    pub fn finish(self, mime_type: String) -> DataObject {
+    pub fn finish(self, mime_type: Option<String>) -> DataObject {
         DataObject::new(mime_type, self.data)
     }
 }

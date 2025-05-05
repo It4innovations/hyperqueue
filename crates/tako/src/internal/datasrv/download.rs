@@ -171,7 +171,7 @@ async fn download_from_address<I: DownloadInterface, P: Ord + Debug>(
             data: DataDown { data },
         } => {
             log::debug!(
-                "Downloading data object {data_id}, size={size}, mime_type={mime_type}, initial_data={}",
+                "Downloading data object {data_id}, size={size}, mime_type={mime_type:?}, initial_data={}",
                 data.len(),
             );
             let mut composer = DataObjectComposer::new(size as usize, data);

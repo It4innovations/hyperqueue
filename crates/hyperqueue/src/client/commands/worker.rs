@@ -164,10 +164,9 @@ pub struct WorkerStartOpts {
     #[arg(long, default_value = "8")]
     pub max_download_tries: u32,
 
-    /// When data object download failed, how long to wait to try it again
-    /// This time is multiplied by the number of previous retries
-    /// So between 4th and 5th retry it waits 4 * the given duration.
-    #[arg(long, default_value = "1s", value_parser = parse_hms_or_human_time)]
+    #[arg(long,
+          default_value = "1s", value_parser = parse_hms_or_human_time,
+          help = duration_doc!("When data object download failed, how long to wait to try it again. This time is multiplied by the number of previous retries. Therefore between 4th and 5th retry it waits 4 * the given duration"))]
     pub wait_between_download_tries: Duration,
 }
 

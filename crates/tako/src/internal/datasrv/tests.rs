@@ -1,8 +1,8 @@
 use crate::datasrv::DataObjectId;
 use crate::internal::datasrv::datastorage::DataStorage;
 use crate::internal::datasrv::test_utils::{
-    PlacementConfig, TestUploadInterface, start_download_manager, start_test_upload_service,
-    test_download_manager,
+    start_download_manager, start_test_upload_service, test_download_manager, PlacementConfig,
+    TestUploadInterface,
 };
 use crate::internal::datasrv::{DataObject, DataObjectRef};
 use crate::internal::tests::utils::sorted_vec;
@@ -15,7 +15,7 @@ fn storage_put_get() {
     assert!(storage.get_object(id).is_none());
     assert!(!storage.has_object(id));
 
-    let data_obj = DataObjectRef::new(DataObject::new("".to_string(), vec![1, 2, 3]));
+    let data_obj = DataObjectRef::new(DataObject::new(None, vec![1, 2, 3]));
     storage.put_object(id, data_obj.clone()).unwrap();
     let obj = storage.get_object(id).unwrap();
     assert_eq!(obj.data(), &[1, 2, 3]);
@@ -162,10 +162,13 @@ async fn download_object_ok() {
         let data_id3 = DataObjectId::new(2.into(), 0.into());
         let data_id4 = DataObjectId::new(2.into(), 1.into());
 
-        let obj1 = DataObjectRef::new(DataObject::new("abc".to_string(), vec![0]));
-        let obj2 = DataObjectRef::new(DataObject::new("xyz".to_string(), vec![1]));
-        let obj3 = DataObjectRef::new(DataObject::new("efg".to_string(), vec![2]));
-        let obj4 = DataObjectRef::new(DataObject::new("klm".to_string(), vec![3, 4, 5, 6, 7]));
+        let obj1 = DataObjectRef::new(DataObject::new(Some("abc".to_string()), vec![0]));
+        let obj2 = DataObjectRef::new(DataObject::new(Some("xyz".to_string()), vec![1]));
+        let obj3 = DataObjectRef::new(DataObject::new(Some("efg".to_string()), vec![2]));
+        let obj4 = DataObjectRef::new(DataObject::new(
+            Some("klm".to_string()),
+            vec![3, 4, 5, 6, 7],
+        ));
 
         upload.insert_object(data_id1, obj1.clone());
         upload.insert_object(data_id2, obj2.clone());
@@ -212,7 +215,7 @@ async fn download_close_idle_connection() {
         let (dm_ref, interface) = test_download_manager();
 
         let data_id1 = DataObjectId::new(1.into(), 0.into());
-        let obj1 = DataObjectRef::new(DataObject::new("abc".to_string(), vec![0]));
+        let obj1 = DataObjectRef::new(DataObject::new(Some("abc".to_string()), vec![0]));
         upload.insert_object(data_id1, obj1);
         interface.register_hosts(&[data_id1], PlacementConfig::Valid(addr));
 
