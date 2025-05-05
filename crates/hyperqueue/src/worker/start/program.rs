@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::future::Future;
 use std::io::{BufWriter, ErrorKind, Read, Write};
+use std::os::unix::prelude::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::process::ExitStatus;
 use std::time::Duration;
@@ -161,7 +162,11 @@ pub(super) fn build_program_task(
             program.env.insert(HQ_DATA_ACCESS.into(), key);
             program.env.insert(
                 "HQ".into(),
-                std::env::args().next().unwrap_or_default().into(),
+                std::env::current_exe()
+                    .unwrap()
+                    .as_os_str()
+                    .as_bytes()
+                    .into(),
             );
         }
 

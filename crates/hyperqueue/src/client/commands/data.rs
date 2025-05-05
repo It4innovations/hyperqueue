@@ -33,13 +33,13 @@ pub struct PutOpts {
 pub struct GetOpts {
     /// Input ID
     input_id: DataInputId,
-    /// Path of file/directory that should be uploaded
+    /// Path of file/directory that should be downloaded
     path: PathBuf,
 }
 
 async fn create_local_data_client() -> crate::Result<LocalDataClient> {
     let data_access = std::env::var("HQ_DATA_ACCESS").map_err(|_| {
-        HqError::GenericError("HQ_DATA_ACCESS variable not found. Are you running this command under a task with data layer enabled?".to_string())
+        HqError::GenericError("HQ_DATA_ACCESS variable not found. Are you running this command inside a task with data layer enabled?".to_string())
     })?;
     let (path, token) = data_access.split_once(':').ok_or_else(|| {
         HqError::GenericError("Value of HQ_DATA_ACCESS has a wrong format".to_string())

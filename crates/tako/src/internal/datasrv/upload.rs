@@ -53,7 +53,7 @@ pub(crate) async fn handle_data_connection<I: UploadInterface>(
                     let (mut decomposer, first_data) = DataObjectDecomposer::new(data_obj.clone());
                     connection
                         .send(ToDataClientMessageUp::DataObject {
-                            mime_type: data_obj.mime_type().to_string(),
+                            mime_type: data_obj.mime_type().cloned(),
                             size: data_obj.size(),
                             data: first_data,
                         })

@@ -59,7 +59,7 @@ pub(crate) struct DataDown {
 pub(crate) enum FromLocalDataClientMessageDown {
     PutDataObject {
         data_id: OutputId,
-        mime_type: String,
+        mime_type: Option<String>,
         size: u64,
         data: DataDown,
     },
@@ -73,7 +73,7 @@ pub(crate) enum FromLocalDataClientMessageDown {
 pub(crate) enum ToLocalDataClientMessageUp {
     Uploaded(OutputId),
     DataObject {
-        mime_type: String,
+        mime_type: Option<String>,
         size: u64,
         data: DataObjectSlice,
     },
@@ -86,7 +86,7 @@ pub(crate) enum ToLocalDataClientMessageUp {
 pub(crate) enum ToLocalDataClientMessageDown {
     Uploaded(OutputId),
     DataObject {
-        mime_type: String,
+        mime_type: Option<String>,
         size: u64,
         data: DataDown,
     },
@@ -102,7 +102,7 @@ pub(crate) enum FromDataClientMessage {
 #[derive(Debug, Serialize)]
 pub(crate) enum ToDataClientMessageUp {
     DataObject {
-        mime_type: String,
+        mime_type: Option<String>,
         size: u64,
         data: DataObjectSlice,
     },
@@ -113,7 +113,7 @@ pub(crate) enum ToDataClientMessageUp {
 #[derive(Debug, Deserialize)]
 pub(crate) enum ToDataClientMessageDown {
     DataObject {
-        mime_type: String,
+        mime_type: Option<String>,
         size: u64,
         data: DataDown,
     },

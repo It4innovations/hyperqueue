@@ -32,7 +32,7 @@ impl Debug for DataObjectId {
 
 #[derive(Serialize, Deserialize)]
 pub struct DataObject {
-    mime_type: String,
+    mime_type: Option<String>,
 
     #[serde(with = "serde_bytes")]
     data: Vec<u8>,
@@ -42,7 +42,7 @@ impl Debug for DataObject {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "<MemDataObj mimetype='{}' size={}>",
+            "<MemDataObj mimetype={:?} size={}>",
             self.mime_type,
             self.size(),
         )
@@ -50,7 +50,7 @@ impl Debug for DataObject {
 }
 
 impl DataObject {
-    pub fn new(mime_type: String, data: Vec<u8>) -> Self {
+    pub fn new(mime_type: Option<String>, data: Vec<u8>) -> Self {
         DataObject { mime_type, data }
     }
 
@@ -62,8 +62,8 @@ impl DataObject {
         &self.data
     }
 
-    pub fn mime_type(&self) -> &str {
-        &self.mime_type
+    pub fn mime_type(&self) -> Option<&String> {
+        self.mime_type.as_ref()
     }
 }
 
