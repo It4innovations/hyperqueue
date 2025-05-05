@@ -135,6 +135,7 @@ async fn handle_connection(state_ref: WorkerStateRef, stream: UnixStream) -> cra
             .ok_or_else(|| crate::Error::GenericError("Invalid token".to_string()))?;
         match registration {
             Registration::DataConnection { task_id, input_map } => {
+                log::debug!("New local data connection: {task_id}");
                 let task_id = *task_id;
                 let input_map = input_map.clone();
                 drop(lc_state);

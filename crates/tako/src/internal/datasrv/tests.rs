@@ -1,8 +1,8 @@
 use crate::datasrv::DataObjectId;
 use crate::internal::datasrv::datastorage::DataStorage;
 use crate::internal::datasrv::test_utils::{
-    start_download_manager, start_test_upload_service, test_download_manager, PlacementConfig,
-    TestUploadInterface,
+    PlacementConfig, TestUploadInterface, start_download_manager, start_test_upload_service,
+    test_download_manager,
 };
 use crate::internal::datasrv::{DataObject, DataObjectRef};
 use crate::internal::tests::utils::sorted_vec;
