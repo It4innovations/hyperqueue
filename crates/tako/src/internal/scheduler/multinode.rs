@@ -37,13 +37,6 @@ fn task_priority_tuple(task: &Task) -> PriorityTuple {
 }
 
 impl MultiNodeQueue {
-    pub fn recompute_priorities(&mut self, _task_map: &TaskMap) {
-        /*if self.queues.is_empty() {
-            return;
-        }*/
-        // TODO: Not priority now, but it should be implemented also for multi node tasks
-    }
-
     pub fn shrink_to_fit(&mut self) {
         self.queues.shrink_to_fit();
         self.requests.shrink_to_fit();

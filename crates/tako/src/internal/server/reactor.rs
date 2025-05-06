@@ -16,6 +16,9 @@ use crate::internal::server::workermap::WorkerMap;
 use crate::{TaskId, WorkerId};
 use std::fmt::Write;
 
+// Scheduler priority increase for each t-level
+pub(crate) const T_LEVEL_WEIGHT: i32 = 256;
+
 pub(crate) fn on_new_worker(core: &mut Core, comm: &mut impl Comm, worker: Worker) {
     comm.broadcast_worker_message(&ToWorkerMessage::NewWorker(NewWorkerMsg {
         worker_id: worker.id,
@@ -169,10 +172,18 @@ pub(crate) fn on_new_tasks(core: &mut Core, comm: &mut impl Comm, new_tasks: Vec
     assert!(!new_tasks.is_empty());
     for mut task in new_tasks.into_iter() {
         let mut count = 0;
+        // We assign scheduler priority here, the goal is to set scheduler_priority as follows = t-level * T_LEVEL_WEIGHT - job_id
+        // where t-level is the length of the maximal path from root tasks
+        // Goal is to prioritize task graph components that were partially computed + prioritize older tasks (according job_id)
+        // T-level is T_LEVEL_WEIGHT-times more important than job_id difference,
+        // but large job_id difference will overweight t-level which is usually bounded, that is done by design.
+        let mut priority = -(task.id.job_id().as_num() as i32);
         task.task_deps.retain(|t| {
             if let Some(task_dep) = core.find_task_mut(*t) {
                 task_dep.add_consumer(task.id);
                 if !task_dep.is_finished() {
+                    priority =
+                        std::cmp::max(priority, task_dep.scheduler_priority + T_LEVEL_WEIGHT);
                     count += 1
                 }
                 true
@@ -180,6 +191,7 @@ pub(crate) fn on_new_tasks(core: &mut Core, comm: &mut impl Comm, new_tasks: Vec
                 false
             }
         });
+        task.set_scheduler_priority(priority);
         assert!(matches!(
             task.state,
             TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 })
