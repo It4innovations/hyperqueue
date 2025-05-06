@@ -326,6 +326,6 @@ pub(crate) async fn download_manager_process<
         if is_empty {
             notify.notified().await;
         }
-        while let Some(_) = join_set.try_join_next() { /* Do nothing */ }
+        while join_set.try_join_next().is_some() { /* Do nothing */ }
     }
 }
