@@ -5,7 +5,6 @@ use std::time::{Duration, Instant};
 use tokio::sync::Notify;
 use tokio::time::sleep;
 
-use super::metrics::compute_b_level_metric;
 use crate::internal::common::Map;
 use crate::internal::messages::worker::{TaskIdsMsg, ToWorkerMessage};
 use crate::internal::scheduler::multinode::MultiNodeAllocator;
@@ -345,16 +344,6 @@ impl SchedulerState {
             return false;
         }
         log::debug!("Scheduling started");
-
-        if core.check_has_new_tasks_and_reset() {
-            // TODO: utilize information and do not recompute all b-levels
-            trace_time!("scheduler", "blevel", {
-                compute_b_level_metric(core.task_map_mut())
-            });
-
-            let (multi_node_queue, task_map, _, _) = core.multi_node_queue_split_mut();
-            multi_node_queue.recompute_priorities(task_map);
-        }
 
         let multi_node_ready_tasks = core.take_multi_node_ready_to_assign();
         if !multi_node_ready_tasks.is_empty() {

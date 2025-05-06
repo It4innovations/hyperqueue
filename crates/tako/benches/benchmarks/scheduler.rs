@@ -6,35 +6,12 @@ use crate::{add_tasks, create_worker};
 use tako::gateway::LostWorkerReason;
 use tako::internal::messages::common::TaskFailInfo;
 use tako::internal::messages::worker::ToWorkerMessage;
-use tako::internal::scheduler::metrics::compute_b_level_metric;
 use tako::internal::scheduler::state::SchedulerState;
 use tako::internal::server::comm::Comm;
 use tako::internal::server::core::Core;
 use tako::task::SerializedTaskContext;
 use tako::worker::{WorkerConfiguration, WorkerOverview};
 use tako::{InstanceId, TaskId, WorkerId};
-
-fn bench_b_level(c: &mut BenchmarkGroup<WallTime>) {
-    for task_count in [10, 1_000, 100_000] {
-        c.bench_with_input(
-            BenchmarkId::new("compute b-level", task_count),
-            &task_count,
-            |b, &task_count| {
-                b.iter_batched_ref(
-                    || {
-                        let mut core = Core::default();
-                        add_tasks(&mut core, task_count);
-                        core
-                    },
-                    |core| {
-                        compute_b_level_metric(core.task_map_mut());
-                    },
-                    BatchSize::SmallInput,
-                );
-            },
-        );
-    }
-}
 
 fn bench_schedule(c: &mut BenchmarkGroup<WallTime>) {
     for task_count in [10, 1_000, 100_000] {
@@ -72,7 +49,6 @@ fn bench_schedule(c: &mut BenchmarkGroup<WallTime>) {
 pub fn benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("scheduler");
 
-    bench_b_level(&mut group);
     bench_schedule(&mut group);
 }
 

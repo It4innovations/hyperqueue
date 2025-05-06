@@ -251,13 +251,14 @@ fn handle_new_tasks(
             return Some(format!("Invalid configuration index {idx}"));
         }
         let conf = &configurations[idx];
-        let task = Task::new(
+        let mut task = Task::new(
             task.id,
             task.task_deps,
             task.dataobj_deps,
             conf.clone(),
             task.body,
         );
+        task.scheduler_priority = -(task.id.job_id().as_num() as i32);
         tasks.push(task);
     }
     if !msg.adjust_instance_id_and_crash_counters.is_empty() {

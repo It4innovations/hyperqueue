@@ -11,8 +11,8 @@ use crate::internal::messages::worker::{StealResponse, StealResponseMsg};
 use crate::internal::scheduler::state::SchedulerState;
 use crate::internal::server::core::Core;
 use crate::internal::server::reactor::{
-    on_cancel_tasks, on_new_tasks, on_new_worker, on_remove_worker, on_steal_response,
-    on_task_error, on_task_finished, on_task_running,
+    T_LEVEL_WEIGHT, on_cancel_tasks, on_new_tasks, on_new_worker, on_remove_worker,
+    on_steal_response, on_task_error, on_task_finished, on_task_running,
 };
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::worker::Worker;
@@ -142,6 +142,48 @@ fn test_worker_add() {
     comm.check_need_scheduling();
     comm.emptiness_check();
     assert_eq!(core.get_workers().count(), 2);
+}
+
+#[test]
+fn test_scheduler_priority() {
+    let mut core = Core::default();
+    let mut comm = create_test_comm();
+    //new_workers(&mut core, &mut comm, vec![1]);
+
+    let t1 = task(501);
+    let t2 = task_with_deps(502, &[&t1]);
+    let t3 = task(503);
+    let t4 = task_with_deps(504, &[&t2]);
+
+    let task_id5 = TaskId::new(123.into(), 1.into());
+    let t5 = TaskBuilder::new(task_id5).build();
+    let task_id6 = TaskId::new(122.into(), 0.into());
+    let t6 = TaskBuilder::new(task_id6).build();
+    let task_id7 = TaskId::new(123.into(), 2.into());
+    let t7 = TaskBuilder::new(task_id7).task_deps(&[&t5]).build();
+    let task_id8 = TaskId::new(123.into(), 4.into());
+    let t8 = TaskBuilder::new(task_id8).build();
+
+    on_new_tasks(&mut core, &mut comm, vec![t1, t2, t3, t4, t5, t6, t7, t8]);
+
+    assert_eq!(core.get_task(TaskId::new_test(501)).scheduler_priority, 0);
+    assert_eq!(
+        core.get_task(TaskId::new_test(502)).scheduler_priority,
+        T_LEVEL_WEIGHT
+    );
+    assert_eq!(core.get_task(TaskId::new_test(503)).scheduler_priority, 0);
+    assert_eq!(
+        core.get_task(TaskId::new_test(504)).scheduler_priority,
+        2 * T_LEVEL_WEIGHT
+    );
+
+    assert_eq!(core.get_task(task_id5).scheduler_priority, -123);
+    assert_eq!(core.get_task(task_id6).scheduler_priority, -122);
+    assert_eq!(
+        core.get_task(task_id7).scheduler_priority,
+        -123 + T_LEVEL_WEIGHT
+    );
+    assert_eq!(core.get_task(task_id8).scheduler_priority, -123);
 }
 
 #[test]
