@@ -71,13 +71,13 @@ def test_worker_journal_replay(hq_env: HqEnv, tmp_path):
     assert events[0]["event"]["type"] == "server-start"
 
 
-def test_worker_replay_without_journal(hq_env: HqEnv, tmp_path):
+def test_worker_replay_without_journal(hq_env: HqEnv):
     hq_env.start_server()
     w = hq_env.start_worker()
     hq_env.start_worker()
     wait_for_worker_state(hq_env, [1, 2], "RUNNING")
     hq_env.command(["worker", "stop", "1"])
-    wait_for_worker_state(hq_env, [1], "STOPPED")
+    wait_for_worker_state(hq_env, [1], "STOPPED", check_running_processes=False)
     hq_env.check_process_exited(w)
     events = get_replayed_events(hq_env)
     assert_contains_event(events, lambda e: e["event"]["type"] == "worker-connected" and e["event"]["id"] == 1)
