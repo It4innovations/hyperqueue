@@ -81,7 +81,7 @@ impl LocalDataClient {
             if first {
                 self.send_message(FromLocalDataClientMessageUp::PutDataObject {
                     data_id,
-                    mime_type: mime_type.as_ref().map(|x| x.as_str()),
+                    mime_type: mime_type.as_deref(),
                     size,
                     data: PutDataUp { data },
                 })

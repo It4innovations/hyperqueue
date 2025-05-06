@@ -49,7 +49,7 @@ pub(crate) struct DataObjectComposer {
 impl DataObjectComposer {
     pub fn new(size: usize, mut data: Vec<u8>) -> Self {
         assert!(size >= data.len());
-        if data.len() != size {
+        if data.capacity() < size {
             data.reserve(size - data.len());
         }
         DataObjectComposer { size, data }
