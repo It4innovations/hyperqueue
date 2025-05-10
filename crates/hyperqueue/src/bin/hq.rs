@@ -508,8 +508,10 @@ async fn main() -> hyperqueue::Result<()> {
 
     if let Err(e) = result {
         gsettings.printer().print_error(e);
+        gsettings.printer().finalize_output();
         std::process::exit(1);
     }
 
+    gsettings.printer().finalize_output();
     Ok(())
 }
