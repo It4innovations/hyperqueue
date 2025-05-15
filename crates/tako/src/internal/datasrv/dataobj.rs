@@ -35,7 +35,7 @@ pub struct DataObject {
     mime_type: Option<String>,
 
     #[serde(with = "serde_bytes")]
-    data: Vec<u8>,
+    data: bytes::Bytes,
 }
 
 impl Debug for DataObject {

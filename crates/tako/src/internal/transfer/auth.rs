@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use bincode::{DefaultOptions, Options};
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use futures::StreamExt;
 use futures::stream::{SplitSink, SplitStream};
 use futures::{Sink, SinkExt};
@@ -222,6 +222,18 @@ pub async fn do_authentication<T: AsyncRead + AsyncWrite>(
 
     // Finish authentication
     authenticator.finish_authentication(remote_response)
+}
+
+pub fn unseal_message(opener: &mut Option<StreamOpener>, data: BytesMut) -> crate::Result<Vec<u8>> {
+    if let Some(opener) = opener {
+        let (msg, tag) = opener
+            .open_chunk(&data)
+            .map_err(|_| DsError::GenericError("Cannot decrypt message".to_string()))?;
+        assert_eq!(tag, StreamTag::Message);
+        Ok(msg.into())
+    } else {
+        Ok(data.into())
+    }
 }
 
 pub fn open_message<T>(opener: &mut Option<StreamOpener>, message_data: &[u8]) -> crate::Result<T>

@@ -25,7 +25,7 @@ impl DataObjectDecomposer {
             },
         )
     }
-    pub fn next(&mut self) -> Option<DataObjectSlice> {
+    pub fn next(&mut self) -> Option<&[u8]> {
         let size = self.data_obj.size() as usize;
         if self.end < size {
             let start = self.end;

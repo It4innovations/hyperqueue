@@ -1,4 +1,5 @@
 use crate::comm::{do_authentication, open_message, seal_message};
+use crate::internal::transfer::auth::unseal_message;
 use crate::internal::transfer::transport::make_protocol_builder;
 use bytes::{Bytes, BytesMut};
 use futures::future::ready;
@@ -30,10 +31,25 @@ impl<R: DeserializeOwned, S: Serialize> Connection<R, S> {
         self.writer.send(data).await?;
         Ok(())
     }
+
+    pub async fn send_raw_data(&mut self, data: Bytes) -> crate::Result<()> {
+        self.writer
+            .send(seal_message(&mut self.sealer, data))
+            .await
+            .map_err(|e| e.into())
+    }
+
     pub async fn receive(&mut self) -> Option<crate::Result<R>> {
         self.reader.next().await.map(|msg| {
             msg.map_err(|e| e.into())
                 .and_then(|m| deserialize_message(Ok(m), &mut self.opener))
+        })
+    }
+
+    pub async fn receive_raw_data(&mut self) -> Option<crate::Result<Vec<u8>>> {
+        self.reader.next().await.map(|data| {
+            data.map_err(|e| e.into())
+                .and_then(|d| unseal_message(&mut self.opener, d))
         })
     }
 

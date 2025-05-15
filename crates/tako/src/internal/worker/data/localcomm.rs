@@ -100,6 +100,7 @@ async fn datanode_local_message_handler(
                     )
                     .await?;
                     while let Some(data) = decomposer.next() {
+                        tx.send()
                         send_message(tx, ToLocalDataClientMessageUp::DataObjectPart(data)).await?;
                     }
                     let mut state = state_ref.get_mut();
