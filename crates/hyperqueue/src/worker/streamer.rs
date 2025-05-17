@@ -25,7 +25,7 @@ pub const STREAM_FILE_SUFFIX: &str = "hqs";
 
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct StreamFileHeader<'a> {
-    pub server_uid: Cow<'a, String>,
+    pub server_uid: Cow<'a, str>,
     pub worker_id: WorkerId,
 }
 

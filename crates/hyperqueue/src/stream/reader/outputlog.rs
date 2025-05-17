@@ -124,7 +124,7 @@ impl OutputLog {
                     }
                 };
                 if let Some(uid) = server_uid {
-                    if uid != header.server_uid.as_str() {
+                    if uid != header.server_uid {
                         log::debug!("{} ignored because different server uid", path.display());
                         continue;
                     }
