@@ -7,8 +7,8 @@ use std::time::Duration;
 use orion::aead::SecretKey;
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpListener;
-use tokio::sync::Notify;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::sync::{Notify, oneshot};
 
 use crate::events::EventProcessor;
 use crate::gateway::{
@@ -16,6 +16,7 @@ use crate::gateway::{
     WorkerRuntimeInfo,
 };
 use crate::internal::messages::worker::ToWorkerMessage;
+use crate::internal::scheduler::query::compute_new_worker_query;
 use crate::internal::scheduler::state::scheduler_loop;
 use crate::internal::server::client::handle_new_tasks;
 use crate::internal::server::comm::{Comm, CommSenderRef};
@@ -122,27 +123,23 @@ impl ServerRef {
     */
     pub fn new_worker_query(
         &self,
-        queries: &[WorkerTypeQuery],
-    ) -> crate::Result<NewWorkerAllocationResponse> {
-        for query in queries {
+        queries: Vec<WorkerTypeQuery>,
+    ) -> crate::Result<oneshot::Receiver<NewWorkerAllocationResponse>> {
+        for query in &queries {
             query.descriptor.validate()?;
         }
-        todo!()
-        /* TODO: Make it synchronous by forcing scheduling right away
-        let response = if self.comm_ref.get().get_scheduling_flag() {
-            let (sx, rx) = tokio::sync::oneshot::channel();
+        let (sx, rx) = tokio::sync::oneshot::channel();
+        if self.comm_ref.get().get_scheduling_flag() {
             self.comm_ref
                 .get_mut()
                 .add_after_scheduling_callback(Box::new(move |core| {
-                    let _ = sx.send(compute_new_worker_query(core, &msg.worker_queries));
+                    let _ = sx.send(compute_new_worker_query(core, &queries));
                 }));
-            rx.await.unwrap()
         } else {
-            let core = core_ref.get();
-            compute_new_worker_query(&core, &msg.worker_queries)
+            let core = self.core_ref.get();
+            let _ = sx.send(compute_new_worker_query(&core, &queries));
         };
-        Ok(response)
-         */
+        Ok(rx)
     }
 
     pub fn try_release_memory(&self) {
@@ -180,11 +177,6 @@ impl ServerRef {
                 .get_mut()
                 .broadcast_worker_message(&ToWorkerMessage::SetOverviewIntervalOverride(None));
         }
-    }
-
-    #[cfg(test)]
-    pub(crate) fn split(self) -> (CoreRef, CommSenderRef) {
-        (self.core_ref, self.comm_ref)
     }
 }
 

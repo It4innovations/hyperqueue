@@ -26,7 +26,8 @@ pub(crate) fn on_new_worker(core: &mut Core, comm: &mut impl Comm, worker: Worke
         resources: worker.resources.to_transport(),
     }));
 
-    comm.send_client_worker_new(worker.id, &worker.configuration);
+    comm.client()
+        .on_worker_new(worker.id, &worker.configuration);
 
     comm.ask_for_scheduling();
     core.new_worker(worker);
@@ -143,7 +144,8 @@ pub(crate) fn on_remove_worker(
     // IMPORTANT: We need to announce lost worker before failing the jobs
     // so in journal restoration we can detect what tasks were running
     // without explicit logging
-    comm.send_client_worker_lost(worker_id, &running_tasks, reason.clone());
+    comm.client()
+        .on_worker_lost(worker_id, &running_tasks, reason.clone());
 
     if reason.is_failure() {
         for task_id in running_tasks {
@@ -251,7 +253,8 @@ pub(crate) fn on_task_running(
             }
         };
 
-        comm.send_client_task_started(task_id, task.instance_id, worker_ids, context);
+        comm.client()
+            .on_task_started(task_id, task.instance_id, worker_ids, context);
     }
 }
 
@@ -310,7 +313,7 @@ pub(crate) fn on_task_finished(
 
             task.state = TaskRuntimeState::Finished;
             comm.ask_for_scheduling();
-            comm.send_client_task_finished(task_id);
+            comm.client().on_task_finished(task_id);
         } else {
             log::debug!("Unknown task finished id={}", task_id);
             return;
@@ -483,7 +486,6 @@ fn fail_task_helper(
             }
             let mut s = Set::new();
             task.collect_recursive_consumers(tasks, &mut s);
-            dbg!(&s);
             s.into_iter().collect()
         } else {
             log::debug!("Unknown task failed");
@@ -495,7 +497,6 @@ fn fail_task_helper(
 
     for &consumer in &consumers {
         log::debug!("Task={} canceled because of failed dependency", consumer);
-        dbg!(&core.get_task(consumer).state);
         assert!(matches!(
             core.remove_task(consumer, &mut objs_to_remove),
             TaskRuntimeState::Waiting(_)
@@ -515,7 +516,7 @@ fn fail_task_helper(
     }
     drop(state);
     objs_to_remove.send(comm);
-    let cancel_ids = comm.send_client_task_error(task_id, consumers, error_info);
+    let cancel_ids = comm.client().on_task_error(task_id, consumers, error_info);
     if cancel_ids.is_empty() {
         on_cancel_tasks(core, comm, &cancel_ids);
     }

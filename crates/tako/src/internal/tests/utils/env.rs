@@ -1,8 +1,9 @@
+use crate::events::EventProcessor;
 use crate::gateway::LostWorkerReason;
-use crate::internal::common::Map;
 use crate::internal::common::index::ItemId;
 use crate::internal::common::resources::ResourceDescriptor;
 use crate::internal::common::utils::format_comma_delimited;
+use crate::internal::common::Map;
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{ToWorkerMessage, WorkerOverview};
 use crate::internal::scheduler::state::SchedulerState;
@@ -18,8 +19,8 @@ use crate::internal::tests::utils::schedule;
 use crate::internal::tests::utils::task::TaskBuilder;
 use crate::internal::transfer::auth::{deserialize, serialize};
 use crate::internal::worker::configuration::{
-    DEFAULT_MAX_DOWNLOAD_TRIES, DEFAULT_MAX_PARALLEL_DOWNLOADS,
-    DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES, OverviewConfiguration,
+    OverviewConfiguration, DEFAULT_MAX_DOWNLOAD_TRIES, DEFAULT_MAX_PARALLEL_DOWNLOADS,
+    DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES,
 };
 use crate::resources::{
     ResourceAmount, ResourceDescriptorItem, ResourceDescriptorKind, ResourceUnits,
@@ -244,18 +245,55 @@ impl TestEnv {
 }
 
 #[derive(Default, Debug)]
-pub struct TestComm {
-    pub worker_msgs: Map<WorkerId, Vec<ToWorkerMessage>>,
-    pub broadcast_msgs: Vec<ToWorkerMessage>,
-
-    pub client_task_finished: Vec<TaskId>,
-    pub client_task_running: Vec<TaskId>,
-    pub client_task_errors: Vec<(TaskId, Vec<TaskId>, TaskFailInfo)>,
+pub struct TestClientProcessor {
+    pub task_finished: Vec<TaskId>,
+    pub task_running: Vec<TaskId>,
+    pub task_errors: Vec<(TaskId, Vec<TaskId>, TaskFailInfo)>,
 
     pub new_workers: Vec<(WorkerId, WorkerConfiguration)>,
     pub lost_workers: Vec<(WorkerId, Vec<TaskId>)>,
     pub worker_overviews: Vec<Box<WorkerOverview>>,
+}
 
+impl TestClientProcessor {
+    pub fn take_task_finished(&mut self, len: usize) -> Vec<TaskId> {
+        assert_eq!(self.task_finished.len(), len);
+        std::mem::take(&mut self.task_finished)
+    }
+
+    pub fn take_task_running(&mut self, len: usize) -> Vec<TaskId> {
+        assert_eq!(self.task_running.len(), len);
+        std::mem::take(&mut self.task_running)
+    }
+
+    pub fn take_task_errors(&mut self, len: usize) -> Vec<(TaskId, Vec<TaskId>, TaskFailInfo)> {
+        assert_eq!(self.task_errors.len(), len);
+        std::mem::take(&mut self.task_errors)
+    }
+
+    pub fn take_new_workers(&mut self) -> Vec<(WorkerId, WorkerConfiguration)> {
+        std::mem::take(&mut self.new_workers)
+    }
+
+    pub fn take_lost_workers(&mut self) -> Vec<(WorkerId, Vec<TaskId>)> {
+        std::mem::take(&mut self.lost_workers)
+    }
+
+    pub fn emptiness_check(&self) {
+        assert!(self.task_finished.is_empty());
+        assert!(self.task_running.is_empty());
+        assert!(self.task_errors.is_empty());
+
+        assert!(self.new_workers.is_empty());
+        assert!(self.lost_workers.is_empty());
+    }
+}
+
+#[derive(Default, Debug)]
+pub struct TestComm {
+    pub worker_msgs: Map<WorkerId, Vec<ToWorkerMessage>>,
+    pub broadcast_msgs: Vec<ToWorkerMessage>,
+    pub client: TestClientProcessor,
     pub need_scheduling: bool,
 }
 
@@ -278,32 +316,6 @@ impl TestComm {
         std::mem::take(&mut self.broadcast_msgs)
     }
 
-    pub fn take_client_task_finished(&mut self, len: usize) -> Vec<TaskId> {
-        assert_eq!(self.client_task_finished.len(), len);
-        std::mem::take(&mut self.client_task_finished)
-    }
-
-    pub fn take_client_task_running(&mut self, len: usize) -> Vec<TaskId> {
-        assert_eq!(self.client_task_running.len(), len);
-        std::mem::take(&mut self.client_task_running)
-    }
-
-    pub fn take_client_task_errors(
-        &mut self,
-        len: usize,
-    ) -> Vec<(TaskId, Vec<TaskId>, TaskFailInfo)> {
-        assert_eq!(self.client_task_errors.len(), len);
-        std::mem::take(&mut self.client_task_errors)
-    }
-
-    pub fn take_new_workers(&mut self) -> Vec<(WorkerId, WorkerConfiguration)> {
-        std::mem::take(&mut self.new_workers)
-    }
-
-    pub fn take_lost_workers(&mut self) -> Vec<(WorkerId, Vec<TaskId>)> {
-        std::mem::take(&mut self.lost_workers)
-    }
-
     pub fn check_need_scheduling(&mut self) {
         assert!(self.need_scheduling);
         self.need_scheduling = false;
@@ -315,15 +327,51 @@ impl TestComm {
             panic!("Unexpected worker messages for workers: {:?}", ids);
         }
         assert!(self.broadcast_msgs.is_empty());
-
-        assert!(self.client_task_finished.is_empty());
-        assert!(self.client_task_running.is_empty());
-        assert!(self.client_task_errors.is_empty());
-
-        assert!(self.new_workers.is_empty());
-        assert!(self.lost_workers.is_empty());
-
+        self.client.emptiness_check();
         assert!(!self.need_scheduling);
+    }
+}
+
+impl EventProcessor for TestClientProcessor {
+    fn on_task_finished(&mut self, task_id: TaskId) {
+        self.task_finished.push(task_id);
+    }
+
+    fn on_task_started(
+        &mut self,
+        task_id: TaskId,
+        _instance_id: InstanceId,
+        _worker_id: &[WorkerId],
+        _context: SerializedTaskContext,
+    ) {
+        self.task_running.push(task_id);
+    }
+
+    fn on_task_error(
+        &mut self,
+        task_id: TaskId,
+        consumers: Vec<TaskId>,
+        error_info: TaskFailInfo,
+    ) -> Vec<TaskId> {
+        self.task_errors.push((task_id, consumers, error_info));
+        Vec::new()
+    }
+
+    fn on_worker_new(&mut self, worker_id: WorkerId, configuration: &WorkerConfiguration) {
+        self.new_workers.push((worker_id, configuration.clone()));
+    }
+
+    fn on_worker_lost(
+        &mut self,
+        worker_id: WorkerId,
+        running_tasks: &[TaskId],
+        _reason: LostWorkerReason,
+    ) {
+        self.lost_workers.push((worker_id, running_tasks.to_vec()));
+    }
+
+    fn on_worker_overview(&mut self, overview: Box<WorkerOverview>) {
+        self.worker_overviews.push(overview);
     }
 }
 
@@ -344,45 +392,8 @@ impl Comm for TestComm {
         self.need_scheduling = true;
     }
 
-    fn send_client_task_finished(&mut self, task_id: TaskId) {
-        self.client_task_finished.push(task_id);
-    }
-
-    fn send_client_task_started(
-        &mut self,
-        task_id: TaskId,
-        _instance_id: InstanceId,
-        _worker_id: &[WorkerId],
-        _context: SerializedTaskContext,
-    ) {
-        self.client_task_running.push(task_id);
-    }
-
-    fn send_client_task_error(
-        &mut self,
-        task_id: TaskId,
-        consumers: Vec<TaskId>,
-        error_info: TaskFailInfo,
-    ) {
-        self.client_task_errors
-            .push((task_id, consumers, error_info));
-    }
-
-    fn send_client_worker_new(&mut self, worker_id: WorkerId, configuration: &WorkerConfiguration) {
-        self.new_workers.push((worker_id, configuration.clone()));
-    }
-
-    fn send_client_worker_lost(
-        &mut self,
-        worker_id: WorkerId,
-        running_tasks: Vec<TaskId>,
-        _reason: LostWorkerReason,
-    ) {
-        self.lost_workers.push((worker_id, running_tasks));
-    }
-
-    fn send_client_worker_overview(&mut self, overview: Box<WorkerOverview>) {
-        self.worker_overviews.push(overview);
+    fn client(&mut self) -> &mut dyn EventProcessor {
+        &mut self.client
     }
 }
 

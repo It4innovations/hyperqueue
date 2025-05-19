@@ -2,193 +2,146 @@ use crate::gateway::LostWorkerReason;
 use crate::internal::common::{Map, Set};
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::WorkerOverview;
-use crate::internal::tests::integration::utils::server::ServerHandle;
+use crate::internal::tests::integration::utils::server::{ServerHandle, TestTaskState};
+use crate::launcher::TaskResult;
 use crate::worker::WorkerConfiguration;
 use crate::{TaskId, WorkerId};
 
-use super::macros::wait_for_msg;
-
-pub async fn wait_for_worker_overview(
-    handler: &mut ServerHandle,
-    worker_id: WorkerId,
-) -> Box<WorkerOverview> {
-    handler.flush_messages();
-    wait_for_msg!(handler, ToGatewayMessage::WorkerOverview(o) if o.id == worker_id => o)
+pub(crate) struct WaitResult {
+    tasks: Map<TaskId, TestTaskState>,
 }
-pub async fn wait_for_workers_overview(
-    handler: &mut ServerHandle,
-    worker_ids: &[WorkerId],
-) -> Map<WorkerId, Box<WorkerOverview>> {
-    handler.flush_messages();
 
-    let mut worker_ids: Set<_> = worker_ids.iter().collect();
-
-    let mut worker_map = Map::default();
-    while !worker_ids.is_empty() {
-        let overview = wait_for_msg!(handler, ToGatewayMessage::WorkerOverview(o) if worker_ids.contains(&o.id) => o);
-        worker_ids.remove(&overview.id);
-        worker_map.insert(overview.id, overview);
+impl WaitResult {
+    pub fn assert_all_finished(&self) -> bool {
+        self.tasks
+            .values()
+            .all(|s| matches!(s, TestTaskState::Finished(_)))
+    }
+    pub fn assert_all_failed(&self) -> bool {
+        self.tasks
+            .values()
+            .all(|s| matches!(s, TestTaskState::Failed(..)))
     }
 
-    worker_map
+    pub fn get_state<T: Into<TaskId>>(&self, task: T) -> TestTaskState {
+        let task_id = task.into();
+        self.tasks.get(&task_id).cloned().unwrap()
+    }
+}
+
+pub async fn wait_for_worker_overview(
+    handle: &mut ServerHandle,
+    worker_id: WorkerId,
+) -> Box<WorkerOverview> {
+    wait_for_workers_overview(handle, &[worker_id])
+        .await
+        .remove(&worker_id)
+        .unwrap()
+}
+pub async fn wait_for_workers_overview(
+    handle: &mut ServerHandle,
+    worker_ids: &[WorkerId],
+) -> Map<WorkerId, Box<WorkerOverview>> {
+    let mut result = Map::new();
+    let notify = handle.client.get().notify.clone();
+    loop {
+        for worker_id in worker_ids {
+            if let Some(overview) = handle.client.get_mut().overviews.remove(worker_id) {
+                result.insert(*worker_id, overview);
+            }
+        }
+        if result.len() == worker_ids.len() {
+            return result;
+        }
+        notify.notified().await;
+    }
 }
 
 pub async fn wait_for_worker_connected(
-    handler: &mut ServerHandle,
+    handle: &mut ServerHandle,
     worker_id: WorkerId,
 ) -> WorkerConfiguration {
-    wait_for_msg!(handler, ToGatewayMessage::NewWorker(NewWorkerMessage {
-        worker_id: wid,
-        configuration
-    }) if wid == worker_id => configuration)
+    let notify = handle.client.get().notify.clone();
+    loop {
+        if let Some(s) = handle.client.get_mut().worker_state.get(&worker_id) {
+            return s.configuration.clone();
+        }
+        notify.notified().await;
+    }
 }
 
 pub async fn wait_for_worker_lost(
-    handler: &mut ServerHandle,
+    handle: &mut ServerHandle,
     worker_id: WorkerId,
 ) -> LostWorkerReason {
-    wait_for_msg!(handler, ToGatewayMessage::LostWorker(LostWorkerMessage {
-        worker_id: wid,
-        reason,
-        ..
-    })
-    if wid == worker_id => reason)
+    let notify = handle.client.get().notify.clone();
+    loop {
+        if let Some(s) = handle
+            .client
+            .get_mut()
+            .worker_state
+            .get(&worker_id)
+            .and_then(|s| s.lost_reason.clone())
+        {
+            return s;
+        }
+        notify.notified().await;
+    }
 }
 
 pub async fn wait_for_task_start<T: Into<TaskId>>(
-    handler: &mut ServerHandle,
+    handle: &mut ServerHandle,
     task_id: T,
 ) -> WorkerId {
     let task_id: TaskId = task_id.into();
-    wait_for_msg!(handler, ToGatewayMessage::TaskUpdate(TaskUpdate {
-        state: TaskState::Running { worker_ids, .. },
-        id,
-    }) if id == task_id => worker_ids[0])
-}
-
-#[derive(Debug)]
-pub enum TaskResult {
-    Update(TaskState),
-    Fail { info: TaskFailInfo },
-}
-
-impl TaskResult {
-    pub fn is_finished(&self) -> bool {
-        matches!(self, TaskResult::Update(TaskState::Finished))
-    }
-
-    pub fn is_failed(&self) -> bool {
-        matches!(self, TaskResult::Fail { .. })
-    }
-}
-
-#[derive(Default, Debug)]
-pub struct TaskWaitResult {
-    events: Vec<TaskResult>,
-}
-
-impl TaskWaitResult {
-    fn add(&mut self, result: TaskResult) {
-        self.events.push(result);
-    }
-
-    fn is_finished(&self) -> bool {
-        self.events.iter().any(|v| v.is_finished())
-    }
-
-    fn is_failed(&self) -> bool {
-        self.events.iter().any(|v| v.is_failed())
-    }
-
-    pub fn assert_error_message(&self, needle: &str) {
-        for event in &self.events {
-            if let TaskResult::Fail { info, .. } = event {
-                assert!(info.message.contains(needle));
-                return;
+    let notify = handle.client.get().notify.clone();
+    loop {
+        {
+            let client = handle.client.get();
+            if let Some(worker_id) = client
+                .task_state
+                .get(&task_id)
+                .map(|x| x.worker_id().unwrap())
+            {
+                return worker_id;
             }
         }
-        panic!("Did not find error result for the current task");
+        notify.notified().await;
     }
 }
 
-#[derive(Default)]
-pub struct TaskWaitResultMap {
-    tasks: Map<TaskId, TaskWaitResult>,
-}
-
-impl TaskWaitResultMap {
-    pub fn assert_all_finished(&self) {
-        for (id, task) in &self.tasks {
-            if !task.is_finished() {
-                panic!("Task {} has not finished: {:?}", id, task);
-            }
-        }
-    }
-
-    pub fn is_failed<T: Into<TaskId>>(&self, id: T) -> bool {
-        self.tasks[&id.into()].is_failed()
-    }
-
-    pub fn get<T: Into<TaskId>>(&self, id: T) -> &TaskWaitResult {
-        &self.tasks[&id.into()]
-    }
-}
-
-pub async fn wait_for_tasks<T: Into<TaskId>>(
+pub async fn wait_for_tasks<T: Into<TaskId> + Copy>(
     handle: &mut ServerHandle,
-    tasks: Vec<T>,
-) -> TaskWaitResultMap {
-    let mut tasks: Set<TaskId> = tasks.into_iter().map(|v| v.into()).collect();
-    let tasks_orig = tasks.clone();
-    let mut result = TaskWaitResultMap::default();
-
-    while !tasks.is_empty() {
-        match handle.recv().await {
-            ToGatewayMessage::TaskUpdate(msg) => {
-                if !tasks_orig.contains(&msg.id) {
-                    continue;
-                }
-                if let TaskState::Finished | TaskState::Invalid = msg.state {
-                    assert!(tasks.remove(&msg.id));
-                }
-                result
-                    .tasks
-                    .entry(msg.id)
-                    .or_default()
-                    .add(TaskResult::Update(msg.state));
+    tasks: &[T],
+) -> WaitResult {
+    let notify = handle.client.get().notify.clone();
+    loop {
+        {
+            let mut client = handle.client.get_mut();
+            if tasks.iter().all(|t| {
+                let task_id: TaskId = (*t).into();
+                client
+                    .task_state
+                    .get(&task_id)
+                    .map_or(false, |s| s.is_terminated())
+            }) {
+                return WaitResult {
+                    tasks: tasks
+                        .iter()
+                        .map(|t| {
+                            let task_id: TaskId = (*t).into();
+                            (task_id, client.task_state.remove(&task_id).unwrap())
+                        })
+                        .collect(),
+                };
             }
-            ToGatewayMessage::TaskFailed(msg) => {
-                if !tasks_orig.contains(&msg.id) {
-                    continue;
-                }
-                assert!(tasks.remove(&msg.id));
-                result
-                    .tasks
-                    .entry(msg.id)
-                    .or_default()
-                    .add(TaskResult::Fail { info: msg.info });
-            }
-            ToGatewayMessage::Error(msg) => panic!(
-                "Received error message {:?} while waiting for tasks",
-                msg.message
-            ),
-            msg => println!("Received message {:?} while waiting for tasks", msg),
-        };
+        }
+        notify.notified().await;
     }
-    result
 }
 
 // Cancellation
-pub async fn cancel<T: Into<TaskId> + Copy>(
-    handle: &mut ServerHandle,
-    tasks: &[T],
-) -> CancelTasksResponse {
-    let msg = FromGatewayMessage::CancelTasks(CancelTasks {
-        tasks: tasks.iter().map(|&id| id.into()).collect(),
-    });
-    handle.send(msg).await;
-    wait_for_msg!(
-        handle,
-        ToGatewayMessage::CancelTasksResponse(msg) => msg
-    )
+pub fn cancel<T: Into<TaskId> + Copy>(handle: &mut ServerHandle, tasks: &[T]) {
+    let task_ids: Vec<TaskId> = tasks.iter().map(|t| (*t).into()).collect();
+    handle.server_ref.cancel_tasks(&task_ids);
 }

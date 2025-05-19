@@ -1,7 +1,6 @@
 use std::path::Path;
 
 pub mod api;
-pub mod macros;
 pub mod server;
 pub mod task;
 pub mod worker;

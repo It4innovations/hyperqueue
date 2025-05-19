@@ -409,7 +409,8 @@ mod tests {
     use std::path::PathBuf;
     use std::time::Duration;
     use tako::gateway::{
-        ResourceRequest, ResourceRequestEntry, ResourceRequestVariants, TaskDataFlags,
+        ResourceRequest, ResourceRequestEntry, ResourceRequestVariants, SharedTaskConfiguration,
+        TaskDataFlags,
     };
     use tako::internal::tests::utils::sorted_vec;
     use tako::program::ProgramDefinition;
@@ -432,7 +433,7 @@ mod tests {
 
         let msg = build_tasks_graph(1.into(), &tasks, &PathBuf::from("foo"), None);
 
-        check_shared_data(&msg, vec![desc_a(), desc_c(), desc_b()]);
+        check_shared_data(&msg.shared_data, vec![desc_a(), desc_c(), desc_b()]);
         assert_eq!(
             msg.tasks
                 .into_iter()
@@ -576,9 +577,9 @@ mod tests {
         );
     }
 
-    fn check_shared_data(msg: &NewTasksMessage, expected: Vec<TaskDescription>) {
-        assert_eq!(msg.shared_data.len(), expected.len());
-        for (shared, expected) in msg.shared_data.iter().zip(expected) {
+    fn check_shared_data(shared_data: &[SharedTaskConfiguration], expected: Vec<TaskDescription>) {
+        assert_eq!(shared_data.len(), expected.len());
+        for (shared, expected) in shared_data.iter().zip(expected) {
             assert_eq!(shared.resources, expected.resources);
             assert_eq!(shared.time_limit, expected.time_limit);
             assert_eq!(shared.priority, expected.priority);

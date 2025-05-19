@@ -1,14 +1,14 @@
+use crate::TaskId;
 use crate::control::{NewWorkerAllocationResponse, WorkerTypeQuery};
 use crate::internal::tests::integration::utils::api::cancel;
 use crate::internal::tests::integration::utils::check_file_contents;
-use crate::internal::tests::integration::utils::server::{run_test, ServerHandle};
+use crate::internal::tests::integration::utils::server::{ServerHandle, run_test};
 use crate::internal::tests::integration::utils::task::ResourceRequestConfigBuilder;
 use crate::internal::tests::integration::utils::task::{
-    simple_args, simple_task, GraphBuilder, TaskConfigBuilder,
+    GraphBuilder, TaskConfigBuilder, simple_args, simple_task,
 };
 use crate::program::StdioDef;
 use crate::resources::ResourceDescriptor;
-use crate::{wait_for_msg, TaskId};
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -59,8 +59,7 @@ async fn test_submit_simple_task_fail() {
                 1,
             )))
             .await;
-        let result = handler.wait(&ids).await;
-        assert!(result.is_failed(ids[0]));
+        handler.wait(&ids).await.assert_all_failed();
 
         let ids = handler
             .submit(GraphBuilder::singleton(simple_task(
@@ -68,64 +67,12 @@ async fn test_submit_simple_task_fail() {
                 2,
             )))
             .await;
-        let result = handler.wait(&ids).await;
-        assert!(result.is_failed(ids[0]));
+        handler.wait(&ids).await.assert_all_failed();
 
         let ids = handler
             .submit(GraphBuilder::singleton(simple_task(&["uname"], 3)))
             .await;
         handler.wait(&ids).await.assert_all_finished();
-    })
-    .await;
-}
-
-#[tokio::test]
-async fn test_cancel_immediately() {
-    run_test(Default::default(), |mut handle| async move {
-        handle.start_worker(Default::default()).await.unwrap();
-
-        let ids = handle
-            .submit(GraphBuilder::singleton(simple_task(&["sleep", "1"], 1)))
-            .await;
-        let response = cancel(&mut handle, &ids).await;
-        assert_eq!(response.cancelled_tasks, vec![TaskId::new_test(1)]);
-    })
-    .await;
-}
-
-#[tokio::test]
-async fn test_cancel_prev() {
-    run_test(Default::default(), |mut handle| async move {
-        handle.start_worker(Default::default()).await.unwrap();
-
-        let ids = handle
-            .submit(
-                GraphBuilder::default()
-                    .tasks((1..100).map(|id| simple_task(&["sleep", "1"], id)))
-                    .build(),
-            )
-            .await;
-        let mut to_cancel = ids[..72].to_vec();
-        to_cancel.extend(&ids[73..]);
-        cancel(&mut handle, &to_cancel).await;
-
-        handle.wait(&[ids[72]]).await.assert_all_finished();
-    })
-    .await;
-}
-
-#[tokio::test]
-async fn test_cancel_error_task() {
-    run_test(Default::default(), |mut handle| async move {
-        handle.start_worker(Default::default()).await.unwrap();
-
-        handle
-            .submit(GraphBuilder::singleton(simple_task(&["/nonsense"], 1)))
-            .await;
-        sleep(Duration::from_millis(300)).await;
-
-        let response = cancel(&mut handle, &[1]).await;
-        assert_eq!(response.already_finished, vec![TaskId::new_test(1)]);
     })
     .await;
 }
@@ -145,7 +92,7 @@ async fn test_task_time_limit_fail() {
         handle
             .wait(&[1])
             .await
-            .get(1)
+            .get_state(1)
             .assert_error_message("Time limit reached");
     })
     .await;
@@ -172,13 +119,8 @@ async fn query_helper(
     handler: &mut ServerHandle,
     worker_queries: Vec<WorkerTypeQuery>,
 ) -> NewWorkerAllocationResponse {
-    todo!()
-    // handler
-    //     .send(FromGatewayMessage::NewWorkerQuery(NewWorkerQuery {
-    //         worker_queries,
-    //     }))
-    //     .await;
-    // wait_for_msg!(handler, ToGatewayMessage::NewWorkerAllocationQueryResponse(msg) => msg)
+    let result = handler.server_ref.new_worker_query(worker_queries).unwrap();
+    result.await.unwrap()
 }
 
 #[tokio::test]

@@ -1,8 +1,8 @@
 use std::rc::Rc;
 
 use bytes::Bytes;
-use tokio::sync::Notify;
 use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::Notify;
 
 use crate::events::EventProcessor;
 use crate::gateway::LostWorkerReason;
@@ -16,33 +16,12 @@ use crate::task::SerializedTaskContext;
 use crate::{InstanceId, TaskId, WorkerId};
 
 pub trait Comm {
-    fn send_worker_message(&self, worker_id: WorkerId, message: &ToWorkerMessage);
-    fn broadcast_worker_message(&self, message: &ToWorkerMessage);
+    fn send_worker_message(&mut self, worker_id: WorkerId, message: &ToWorkerMessage);
+    fn broadcast_worker_message(&mut self, message: &ToWorkerMessage);
     fn ask_for_scheduling(&mut self);
 
-    fn send_client_task_finished(&self, task_id: TaskId);
-    fn send_client_task_started(
-        &self,
-        task_id: TaskId,
-        instance_id: InstanceId,
-        worker_ids: &[WorkerId],
-        context: SerializedTaskContext,
-    );
-    fn send_client_task_error(
-        &self,
-        task_id: TaskId,
-        consumers_id: Vec<TaskId>,
-        error_info: TaskFailInfo,
-    ) -> Vec<TaskId>;
-
-    fn send_client_worker_new(&self, worker_id: WorkerId, configuration: &WorkerConfiguration);
-    fn send_client_worker_lost(
-        &self,
-        worker_id: WorkerId,
-        running_tasks: &[TaskId],
-        reason: LostWorkerReason,
-    );
-    fn send_client_worker_overview(&self, overview: Box<WorkerOverview>);
+    #[inline]
+    fn client(&mut self) -> &mut dyn EventProcessor;
 }
 
 type SchedulingCallback = Box<dyn FnOnce(&mut Core)>;
@@ -112,7 +91,7 @@ impl CommSender {
 }
 
 impl Comm for CommSender {
-    fn send_worker_message(&self, worker_id: WorkerId, message: &ToWorkerMessage) {
+    fn send_worker_message(&mut self, worker_id: WorkerId, message: &ToWorkerMessage) {
         let data = serialize(&message).unwrap();
         self.workers
             .get(&worker_id)
@@ -121,7 +100,10 @@ impl Comm for CommSender {
             .expect("Send to worker failed");
     }
 
-    fn broadcast_worker_message(&self, message: &ToWorkerMessage) {
+    fn broadcast_worker_message(&mut self, message: &ToWorkerMessage) {
+        if self.workers.is_empty() {
+            return;
+        }
         let data: Bytes = serialize(&message).unwrap().into();
         for sender in self.workers.values() {
             sender.send(data.clone()).expect("Send to worker failed");
@@ -137,63 +119,7 @@ impl Comm for CommSender {
     }
 
     #[inline]
-    fn send_client_task_finished(&self, task_id: TaskId) {
-        self.client_events
-            .as_ref()
-            .unwrap()
-            .on_task_finished(task_id);
-    }
-
-    fn send_client_task_started(
-        &self,
-        task_id: TaskId,
-        instance_id: InstanceId,
-        worker_ids: &[WorkerId],
-        context: SerializedTaskContext,
-    ) {
-        self.client_events.as_ref().unwrap().on_task_started(
-            task_id,
-            instance_id,
-            worker_ids,
-            context,
-        );
-    }
-
-    fn send_client_task_error(
-        &self,
-        task_id: TaskId,
-        consumers_id: Vec<TaskId>,
-        error_info: TaskFailInfo,
-    ) -> Vec<TaskId> {
-        self.client_events
-            .as_ref()
-            .unwrap()
-            .on_task_error(task_id, consumers_id, error_info)
-    }
-
-    fn send_client_worker_new(&self, worker_id: WorkerId, configuration: &WorkerConfiguration) {
-        self.client_events
-            .as_ref()
-            .unwrap()
-            .on_worker_new(worker_id, configuration);
-    }
-
-    fn send_client_worker_lost(
-        &self,
-        worker_id: WorkerId,
-        running_tasks: &[TaskId],
-        reason: LostWorkerReason,
-    ) {
-        self.client_events
-            .as_ref()
-            .unwrap()
-            .on_worker_lost(worker_id, running_tasks, reason);
-    }
-
-    fn send_client_worker_overview(&self, overview: Box<WorkerOverview>) {
-        self.client_events
-            .as_ref()
-            .unwrap()
-            .on_worker_overview(overview);
+    fn client(&mut self) -> &mut dyn EventProcessor {
+        self.client_events.as_mut().unwrap().as_mut()
     }
 }

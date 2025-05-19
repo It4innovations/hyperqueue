@@ -15,13 +15,13 @@ use crate::internal::server::taskmap::TaskMap;
 use crate::{static_assert_size, TaskId};
 use crate::{InstanceId, Priority};
 
-#[cfg_attr(test, derive(Eq, PartialEq))]
+#[cfg_attr(test, derive(Eq, PartialEq, Clone))]
 pub struct WaitingInfo {
     pub unfinished_deps: u32,
     // pub scheduler_metric: i32,
 }
 
-#[cfg_attr(test, derive(Eq, PartialEq))]
+#[cfg_attr(test, derive(Eq, PartialEq, Clone))]
 pub enum TaskRuntimeState {
     Waiting(WaitingInfo),
     Assigned(WorkerId),
@@ -360,10 +360,9 @@ mod tests {
         let expected_ids = vec![b.id, c.id, d.id, e.id];
         submit_test_tasks(&mut core, vec![a, b, c, d, e]);
 
-        assert_eq!(
-            core.get_task(0.into())
-                .collect_recursive_consumers(core.task_map()),
-            expected_ids.into_iter().collect()
-        );
+        let mut s = crate::Set::new();
+        core.get_task(0.into())
+            .collect_recursive_consumers(core.task_map(), &mut s);
+        assert_eq!(s, expected_ids.into_iter().collect());
     }
 }
