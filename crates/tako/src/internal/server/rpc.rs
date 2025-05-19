@@ -10,7 +10,6 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::time::timeout;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
-use crate::WorkerId;
 use crate::comm::{ConnectionRegistration, RegisterWorker};
 use crate::gateway::LostWorkerReason;
 use crate::internal::common::error::DsError;
@@ -24,12 +23,13 @@ use crate::internal::server::reactor::{
     on_new_worker, on_remove_worker, on_resolve_placement, on_steal_response, on_task_error,
     on_task_finished, on_task_running,
 };
-use crate::internal::server::worker::{DEFAULT_WORKER_OVERVIEW_INTERVAL, Worker};
+use crate::internal::server::worker::{Worker, DEFAULT_WORKER_OVERVIEW_INTERVAL};
 use crate::internal::transfer::auth::{
     do_authentication, forward_queue_to_sealed_sink, open_message, serialize,
 };
 use crate::internal::transfer::transport::make_protocol_builder;
 use crate::internal::worker::configuration::sync_worker_configuration;
+use crate::WorkerId;
 
 pub struct ConnectionDescriptor {
     pub address: std::net::SocketAddr,
@@ -284,7 +284,7 @@ pub(crate) async fn worker_receive_loop<
                 };
             }
             FromWorkerMessage::Overview(overview) => {
-                comm.send_client_worker_overview(overview);
+                comm.client().on_worker_overview(overview);
             }
             FromWorkerMessage::Stop(reason) => {
                 return Ok(Some(reason));

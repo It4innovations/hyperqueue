@@ -1,26 +1,34 @@
 use std::future::Future;
 use std::net::{Ipv4Addr, SocketAddr};
+use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 
 use derive_builder::Builder;
 use orion::auth::SecretKey;
+use tokio::net::TcpListener;
+use tokio::sync::Notify;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use tokio::task::{JoinHandle, LocalSet};
 use tokio::time::timeout;
 
-use crate::gateway::{SharedTaskConfiguration, TaskConfiguration};
+use super::worker::WorkerConfigBuilder;
+use crate::control::ServerRef;
+use crate::events::EventProcessor;
+use crate::gateway::{LostWorkerReason, SharedTaskConfiguration, TaskConfiguration, TaskSubmit};
 use crate::internal::common::{Map, Set};
+use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::server::comm::CommSenderRef;
 use crate::internal::server::core::CoreRef;
-use crate::internal::tests::integration::utils::api::{TaskWaitResultMap, wait_for_tasks};
+use crate::internal::tests::integration::utils::api::{WaitResult, wait_for_tasks};
 use crate::internal::tests::integration::utils::worker::{
     WorkerContext, WorkerHandle, start_worker,
 };
-use crate::{TaskId, WorkerId};
-
-use super::macros::wait_for_msg;
-use super::worker::WorkerConfigBuilder;
+use crate::internal::tests::utils::env::TestClientProcessor;
+use crate::internal::worker::task::TaskState;
+use crate::task::SerializedTaskContext;
+use crate::worker::{WorkerConfiguration, WorkerOverview};
+use crate::{InstanceId, TaskId, WorkerId, WrappedRcRefCell};
 
 const WAIT_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -49,109 +57,23 @@ pub struct ServerConfig {
 }
 
 pub struct ServerHandle {
-    server_to_client: UnboundedReceiver<ToGatewayMessage>,
-    client_sender: UnboundedSender<ToGatewayMessage>,
-    core_ref: CoreRef,
-    comm_ref: CommSenderRef,
+    pub server_ref: ServerRef,
+    pub client: AsyncTestClientProcessorRef,
     secret_key: Option<Arc<SecretKey>>,
     workers: Map<WorkerId, WorkerContext>,
-    out_of_band_messages: Vec<ToGatewayMessage>,
-}
-
-#[warn(clippy::large_enum_variant)]
-pub enum MessageFilter<T> {
-    Expected(T),
-    Unexpected(ToGatewayMessage),
-}
-
-impl<T> From<ToGatewayMessage> for MessageFilter<T> {
-    fn from(msg: ToGatewayMessage) -> Self {
-        Self::Unexpected(msg)
-    }
 }
 
 impl ServerHandle {
-    /// Removes currently received out-of-band messages, so that the next `recv_msg` call will
-    /// receive the latest data.
-    pub fn flush_messages(&mut self) {
-        self.out_of_band_messages.clear();
-    }
-
-    pub async fn send(&self, msg: FromGatewayMessage) {
-        assert_eq!(self.send_with_response(msg).await, None);
-    }
-    pub async fn send_with_response(&self, msg: FromGatewayMessage) -> Option<String> {
-        process_client_message(&self.core_ref, &self.comm_ref, &self.client_sender, msg).await
-    }
-    pub async fn recv(&mut self) -> ToGatewayMessage {
-        match timeout(WAIT_TIMEOUT, self.server_to_client.recv()).await {
-            Ok(result) => result.expect("Expected message to be received"),
-            Err(_) => panic!("Timeout reached when receiving a message"),
-        }
-    }
-
-    /// Receive messages until timeout is reached.
-    /// When check_fn returns `Some`, the loop will end.
-    ///
-    /// Use this to wait for a specific message to be received.
-    pub async fn recv_msg<CheckMsg: FnMut(ToGatewayMessage) -> MessageFilter<T>, T>(
-        &mut self,
-        check_fn: CheckMsg,
-    ) -> T {
-        self.recv_msg_with_timeout(check_fn, WAIT_TIMEOUT)
-            .await
-            .expect("Timeout reached when waiting for a specific message")
-    }
-
-    pub async fn recv_msg_with_timeout<CheckMsg: FnMut(ToGatewayMessage) -> MessageFilter<T>, T>(
-        &mut self,
-        mut check_fn: CheckMsg,
-        max_duration: Duration,
-    ) -> Option<T> {
-        let mut found_oob = None;
-        self.out_of_band_messages = std::mem::take(&mut self.out_of_band_messages)
-            .into_iter()
-            .filter_map(|msg| {
-                if found_oob.is_none() {
-                    match check_fn(msg) {
-                        MessageFilter::Expected(response) => {
-                            found_oob = Some(response);
-                            None
-                        }
-                        MessageFilter::Unexpected(msg) => Some(msg),
-                    }
-                } else {
-                    Some(msg)
-                }
-            })
-            .collect();
-        if let Some(found) = found_oob {
-            return Some(found);
-        }
-
-        let fut = async move {
-            loop {
-                let msg = self.recv().await;
-                match check_fn(msg) {
-                    MessageFilter::Expected(response) => {
-                        break response;
-                    }
-                    MessageFilter::Unexpected(msg) => {
-                        println!("Received out-of-band message {:?}", msg);
-                        self.out_of_band_messages.push(msg);
-                    }
-                }
-            }
-        };
-        (timeout(max_duration, fut).await).ok()
-    }
-
     pub async fn start_worker(
         &mut self,
         config: WorkerConfigBuilder,
     ) -> anyhow::Result<WorkerHandle> {
-        let (handle, ctx) =
-            start_worker(self.core_ref.clone(), self.secret_key.clone(), config).await?;
+        let (handle, ctx) = start_worker(
+            self.server_ref.get_worker_listen_port(),
+            self.secret_key.clone(),
+            config,
+        )
+        .await?;
         assert!(self.workers.insert(handle.id, ctx).is_none());
         Ok(handle)
     }
@@ -174,10 +96,7 @@ impl ServerHandle {
     }
 
     pub async fn stop_worker(&mut self, worker_id: WorkerId) {
-        self.send(FromGatewayMessage::StopWorker(StopWorkerRequest {
-            worker_id,
-        }))
-        .await;
+        self.server_ref.stop_worker(worker_id).unwrap();
     }
 
     pub async fn submit(
@@ -187,20 +106,141 @@ impl ServerHandle {
         let (tasks, configurations) = tasks_and_confs;
         let ids: Vec<TaskId> = tasks.iter().map(|t| t.id).collect();
         assert_eq!(ids.iter().collect::<Set<_>>().len(), ids.len());
-        let msg = NewTasksMessage {
-            tasks,
-            shared_data: configurations,
-            adjust_instance_id_and_crash_counters: Default::default(),
-        };
-        self.send(FromGatewayMessage::NewTasks(msg)).await;
-        wait_for_msg!(self, ToGatewayMessage::NewTasksResponse(NewTasksResponse { .. }) => ());
+        self.server_ref
+            .add_new_tasks(TaskSubmit {
+                tasks,
+                shared_data: configurations,
+                adjust_instance_id_and_crash_counters: Default::default(),
+            })
+            .unwrap();
         ids
     }
 
-    pub async fn wait<T: Into<TaskId> + Copy>(&mut self, tasks: &[T]) -> TaskWaitResultMap {
-        timeout(WAIT_TIMEOUT, wait_for_tasks(self, tasks.to_vec()))
+    pub async fn wait<T: Into<TaskId> + Copy>(&mut self, tasks: &[T]) -> WaitResult {
+        timeout(WAIT_TIMEOUT, wait_for_tasks(self, &tasks))
             .await
             .unwrap()
+    }
+}
+
+#[derive(Clone)]
+pub(crate) enum TestTaskState {
+    Running(WorkerId),
+    Finished(Option<WorkerId>),
+    Failed(Option<WorkerId>, TaskFailInfo),
+}
+
+impl TestTaskState {
+    pub fn is_terminated(&self) -> bool {
+        match self {
+            TestTaskState::Running(..) => false,
+            TestTaskState::Finished(..) | TestTaskState::Failed(..) => true,
+        }
+    }
+
+    pub fn assert_error_message(&self, message: &str) {
+        assert!(matches!(self, TestTaskState::Failed(_, info) if info.message == message))
+    }
+
+    pub fn worker_id(&self) -> Option<WorkerId> {
+        match self {
+            TestTaskState::Running(worker_id) => Some(*worker_id),
+            TestTaskState::Finished(worker_id) | TestTaskState::Failed(worker_id, _) => *worker_id,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct TestWorkerState {
+    pub configuration: WorkerConfiguration,
+    pub lost_reason: Option<LostWorkerReason>,
+}
+
+pub(crate) struct AsyncTestClientProcessor {
+    pub notify: Rc<Notify>,
+    pub task_state: Map<TaskId, TestTaskState>,
+    pub overviews: Map<WorkerId, Box<WorkerOverview>>,
+    pub worker_state: Map<WorkerId, TestWorkerState>,
+}
+
+pub(crate) type AsyncTestClientProcessorRef = WrappedRcRefCell<AsyncTestClientProcessor>;
+
+impl AsyncTestClientProcessorRef {
+    fn update_state(&self, task_id: TaskId, state: TestTaskState) {
+        let mut inner = self.get_mut();
+        inner.task_state.insert(task_id, state);
+        inner.notify.notify_one();
+    }
+
+    pub fn clear(&self) {
+        let mut inner = self.get_mut();
+        inner.task_state.clear();
+        inner.overviews.clear();
+    }
+}
+
+impl EventProcessor for AsyncTestClientProcessorRef {
+    fn on_task_finished(&mut self, task_id: TaskId) {
+        let worker_id = self
+            .get()
+            .task_state
+            .get(&task_id)
+            .and_then(|s| s.worker_id());
+        self.update_state(task_id, TestTaskState::Finished(worker_id))
+    }
+
+    fn on_task_started(
+        &mut self,
+        task_id: TaskId,
+        instance_id: InstanceId,
+        worker_ids: &[WorkerId],
+        context: SerializedTaskContext,
+    ) {
+        self.update_state(task_id, TestTaskState::Running(worker_ids[0]));
+    }
+
+    fn on_task_error(
+        &mut self,
+        task_id: TaskId,
+        consumers_id: Vec<TaskId>,
+        error_info: TaskFailInfo,
+    ) -> Vec<TaskId> {
+        let worker_id = self
+            .get()
+            .task_state
+            .get(&task_id)
+            .and_then(|s| s.worker_id());
+        self.update_state(task_id, TestTaskState::Failed(worker_id, error_info));
+        Vec::new()
+    }
+
+    fn on_worker_new(&mut self, worker_id: WorkerId, configuration: &WorkerConfiguration) {
+        self.get_mut().worker_state.insert(
+            worker_id,
+            TestWorkerState {
+                configuration: configuration.clone(),
+                lost_reason: None,
+            },
+        );
+    }
+
+    fn on_worker_lost(
+        &mut self,
+        worker_id: WorkerId,
+        running_tasks: &[TaskId],
+        reason: LostWorkerReason,
+    ) {
+        self.get_mut()
+            .worker_state
+            .get_mut(&worker_id)
+            .unwrap()
+            .lost_reason = Some(reason);
+        self.get().notify.notify_one();
+    }
+
+    fn on_worker_overview(&mut self, overview: Box<WorkerOverview>) {
+        self.get_mut().overviews.insert(overview.id, overview);
+        self.get().notify.notify_one();
     }
 }
 
@@ -210,38 +250,38 @@ async fn create_handle(
     let config: ServerConfig = builder.build().unwrap();
 
     let listen_address = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), 0);
+    let listener = TcpListener::bind(listen_address).await.unwrap();
+
     let secret_key = match config.secret_key {
         ServerSecretKey::AutoGenerate => Some(Arc::new(Default::default())),
         ServerSecretKey::Custom(key) => key.map(Arc::new),
     };
 
-    let (client_sender, client_receiver) = unbounded_channel::<ToGatewayMessage>();
-
-    let (server_ref, server_future) = crate::server::server_start(
-        listen_address,
+    let (server_ref, server_future) = crate::control::server_start(
+        listener,
         secret_key.clone(),
         config.msd,
-        client_sender.clone(),
         config.panic_on_worker_lost,
         config.idle_timeout,
         None,
         "testuid".to_string(),
         1.into(),
     )
-    .await
     .expect("Could not start server");
 
-    let (core_ref, comm_ref) = server_ref.split();
-
+    let client_ref = WrappedRcRefCell::wrap(AsyncTestClientProcessor {
+        notify: Rc::new(Notify::new()),
+        task_state: Default::default(),
+        overviews: Default::default(),
+        worker_state: Default::default(),
+    });
+    server_ref.set_client_events(Box::new(client_ref.clone()));
     (
         ServerHandle {
-            server_to_client: client_receiver,
-            client_sender,
-            core_ref,
-            comm_ref,
+            server_ref,
             secret_key,
+            client: client_ref,
             workers: Default::default(),
-            out_of_band_messages: Default::default(),
         },
         server_future,
     )

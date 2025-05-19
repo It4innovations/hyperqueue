@@ -8,7 +8,6 @@ use crate::internal::tests::integration::utils::api::{
 };
 use crate::internal::tests::integration::utils::server::run_test;
 use crate::internal::tests::integration::utils::task::{GraphBuilder, simple_task};
-use crate::try_wait_for_msg;
 
 use super::utils::server::ServerConfigBuilder;
 use super::utils::worker::WorkerConfigBuilder;
@@ -76,7 +75,9 @@ async fn test_worker_lost_stopped() {
             .start_worker(WorkerConfigBuilder::default())
             .await
             .unwrap();
+        wait_for_worker_connected(&mut handler, worker.id).await;
         handler.stop_worker(worker.id).await;
+        dbg!(&handler.client.get().worker_state);
         let reason = wait_for_worker_lost(&mut handler, worker.id).await;
         assert!(matches!(reason, LostWorkerReason::Stopped));
     })
@@ -110,8 +111,8 @@ async fn test_worker_lost_idle_timeout() {
 
 #[tokio::test]
 async fn test_worker_idle_timeout_stays_alive_with_tasks() {
-    run_test(Default::default(), |mut handler| async move {
-        handler
+    run_test(Default::default(), |mut handle| async move {
+        handle
             .submit(
                 GraphBuilder::default()
                     .task(simple_task(&["sleep", "1"], 1))
@@ -120,11 +121,18 @@ async fn test_worker_idle_timeout_stays_alive_with_tasks() {
             .await;
 
         let builder = WorkerConfigBuilder::default().idle_timeout(Some(Duration::from_millis(250)));
-        let worker = handler.start_worker(builder).await.unwrap();
-
-        let msg = try_wait_for_msg!(handler, Duration::from_millis(900), ToGatewayMessage::LostWorker(_) => true);
-        assert!(msg.is_none());
-        wait_for_worker_lost(&mut handler, worker.id).await;
+        let worker = handle.start_worker(builder).await.unwrap();
+        sleep(Duration::from_millis(900)).await;
+        assert!(
+            handle
+                .client
+                .get_mut()
+                .worker_state
+                .get(&worker.id)
+                .unwrap()
+                .lost_reason
+                .is_none()
+        );
     })
     .await;
 }
@@ -171,8 +179,7 @@ async fn test_lost_worker_with_tasks_restarts() {
         }
 
         let _worker_handle = handle.start_worker(Default::default()).await.unwrap();
-        let r = handle.wait(&[1]).await;
-        assert!(r.is_failed(1));
+        handle.wait(&[1]).await.assert_all_failed();
     })
     .await;
 }

@@ -16,8 +16,8 @@ use crate::resources::ResourceDescriptor;
 
 #[tokio::test]
 async fn test_submit_2_sleeps_on_1() {
-    run_test(Default::default(), |mut handler| async move {
-        handler
+    run_test(Default::default(), |mut handle| async move {
+        handle
             .submit(
                 GraphBuilder::default()
                     .task(simple_task(&["sleep", "1"], 1))
@@ -27,19 +27,21 @@ async fn test_submit_2_sleeps_on_1() {
             .await;
         let config = WC::default().send_overview_interval(Some(Duration::from_millis(10)));
 
-        let worker = handler.start_worker(config).await.unwrap();
+        let worker = handle.start_worker(config).await.unwrap();
 
-        wait_for_task_start(&mut handler, 1).await;
-        let overview1 = wait_for_worker_overview(&mut handler, worker.id).await;
+        wait_for_task_start(&mut handle, 1).await;
+        handle.client.clear();
+        let overview1 = wait_for_worker_overview(&mut handle, worker.id).await;
         assert_eq!(overview1.running_tasks.len(), 1);
 
         sleep(Duration::from_millis(100)).await;
-        let overview2 = wait_for_worker_overview(&mut handler, worker.id).await;
+        let overview2 = wait_for_worker_overview(&mut handle, worker.id).await;
         assert_eq!(overview2.running_tasks.len(), 1);
         assert_eq!(overview1.running_tasks, overview2.running_tasks);
 
-        wait_for_task_start(&mut handler, 2).await;
-        let overview3 = wait_for_worker_overview(&mut handler, worker.id).await;
+        wait_for_task_start(&mut handle, 2).await;
+        handle.client.clear();
+        let overview3 = wait_for_worker_overview(&mut handle, worker.id).await;
         assert_eq!(overview3.running_tasks.len(), 1);
         assert_ne!(overview2.running_tasks, overview3.running_tasks);
     })

@@ -19,14 +19,14 @@ impl UpstreamEventProcessor {
 }
 
 impl EventProcessor for UpstreamEventProcessor {
-    fn on_task_finished(&self, task_id: TaskId) {
+    fn on_task_finished(&mut self, task_id: TaskId) {
         self.state_ref
             .get_mut()
             .process_task_finished(&self.senders, task_id);
     }
 
     fn on_task_started(
-        &self,
+        &mut self,
         task_id: TaskId,
         instance_id: InstanceId,
         worker_ids: &[WorkerId],
@@ -42,7 +42,7 @@ impl EventProcessor for UpstreamEventProcessor {
     }
 
     fn on_task_error(
-        &self,
+        &mut self,
         task_id: TaskId,
         consumers_id: Vec<TaskId>,
         error_info: TaskFailInfo,
@@ -55,14 +55,14 @@ impl EventProcessor for UpstreamEventProcessor {
         )
     }
 
-    fn on_worker_new(&self, worker_id: WorkerId, configuration: &WorkerConfiguration) {
+    fn on_worker_new(&mut self, worker_id: WorkerId, configuration: &WorkerConfiguration) {
         self.state_ref
             .get_mut()
             .process_worker_new(&self.senders, worker_id, configuration)
     }
 
     fn on_worker_lost(
-        &self,
+        &mut self,
         worker_id: WorkerId,
         running_tasks: &[TaskId],
         reason: LostWorkerReason,
@@ -75,7 +75,7 @@ impl EventProcessor for UpstreamEventProcessor {
         )
     }
 
-    fn on_worker_overview(&self, overview: Box<WorkerOverview>) {
+    fn on_worker_overview(&mut self, overview: Box<WorkerOverview>) {
         let state = self.state_ref.get();
         if let Some(worker) = state.get_worker(overview.id) {
             // We only want to persist worker overviews for workers that have

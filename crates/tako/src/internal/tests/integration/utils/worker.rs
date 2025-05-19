@@ -9,8 +9,8 @@ use crate::internal::common::error::DsError;
 use crate::internal::common::resources::ResourceDescriptor;
 use crate::internal::server::core::CoreRef;
 use crate::internal::worker::configuration::{
-    DEFAULT_MAX_DOWNLOAD_TRIES, DEFAULT_MAX_PARALLEL_DOWNLOADS,
-    DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES, OverviewConfiguration,
+    OverviewConfiguration, DEFAULT_MAX_DOWNLOAD_TRIES, DEFAULT_MAX_PARALLEL_DOWNLOADS,
+    DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES,
 };
 use crate::launcher::{StopReason, TaskBuildContext, TaskResult};
 use crate::program::ProgramDefinition;
@@ -22,11 +22,11 @@ use tokio::io::AsyncWriteExt;
 use tokio::sync::Notify;
 use tokio::task::LocalSet;
 
-use crate::WorkerId;
 use crate::internal::worker::rpc::run_worker;
-use crate::launcher::{TaskLaunchData, TaskLauncher, command_from_definitions};
+use crate::launcher::{command_from_definitions, TaskLaunchData, TaskLauncher};
 use crate::resources::ResourceDescriptorItem;
 use crate::worker::ServerLostPolicy;
+use crate::WorkerId;
 
 pub enum WorkerSecretKey {
     Server,
@@ -144,11 +144,10 @@ enum WorkerControlMessage {
 }
 
 pub(super) async fn start_worker(
-    core_ref: CoreRef,
+    port: u16,
     server_secret_key: Option<Arc<SecretKey>>,
     config: WorkerConfigBuilder,
 ) -> anyhow::Result<(WorkerHandle, WorkerContext)> {
-    let port = core_ref.get().get_worker_listen_port();
     let (mut configuration, worker_secret_key) = create_worker_configuration(config);
     let tmpdir = TempDir::with_prefix("tako")?;
     let workdir = tmpdir.path().to_path_buf().join("work");
