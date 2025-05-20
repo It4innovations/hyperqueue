@@ -136,9 +136,9 @@ impl EventStreamer {
         );
     }
 
-    pub fn on_task_canceled(&self, task_id: TaskId, now: DateTime<Utc>) {
+    pub fn on_task_canceled(&self, task_ids: Vec<TaskId>, now: DateTime<Utc>) {
         self.send_event(
-            EventPayload::TaskCanceled { task_id },
+            EventPayload::TaskCanceled { task_ids },
             Some(now),
             ForwardMode::StreamAndPersist,
         );
