@@ -3,6 +3,7 @@ use criterion::{BatchSize, BenchmarkGroup, BenchmarkId, Criterion};
 use std::time::Instant;
 
 use crate::{add_tasks, create_worker};
+use tako::events::EventProcessor;
 use tako::gateway::LostWorkerReason;
 use tako::internal::messages::common::TaskFailInfo;
 use tako::internal::messages::worker::ToWorkerMessage;
@@ -62,39 +63,7 @@ impl Comm for NullComm {
 
     fn ask_for_scheduling(&mut self) {}
 
-    fn send_client_task_finished(&mut self, _task_id: TaskId) {}
-
-    fn send_client_task_started(
-        &mut self,
-        _task_id: TaskId,
-        _instance_id: InstanceId,
-        _worker_id: &[WorkerId],
-        _context: SerializedTaskContext,
-    ) {
+    fn client(&mut self) -> &mut dyn EventProcessor {
+        unreachable!()
     }
-
-    fn send_client_task_error(
-        &mut self,
-        _task_id: TaskId,
-        _consumers_id: Vec<TaskId>,
-        _error_info: TaskFailInfo,
-    ) {
-    }
-
-    fn send_client_worker_new(
-        &mut self,
-        _worker_id: WorkerId,
-        _configuration: &WorkerConfiguration,
-    ) {
-    }
-
-    fn send_client_worker_lost(
-        &mut self,
-        _worker_id: WorkerId,
-        _running_tasks: Vec<TaskId>,
-        _reason: LostWorkerReason,
-    ) {
-    }
-
-    fn send_client_worker_overview(&mut self, _overview: Box<WorkerOverview>) {}
 }
