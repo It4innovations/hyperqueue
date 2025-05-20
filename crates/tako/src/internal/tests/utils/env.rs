@@ -1,9 +1,9 @@
 use crate::events::EventProcessor;
 use crate::gateway::LostWorkerReason;
+use crate::internal::common::Map;
 use crate::internal::common::index::ItemId;
 use crate::internal::common::resources::ResourceDescriptor;
 use crate::internal::common::utils::format_comma_delimited;
-use crate::internal::common::Map;
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{ToWorkerMessage, WorkerOverview};
 use crate::internal::scheduler::state::SchedulerState;
@@ -19,8 +19,8 @@ use crate::internal::tests::utils::schedule;
 use crate::internal::tests::utils::task::TaskBuilder;
 use crate::internal::transfer::auth::{deserialize, serialize};
 use crate::internal::worker::configuration::{
-    OverviewConfiguration, DEFAULT_MAX_DOWNLOAD_TRIES, DEFAULT_MAX_PARALLEL_DOWNLOADS,
-    DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES,
+    DEFAULT_MAX_DOWNLOAD_TRIES, DEFAULT_MAX_PARALLEL_DOWNLOADS,
+    DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES, OverviewConfiguration,
 };
 use crate::resources::{
     ResourceAmount, ResourceDescriptorItem, ResourceDescriptorKind, ResourceUnits,
