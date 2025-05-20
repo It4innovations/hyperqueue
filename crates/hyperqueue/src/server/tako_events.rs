@@ -70,7 +70,7 @@ impl EventProcessor for UpstreamEventProcessor {
         self.state_ref.get_mut().process_worker_lost(
             &self.senders,
             worker_id,
-            &running_tasks,
+            running_tasks,
             reason,
         )
     }

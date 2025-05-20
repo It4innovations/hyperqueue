@@ -149,7 +149,7 @@ pub(crate) fn on_remove_worker(
 
     if reason.is_failure() {
         for task_id in running_tasks {
-            let mut task = core.get_task_mut(task_id);
+            let task = core.get_task_mut(task_id);
             if task.increment_crash_counter() {
                 let count = task.crash_counter;
                 log::debug!("Task {} reached crash limit {}", task_id, count);

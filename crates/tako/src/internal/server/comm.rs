@@ -5,22 +5,17 @@ use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::Notify;
 
 use crate::events::EventProcessor;
-use crate::gateway::LostWorkerReason;
 use crate::internal::common::{Map, WrappedRcRefCell};
-use crate::internal::messages::common::TaskFailInfo;
-use crate::internal::messages::worker::{ToWorkerMessage, WorkerOverview};
+use crate::internal::messages::worker::ToWorkerMessage;
 use crate::internal::server::core::Core;
 use crate::internal::transfer::auth::serialize;
-use crate::internal::worker::configuration::WorkerConfiguration;
-use crate::task::SerializedTaskContext;
-use crate::{InstanceId, TaskId, WorkerId};
+use crate::WorkerId;
 
 pub trait Comm {
     fn send_worker_message(&mut self, worker_id: WorkerId, message: &ToWorkerMessage);
     fn broadcast_worker_message(&mut self, message: &ToWorkerMessage);
     fn ask_for_scheduling(&mut self);
 
-    #[inline]
     fn client(&mut self) -> &mut dyn EventProcessor;
 }
 

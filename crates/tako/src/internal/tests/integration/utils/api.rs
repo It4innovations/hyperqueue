@@ -1,9 +1,7 @@
 use crate::gateway::LostWorkerReason;
-use crate::internal::common::{Map, Set};
-use crate::internal::messages::common::TaskFailInfo;
+use crate::internal::common::Map;
 use crate::internal::messages::worker::WorkerOverview;
 use crate::internal::tests::integration::utils::server::{ServerHandle, TestTaskState};
-use crate::launcher::TaskResult;
 use crate::worker::WorkerConfiguration;
 use crate::{TaskId, WorkerId};
 
@@ -123,7 +121,7 @@ pub async fn wait_for_tasks<T: Into<TaskId> + Copy>(
                 client
                     .task_state
                     .get(&task_id)
-                    .map_or(false, |s| s.is_terminated())
+                    .is_some_and(|s| s.is_terminated())
             }) {
                 return WaitResult {
                     tasks: tasks
@@ -138,10 +136,4 @@ pub async fn wait_for_tasks<T: Into<TaskId> + Copy>(
         }
         notify.notified().await;
     }
-}
-
-// Cancellation
-pub fn cancel<T: Into<TaskId> + Copy>(handle: &mut ServerHandle, tasks: &[T]) {
-    let task_ids: Vec<TaskId> = tasks.iter().map(|t| (*t).into()).collect();
-    handle.server_ref.cancel_tasks(&task_ids);
 }

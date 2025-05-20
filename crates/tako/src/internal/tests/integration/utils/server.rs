@@ -8,7 +8,6 @@ use derive_builder::Builder;
 use orion::auth::SecretKey;
 use tokio::net::TcpListener;
 use tokio::sync::Notify;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use tokio::task::{JoinHandle, LocalSet};
 use tokio::time::timeout;
 
@@ -18,14 +17,10 @@ use crate::events::EventProcessor;
 use crate::gateway::{LostWorkerReason, SharedTaskConfiguration, TaskConfiguration, TaskSubmit};
 use crate::internal::common::{Map, Set};
 use crate::internal::messages::common::TaskFailInfo;
-use crate::internal::server::comm::CommSenderRef;
-use crate::internal::server::core::CoreRef;
 use crate::internal::tests::integration::utils::api::{WaitResult, wait_for_tasks};
 use crate::internal::tests::integration::utils::worker::{
     WorkerContext, WorkerHandle, start_worker,
 };
-use crate::internal::tests::utils::env::TestClientProcessor;
-use crate::internal::worker::task::TaskState;
 use crate::task::SerializedTaskContext;
 use crate::worker::{WorkerConfiguration, WorkerOverview};
 use crate::{InstanceId, TaskId, WorkerId, WrappedRcRefCell};
@@ -117,7 +112,7 @@ impl ServerHandle {
     }
 
     pub async fn wait<T: Into<TaskId> + Copy>(&mut self, tasks: &[T]) -> WaitResult {
-        timeout(WAIT_TIMEOUT, wait_for_tasks(self, &tasks))
+        timeout(WAIT_TIMEOUT, wait_for_tasks(self, tasks))
             .await
             .unwrap()
     }
@@ -192,9 +187,9 @@ impl EventProcessor for AsyncTestClientProcessorRef {
     fn on_task_started(
         &mut self,
         task_id: TaskId,
-        instance_id: InstanceId,
+        _instance_id: InstanceId,
         worker_ids: &[WorkerId],
-        context: SerializedTaskContext,
+        _context: SerializedTaskContext,
     ) {
         self.update_state(task_id, TestTaskState::Running(worker_ids[0]));
     }
@@ -202,7 +197,7 @@ impl EventProcessor for AsyncTestClientProcessorRef {
     fn on_task_error(
         &mut self,
         task_id: TaskId,
-        consumers_id: Vec<TaskId>,
+        _consumers_id: Vec<TaskId>,
         error_info: TaskFailInfo,
     ) -> Vec<TaskId> {
         let worker_id = self
@@ -227,7 +222,7 @@ impl EventProcessor for AsyncTestClientProcessorRef {
     fn on_worker_lost(
         &mut self,
         worker_id: WorkerId,
-        running_tasks: &[TaskId],
+        _running_tasks: &[TaskId],
         reason: LostWorkerReason,
     ) {
         self.get_mut()

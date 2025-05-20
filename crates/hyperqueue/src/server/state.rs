@@ -214,7 +214,7 @@ impl State {
         // TODO: use observer in event storage instead of sending these messages directly
         senders
             .autoalloc
-            .on_worker_connected(worker_id, &configuration);
+            .on_worker_connected(worker_id, configuration);
         senders
             .events
             .on_worker_added(worker_id, configuration.clone());
