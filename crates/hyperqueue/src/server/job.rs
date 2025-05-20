@@ -433,10 +433,7 @@ impl Job {
         }
 
         self.counters.n_canceled_tasks += task_ids.len() as JobTaskCount;
-        // TODO: on_task_canceled should take vec
-        for task_id in task_ids {
-            senders.events.on_task_canceled(task_id, now);
-        }
+        senders.events.on_task_canceled(task_ids, now);
         self.check_termination(senders, now);
     }
 

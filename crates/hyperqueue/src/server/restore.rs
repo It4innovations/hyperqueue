@@ -290,36 +290,39 @@ impl StateRestorer {
                         }
                     }
                 }
-                EventPayload::TaskCanceled { task_id } => {
-                    log::debug!("Replaying: TaskCanceled {task_id}");
-                    if let Some(job) = self.jobs.get_mut(&task_id.job_id()) {
-                        let task = job.tasks.get_mut(&task_id.job_task_id());
-                        if let Some(task) = task {
-                            task.state =
-                                match std::mem::replace(&mut task.state, JobTaskState::Waiting) {
-                                    JobTaskState::Running { started_data } => {
-                                        JobTaskState::Canceled {
-                                            started_data: Some(started_data),
-                                            cancelled_date: event.time,
+                EventPayload::TaskCanceled { task_ids } => {
+                    log::debug!("Replaying: TaskCanceled {task_ids:?}");
+                    for task_id in task_ids {
+                        if let Some(job) = self.jobs.get_mut(&task_id.job_id()) {
+                            let task = job.tasks.get_mut(&task_id.job_task_id());
+                            if let Some(task) = task {
+                                task.state =
+                                    match std::mem::replace(&mut task.state, JobTaskState::Waiting)
+                                    {
+                                        JobTaskState::Running { started_data } => {
+                                            JobTaskState::Canceled {
+                                                started_data: Some(started_data),
+                                                cancelled_date: event.time,
+                                            }
                                         }
+                                        _ => JobTaskState::Canceled {
+                                            started_data: None,
+                                            cancelled_date: event.time,
+                                        },
                                     }
-                                    _ => JobTaskState::Canceled {
-                                        started_data: None,
-                                        cancelled_date: event.time,
+                            } else {
+                                job.tasks.insert(
+                                    task_id.job_task_id(),
+                                    RestorerTaskInfo {
+                                        state: JobTaskState::Canceled {
+                                            started_data: None,
+                                            cancelled_date: event.time,
+                                        },
+                                        instance_id: None,
+                                        crash_counter: 0,
                                     },
-                                }
-                        } else {
-                            job.tasks.insert(
-                                task_id.job_task_id(),
-                                RestorerTaskInfo {
-                                    state: JobTaskState::Canceled {
-                                        started_data: None,
-                                        cancelled_date: event.time,
-                                    },
-                                    instance_id: None,
-                                    crash_counter: 0,
-                                },
-                            );
+                                );
+                            }
                         }
                     }
                 }

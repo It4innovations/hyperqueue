@@ -353,12 +353,22 @@ fn reconstruct_historical_events(
                     ));
                 }
                 JobTaskState::Canceled { cancelled_date, .. } => {
-                    events.push(Event::at(
-                        *cancelled_date,
-                        EventPayload::TaskCanceled {
-                            task_id: TaskId::new(job.job_id, *id),
-                        },
-                    ));
+                    if let Some(task_ids) = events.last_mut().and_then(|e| {
+                        if let EventPayload::TaskCanceled { task_ids, .. } = &mut e.payload {
+                            (e.time == *cancelled_date).then_some(task_ids)
+                        } else {
+                            None
+                        }
+                    }) {
+                        task_ids.push(TaskId::new(job.job_id, *id))
+                    } else {
+                        events.push(Event::at(
+                            *cancelled_date,
+                            EventPayload::TaskCanceled {
+                                task_ids: vec![TaskId::new(job.job_id, *id)],
+                            },
+                        ));
+                    }
                 }
                 JobTaskState::Waiting | JobTaskState::Running { .. } => {}
             };

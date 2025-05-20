@@ -10,22 +10,27 @@ pub(crate) fn prune_journal(
     live_worker_ids: &Set<WorkerId>,
 ) -> crate::Result<()> {
     for event in reader {
-        let event = event?;
-        let retain = match &event.payload {
+        let mut event = event?;
+        let event = match &mut event.payload {
             EventPayload::WorkerConnected(worker_id, _)
-            | EventPayload::WorkerLost(worker_id, _) => live_worker_ids.contains(worker_id),
+            | EventPayload::WorkerLost(worker_id, _) => {
+                live_worker_ids.contains(worker_id).then_some(event)
+            }
             EventPayload::WorkerOverviewReceived(overview) => {
-                live_worker_ids.contains(&overview.id)
+                live_worker_ids.contains(&overview.id).then_some(event)
             }
             EventPayload::Submit { job_id, .. }
             | EventPayload::JobCompleted(job_id)
             | EventPayload::JobOpen(job_id, _)
-            | EventPayload::JobClose(job_id) => live_job_ids.contains(job_id),
+            | EventPayload::JobClose(job_id) => live_job_ids.contains(job_id).then_some(event),
             EventPayload::TaskStarted { task_id, .. }
             | EventPayload::TaskFinished { task_id, .. }
-            | EventPayload::TaskFailed { task_id, .. }
-            | EventPayload::TaskCanceled { task_id, .. } => {
-                live_job_ids.contains(&task_id.job_id())
+            | EventPayload::TaskFailed { task_id, .. } => {
+                live_job_ids.contains(&task_id.job_id()).then_some(event)
+            }
+            EventPayload::TaskCanceled { task_ids, .. } => {
+                task_ids.retain(|id| live_job_ids.contains(&id.job_id()));
+                (!task_ids.is_empty()).then_some(event)
             }
             EventPayload::AllocationQueueCreated(_, _)
             | EventPayload::AllocationQueueRemoved(_)
@@ -33,9 +38,9 @@ pub(crate) fn prune_journal(
             | EventPayload::AllocationStarted(_, _)
             | EventPayload::AllocationFinished(_, _)
             | EventPayload::ServerStart { .. }
-            | EventPayload::ServerStop => true,
+            | EventPayload::ServerStop => Some(event),
         };
-        if retain {
+        if let Some(event) = event {
             writer.store(event)?;
         }
     }

@@ -48,7 +48,7 @@ pub enum EventPayload {
     },
     /// Task has been canceled
     TaskCanceled {
-        task_id: TaskId,
+        task_ids: Vec<TaskId>,
     },
     /// New allocation queue has been created
     AllocationQueueCreated(QueueId, Box<AllocationQueueParams>),
