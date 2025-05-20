@@ -1,6 +1,4 @@
-use crate::TaskId;
 use crate::control::{NewWorkerAllocationResponse, WorkerTypeQuery};
-use crate::internal::tests::integration::utils::api::cancel;
 use crate::internal::tests::integration::utils::check_file_contents;
 use crate::internal::tests::integration::utils::server::{ServerHandle, run_test};
 use crate::internal::tests::integration::utils::task::ResourceRequestConfigBuilder;

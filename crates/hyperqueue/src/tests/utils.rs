@@ -1,13 +1,9 @@
-use chrono::Utc;
-use std::future::Future;
-
-use tokio::task::{JoinHandle, LocalSet};
-
 use crate::HQ_VERSION;
 use crate::common::parser::{NomResult, consume_all};
 use crate::common::parser2::CharParser;
 use crate::server::state::StateRef;
 use crate::transfer::messages::ServerInfo;
+use chrono::Utc;
 
 pub fn check_parse_error<F: FnMut(&str) -> NomResult<O>, O>(
     parser: F,
@@ -26,20 +22,6 @@ pub fn check_parse_error<F: FnMut(&str) -> NomResult<O>, O>(
 pub fn expect_parser_error<T: std::fmt::Debug>(parser: impl CharParser<T>, input: &str) -> String {
     let error = parser.parse_text(input).unwrap_err();
     format!("{error:?}")
-}
-
-pub async fn run_concurrent<
-    R: 'static,
-    Fut1: 'static + Future<Output = R>,
-    Fut2: Future<Output = ()>,
->(
-    background_fut: Fut1,
-    fut: Fut2,
-) -> (LocalSet, JoinHandle<R>) {
-    let set = LocalSet::new();
-    let handle = set.spawn_local(background_fut);
-    set.run_until(fut).await;
-    (set, handle)
 }
 
 pub fn create_hq_state() -> StateRef {

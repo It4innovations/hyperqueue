@@ -1,17 +1,12 @@
 use crate::internal::common::resources::{ResourceRequest, ResourceRequestVariants};
-use tokio::sync::mpsc::UnboundedSender;
 
 use crate::gateway::{SharedTaskConfiguration, TaskSubmit};
 
 use crate::internal::common::resources::request::ResourceRequestEntry;
-use crate::internal::messages::worker::ToWorkerMessage;
-use crate::internal::scheduler::query::compute_new_worker_query;
-use crate::internal::server::comm::{Comm, CommSender, CommSenderRef};
-use crate::internal::server::core::{Core, CoreRef};
-use crate::internal::server::reactor::{on_cancel_tasks, on_new_tasks};
-use crate::internal::server::task::{Task, TaskConfiguration, TaskRuntimeState};
-use crate::internal::server::worker::DEFAULT_WORKER_OVERVIEW_INTERVAL;
-use crate::{InstanceId, Map, TaskId};
+use crate::internal::server::comm::CommSender;
+use crate::internal::server::core::Core;
+use crate::internal::server::reactor::on_new_tasks;
+use crate::internal::server::task::{Task, TaskConfiguration};
 use std::rc::Rc;
 
 fn create_task_configuration(

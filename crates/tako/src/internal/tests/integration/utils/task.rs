@@ -39,14 +39,6 @@ impl GraphBuilder {
         GraphBuilder::default().task(builder).build()
     }
 
-    pub fn tasks(self, builders: impl Iterator<Item = TaskConfigBuilder>) -> Self {
-        let mut s = self;
-        for builder in builders {
-            s = s.task(builder);
-        }
-        s
-    }
-
     pub fn task(mut self, builder: TaskConfigBuilder) -> Self {
         let mut config: TaskConfig = builder.build().unwrap();
         config.id = config.id.or_else(|| {

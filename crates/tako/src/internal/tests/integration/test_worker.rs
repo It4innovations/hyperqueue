@@ -77,7 +77,6 @@ async fn test_worker_lost_stopped() {
             .unwrap();
         wait_for_worker_connected(&mut handler, worker.id).await;
         handler.stop_worker(worker.id).await;
-        dbg!(&handler.client.get().worker_state);
         let reason = wait_for_worker_lost(&mut handler, worker.id).await;
         assert!(matches!(reason, LostWorkerReason::Stopped));
     })

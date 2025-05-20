@@ -7,7 +7,6 @@ use std::time::Duration;
 
 use crate::internal::common::error::DsError;
 use crate::internal::common::resources::ResourceDescriptor;
-use crate::internal::server::core::CoreRef;
 use crate::internal::worker::configuration::{
     OverviewConfiguration, DEFAULT_MAX_DOWNLOAD_TRIES, DEFAULT_MAX_PARALLEL_DOWNLOADS,
     DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES,

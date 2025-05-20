@@ -1,16 +1,12 @@
-use serde::{Deserialize, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
 use crate::internal::common::error::DsError;
 use crate::internal::datasrv::dataobj::DataObjectId;
-use crate::internal::messages::common::TaskFailInfo;
-use crate::internal::messages::worker::WorkerOverview;
-use crate::internal::worker::configuration::WorkerConfiguration;
 use crate::resources::{
-    AllocationRequest, CPU_RESOURCE_NAME, NumOfNodes, ResourceAmount, ResourceDescriptor,
+    AllocationRequest, CPU_RESOURCE_NAME, NumOfNodes, ResourceAmount,
 };
-use crate::task::SerializedTaskContext;
-use crate::{InstanceId, Map, Priority, TaskId, WorkerId};
+use crate::{InstanceId, Map, Priority, TaskId};
 use smallvec::{SmallVec, smallvec};
 use std::time::Duration;
 use thin_vec::ThinVec;

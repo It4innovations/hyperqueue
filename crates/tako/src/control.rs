@@ -1,18 +1,15 @@
 use std::future::Future;
-use std::net::SocketAddr;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 
 use orion::aead::SecretKey;
-use serde::{Deserialize, Serialize};
 use tokio::net::TcpListener;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::{Notify, oneshot};
 
 use crate::events::EventProcessor;
 use crate::gateway::{
-    MultiNodeAllocationResponse, SharedTaskConfiguration, TaskConfiguration, TaskSubmit,
+    MultiNodeAllocationResponse, TaskSubmit,
     WorkerRuntimeInfo,
 };
 use crate::internal::messages::worker::ToWorkerMessage;
@@ -22,10 +19,9 @@ use crate::internal::server::client::handle_new_tasks;
 use crate::internal::server::comm::{Comm, CommSenderRef};
 use crate::internal::server::core::{CoreRef, CustomConnectionHandler};
 use crate::internal::server::reactor::on_cancel_tasks;
-use crate::internal::server::task::TaskRuntimeState;
 use crate::internal::server::worker::DEFAULT_WORKER_OVERVIEW_INTERVAL;
 use crate::resources::ResourceDescriptor;
-use crate::{InstanceId, Map, TaskId, WorkerId};
+use crate::{TaskId, WorkerId};
 
 #[derive(Debug)]
 pub struct WorkerTypeQuery {
