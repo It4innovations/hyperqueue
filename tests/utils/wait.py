@@ -30,13 +30,13 @@ TERMINAL_STATES = ["failed", "cancelled", "finished"]
 
 
 def wait_for_state(
-        env,
-        ids: Union[int, List[int]],
-        target_states: Union[str, List[str]],
-        commands: List[str],
-        state_index: int,
-        check_running_processes=True,
-        **kwargs,
+    env,
+    ids: Union[int, List[int]],
+    target_states: Union[str, List[str]],
+    commands: List[str],
+    state_index: int,
+    check_running_processes=True,
+    **kwargs,
 ):
     if isinstance(ids, int):
         ids = {str(ids)}

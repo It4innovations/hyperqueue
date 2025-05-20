@@ -1,15 +1,15 @@
 use std::rc::Rc;
 
 use bytes::Bytes;
-use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::Notify;
+use tokio::sync::mpsc::UnboundedSender;
 
+use crate::WorkerId;
 use crate::events::EventProcessor;
 use crate::internal::common::{Map, WrappedRcRefCell};
 use crate::internal::messages::worker::ToWorkerMessage;
 use crate::internal::server::core::Core;
 use crate::internal::transfer::auth::serialize;
-use crate::WorkerId;
 
 pub trait Comm {
     fn send_worker_message(&mut self, worker_id: WorkerId, message: &ToWorkerMessage);
