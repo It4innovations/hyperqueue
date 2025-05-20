@@ -8,10 +8,7 @@ use tokio::net::TcpListener;
 use tokio::sync::{Notify, oneshot};
 
 use crate::events::EventProcessor;
-use crate::gateway::{
-    MultiNodeAllocationResponse, TaskSubmit,
-    WorkerRuntimeInfo,
-};
+use crate::gateway::{MultiNodeAllocationResponse, TaskSubmit, WorkerRuntimeInfo};
 use crate::internal::messages::worker::ToWorkerMessage;
 use crate::internal::scheduler::query::compute_new_worker_query;
 use crate::internal::scheduler::state::scheduler_loop;
@@ -55,30 +52,6 @@ impl ServerRef {
     pub fn set_client_events(&self, client_events: Box<dyn EventProcessor>) {
         self.comm_ref.set_client_events(client_events);
     }
-
-    // pub fn get_task_info(&self, tasks: &[TaskId]) -> crate::Result<Vec<TaskInfo>> {
-    //     log::debug!("Client asked for task info");
-    //     let core = self.core_ref.get();
-    //     let task_map = core.task_map();
-    //     let task_infos = tasks
-    //         .iter()
-    //         .map(|task_id| {
-    //             let task = task_map.get_task(*task_id);
-    //             TaskInfo {
-    //                 id: task.id,
-    //                 state: match task.state {
-    //                     TaskRuntimeState::Waiting(_) => TaskState::Waiting,
-    //                     TaskRuntimeState::Assigned(_) => TaskState::Waiting,
-    //                     TaskRuntimeState::Stealing(_, _) => TaskState::Waiting,
-    //                     TaskRuntimeState::Running { .. } => TaskState::Waiting,
-    //                     TaskRuntimeState::RunningMultiNode(_) => TaskState::Waiting,
-    //                     TaskRuntimeState::Finished => TaskState::Finished,
-    //                 },
-    //             }
-    //         })
-    //         .collect();
-    //     Ok(task_infos)
-    // }
 
     pub fn cancel_tasks(&self, tasks: &[TaskId]) {
         log::debug!("Client asked for canceling tasks: {:?}", tasks);
