@@ -25,6 +25,7 @@ pub struct WorkerTypeQuery {
     pub descriptor: ResourceDescriptor,
     pub max_sn_workers: u32,            // For single-node tasks
     pub max_worker_per_allocation: u32, // For multi-node tasks
+    pub min_utilization: f32,
 }
 
 pub struct NewWorkerAllocationResponse {
@@ -105,8 +106,8 @@ impl ServerRef {
                     let _ = sx.send(compute_new_worker_query(core, &queries));
                 }));
         } else {
-            let core = self.core_ref.get();
-            let _ = sx.send(compute_new_worker_query(&core, &queries));
+            let mut core = self.core_ref.get_mut();
+            let _ = sx.send(compute_new_worker_query(&mut core, &queries));
         };
         Ok(rx)
     }

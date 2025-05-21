@@ -12,10 +12,9 @@ struct WorkerTypeState {
 
 /* Read the documentation of NewWorkerQuery in gateway.rs */
 pub(crate) fn compute_new_worker_query(
-    core: &Core,
+    core: &mut Core,
     queries: &[WorkerTypeQuery],
 ) -> NewWorkerAllocationResponse {
-    assert!(core.sn_ready_to_assign().is_empty()); // If there are read_to_assign tasks, first we have to call scheduling
     log::debug!("Compute new worker query: query = {:?}", queries);
 
     let add_task = |new_loads: &mut [WorkerTypeState], task: &Task| {
@@ -38,6 +37,14 @@ pub(crate) fn compute_new_worker_query(
             }
         }
     };
+
+    /* Make sure that all named resources provided has an Id */
+    for query in queries {
+        for resource in &query.descriptor.resources {
+            core.get_or_create_resource_id(&resource.name);
+        }
+    }
+
     let resource_map = core.create_resource_map();
     let mut new_loads: Vec<_> = queries
         .iter()
@@ -67,6 +74,32 @@ pub(crate) fn compute_new_worker_query(
         add_task(&mut new_loads, task);
     }
 
+    // `compute_new_worker_query` should be called immediately after scheduling was performed,
+    // so read_to_assign should be usually already processed.
+    // However, scheduler is lazy and if there is no worker at all it will do nothing, even
+    // postponing ready_to_assign. So we have to look also into this array
+    for task_id in core.sn_ready_to_assign() {
+        let task = core.get_task(*task_id);
+        add_task(&mut new_loads, task);
+    }
+
+    let single_node_allocations = new_loads
+        .iter()
+        .zip(queries.iter())
+        .map(|(ws, q)| {
+            ws.loads
+                .iter()
+                .map(|load| {
+                    if load.utilization(&ws.w_resources) >= q.min_utilization {
+                        1
+                    } else {
+                        0
+                    }
+                })
+                .sum()
+        })
+        .collect();
+
     let (queue, _map, _ws) = core.multi_node_queue_split();
     let mn_task_profiles = queue.get_profiles();
 
@@ -89,7 +122,7 @@ pub(crate) fn compute_new_worker_query(
     multi_node_allocations.sort_unstable_by_key(|x| (x.worker_type, x.worker_per_allocation));
 
     NewWorkerAllocationResponse {
-        single_node_allocations: new_loads.iter().map(|ws| ws.loads.len()).collect(),
+        single_node_allocations,
         multi_node_allocations,
     }
 }
