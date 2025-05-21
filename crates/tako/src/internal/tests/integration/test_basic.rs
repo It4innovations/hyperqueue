@@ -134,6 +134,7 @@ async fn test_query_no_output_immediate_call() {
                 descriptor: ResourceDescriptor::simple(12),
                 max_sn_workers: 2,
                 max_worker_per_allocation: 2,
+                min_utilization: 0.0,
             }],
         )
         .await;
@@ -158,6 +159,7 @@ async fn test_query_no_output_delayed_call() {
                 descriptor: ResourceDescriptor::simple(12),
                 max_sn_workers: 2,
                 max_worker_per_allocation: 2,
+                min_utilization: 0.0,
             }],
         )
         .await;
@@ -185,6 +187,7 @@ async fn test_query_new_workers_delayed_call() {
                 descriptor: ResourceDescriptor::simple(12),
                 max_sn_workers: 2,
                 max_worker_per_allocation: 2,
+                min_utilization: 0.0,
             }],
         )
         .await;
@@ -210,6 +213,7 @@ async fn test_query_new_workers_immediate() {
                 descriptor: ResourceDescriptor::simple(12),
                 max_sn_workers: 2,
                 max_worker_per_allocation: 2,
+                min_utilization: 0.0,
             }],
         )
         .await;
