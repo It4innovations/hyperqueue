@@ -23,13 +23,20 @@ use crate::{TaskId, WorkerId};
 #[derive(Debug)]
 pub struct WorkerTypeQuery {
     pub descriptor: ResourceDescriptor,
-    pub max_sn_workers: u32,            // For single-node tasks
-    pub max_worker_per_allocation: u32, // For multi-node tasks
+    /// Max number of workers for single-node tasks
+    pub max_sn_workers: u32,
+    /// How big allocations for multinode tasks can queue provide
+    pub max_worker_per_allocation: u32,
+    /// Number 0-1. Specifies the minimal utilization of the worker by single node tasks,
+    /// if the worker is not utilized at least by `min_utilization` then it is not returned
+    /// in `single_node_allocations`
     pub min_utilization: f32,
 }
 
 pub struct NewWorkerAllocationResponse {
-    pub single_node_allocations: Vec<usize>, // Corresponds to NewWorkerQuery::worker_queries
+    /// Array of the same size as number of queries, it returns the number of workers that should
+    /// be spawned for the given query
+    pub single_node_allocations: Vec<usize>,
     pub multi_node_allocations: Vec<MultiNodeAllocationResponse>,
 }
 
