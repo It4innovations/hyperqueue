@@ -46,8 +46,8 @@ pub enum EventPayload {
         task_id: TaskId,
         error: String,
     },
-    /// Task has been canceled
-    TaskCanceled {
+    /// Tasks has been canceled; for performance and correctness reason, this even is batched.
+    TasksCanceled {
         task_ids: Vec<TaskId>,
     },
     /// New allocation queue has been created

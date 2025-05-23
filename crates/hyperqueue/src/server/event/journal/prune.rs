@@ -28,7 +28,7 @@ pub(crate) fn prune_journal(
             | EventPayload::TaskFailed { task_id, .. } => {
                 live_job_ids.contains(&task_id.job_id()).then_some(event)
             }
-            EventPayload::TaskCanceled { task_ids, .. } => {
+            EventPayload::TasksCanceled { task_ids, .. } => {
                 task_ids.retain(|id| live_job_ids.contains(&id.job_id()));
                 (!task_ids.is_empty()).then_some(event)
             }

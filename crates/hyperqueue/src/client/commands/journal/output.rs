@@ -87,7 +87,7 @@ fn format_payload(event: EventPayload) -> serde_json::Value {
             "job": task_id.job_id(),
             "task": task_id.job_task_id(),
         }),
-        EventPayload::TaskCanceled { task_ids } => json!({
+        EventPayload::TasksCanceled { task_ids } => json!({
             "type": "task-canceled",
             "tasks": task_ids,
         }),

@@ -290,7 +290,7 @@ impl StateRestorer {
                         }
                     }
                 }
-                EventPayload::TaskCanceled { task_ids } => {
+                EventPayload::TasksCanceled { task_ids } => {
                     log::debug!("Replaying: TaskCanceled {task_ids:?}");
                     for task_id in task_ids {
                         if let Some(job) = self.jobs.get_mut(&task_id.job_id()) {
