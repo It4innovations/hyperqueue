@@ -4,8 +4,8 @@ use std::path::PathBuf;
 use tokio::sync::oneshot::Receiver;
 
 use crate::transfer::messages::{TaskBuildDescription, TaskKind};
+use tako::InstanceId;
 use tako::launcher::{StopReason, TaskBuildContext, TaskLaunchData, TaskLauncher};
-use tako::{InstanceId, TaskId};
 
 use crate::worker::start::program::build_program_task;
 use crate::worker::streamer::StreamerRef;
@@ -47,7 +47,6 @@ impl TaskLauncher for HqTaskLauncher {
 
         let desc: TaskBuildDescription = tako::comm::deserialize(build_ctx.body())?;
         let shared = SharedTaskDescription {
-            task_id: desc.task_id,
             submit_dir: desc.submit_dir.into_owned(),
             stream_path: desc.stream_path.map(|x| x.into_owned()),
             entry: desc.entry,
@@ -65,7 +64,6 @@ impl TaskLauncher for HqTaskLauncher {
 }
 
 struct SharedTaskDescription {
-    task_id: TaskId,
     submit_dir: PathBuf,
     stream_path: Option<PathBuf>,
     entry: Option<BString>,

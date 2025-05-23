@@ -226,7 +226,6 @@ fn prepare_job(job_id: JobId, submit_desc: &mut JobSubmitDescription, state: &mu
 }
 
 fn serialize_task_body(
-    task_id: TaskId,
     entry: Option<BString>,
     task_desc: &TaskDescription,
     submit_dir: &PathBuf,
@@ -234,7 +233,6 @@ fn serialize_task_body(
 ) -> Box<[u8]> {
     let body_msg = TaskBuildDescription {
         task_kind: Cow::Borrowed(&task_desc.kind),
-        task_id,
         submit_dir: Cow::Borrowed(submit_dir),
         stream_path: stream_path.map(Cow::Borrowed),
         entry,
@@ -267,7 +265,7 @@ fn build_tasks_array(
             .map(|job_task_id| {
                 let task_id = TaskId::new(job_id, job_task_id.into());
                 build_task_conf(
-                    serialize_task_body(task_id, None, task_desc, submit_dir, stream_path),
+                    serialize_task_body(None, task_desc, submit_dir, stream_path),
                     task_id,
                 )
             })
@@ -278,7 +276,7 @@ fn build_tasks_array(
             .map(|(job_task_id, entry)| {
                 let task_id = TaskId::new(job_id, job_task_id.into());
                 build_task_conf(
-                    serialize_task_body(task_id, Some(entry), task_desc, submit_dir, stream_path),
+                    serialize_task_body(Some(entry), task_desc, submit_dir, stream_path),
                     task_id,
                 )
             })
@@ -338,13 +336,7 @@ fn build_tasks_graph(
 
     let mut task_configs = Vec::with_capacity(tasks.len());
     for task in tasks {
-        let body = serialize_task_body(
-            TaskId::new(job_id, task.id),
-            None,
-            &task.task_desc,
-            submit_dir,
-            stream_path,
-        );
+        let body = serialize_task_body(None, &task.task_desc, submit_dir, stream_path);
         let shared_data_index = allocate_shared_data(&task.task_desc, task.data_flags);
 
         let mut task_dep_ids: Set<JobTaskId> = task.task_deps.iter().copied().collect();
