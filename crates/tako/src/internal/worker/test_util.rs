@@ -71,6 +71,7 @@ impl WorkerTaskBuilder {
                 data_deps: self.data_deps,
                 data_flags: self.data_flags,
                 body: Default::default(),
+                entry: None,
             },
             self.task_state,
         )
