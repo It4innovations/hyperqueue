@@ -354,7 +354,7 @@ fn reconstruct_historical_events(
                 }
                 JobTaskState::Canceled { cancelled_date, .. } => {
                     if let Some(task_ids) = events.last_mut().and_then(|e| {
-                        if let EventPayload::TaskCanceled { task_ids, .. } = &mut e.payload {
+                        if let EventPayload::TasksCanceled { task_ids, .. } = &mut e.payload {
                             (e.time == *cancelled_date).then_some(task_ids)
                         } else {
                             None
@@ -364,7 +364,7 @@ fn reconstruct_historical_events(
                     } else {
                         events.push(Event::at(
                             *cancelled_date,
-                            EventPayload::TaskCanceled {
+                            EventPayload::TasksCanceled {
                                 task_ids: vec![TaskId::new(job.job_id, *id)],
                             },
                         ));
