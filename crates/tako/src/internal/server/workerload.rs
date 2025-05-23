@@ -270,7 +270,11 @@ impl WorkerLoad {
     pub(crate) fn utilization(&self, wr: &WorkerResources) -> f32 {
         let mut utilization = 0.0f32;
         for (n, w) in self.n_resources.iter().zip(wr.n_resources.iter()) {
-            utilization = utilization.max(n.as_f32() / w.as_f32());
+            utilization = utilization.max(if w.is_zero() {
+                0.0
+            } else {
+                n.as_f32() / w.as_f32()
+            });
         }
         utilization
     }

@@ -10,7 +10,7 @@ struct WorkerTypeState {
     max: u32,
 }
 
-/* Read the documentation of WorkerTypeQuery in gateway.rs */
+/* Read the documentation of `new_worker_query`` in control.rs */
 pub(crate) fn compute_new_worker_query(
     core: &mut Core,
     queries: &[WorkerTypeQuery],
