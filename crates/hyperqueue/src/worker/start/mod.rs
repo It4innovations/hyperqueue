@@ -1,4 +1,3 @@
-use bstr::BString;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tokio::sync::oneshot::Receiver;
@@ -49,7 +48,6 @@ impl TaskLauncher for HqTaskLauncher {
         let shared = SharedTaskDescription {
             submit_dir: desc.submit_dir.into_owned(),
             stream_path: desc.stream_path.map(|x| x.into_owned()),
-            entry: desc.entry,
         };
         match desc.task_kind.into_owned() {
             TaskKind::ExternalProgram(program) => build_program_task(
@@ -66,5 +64,4 @@ impl TaskLauncher for HqTaskLauncher {
 struct SharedTaskDescription {
     submit_dir: PathBuf,
     stream_path: Option<PathBuf>,
-    entry: Option<BString>,
 }

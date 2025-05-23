@@ -2,10 +2,10 @@ use std::borrow::Cow;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use bstr::BString;
 use chrono::{DateTime, Utc};
 use tako::gateway::{
-    ResourceRequestVariants, SharedTaskConfiguration, TaskConfiguration, TaskDataFlags, TaskSubmit,
+    EntryType, ResourceRequestVariants, SharedTaskConfiguration, TaskConfiguration, TaskDataFlags,
+    TaskSubmit,
 };
 use tako::{Map, Set, TaskId};
 use thin_vec::ThinVec;
@@ -226,7 +226,6 @@ fn prepare_job(job_id: JobId, submit_desc: &mut JobSubmitDescription, state: &mu
 }
 
 fn serialize_task_body(
-    entry: Option<BString>,
     task_desc: &TaskDescription,
     submit_dir: &PathBuf,
     stream_path: Option<&PathBuf>,
@@ -235,7 +234,6 @@ fn serialize_task_body(
         task_kind: Cow::Borrowed(&task_desc.kind),
         submit_dir: Cow::Borrowed(submit_dir),
         stream_path: stream_path.map(Cow::Borrowed),
-        entry,
     };
     let body = tako::comm::serialize(&body_msg).expect("Could not serialize task body");
     // Make sure that `into_boxed_slice` is a no-op.
@@ -246,17 +244,17 @@ fn serialize_task_body(
 fn build_tasks_array(
     job_id: JobId,
     ids: &IntArray,
-    entries: Option<Vec<BString>>,
+    entries: Option<Vec<EntryType>>,
     task_desc: &TaskDescription,
     submit_dir: &PathBuf,
     stream_path: Option<&PathBuf>,
 ) -> TaskSubmit {
-    let build_task_conf = |body: Box<[u8]>, tako_id: TaskId| TaskConfiguration {
+    let build_task_conf = |tako_id: TaskId, entry: Option<ThinVec<u8>>| TaskConfiguration {
         id: tako_id,
         shared_data_index: 0,
         task_deps: ThinVec::new(),
         dataobj_deps: ThinVec::new(),
-        body,
+        entry,
     };
 
     let tasks = match entries {
@@ -264,10 +262,7 @@ fn build_tasks_array(
             .iter()
             .map(|job_task_id| {
                 let task_id = TaskId::new(job_id, job_task_id.into());
-                build_task_conf(
-                    serialize_task_body(None, task_desc, submit_dir, stream_path),
-                    task_id,
-                )
+                build_task_conf(task_id, None)
             })
             .collect(),
         Some(entries) => ids
@@ -275,10 +270,7 @@ fn build_tasks_array(
             .zip(entries)
             .map(|(job_task_id, entry)| {
                 let task_id = TaskId::new(job_id, job_task_id.into());
-                build_task_conf(
-                    serialize_task_body(Some(entry), task_desc, submit_dir, stream_path),
-                    task_id,
-                )
+                build_task_conf(task_id, Some(entry))
             })
             .collect(),
     };
@@ -291,6 +283,7 @@ fn build_tasks_array(
             priority: task_desc.priority,
             crash_limit: task_desc.crash_limit,
             data_flags: TaskDataFlags::empty(),
+            body: serialize_task_body(task_desc, submit_dir, stream_path),
         }],
         adjust_instance_id_and_crash_counters: Default::default(),
     }
@@ -329,6 +322,7 @@ fn build_tasks_graph(
                     priority: task.priority,
                     crash_limit: task.crash_limit,
                     data_flags,
+                    body: serialize_task_body(task, submit_dir, stream_path),
                 });
                 index
             }) as u32
@@ -336,7 +330,6 @@ fn build_tasks_graph(
 
     let mut task_configs = Vec::with_capacity(tasks.len());
     for task in tasks {
-        let body = serialize_task_body(None, &task.task_desc, submit_dir, stream_path);
         let shared_data_index = allocate_shared_data(&task.task_desc, task.data_flags);
 
         let mut task_dep_ids: Set<JobTaskId> = task.task_deps.iter().copied().collect();
@@ -361,7 +354,7 @@ fn build_tasks_graph(
             shared_data_index,
             task_deps,
             dataobj_deps,
-            body,
+            entry: None,
         });
     }
 

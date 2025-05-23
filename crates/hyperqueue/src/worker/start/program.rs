@@ -58,7 +58,6 @@ pub(super) fn build_program_task(
     let SharedTaskDescription {
         submit_dir,
         stream_path,
-        entry,
     } = shared;
 
     let task_id = build_ctx.task_id();
@@ -79,8 +78,10 @@ pub(super) fn build_program_task(
             HQ_SUBMIT_DIR.into(),
             BString::from(submit_dir.to_string_lossy().as_bytes()),
         );
-        if let Some(entry) = entry {
-            program.env.insert(HQ_ENTRY.into(), entry);
+        if let Some(entry) = build_ctx.entry() {
+            program
+                .env
+                .insert(HQ_ENTRY.into(), BString::from(entry.as_ref()));
         }
 
         pin_program(&mut program, build_ctx.allocation(), pin_mode, &build_ctx)?;
