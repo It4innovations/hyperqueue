@@ -17,7 +17,7 @@ use clap::Parser;
 use smallvec::smallvec;
 use std::path::PathBuf;
 use tako::Map;
-use tako::gateway::{ResourceRequest, ResourceRequestVariants, TaskDataFlags};
+use tako::gateway::{EntryType, ResourceRequest, ResourceRequestVariants, TaskDataFlags};
 use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
 use tako::{JobId, JobTaskCount, JobTaskId};
 
@@ -110,7 +110,13 @@ fn build_job_desc_array(array: ArrayDef) -> JobTaskDescription {
     let entries = if array.entries.is_empty() {
         None
     } else {
-        Some(array.entries.into_iter().map(|s| s.into()).collect())
+        Some(
+            array
+                .entries
+                .into_iter()
+                .map(|s| EntryType::from(s.as_bytes()))
+                .collect(),
+        )
     };
     JobTaskDescription::Array {
         ids,

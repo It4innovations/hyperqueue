@@ -1,5 +1,5 @@
 use crate::datasrv::DataObjectId;
-use crate::gateway::TaskDataFlags;
+use crate::gateway::{EntryType, TaskDataFlags};
 use crate::internal::common::resources::Allocation;
 use crate::internal::common::stablemap::ExtractKey;
 use crate::internal::messages::worker::{ComputeTaskMsg, TaskOutput};
@@ -28,6 +28,7 @@ pub struct Task {
     pub resources: crate::internal::common::resources::ResourceRequestVariants,
     pub time_limit: Option<Duration>,
     pub body: Box<[u8]>,
+    pub entry: Option<EntryType>,
     pub node_list: Vec<WorkerId>, // Filled in multi-node tasks; otherwise empty
 
     pub data_deps: Option<Rc<Vec<DataObjectId>>>,
@@ -44,6 +45,7 @@ impl Task {
             resources: message.resources,
             time_limit: message.time_limit,
             body: message.body,
+            entry: message.entry,
             node_list: message.node_list,
             data_deps: (!message.data_deps.is_empty()).then(|| Rc::new(message.data_deps)),
             data_flags: message.data_flags,
