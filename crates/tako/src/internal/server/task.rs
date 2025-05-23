@@ -75,10 +75,10 @@ pub struct Task {
     pub data_deps: ThinVec<DataObjectId>,
     pub flags: TaskFlags,
     pub configuration: Rc<TaskConfiguration>,
-    pub entry: Option<ThinVec<u8>>,
     pub scheduler_priority: Priority,
     pub instance_id: InstanceId,
     pub crash_counter: u32,
+    pub entry: Option<EntryType>,
 }
 
 // Task is a critical data structure, so we should keep its size in check
