@@ -56,11 +56,12 @@ pub(super) fn build_program_task(
         task_dir,
     } = program;
     let SharedTaskDescription {
-        task_id,
         submit_dir,
         stream_path,
         entry,
     } = shared;
+
+    let task_id = build_ctx.task_id();
 
     let (program, task_id, instance_id, task_dir): (
         ProgramDefinition,

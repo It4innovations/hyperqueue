@@ -76,7 +76,6 @@ impl PinMode {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TaskBuildDescription<'a> {
     pub task_kind: Cow<'a, TaskKind>,
-    pub task_id: TaskId,
     pub submit_dir: Cow<'a, PathBuf>,
     pub stream_path: Option<Cow<'a, PathBuf>>,
     pub entry: Option<BString>,
