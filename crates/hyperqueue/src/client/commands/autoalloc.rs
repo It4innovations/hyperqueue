@@ -348,7 +348,10 @@ wasting resources."
     Ok(())
 }
 
-async fn add_queue(mut session: ClientSession, opts: AddQueueOpts) -> anyhow::Result<()> {
+async fn add_queue(
+    mut session: ClientSession,
+    opts: AddQueueOpts,
+) -> anyhow::Result<()> {
     let (parameters, dry_run) = match opts.subcmd {
         AddQueueCommand::Pbs(params) => {
             let no_dry_run = params.no_dry_run;
