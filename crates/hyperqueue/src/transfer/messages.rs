@@ -10,7 +10,6 @@ use crate::common::manager::info::ManagerType;
 use crate::server::autoalloc::{Allocation, QueueId, QueueInfo};
 use crate::server::event::Event;
 use crate::server::job::{JobTaskCounters, JobTaskInfo, SubmittedJobDescription};
-use bstr::BString;
 use std::path::PathBuf;
 use std::time::Duration;
 use tako::gateway::{
@@ -20,6 +19,7 @@ use tako::program::ProgramDefinition;
 use tako::server::TaskExplanation;
 use tako::worker::WorkerConfiguration;
 use tako::{JobId, JobTaskCount, JobTaskId, Map, TaskId, WorkerId};
+use thin_vec::ThinVec;
 
 // Messages client -> server
 #[allow(clippy::large_enum_variant)]
@@ -78,7 +78,6 @@ pub struct TaskBuildDescription<'a> {
     pub task_kind: Cow<'a, TaskKind>,
     pub submit_dir: Cow<'a, PathBuf>,
     pub stream_path: Option<Cow<'a, PathBuf>>,
-    pub entry: Option<BString>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -142,7 +141,7 @@ pub enum JobTaskDescription {
     /// Either a single-task job or a task array usually submitted through the CLI.
     Array {
         ids: IntArray,
-        entries: Option<Vec<BString>>,
+        entries: Option<Vec<ThinVec<u8>>>,
         task_desc: TaskDescription,
     },
     /// Generic DAG of tasks usually submitted through the Python binding.

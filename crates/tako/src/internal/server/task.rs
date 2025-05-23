@@ -7,7 +7,7 @@ use crate::WorkerId;
 use crate::internal::common::Set;
 use crate::internal::common::stablemap::ExtractKey;
 
-use crate::gateway::{CrashLimit, TaskDataFlags};
+use crate::gateway::{CrashLimit, EntryType, TaskDataFlags};
 use crate::internal::datasrv::dataobj::DataObjectId;
 
 use crate::internal::messages::worker::{ComputeTaskMsg, ToWorkerMessage};
@@ -63,6 +63,7 @@ pub struct TaskConfiguration {
     pub time_limit: Option<Duration>,
     pub crash_limit: CrashLimit,
     pub data_flags: TaskDataFlags,
+    pub body: Box<[u8]>,
 }
 
 #[cfg_attr(test, derive(Eq, PartialEq))]
@@ -74,14 +75,14 @@ pub struct Task {
     pub data_deps: ThinVec<DataObjectId>,
     pub flags: TaskFlags,
     pub configuration: Rc<TaskConfiguration>,
+    pub entry: Option<ThinVec<u8>>,
     pub scheduler_priority: Priority,
     pub instance_id: InstanceId,
     pub crash_counter: u32,
-    pub body: Box<[u8]>,
 }
 
 // Task is a critical data structure, so we should keep its size in check
-static_assert_size!(Task, 120);
+static_assert_size!(Task, 112);
 
 impl fmt::Debug for Task {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -95,8 +96,8 @@ impl Task {
         id: TaskId,
         task_deps: ThinVec<TaskId>,
         dataobj_deps: ThinVec<DataObjectId>,
+        entry: Option<EntryType>,
         configuration: Rc<TaskConfiguration>,
-        body: Box<[u8]>,
     ) -> Self {
         log::debug!(
             "New task {} {:?} {:?} {:?}",
@@ -115,7 +116,7 @@ impl Task {
             data_deps: dataobj_deps,
             flags,
             configuration,
-            body,
+            entry,
             scheduler_priority: Default::default(),
             state: TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 }),
             consumers: Default::default(),
@@ -236,7 +237,8 @@ impl Task {
             node_list,
             data_deps: self.data_deps.iter().copied().collect(),
             data_flags: self.configuration.data_flags,
-            body: self.body.clone(),
+            body: self.configuration.body.clone(),
+            entry: self.entry.clone(),
         })
     }
 
