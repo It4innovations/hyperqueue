@@ -102,14 +102,15 @@ impl TaskBuilder {
             self.id,
             self.task_deps.into_iter().collect(),
             self.data_deps,
+            None,
             Rc::new(TaskConfiguration {
                 resources,
                 time_limit: None,
                 user_priority: self.user_priority,
                 crash_limit: self.crash_limit,
                 data_flags: self.data_flags,
+                body: Box::new([]),
             }),
-            Default::default(),
         )
     }
 }
