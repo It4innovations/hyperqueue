@@ -42,6 +42,7 @@ fn create_task_configuration(
         user_priority: msg.priority,
         crash_limit: msg.crash_limit,
         data_flags: msg.data_flags,
+        body: msg.body,
     }
 }
 
@@ -81,8 +82,8 @@ pub(crate) fn handle_new_tasks(
             task.id,
             task.task_deps,
             task.dataobj_deps,
+            task.entry,
             conf.clone(),
-            task.body,
         );
         task.scheduler_priority = -(task.id.job_id().as_num() as i32);
         tasks.push(task);

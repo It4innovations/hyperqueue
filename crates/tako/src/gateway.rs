@@ -1,11 +1,10 @@
-use serde::{Deserialize, Serialize};
-use std::fmt::Display;
-
 use crate::internal::common::error::DsError;
 use crate::internal::datasrv::dataobj::DataObjectId;
 use crate::resources::{AllocationRequest, CPU_RESOURCE_NAME, NumOfNodes, ResourceAmount};
 use crate::{InstanceId, Map, Priority, TaskId};
+use serde::{Deserialize, Serialize};
 use smallvec::{SmallVec, smallvec};
+use std::fmt::Display;
 use std::time::Duration;
 use thin_vec::ThinVec;
 
@@ -99,7 +98,7 @@ bitflags::bitflags! {
 
 /// Task data that is often shared by multiple tasks.
 /// It is sent out-of-band in NewTasksMessage to save bandwidth and allocations.
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Debug)]
 pub struct SharedTaskConfiguration {
     pub resources: ResourceRequestVariants,
 
@@ -110,7 +109,11 @@ pub struct SharedTaskConfiguration {
     pub crash_limit: u32,
 
     pub data_flags: TaskDataFlags,
+
+    pub body: Box<[u8]>,
 }
+
+pub type EntryType = ThinVec<u8>;
 
 /// Task data that is unique for each task.
 #[derive(Deserialize, Serialize, Debug)]
@@ -126,9 +129,7 @@ pub struct TaskConfiguration {
     /// to maintain the invariant.
     pub dataobj_deps: ThinVec<DataObjectId>,
 
-    /// Opaque data that is passed by the gateway user to task launchers.
-    #[serde(with = "serde_bytes")]
-    pub body: Box<[u8]>,
+    pub entry: Option<EntryType>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]

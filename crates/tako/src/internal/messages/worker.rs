@@ -1,5 +1,5 @@
 use crate::datasrv::{DataObjectId, OutputId};
-use crate::gateway::TaskDataFlags;
+use crate::gateway::{EntryType, TaskDataFlags};
 use crate::hwstats::WorkerHwStateMessage;
 use crate::internal::common::resources::{ResourceAmount, ResourceIndex};
 use crate::internal::messages::common::TaskFailInfo;
@@ -40,6 +40,8 @@ pub struct ComputeTaskMsg {
 
     #[serde(with = "serde_bytes")]
     pub body: Box<[u8]>,
+
+    pub entry: Option<EntryType>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
