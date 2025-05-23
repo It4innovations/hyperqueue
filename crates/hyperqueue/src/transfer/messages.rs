@@ -13,13 +13,13 @@ use crate::server::job::{JobTaskCounters, JobTaskInfo, SubmittedJobDescription};
 use std::path::PathBuf;
 use std::time::Duration;
 use tako::gateway::{
-    CrashLimit, LostWorkerReason, ResourceRequestVariants, TaskDataFlags, WorkerRuntimeInfo,
+    CrashLimit, EntryType, LostWorkerReason, ResourceRequestVariants, TaskDataFlags,
+    WorkerRuntimeInfo,
 };
 use tako::program::ProgramDefinition;
 use tako::server::TaskExplanation;
 use tako::worker::WorkerConfiguration;
 use tako::{JobId, JobTaskCount, JobTaskId, Map, TaskId, WorkerId};
-use thin_vec::ThinVec;
 
 // Messages client -> server
 #[allow(clippy::large_enum_variant)]
@@ -141,7 +141,7 @@ pub enum JobTaskDescription {
     /// Either a single-task job or a task array usually submitted through the CLI.
     Array {
         ids: IntArray,
-        entries: Option<Vec<ThinVec<u8>>>,
+        entries: Option<Vec<EntryType>>,
         task_desc: TaskDescription,
     },
     /// Generic DAG of tasks usually submitted through the Python binding.
