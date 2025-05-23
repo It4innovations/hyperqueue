@@ -249,7 +249,7 @@ fn build_tasks_array(
     submit_dir: &PathBuf,
     stream_path: Option<&PathBuf>,
 ) -> TaskSubmit {
-    let build_task_conf = |tako_id: TaskId, entry: Option<ThinVec<u8>>| TaskConfiguration {
+    let build_task_conf = |tako_id: TaskId, entry: Option<EntryType>| TaskConfiguration {
         id: tako_id,
         shared_data_index: 0,
         task_deps: ThinVec::new(),
