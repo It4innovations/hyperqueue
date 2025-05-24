@@ -11,7 +11,7 @@ classifiers = [
 requires-python = ">=3.9"
 description = "HyperQueue Python API"
 dependencies = [
-    "cloudpickle>=2.0,<3",
+    "cloudpickle>=2.0,<4",
     "tqdm>=4.60,<5"
 ]
 dynamic = ["version"]
