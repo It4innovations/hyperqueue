@@ -23,7 +23,8 @@ pub enum AutoAllocMessage {
     // Events
     WorkerConnected(WorkerId, ManagerInfo),
     WorkerLost(WorkerId, ManagerInfo, LostWorkerDetails),
-    JobCreated(JobId),
+    // Some tasks were submitted to a job
+    JobSubmitted(JobId),
     // Requests
     GetQueues(ResponseToken<Map<QueueId, QueueData>>),
     AddQueue {
@@ -81,8 +82,8 @@ impl AutoAllocService {
         }
     }
 
-    pub fn on_job_created(&self, job_id: JobId) {
-        self.send(AutoAllocMessage::JobCreated(job_id));
+    pub fn on_job_submit(&self, job_id: JobId) {
+        self.send(AutoAllocMessage::JobSubmitted(job_id));
     }
 
     pub fn get_queues(&self) -> impl Future<Output = Map<QueueId, QueueData>> + use<> {
