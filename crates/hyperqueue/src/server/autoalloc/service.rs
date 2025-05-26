@@ -14,7 +14,6 @@ use crate::server::autoalloc::process::autoalloc_process;
 use crate::server::autoalloc::state::AutoAllocState;
 use crate::server::autoalloc::{Allocation, QueueId};
 use crate::server::event::streamer::EventStreamer;
-use crate::server::state::StateRef;
 use crate::transfer::messages::{AllocationQueueParams, QueueData};
 use tako::JobId;
 
