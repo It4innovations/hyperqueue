@@ -2,11 +2,6 @@ use std::future::Future;
 use std::path::PathBuf;
 use std::time::SystemTime;
 
-use futures::future::join_all;
-use tako::WorkerId;
-use tako::{Map, Set};
-use tempfile::TempDir;
-
 use crate::common::manager::info::{ManagerInfo, ManagerType};
 use crate::common::rpc::RpcReceiver;
 use crate::get_or_return;
@@ -29,7 +24,12 @@ use crate::server::autoalloc::{Allocation, AllocationId, AutoAllocResult, QueueI
 use crate::server::event::streamer::EventStreamer;
 use crate::server::state::StateRef;
 use crate::transfer::messages::{AllocationQueueParams, QueueData, QueueState};
+use futures::future::join_all;
 use tako::JobId;
+use tako::WorkerId;
+use tako::control::ServerRef;
+use tako::{Map, Set};
+use tempfile::TempDir;
 
 #[derive(Copy, Clone)]
 enum RefreshReason {
@@ -38,19 +38,25 @@ enum RefreshReason {
     NewJob(JobId),
 }
 
+struct AutoallocSenders {
+    server: ServerRef,
+    events: EventStreamer,
+}
+
 /// This is the main autoalloc event loop, which periodically refreshes the autoalloc queue state
 /// and also reacts to external autoalloc messages.
 pub async fn autoalloc_process(
-    state_ref: StateRef,
+    server: ServerRef,
     events: EventStreamer,
     mut autoalloc: AutoAllocState,
     mut receiver: RpcReceiver<AutoAllocMessage>,
 ) {
+    let senders = AutoallocSenders { server, events };
     let timeout = get_refresh_timeout();
     loop {
         let refresh_reason = match tokio::time::timeout(timeout, receiver.recv()).await {
             Ok(None) | Ok(Some(AutoAllocMessage::QuitService)) => break,
-            Ok(Some(message)) => handle_message(&mut autoalloc, &events, message).await,
+            Ok(Some(message)) => handle_message(&mut autoalloc, &senders.events, message).await,
             Err(_) => {
                 log::debug!(
                     "No message received in {} ms, refreshing state",
@@ -60,7 +66,7 @@ pub async fn autoalloc_process(
             }
         };
         if let Some(reason) = refresh_reason {
-            refresh_state(&state_ref, &events, &mut autoalloc, reason).await;
+            refresh_state(&senders, &mut autoalloc, reason).await;
         }
     }
     log::debug!("Ending autoalloc, stopping all allocations");
@@ -395,8 +401,7 @@ async fn stop_all_allocations(autoalloc: &AutoAllocState) {
 /// Processes updates either for a single queue or for all queues and removes stale directories
 /// from disk.
 async fn refresh_state(
-    state_ref: &StateRef,
-    events: &EventStreamer,
+    senders: &AutoallocSenders,
     autoalloc: &mut AutoAllocState,
     reason: RefreshReason,
 ) {
@@ -414,16 +419,15 @@ async fn refresh_state(
     };
 
     for id in queue_ids {
-        refresh_queue_allocations(events, autoalloc, id).await;
-        process_queue(state_ref, events, autoalloc, id, new_job_id).await;
+        refresh_queue_allocations(&senders.events, autoalloc, id).await;
+        process_queue(senders, autoalloc, id, new_job_id).await;
     }
 
     remove_inactive_directories(autoalloc).await;
 }
 
 async fn process_queue(
-    state_ref: &StateRef,
-    events: &EventStreamer,
+    senders: &AutoallocSenders,
     autoalloc: &mut AutoAllocState,
     id: QueueId,
     new_job_id: Option<JobId>,
@@ -449,7 +453,7 @@ async fn process_queue(
     };
 
     if try_to_submit {
-        queue_try_submit(id, autoalloc, state_ref, events, new_job_id).await;
+        queue_try_submit(id, autoalloc, senders, new_job_id).await;
     }
     try_pause_queue(autoalloc, id);
 }
@@ -849,8 +853,7 @@ fn sync_allocation_status(
 async fn queue_try_submit(
     queue_id: QueueId,
     autoalloc: &mut AutoAllocState,
-    state_ref: &StateRef,
-    events: &EventStreamer,
+    senders: &AutoallocSenders,
     new_job_id: Option<JobId>,
 ) {
     let (max_allocs_to_spawn, workers_per_alloc, mut task_state, mut max_workers_to_spawn) = {
@@ -859,7 +862,7 @@ async fn queue_try_submit(
         let allocs_in_queue = queue.queued_allocations().count();
 
         let info = queue.info();
-        let task_state = get_server_task_state(&state_ref.get(), info);
+        let task_state: u32 = todo!();
         let active_workers = count_active_workers(queue);
         let max_workers_to_spawn = match info.max_worker_count() {
             Some(max) => (max as u64).saturating_sub(active_workers),
@@ -883,90 +886,90 @@ async fn queue_try_submit(
     // A new job has arrived, which will necessarily have tasks in the waiting state.
     // To avoid creating needless allocations for it, don't do anything if we already have worker(s)
     // that can handle this job.
-    if let Some(job_id) = new_job_id {
-        if task_state.jobs.contains_key(&job_id) {
-            let state = state_ref.get();
-            if let Some(job) = state.get_job(job_id) {
-                let has_worker = state
-                    .get_workers()
-                    .values()
-                    .any(|worker| can_worker_execute_job(job, worker));
-                if has_worker {
-                    task_state.jobs.remove(&job_id);
-                }
-            }
-        }
-    }
+    // if let Some(job_id) = new_job_id {
+    //     if task_state.jobs.contains_key(&job_id) {
+    //         let state = state_ref.get();
+    //         if let Some(job) = state.get_job(job_id) {
+    //             let has_worker = state
+    //                 .get_workers()
+    //                 .values()
+    //                 .any(|worker| can_worker_execute_job(job, worker));
+    //             if has_worker {
+    //                 task_state.jobs.remove(&job_id);
+    //             }
+    //         }
+    //     }
+    // }
 
-    log::debug!("Task state: {task_state:?}");
-
-    for _ in 0..max_allocs_to_spawn {
-        // If there are no more waiting tasks, stop creating allocations
-        // Assume that each worker will handle at least a single task
-        if task_state.waiting_tasks() == 0 {
-            log::debug!("No more waiting tasks found, no new allocations will be created");
-            break;
-        }
-        // If the worker limit was reached, stop creating new allocations
-        if max_workers_to_spawn == 0 {
-            log::debug!("Worker limit reached, no new allocations will be created");
-            break;
-        }
-
-        let workers_to_spawn = std::cmp::min(workers_per_alloc, max_workers_to_spawn);
-        let schedule_fut = {
-            let queue = get_or_return!(autoalloc.get_queue_mut(queue_id));
-            let info = queue.info().clone();
-            queue.handler_mut().submit_allocation(
-                queue_id,
-                &info,
-                workers_to_spawn,
-                SubmitMode::Submit,
-            )
-        };
-
-        let result = schedule_fut.await;
-
-        match result {
-            Ok(submission_result) => {
-                let working_dir = submission_result.working_dir().to_path_buf();
-                match submission_result.into_id() {
-                    Ok(allocation_id) => {
-                        log::info!(
-                            "Queued {workers_to_spawn} worker(s) into queue {queue_id}: allocation ID {allocation_id}"
-                        );
-                        events.on_allocation_queued(
-                            queue_id,
-                            allocation_id.clone(),
-                            workers_to_spawn,
-                        );
-                        let allocation =
-                            Allocation::new(allocation_id, workers_to_spawn, working_dir);
-                        autoalloc.add_allocation(allocation, queue_id);
-                        let queue = get_or_return!(autoalloc.get_queue_mut(queue_id));
-                        queue.limiter_mut().on_submission_success();
-
-                        task_state.remove_waiting_tasks(workers_to_spawn);
-                        max_workers_to_spawn =
-                            max_workers_to_spawn.saturating_sub(workers_to_spawn);
-                    }
-                    Err(err) => {
-                        log::error!("Failed to submit allocation into queue {queue_id}: {err:?}");
-                        autoalloc.add_inactive_directory(working_dir);
-                        let queue = get_or_return!(autoalloc.get_queue_mut(queue_id));
-                        queue.limiter_mut().on_submission_fail();
-                        break;
-                    }
-                }
-            }
-            Err(err) => {
-                log::error!("Failed to create allocation directory for queue {queue_id}: {err:?}");
-                let queue = get_or_return!(autoalloc.get_queue_mut(queue_id));
-                queue.limiter_mut().on_submission_fail();
-                break;
-            }
-        }
-    }
+    // log::debug!("Task state: {task_state:?}");
+    //
+    // for _ in 0..max_allocs_to_spawn {
+    //     // If there are no more waiting tasks, stop creating allocations
+    //     // Assume that each worker will handle at least a single task
+    //     if task_state.waiting_tasks() == 0 {
+    //         log::debug!("No more waiting tasks found, no new allocations will be created");
+    //         break;
+    //     }
+    //     // If the worker limit was reached, stop creating new allocations
+    //     if max_workers_to_spawn == 0 {
+    //         log::debug!("Worker limit reached, no new allocations will be created");
+    //         break;
+    //     }
+    //
+    //     let workers_to_spawn = std::cmp::min(workers_per_alloc, max_workers_to_spawn);
+    //     let schedule_fut = {
+    //         let queue = get_or_return!(autoalloc.get_queue_mut(queue_id));
+    //         let info = queue.info().clone();
+    //         queue.handler_mut().submit_allocation(
+    //             queue_id,
+    //             &info,
+    //             workers_to_spawn,
+    //             SubmitMode::Submit,
+    //         )
+    //     };
+    //
+    //     let result = schedule_fut.await;
+    //
+    //     match result {
+    //         Ok(submission_result) => {
+    //             let working_dir = submission_result.working_dir().to_path_buf();
+    //             match submission_result.into_id() {
+    //                 Ok(allocation_id) => {
+    //                     log::info!(
+    //                         "Queued {workers_to_spawn} worker(s) into queue {queue_id}: allocation ID {allocation_id}"
+    //                     );
+    //                     senders.events.on_allocation_queued(
+    //                         queue_id,
+    //                         allocation_id.clone(),
+    //                         workers_to_spawn,
+    //                     );
+    //                     let allocation =
+    //                         Allocation::new(allocation_id, workers_to_spawn, working_dir);
+    //                     autoalloc.add_allocation(allocation, queue_id);
+    //                     let queue = get_or_return!(autoalloc.get_queue_mut(queue_id));
+    //                     queue.limiter_mut().on_submission_success();
+    //
+    //                     task_state.remove_waiting_tasks(workers_to_spawn);
+    //                     max_workers_to_spawn =
+    //                         max_workers_to_spawn.saturating_sub(workers_to_spawn);
+    //                 }
+    //                 Err(err) => {
+    //                     log::error!("Failed to submit allocation into queue {queue_id}: {err:?}");
+    //                     autoalloc.add_inactive_directory(working_dir);
+    //                     let queue = get_or_return!(autoalloc.get_queue_mut(queue_id));
+    //                     queue.limiter_mut().on_submission_fail();
+    //                     break;
+    //                 }
+    //             }
+    //         }
+    //         Err(err) => {
+    //             log::error!("Failed to create allocation directory for queue {queue_id}: {err:?}");
+    //             let queue = get_or_return!(autoalloc.get_queue_mut(queue_id));
+    //             queue.limiter_mut().on_submission_fail();
+    //             break;
+    //         }
+    //     }
+    // }
 }
 
 async fn remove_inactive_directories(autoalloc: &mut AutoAllocState) {

@@ -2,6 +2,7 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tako::Map;
+use tako::control::ServerRef;
 
 use tako::WorkerId;
 use tako::gateway::LostWorkerReason;
@@ -155,13 +156,13 @@ impl AutoAllocService {
 }
 
 pub fn create_autoalloc_service(
-    state_ref: StateRef,
+    server_ref: ServerRef,
     queue_id_initial_value: u32,
     events: EventStreamer,
 ) -> (AutoAllocService, impl Future<Output = ()>) {
     let (tx, rx) = make_rpc_queue();
     let autoalloc = AutoAllocState::new(queue_id_initial_value);
-    let process = autoalloc_process(state_ref, events, autoalloc, rx);
+    let process = autoalloc_process(server_ref, events, autoalloc, rx);
     let service = AutoAllocService { sender: tx };
     (service, process)
 }
