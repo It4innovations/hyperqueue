@@ -9,9 +9,6 @@ use crate::server::autoalloc::config::{
     MAX_QUEUED_STATUS_ERROR_COUNT, MAX_RUNNING_STATUS_ERROR_COUNT, MAX_SUBMISSION_FAILS,
     SUBMISSION_DELAYS, get_refresh_interval, get_status_check_interval, max_allocation_fails,
 };
-use crate::server::autoalloc::estimator::{
-    can_worker_execute_job, count_active_workers, get_server_task_state,
-};
 use crate::server::autoalloc::queue::pbs::PbsHandler;
 use crate::server::autoalloc::queue::slurm::SlurmHandler;
 use crate::server::autoalloc::queue::{AllocationExternalStatus, QueueHandler, SubmitMode};
@@ -22,12 +19,13 @@ use crate::server::autoalloc::state::{
 };
 use crate::server::autoalloc::{Allocation, AllocationId, AutoAllocResult, QueueId, QueueInfo};
 use crate::server::event::streamer::EventStreamer;
-use crate::server::state::StateRef;
 use crate::transfer::messages::{AllocationQueueParams, QueueData, QueueState};
 use futures::future::join_all;
-use tako::JobId;
 use tako::WorkerId;
-use tako::control::ServerRef;
+use tako::control::{ServerRef, WorkerTypeQuery};
+use tako::resources::{
+    CPU_RESOURCE_NAME, ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind,
+};
 use tako::{Map, Set};
 use tempfile::TempDir;
 
@@ -61,13 +59,92 @@ pub async fn autoalloc_process(
                     Err(_) => true
                 };
                 if schedule {
-                    do_schedule(&mut autoalloc, &senders).await;
+                    if let Err(error) = perform_submits(&mut autoalloc, &senders).await {
+                        log::error!("Autoalloc scheduling failed: {error:?}");
+                    }
                 }
             }
         }
     }
     log::debug!("Ending autoalloc, stopping all allocations");
     stop_all_allocations(&autoalloc).await;
+}
+
+/// Try to create a temporary allocation to check that the allocation manager can work with the
+/// given allocation parameters.
+pub async fn try_submit_allocation(params: AllocationQueueParams) -> anyhow::Result<()> {
+    let tmpdir = TempDir::with_prefix("hq")?;
+    let mut handler = create_allocation_handler(
+        &params.manager,
+        params.name.clone(),
+        tmpdir.as_ref().to_path_buf(),
+    )?;
+    let worker_count = params.workers_per_alloc;
+    let queue_info = create_queue_info(params);
+
+    let allocation = handler
+        .submit_allocation(0, &queue_info, worker_count as u64, SubmitMode::DryRun)
+        .await
+        .map_err(|e| anyhow::anyhow!("Could not submit allocation: {:?}", e))?;
+
+    let working_dir = allocation.working_dir().to_path_buf();
+    let id = allocation
+        .into_id()
+        .map_err(|e| anyhow::anyhow!("Could not submit allocation: {:?}", e))?;
+    let allocation = Allocation::new(id.to_string(), worker_count as u64, working_dir);
+    handler
+        .remove_allocation(&allocation)
+        .await
+        .map_err(|e| anyhow::anyhow!("Could not cancel allocation {}: {:?}", allocation.id, e))?;
+
+    Ok(())
+}
+
+// The code doesn't compile if the Box closures are removed
+#[allow(clippy::redundant_closure)]
+pub fn create_allocation_handler(
+    manager: &ManagerType,
+    name: Option<String>,
+    directory: PathBuf,
+) -> anyhow::Result<Box<dyn QueueHandler>> {
+    match manager {
+        ManagerType::Pbs => {
+            let handler = PbsHandler::new(directory, name);
+            handler.map::<Box<dyn QueueHandler>, _>(|handler| Box::new(handler))
+        }
+        ManagerType::Slurm => {
+            let handler = SlurmHandler::new(directory, name);
+            handler.map::<Box<dyn QueueHandler>, _>(|handler| Box::new(handler))
+        }
+    }
+}
+
+pub fn create_queue_info(params: AllocationQueueParams) -> QueueInfo {
+    let AllocationQueueParams {
+        manager,
+        name: _name,
+        workers_per_alloc,
+        backlog,
+        timelimit,
+        additional_args,
+        max_worker_count,
+        worker_start_cmd,
+        worker_stop_cmd,
+        worker_args,
+        idle_timeout,
+    } = params;
+    QueueInfo::new(
+        manager,
+        backlog,
+        workers_per_alloc,
+        timelimit,
+        additional_args,
+        max_worker_count,
+        worker_args,
+        idle_timeout,
+        worker_start_cmd,
+        worker_stop_cmd,
+    )
 }
 
 /// Reacts to auto allocation message.
@@ -215,81 +292,226 @@ async fn handle_message(
     }
 }
 
-async fn do_schedule(autoalloc: &mut AutoAllocState, senders: &AutoallocSenders) {}
+/// Perform an allocation submission pass.
+/// Ask the scheduler how many workers it wants to be created, and spawn them into the individual
+/// allocation queues.
+async fn perform_submits(
+    autoalloc: &mut AutoAllocState,
+    senders: &AutoallocSenders,
+) -> anyhow::Result<()> {
+    // Figure out which queues are running
+    let queues = autoalloc
+        .queues()
+        .filter(|(_, queue)| queue.state().is_running())
+        .collect::<Vec<_>>();
+    if queues.is_empty() {
+        return Ok(());
+    }
 
-pub async fn try_submit_allocation(params: AllocationQueueParams) -> anyhow::Result<()> {
-    let tmpdir = TempDir::with_prefix("hq")?;
-    let mut handler = create_allocation_handler(
-        &params.manager,
-        params.name.clone(),
-        tmpdir.as_ref().to_path_buf(),
-    )?;
-    let worker_count = params.workers_per_alloc;
-    let queue_info = create_queue_info(params);
+    // Ask the scheduler how many workers it needs
+    let queries: Vec<WorkerTypeQuery> = queues
+        .iter()
+        .map(|(_, queue)| create_queue_worker_query(queue))
+        .collect();
+    let query_rx = senders.server.new_worker_query(queries)?;
+    let response = query_rx.await?;
 
-    let allocation = handler
-        .submit_allocation(0, &queue_info, worker_count as u64, SubmitMode::DryRun)
-        .await
-        .map_err(|e| anyhow::anyhow!("Could not submit allocation: {:?}", e))?;
-
-    let working_dir = allocation.working_dir().to_path_buf();
-    let id = allocation
-        .into_id()
-        .map_err(|e| anyhow::anyhow!("Could not submit allocation: {:?}", e))?;
-    let allocation = Allocation::new(id.to_string(), worker_count as u64, working_dir);
-    handler
-        .remove_allocation(&allocation)
-        .await
-        .map_err(|e| anyhow::anyhow!("Could not cancel allocation {}: {:?}", allocation.id, e))?;
+    // Now schedule the workers into the individual queues
+    let queue_ids: Vec<QueueId> = queues.into_iter().map(|(id, _)| id).collect();
+    for (required_workers, queue_id) in response.single_node_workers_per_query.iter().zip(queue_ids)
+    {
+        queue_try_submit(autoalloc, queue_id, senders, *required_workers as u32).await;
+        try_pause_queue(autoalloc, queue_id);
+    }
 
     Ok(())
 }
 
-// The code doesn't compile if the Box closures are removed
-#[allow(clippy::redundant_closure)]
-pub fn create_allocation_handler(
-    manager: &ManagerType,
-    name: Option<String>,
-    directory: PathBuf,
-) -> anyhow::Result<Box<dyn QueueHandler>> {
-    match manager {
-        ManagerType::Pbs => {
-            let handler = PbsHandler::new(directory, name);
-            handler.map::<Box<dyn QueueHandler>, _>(|handler| Box::new(handler))
-        }
-        ManagerType::Slurm => {
-            let handler = SlurmHandler::new(directory, name);
-            handler.map::<Box<dyn QueueHandler>, _>(|handler| Box::new(handler))
-        }
+/// Create a worker query that corresponds to the provided resources of the given `queue`.
+fn create_queue_worker_query(queue: &AllocationQueue) -> WorkerTypeQuery {
+    let info = queue.info();
+
+    WorkerTypeQuery {
+        // The maximum number of workers that we can provide in this queue
+        // TODO: estimate the resources of the queue in a better way
+        // TODO: min time
+        descriptor: ResourceDescriptor::new(vec![ResourceDescriptorItem {
+            name: CPU_RESOURCE_NAME.to_string(),
+            kind: ResourceDescriptorKind::regular_sockets(1, 1),
+        }]),
+        // How many workers can we provide at the moment
+        max_sn_workers: info.backlog() * info.workers_per_alloc(),
+        max_workers_per_allocation: info.workers_per_alloc(),
+        // TODO: expose this through the CLI
+        min_utilization: 0.0,
     }
 }
 
-pub fn create_queue_info(params: AllocationQueueParams) -> QueueInfo {
-    let AllocationQueueParams {
-        manager,
-        name: _name,
-        workers_per_alloc,
-        backlog,
-        timelimit,
-        additional_args,
-        max_worker_count,
-        worker_start_cmd,
-        worker_stop_cmd,
-        worker_args,
-        idle_timeout,
-    } = params;
-    QueueInfo::new(
-        manager,
-        backlog,
-        workers_per_alloc,
-        timelimit,
-        additional_args,
-        max_worker_count,
-        worker_args,
-        idle_timeout,
-        worker_start_cmd,
-        worker_stop_cmd,
-    )
+/// Permits the autoallocator to submit a given number of allocations with the given number of
+/// workers, based on queue limits.
+struct SubmissionPermit {
+    /// How many allocations should be submitted
+    /// Each allocation holds the maximum number of workers that can be spawned in the allocation.
+    allocs_to_submit: Vec<u64>,
+}
+
+impl SubmissionPermit {
+    fn empty() -> Self {
+        Self {
+            allocs_to_submit: vec![],
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.allocs_to_submit.is_empty()
+    }
+}
+
+/// Count how many submits can be performed on the given queue based on various factors.
+fn compute_submission_permit(queue: &AllocationQueue, required_workers: u32) -> SubmissionPermit {
+    let info = queue.info();
+
+    // How many workers are currently already queued or running?
+    let active_workers = queue
+        .active_allocations()
+        .map(|allocation| allocation.target_worker_count as u32)
+        .sum::<u32>();
+    let queued_allocs = queue.queued_allocations().count() as u32;
+
+    let mut max_workers_to_spawn = match info.max_worker_count() {
+        Some(max) => max.saturating_sub(active_workers),
+        None => u32::MAX,
+    };
+
+    log::debug!(
+        r"Counting possible allocations: required worker count is {required_workers}.
+Backlog: {}, currently queued: {queued_allocs}, max workers to spawn: {max_workers_to_spawn}
+",
+        info.backlog(),
+    );
+
+    if max_workers_to_spawn == 0 {
+        return SubmissionPermit::empty();
+    }
+
+    // Start with backlog
+    let allocs_to_submit = info.backlog();
+    // Subtract already queued allocations
+    let allocs_to_submit = allocs_to_submit.saturating_sub(queued_allocs);
+    // Only create enough allocations to serve `required_workers`.
+    // Allocations that are already queued will be subtracted from this.
+    let missing_workers = required_workers.saturating_sub(queued_allocs * info.workers_per_alloc());
+    let missing_allocations =
+        ((missing_workers as f32) / (info.workers_per_alloc() as f32)).ceil() as u32;
+    let allocs_to_submit = allocs_to_submit.min(missing_allocations);
+
+    let mut allocations = vec![];
+    for _ in 0..allocs_to_submit {
+        let remaining_workers = max_workers_to_spawn.saturating_sub(info.workers_per_alloc());
+        if remaining_workers == 0 {
+            break;
+        }
+        max_workers_to_spawn = max_workers_to_spawn.saturating_sub(remaining_workers);
+        allocations.push(info.workers_per_alloc().min(remaining_workers) as u64);
+    }
+
+    log::debug!("Determined allocations to submit: {allocs_to_submit:?}");
+
+    SubmissionPermit {
+        allocs_to_submit: allocations,
+    }
+}
+
+/// Attempt to submit allocations so that up to a given `required_workers` number of workers is
+/// queued.
+async fn queue_try_submit(
+    autoalloc: &mut AutoAllocState,
+    queue_id: QueueId,
+    senders: &AutoallocSenders,
+    required_workers: u32,
+) {
+    if required_workers == 0 {
+        return;
+    }
+
+    // Figure out how many allocations we are allowed to submit, according to queue limits
+    // Also check the rate limiter
+    let permit = {
+        let queue = get_or_return!(autoalloc.get_queue_mut(queue_id));
+        if !queue.state().is_running() {
+            return;
+        }
+
+        let permit = compute_submission_permit(queue, required_workers);
+        if permit.is_empty() {
+            return;
+        }
+
+        let limiter = queue.limiter_mut();
+
+        let status = limiter.submission_status();
+        let allowed = matches!(status, RateLimiterStatus::Ok);
+        if allowed {
+            // Log a submission attempt, because we will try it below.
+            // It is done here to avoid fetching the queue again.
+            limiter.on_submission_attempt();
+        } else {
+            log::debug!("Submit attempt for queue {queue_id} was rate limited: {status:?}");
+            return;
+        }
+        permit
+    };
+
+    for workers_to_spawn in permit.allocs_to_submit {
+        let schedule_fut = {
+            let queue = get_or_return!(autoalloc.get_queue_mut(queue_id));
+            let info = queue.info().clone();
+            queue.handler_mut().submit_allocation(
+                queue_id,
+                &info,
+                workers_to_spawn,
+                SubmitMode::Submit,
+            )
+        };
+
+        let result = schedule_fut.await;
+
+        match result {
+            Ok(submission_result) => {
+                let working_dir = submission_result.working_dir().to_path_buf();
+                match submission_result.into_id() {
+                    Ok(allocation_id) => {
+                        log::info!(
+                            "Queued {workers_to_spawn} worker(s) into queue {queue_id}: allocation ID {allocation_id}"
+                        );
+                        senders.events.on_allocation_queued(
+                            queue_id,
+                            allocation_id.clone(),
+                            workers_to_spawn,
+                        );
+                        let allocation =
+                            Allocation::new(allocation_id, workers_to_spawn, working_dir);
+                        autoalloc.add_allocation(allocation, queue_id);
+                        let queue = get_or_return!(autoalloc.get_queue_mut(queue_id));
+                        queue.limiter_mut().on_submission_success();
+                    }
+                    Err(err) => {
+                        log::error!("Failed to submit allocation into queue {queue_id}: {err:?}");
+                        autoalloc.add_inactive_directory(working_dir);
+                        let queue = get_or_return!(autoalloc.get_queue_mut(queue_id));
+                        queue.limiter_mut().on_submission_fail();
+                        break;
+                    }
+                }
+            }
+            Err(err) => {
+                log::error!("Failed to create allocation directory for queue {queue_id}: {err:?}");
+                let queue = get_or_return!(autoalloc.get_queue_mut(queue_id));
+                queue.limiter_mut().on_submission_fail();
+                break;
+            }
+        }
+    }
 }
 
 fn create_rate_limiter() -> RateLimiter {
@@ -400,38 +622,6 @@ async fn do_periodic_update(senders: &AutoallocSenders, autoalloc: &mut AutoAllo
     }
 
     remove_inactive_directories(autoalloc).await;
-}
-
-async fn process_queue(
-    senders: &AutoallocSenders,
-    autoalloc: &mut AutoAllocState,
-    id: QueueId,
-    new_job_id: Option<JobId>,
-) {
-    let try_to_submit = {
-        let queue = get_or_return!(autoalloc.get_queue_mut(id));
-        if !queue.state().is_running() {
-            return;
-        } else {
-            let limiter = queue.limiter_mut();
-
-            let status = limiter.submission_status();
-            let allowed = matches!(status, RateLimiterStatus::Ok);
-            if allowed {
-                // Log a submission attempt, because we will try it below.
-                // It is done here to avoid fetching the queue again.
-                limiter.on_submission_attempt();
-            } else {
-                log::debug!("Submit attempt was rate limited: {status:?}");
-            }
-            allowed
-        }
-    };
-
-    if try_to_submit {
-        queue_try_submit(id, autoalloc, senders, new_job_id).await;
-    }
-    try_pause_queue(autoalloc, id);
 }
 
 fn get_data_from_worker<'a>(
@@ -826,128 +1016,6 @@ fn sync_allocation_status(
         }
         None => {}
     }
-}
-
-async fn queue_try_submit(
-    queue_id: QueueId,
-    autoalloc: &mut AutoAllocState,
-    senders: &AutoallocSenders,
-    new_job_id: Option<JobId>,
-) {
-    let (max_allocs_to_spawn, workers_per_alloc, mut task_state, mut max_workers_to_spawn) = {
-        let queue = get_or_return!(autoalloc.get_queue(queue_id));
-
-        let allocs_in_queue = queue.queued_allocations().count();
-
-        let info = queue.info();
-        let task_state: u32 = todo!();
-        let active_workers = count_active_workers(queue);
-        let max_workers_to_spawn = match info.max_worker_count() {
-            Some(max) => (max as u64).saturating_sub(active_workers),
-            None => u64::MAX,
-        };
-
-        let max_allocs_to_spawn = info.backlog().saturating_sub(allocs_in_queue as u32);
-
-        log::debug!(
-            "Queue {queue_id} state: {allocs_in_queue} queued allocation(s), {active_workers} active worker(s), {max_workers_to_spawn} max. worker(s) to spawn, {max_allocs_to_spawn} allocation(s) to spawn"
-        );
-
-        (
-            max_allocs_to_spawn,
-            info.workers_per_alloc() as u64,
-            task_state,
-            max_workers_to_spawn,
-        )
-    };
-
-    // A new job has arrived, which will necessarily have tasks in the waiting state.
-    // To avoid creating needless allocations for it, don't do anything if we already have worker(s)
-    // that can handle this job.
-    // if let Some(job_id) = new_job_id {
-    //     if task_state.jobs.contains_key(&job_id) {
-    //         let state = state_ref.get();
-    //         if let Some(job) = state.get_job(job_id) {
-    //             let has_worker = state
-    //                 .get_workers()
-    //                 .values()
-    //                 .any(|worker| can_worker_execute_job(job, worker));
-    //             if has_worker {
-    //                 task_state.jobs.remove(&job_id);
-    //             }
-    //         }
-    //     }
-    // }
-
-    // log::debug!("Task state: {task_state:?}");
-    //
-    // for _ in 0..max_allocs_to_spawn {
-    //     // If there are no more waiting tasks, stop creating allocations
-    //     // Assume that each worker will handle at least a single task
-    //     if task_state.waiting_tasks() == 0 {
-    //         log::debug!("No more waiting tasks found, no new allocations will be created");
-    //         break;
-    //     }
-    //     // If the worker limit was reached, stop creating new allocations
-    //     if max_workers_to_spawn == 0 {
-    //         log::debug!("Worker limit reached, no new allocations will be created");
-    //         break;
-    //     }
-    //
-    //     let workers_to_spawn = std::cmp::min(workers_per_alloc, max_workers_to_spawn);
-    //     let schedule_fut = {
-    //         let queue = get_or_return!(autoalloc.get_queue_mut(queue_id));
-    //         let info = queue.info().clone();
-    //         queue.handler_mut().submit_allocation(
-    //             queue_id,
-    //             &info,
-    //             workers_to_spawn,
-    //             SubmitMode::Submit,
-    //         )
-    //     };
-    //
-    //     let result = schedule_fut.await;
-    //
-    //     match result {
-    //         Ok(submission_result) => {
-    //             let working_dir = submission_result.working_dir().to_path_buf();
-    //             match submission_result.into_id() {
-    //                 Ok(allocation_id) => {
-    //                     log::info!(
-    //                         "Queued {workers_to_spawn} worker(s) into queue {queue_id}: allocation ID {allocation_id}"
-    //                     );
-    //                     senders.events.on_allocation_queued(
-    //                         queue_id,
-    //                         allocation_id.clone(),
-    //                         workers_to_spawn,
-    //                     );
-    //                     let allocation =
-    //                         Allocation::new(allocation_id, workers_to_spawn, working_dir);
-    //                     autoalloc.add_allocation(allocation, queue_id);
-    //                     let queue = get_or_return!(autoalloc.get_queue_mut(queue_id));
-    //                     queue.limiter_mut().on_submission_success();
-    //
-    //                     task_state.remove_waiting_tasks(workers_to_spawn);
-    //                     max_workers_to_spawn =
-    //                         max_workers_to_spawn.saturating_sub(workers_to_spawn);
-    //                 }
-    //                 Err(err) => {
-    //                     log::error!("Failed to submit allocation into queue {queue_id}: {err:?}");
-    //                     autoalloc.add_inactive_directory(working_dir);
-    //                     let queue = get_or_return!(autoalloc.get_queue_mut(queue_id));
-    //                     queue.limiter_mut().on_submission_fail();
-    //                     break;
-    //                 }
-    //             }
-    //         }
-    //         Err(err) => {
-    //             log::error!("Failed to create allocation directory for queue {queue_id}: {err:?}");
-    //             let queue = get_or_return!(autoalloc.get_queue_mut(queue_id));
-    //             queue.limiter_mut().on_submission_fail();
-    //             break;
-    //         }
-    //     }
-    // }
 }
 
 async fn remove_inactive_directories(autoalloc: &mut AutoAllocState) {
