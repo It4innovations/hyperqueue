@@ -7,6 +7,7 @@ use crate::transfer::messages::{JobTaskDescription, TaskDescription};
 use std::time::Duration;
 use tako::JobId;
 use tako::Map;
+use tako::control::ServerRef;
 
 pub type WaitingTaskCount = u64;
 
@@ -40,18 +41,19 @@ impl ServerTaskState {
     }
 }
 
-pub fn get_server_task_state(state: &State, queue_info: &QueueInfo) -> ServerTaskState {
-    let jobs: Map<JobId, WaitingTaskCount> = state
-        .jobs()
-        .filter(|job| !job.is_terminated() && can_queue_execute_job(job, queue_info))
-        .map(|job| {
-            (
-                job.job_id,
-                job.counters.n_waiting_tasks(job.n_tasks()) as u64,
-            )
-        })
-        .collect();
-    ServerTaskState { jobs }
+pub fn get_server_task_state(state: &ServerRef, queue_info: &QueueInfo) -> ServerTaskState {
+    // let jobs: Map<JobId, WaitingTaskCount> = state
+    //     .jobs()
+    //     .filter(|job| !job.is_terminated() && can_queue_execute_job(job, queue_info))
+    //     .map(|job| {
+    //         (
+    //             job.job_id,
+    //             job.counters.n_waiting_tasks(job.n_tasks()) as u64,
+    //         )
+    //     })
+    //     .collect();
+    // ServerTaskState { jobs }
+    todo!()
 }
 
 /// Guesses if workers from the given queue can compute tasks from the given job.
