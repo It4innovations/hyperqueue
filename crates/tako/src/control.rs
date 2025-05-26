@@ -32,7 +32,7 @@ pub struct WorkerTypeQuery {
     /// Max number of workers for single-node tasks
     pub max_sn_workers: u32,
     /// How big allocations for multinode tasks can queue provide
-    pub max_worker_per_allocation: u32,
+    pub max_workers_per_allocation: u32,
     /// Number 0-1. Specifies the minimal utilization of the worker by single node tasks,
     /// if the worker is not utilized at least by `min_utilization` then it is not returned
     /// in `single_node_allocations`
@@ -42,7 +42,7 @@ pub struct WorkerTypeQuery {
 pub struct NewWorkerAllocationResponse {
     /// Array of the same size as number of queries, it returns the number of workers that should
     /// be spawned for the given query
-    pub single_node_allocations: Vec<usize>,
+    pub single_node_workers_per_query: Vec<usize>,
     pub multi_node_allocations: Vec<MultiNodeAllocationResponse>,
 }
 
