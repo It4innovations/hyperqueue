@@ -139,7 +139,7 @@ pub(crate) fn compute_new_worker_query(
     multi_node_allocations.sort_unstable_by_key(|x| (x.worker_type, x.worker_per_allocation));
 
     NewWorkerAllocationResponse {
-        single_node_allocations,
+        single_node_workers_per_query: single_node_allocations,
         multi_node_allocations,
     }
 }

@@ -18,11 +18,11 @@ fn test_query_no_tasks() {
             descriptor: ResourceDescriptor::simple(4),
             time_limit: None,
             max_sn_workers: 2,
-            max_worker_per_allocation: 1,
+            max_workers_per_allocation: 1,
             min_utilization: 0.0,
         }],
     );
-    assert_eq!(r.single_node_allocations, vec![0]);
+    assert_eq!(r.single_node_workers_per_query, vec![0]);
     assert!(r.multi_node_allocations.is_empty());
 }
 
@@ -47,11 +47,11 @@ fn test_query_enough_workers() {
             descriptor: ResourceDescriptor::simple(4),
             time_limit: None,
             max_sn_workers: 2,
-            max_worker_per_allocation: 1,
+            max_workers_per_allocation: 1,
             min_utilization: 0.0,
         }],
     );
-    assert_eq!(r.single_node_allocations, vec![0]);
+    assert_eq!(r.single_node_workers_per_query, vec![0]);
     assert!(r.multi_node_allocations.is_empty());
 }
 
@@ -77,19 +77,19 @@ fn test_query_no_enough_workers1() {
                 descriptor: ResourceDescriptor::simple(2),
                 time_limit: None,
                 max_sn_workers: 2,
-                max_worker_per_allocation: 1,
+                max_workers_per_allocation: 1,
                 min_utilization: 0.0,
             },
             WorkerTypeQuery {
                 descriptor: ResourceDescriptor::simple(3),
                 time_limit: None,
                 max_sn_workers: 2,
-                max_worker_per_allocation: 1,
+                max_workers_per_allocation: 1,
                 min_utilization: 0.0,
             },
         ],
     );
-    assert_eq!(r.single_node_allocations, vec![0, 1]);
+    assert_eq!(r.single_node_workers_per_query, vec![0, 1]);
     assert!(r.multi_node_allocations.is_empty());
 }
 
@@ -110,19 +110,19 @@ fn test_query_enough_workers2() {
                 descriptor: ResourceDescriptor::simple(2),
                 time_limit: None,
                 max_sn_workers: 2,
-                max_worker_per_allocation: 1,
+                max_workers_per_allocation: 1,
                 min_utilization: 0.0,
             },
             WorkerTypeQuery {
                 descriptor: ResourceDescriptor::simple(3),
                 time_limit: None,
                 max_sn_workers: 2,
-                max_worker_per_allocation: 1,
+                max_workers_per_allocation: 1,
                 min_utilization: 0.0,
             },
         ],
     );
-    assert_eq!(r.single_node_allocations, vec![0, 0]);
+    assert_eq!(r.single_node_workers_per_query, vec![0, 0]);
     assert!(r.multi_node_allocations.is_empty());
 }
 
@@ -144,19 +144,19 @@ fn test_query_not_enough_workers3() {
                 descriptor: ResourceDescriptor::simple(2),
                 time_limit: None,
                 max_sn_workers: 2,
-                max_worker_per_allocation: 1,
+                max_workers_per_allocation: 1,
                 min_utilization: 0.0,
             },
             WorkerTypeQuery {
                 descriptor: ResourceDescriptor::simple(3),
                 time_limit: None,
                 max_sn_workers: 2,
-                max_worker_per_allocation: 1,
+                max_workers_per_allocation: 1,
                 min_utilization: 0.0,
             },
         ],
     );
-    assert_eq!(r.single_node_allocations, vec![1, 0]);
+    assert_eq!(r.single_node_workers_per_query, vec![1, 0]);
     assert!(r.multi_node_allocations.is_empty());
 }
 
@@ -178,26 +178,26 @@ fn test_query_many_workers_needed() {
                 descriptor: ResourceDescriptor::simple(2),
                 time_limit: None,
                 max_sn_workers: 5,
-                max_worker_per_allocation: 1,
+                max_workers_per_allocation: 1,
                 min_utilization: 0.0,
             },
             WorkerTypeQuery {
                 descriptor: ResourceDescriptor::simple(1),
                 time_limit: None,
                 max_sn_workers: 1,
-                max_worker_per_allocation: 1,
+                max_workers_per_allocation: 1,
                 min_utilization: 0.0,
             },
             WorkerTypeQuery {
                 descriptor: ResourceDescriptor::simple(3),
                 time_limit: None,
                 max_sn_workers: 200,
-                max_worker_per_allocation: 1,
+                max_workers_per_allocation: 1,
                 min_utilization: 0.0,
             },
         ],
     );
-    assert_eq!(r.single_node_allocations, vec![5, 1, 26]);
+    assert_eq!(r.single_node_workers_per_query, vec![5, 1, 26]);
     assert!(r.multi_node_allocations.is_empty());
 }
 
@@ -230,19 +230,19 @@ fn test_query_multi_node_tasks() {
                 descriptor: ResourceDescriptor::simple(1),
                 time_limit: None,
                 max_sn_workers: 1,
-                max_worker_per_allocation: 3,
+                max_workers_per_allocation: 3,
                 min_utilization: 0.0,
             },
             WorkerTypeQuery {
                 descriptor: ResourceDescriptor::simple(1),
                 time_limit: None,
                 max_sn_workers: 1,
-                max_worker_per_allocation: 11,
+                max_workers_per_allocation: 11,
                 min_utilization: 0.0,
             },
         ],
     );
-    assert_eq!(r.single_node_allocations, vec![0, 0]);
+    assert_eq!(r.single_node_workers_per_query, vec![0, 0]);
     assert_eq!(r.multi_node_allocations.len(), 3);
     assert_eq!(r.multi_node_allocations[0].worker_type, 0);
     assert_eq!(r.multi_node_allocations[0].worker_per_allocation, 1);
@@ -306,11 +306,11 @@ fn test_query_min_utilization1() {
                 descriptor: ResourceDescriptor::simple(*cpus),
                 time_limit: None,
                 max_sn_workers: 2,
-                max_worker_per_allocation: 1,
+                max_workers_per_allocation: 1,
                 min_utilization: *min_utilization,
             }],
         );
-        assert_eq!(r.single_node_allocations, vec![*alloc_value]);
+        assert_eq!(r.single_node_workers_per_query, vec![*alloc_value]);
         assert!(r.multi_node_allocations.is_empty());
     }
 }
@@ -355,11 +355,11 @@ fn test_query_min_utilization2() {
                 descriptor,
                 time_limit: None,
                 max_sn_workers: 2,
-                max_worker_per_allocation: 1,
+                max_workers_per_allocation: 1,
                 min_utilization: *min_utilization,
             }],
         );
-        assert_eq!(r.single_node_allocations, vec![*alloc_value]);
+        assert_eq!(r.single_node_workers_per_query, vec![*alloc_value]);
         assert!(r.multi_node_allocations.is_empty());
     }
 }
