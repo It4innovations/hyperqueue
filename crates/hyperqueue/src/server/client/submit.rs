@@ -177,7 +177,7 @@ pub(crate) fn handle_submit(
     }
 
     let new_tasks = submit_job_desc(&mut state, job_id, submit_desc, Utc::now());
-    senders.autoalloc.on_job_created(job_id);
+    senders.autoalloc.on_job_submit(job_id);
 
     let job_detail = state
         .get_job(job_id)

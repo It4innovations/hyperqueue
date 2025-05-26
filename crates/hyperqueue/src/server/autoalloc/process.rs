@@ -137,7 +137,7 @@ async fn handle_message(
                 Some(RefreshReason::UpdateAllQueues)
             }
         }
-        AutoAllocMessage::JobCreated(id) => {
+        AutoAllocMessage::JobSubmitted(id) => {
             log::debug!("Registering job {id}");
             Some(RefreshReason::NewJob(id))
         }
