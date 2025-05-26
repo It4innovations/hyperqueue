@@ -3,7 +3,7 @@ use crate::internal::server::taskmap::TaskMap;
 use crate::internal::server::worker::Worker;
 use crate::internal::server::workergroup::WorkerGroup;
 use crate::internal::server::workermap::WorkerMap;
-use crate::resources::{NumOfNodes, ResourceRequest};
+use crate::resources::ResourceRequest;
 use crate::{Map, PriorityTuple, TaskId, WorkerId};
 use priority_queue::PriorityQueue;
 
@@ -42,12 +42,10 @@ impl MultiNodeQueue {
         self.requests.shrink_to_fit();
     }
 
-    pub fn get_profiles(&self) -> Map<NumOfNodes, u32> {
-        let mut result = Map::new();
-        for (rq, queue) in &self.queues {
-            *result.entry(rq.n_nodes()).or_insert(0) += queue.queue.len() as u32
-        }
-        result
+    pub fn get_profiles(&self) -> impl Iterator<Item = (&ResourceRequest, u32)> {
+        self.queues
+            .iter()
+            .map(|(rq, qfr)| (rq, qfr.queue.len() as u32))
     }
 
     pub fn add_task(&mut self, task: &Task) {

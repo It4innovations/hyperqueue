@@ -3,10 +3,12 @@ use crate::gateway::MultiNodeAllocationResponse;
 use crate::internal::server::core::Core;
 use crate::internal::server::task::Task;
 use crate::internal::server::workerload::{WorkerLoad, WorkerResources};
+use std::time::Duration;
 
 struct WorkerTypeState {
     loads: Vec<WorkerLoad>,
     w_resources: WorkerResources,
+    time_limit: Option<Duration>,
     max: u32,
 }
 
@@ -20,7 +22,14 @@ pub(crate) fn compute_new_worker_query(
     let add_task = |new_loads: &mut [WorkerTypeState], task: &Task| {
         let request = &task.configuration.resources;
         for ws in new_loads.iter_mut() {
-            if !ws.w_resources.is_capable_to_run(request) {
+            if let Some(time_limit) = ws.time_limit {
+                if !ws
+                    .w_resources
+                    .is_capable_to_run_with(request, |rq| rq.min_time() <= time_limit)
+                {
+                    continue;
+                }
+            } else if !ws.w_resources.is_capable_to_run(request) {
                 continue;
             }
             for load in ws.loads.iter_mut() {
@@ -51,6 +60,7 @@ pub(crate) fn compute_new_worker_query(
         .map(|q| WorkerTypeState {
             loads: Vec::new(),
             w_resources: WorkerResources::from_description(&q.descriptor, &resource_map),
+            time_limit: q.time_limit,
             max: q.max_sn_workers,
         })
         .collect();
@@ -101,17 +111,21 @@ pub(crate) fn compute_new_worker_query(
         .collect();
 
     let (queue, _map, _ws) = core.multi_node_queue_split();
-    let mn_task_profiles = queue.get_profiles();
-
-    let mut multi_node_allocations: Vec<_> = mn_task_profiles
-        .iter()
-        .filter_map(|(nodes, count)| {
+    let mut multi_node_allocations: Vec<_> = queue
+        .get_profiles()
+        .filter_map(|(rq, count)| {
+            let n_nodes = rq.n_nodes();
             queries.iter().enumerate().find_map(|(i, worker_type)| {
-                if worker_type.max_worker_per_allocation >= *nodes {
+                if let Some(time_limit) = worker_type.time_limit {
+                    if rq.min_time() > time_limit {
+                        return None;
+                    }
+                }
+                if worker_type.max_worker_per_allocation >= n_nodes {
                     Some(MultiNodeAllocationResponse {
                         worker_type: i,
-                        worker_per_allocation: *nodes,
-                        max_allocations: *count,
+                        worker_per_allocation: n_nodes,
+                        max_allocations: count,
                     })
                 } else {
                     None

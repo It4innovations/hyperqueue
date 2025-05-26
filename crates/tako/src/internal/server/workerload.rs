@@ -70,6 +70,16 @@ impl WorkerResources {
             .any(|rq| self.is_capable_to_run_request(rq))
     }
 
+    pub(crate) fn is_capable_to_run_with(
+        &self,
+        rqv: &ResourceRequestVariants,
+        filter_fn: impl Fn(&ResourceRequest) -> bool,
+    ) -> bool {
+        rqv.requests()
+            .iter()
+            .any(|rq| filter_fn(rq) && self.is_capable_to_run_request(rq))
+    }
+
     pub(crate) fn to_transport(&self) -> WorkerResourceCounts {
         WorkerResourceCounts {
             n_resources: self.n_resources.deref().clone(),

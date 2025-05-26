@@ -23,6 +23,8 @@ use crate::{TaskId, WorkerId};
 #[derive(Debug)]
 pub struct WorkerTypeQuery {
     pub descriptor: ResourceDescriptor,
+    /// Worker time limit
+    pub time_limit: Option<Duration>,
     /// Max number of workers for single-node tasks
     pub max_sn_workers: u32,
     /// How big allocations for multinode tasks can queue provide

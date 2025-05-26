@@ -3,16 +3,12 @@ use criterion::{BatchSize, BenchmarkGroup, BenchmarkId, Criterion};
 use std::time::Instant;
 
 use crate::{add_tasks, create_worker};
+use tako::WorkerId;
 use tako::events::EventProcessor;
-use tako::gateway::LostWorkerReason;
-use tako::internal::messages::common::TaskFailInfo;
 use tako::internal::messages::worker::ToWorkerMessage;
 use tako::internal::scheduler::state::SchedulerState;
 use tako::internal::server::comm::Comm;
 use tako::internal::server::core::Core;
-use tako::task::SerializedTaskContext;
-use tako::worker::{WorkerConfiguration, WorkerOverview};
-use tako::{InstanceId, TaskId, WorkerId};
 
 fn bench_schedule(c: &mut BenchmarkGroup<WallTime>) {
     for task_count in [10, 1_000, 100_000] {

@@ -7,6 +7,7 @@ use crate::internal::tests::utils::schedule::{
 };
 use crate::internal::tests::utils::task::TaskBuilder;
 use crate::resources::{ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind};
+use std::time::Duration;
 
 #[test]
 fn test_query_no_tasks() {
@@ -15,6 +16,7 @@ fn test_query_no_tasks() {
         &mut core,
         &[WorkerTypeQuery {
             descriptor: ResourceDescriptor::simple(4),
+            time_limit: None,
             max_sn_workers: 2,
             max_worker_per_allocation: 1,
             min_utilization: 0.0,
@@ -43,6 +45,7 @@ fn test_query_enough_workers() {
         &mut core,
         &[WorkerTypeQuery {
             descriptor: ResourceDescriptor::simple(4),
+            time_limit: None,
             max_sn_workers: 2,
             max_worker_per_allocation: 1,
             min_utilization: 0.0,
@@ -72,12 +75,14 @@ fn test_query_no_enough_workers1() {
         &[
             WorkerTypeQuery {
                 descriptor: ResourceDescriptor::simple(2),
+                time_limit: None,
                 max_sn_workers: 2,
                 max_worker_per_allocation: 1,
                 min_utilization: 0.0,
             },
             WorkerTypeQuery {
                 descriptor: ResourceDescriptor::simple(3),
+                time_limit: None,
                 max_sn_workers: 2,
                 max_worker_per_allocation: 1,
                 min_utilization: 0.0,
@@ -103,12 +108,14 @@ fn test_query_enough_workers2() {
         &[
             WorkerTypeQuery {
                 descriptor: ResourceDescriptor::simple(2),
+                time_limit: None,
                 max_sn_workers: 2,
                 max_worker_per_allocation: 1,
                 min_utilization: 0.0,
             },
             WorkerTypeQuery {
                 descriptor: ResourceDescriptor::simple(3),
+                time_limit: None,
                 max_sn_workers: 2,
                 max_worker_per_allocation: 1,
                 min_utilization: 0.0,
@@ -135,12 +142,14 @@ fn test_query_not_enough_workers3() {
         &[
             WorkerTypeQuery {
                 descriptor: ResourceDescriptor::simple(2),
+                time_limit: None,
                 max_sn_workers: 2,
                 max_worker_per_allocation: 1,
                 min_utilization: 0.0,
             },
             WorkerTypeQuery {
                 descriptor: ResourceDescriptor::simple(3),
+                time_limit: None,
                 max_sn_workers: 2,
                 max_worker_per_allocation: 1,
                 min_utilization: 0.0,
@@ -167,18 +176,21 @@ fn test_query_many_workers_needed() {
         &[
             WorkerTypeQuery {
                 descriptor: ResourceDescriptor::simple(2),
+                time_limit: None,
                 max_sn_workers: 5,
                 max_worker_per_allocation: 1,
                 min_utilization: 0.0,
             },
             WorkerTypeQuery {
                 descriptor: ResourceDescriptor::simple(1),
+                time_limit: None,
                 max_sn_workers: 1,
                 max_worker_per_allocation: 1,
                 min_utilization: 0.0,
             },
             WorkerTypeQuery {
                 descriptor: ResourceDescriptor::simple(3),
+                time_limit: None,
                 max_sn_workers: 200,
                 max_worker_per_allocation: 1,
                 min_utilization: 0.0,
@@ -216,12 +228,14 @@ fn test_query_multi_node_tasks() {
         &[
             WorkerTypeQuery {
                 descriptor: ResourceDescriptor::simple(1),
+                time_limit: None,
                 max_sn_workers: 1,
                 max_worker_per_allocation: 3,
                 min_utilization: 0.0,
             },
             WorkerTypeQuery {
                 descriptor: ResourceDescriptor::simple(1),
+                time_limit: None,
                 max_sn_workers: 1,
                 max_worker_per_allocation: 11,
                 min_utilization: 0.0,
@@ -241,6 +255,28 @@ fn test_query_multi_node_tasks() {
     assert_eq!(r.multi_node_allocations[2].worker_type, 1);
     assert_eq!(r.multi_node_allocations[2].worker_per_allocation, 6);
     assert_eq!(r.multi_node_allocations[2].max_allocations, 10);
+}
+
+#[test]
+fn test_query_multi_node_time_limit() {
+    let mut rt = TestEnv::new();
+
+    rt.new_task(TaskBuilder::new(1).n_nodes(4).time_request(750));
+    rt.schedule();
+
+    for (secs, allocs) in [(740, 0), (760, 1)] {
+        let r = compute_new_worker_query(
+            rt.core(),
+            &[WorkerTypeQuery {
+                descriptor: ResourceDescriptor::simple(1),
+                time_limit: Some(Duration::from_secs(secs)),
+                max_sn_workers: 4,
+                max_worker_per_allocation: 4,
+                min_utilization: 0.0,
+            }],
+        );
+        assert_eq!(r.multi_node_allocations.len(), allocs);
+    }
 }
 
 #[test]
@@ -268,6 +304,7 @@ fn test_query_min_utilization1() {
             &mut core,
             &[WorkerTypeQuery {
                 descriptor: ResourceDescriptor::simple(*cpus),
+                time_limit: None,
                 max_sn_workers: 2,
                 max_worker_per_allocation: 1,
                 min_utilization: *min_utilization,
@@ -316,6 +353,7 @@ fn test_query_min_utilization2() {
             &mut core,
             &[WorkerTypeQuery {
                 descriptor,
+                time_limit: None,
                 max_sn_workers: 2,
                 max_worker_per_allocation: 1,
                 min_utilization: *min_utilization,
@@ -324,4 +362,107 @@ fn test_query_min_utilization2() {
         assert_eq!(r.single_node_allocations, vec![*alloc_value]);
         assert!(r.multi_node_allocations.is_empty());
     }
+}
+
+#[test]
+fn test_query_min_time2() {
+    let mut core = Core::default();
+
+    let t1 = TaskBuilder::new(1)
+        .cpus_compact(1)
+        .time_request(100)
+        .next_resources()
+        .cpus_compact(4)
+        .time_request(50)
+        .build();
+    submit_test_tasks(&mut core, vec![t1]);
+
+    let mut scheduler = create_test_scheduler();
+    let mut comm = create_test_comm();
+    scheduler.run_scheduling(&mut core, &mut comm);
+
+    for (cpus, secs, alloc) in [(2, 75, 0), (1, 100, 1), (4, 50, 1)] {
+        let descriptor = ResourceDescriptor::new(vec![ResourceDescriptorItem {
+            name: "cpus".into(),
+            kind: ResourceDescriptorKind::simple_indices(cpus),
+        }]);
+        let r = compute_new_worker_query(
+            &mut core,
+            &[WorkerTypeQuery {
+                descriptor: descriptor.clone(),
+                time_limit: Some(Duration::from_secs(secs)),
+                max_sn_workers: 2,
+                max_worker_per_allocation: 1,
+                min_utilization: 0.0f32,
+            }],
+        );
+        assert_eq!(r.single_node_allocations, vec![alloc]);
+        assert!(r.multi_node_allocations.is_empty());
+    }
+}
+
+#[test]
+fn test_query_min_time1() {
+    let mut core = Core::default();
+
+    let t1 = TaskBuilder::new(1)
+        .cpus_compact(1)
+        .time_request(100)
+        .build();
+    let t2 = TaskBuilder::new(2)
+        .cpus_compact(10)
+        .time_request(100)
+        .build();
+    submit_test_tasks(&mut core, vec![t1, t2]);
+
+    let mut scheduler = create_test_scheduler();
+    let mut comm = create_test_comm();
+    scheduler.run_scheduling(&mut core, &mut comm);
+
+    let descriptor = ResourceDescriptor::new(vec![ResourceDescriptorItem {
+        name: "cpus".into(),
+        kind: ResourceDescriptorKind::simple_indices(10),
+    }]);
+    let r = compute_new_worker_query(
+        &mut core,
+        &[WorkerTypeQuery {
+            descriptor: descriptor.clone(),
+            time_limit: Some(Duration::from_secs(99)),
+            max_sn_workers: 2,
+            max_worker_per_allocation: 1,
+            min_utilization: 0.0f32,
+        }],
+    );
+    assert_eq!(r.single_node_allocations, vec![0]);
+    assert!(r.multi_node_allocations.is_empty());
+
+    let r = compute_new_worker_query(
+        &mut core,
+        &[WorkerTypeQuery {
+            descriptor: descriptor.clone(),
+            time_limit: Some(Duration::from_secs(101)),
+            max_sn_workers: 2,
+            max_worker_per_allocation: 1,
+            min_utilization: 0.0f32,
+        }],
+    );
+    assert_eq!(r.single_node_allocations, vec![2]);
+    assert!(r.multi_node_allocations.is_empty());
+
+    let descriptor = ResourceDescriptor::new(vec![ResourceDescriptorItem {
+        name: "cpus".into(),
+        kind: ResourceDescriptorKind::simple_indices(1),
+    }]);
+    let r = compute_new_worker_query(
+        &mut core,
+        &[WorkerTypeQuery {
+            descriptor,
+            time_limit: Some(Duration::from_secs(101)),
+            max_sn_workers: 2,
+            max_worker_per_allocation: 1,
+            min_utilization: 0.0f32,
+        }],
+    );
+    assert_eq!(r.single_node_allocations, vec![1]);
+    assert!(r.multi_node_allocations.is_empty());
 }

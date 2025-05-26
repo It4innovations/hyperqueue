@@ -340,11 +340,6 @@ impl SchedulerState {
 
     /// Returns true if balancing is needed.
     fn schedule_available_tasks(&mut self, core: &mut Core) -> bool {
-        if !core.has_workers() {
-            return false;
-        }
-        log::debug!("Scheduling started");
-
         let multi_node_ready_tasks = core.take_multi_node_ready_to_assign();
         if !multi_node_ready_tasks.is_empty() {
             let (multi_node_queue, task_map, _, _) = core.multi_node_queue_split_mut();
@@ -354,6 +349,12 @@ impl SchedulerState {
                 }
             }
         }
+
+        if !core.has_workers() {
+            return false;
+        }
+        log::debug!("Scheduling started");
+
         self.try_start_multinode_tasks(core);
 
         let ready_tasks = core.take_single_node_ready_to_assign();
