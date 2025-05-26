@@ -1,13 +1,13 @@
 use std::future::Future;
 use std::path::PathBuf;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 use crate::common::manager::info::{ManagerInfo, ManagerType};
 use crate::common::rpc::RpcReceiver;
 use crate::get_or_return;
 use crate::server::autoalloc::config::{
     MAX_QUEUED_STATUS_ERROR_COUNT, MAX_RUNNING_STATUS_ERROR_COUNT, MAX_SUBMISSION_FAILS,
-    SUBMISSION_DELAYS, get_refresh_timeout, get_status_check_interval, max_allocation_fails,
+    SUBMISSION_DELAYS, get_refresh_interval, get_status_check_interval, max_allocation_fails,
 };
 use crate::server::autoalloc::estimator::{
     can_worker_execute_job, count_active_workers, get_server_task_state,
@@ -31,13 +31,6 @@ use tako::control::ServerRef;
 use tako::{Map, Set};
 use tempfile::TempDir;
 
-#[derive(Copy, Clone)]
-enum RefreshReason {
-    UpdateAllQueues,
-    UpdateQueue(QueueId),
-    NewJob(JobId),
-}
-
 struct AutoallocSenders {
     server: ServerRef,
     events: EventStreamer,
@@ -52,33 +45,38 @@ pub async fn autoalloc_process(
     mut receiver: RpcReceiver<AutoAllocMessage>,
 ) {
     let senders = AutoallocSenders { server, events };
-    let timeout = get_refresh_timeout();
+
+    // Periodically update external state
+    let mut periodic_update_interval = tokio::time::interval(get_refresh_interval());
+
     loop {
-        let refresh_reason = match tokio::time::timeout(timeout, receiver.recv()).await {
-            Ok(None) | Ok(Some(AutoAllocMessage::QuitService)) => break,
-            Ok(Some(message)) => handle_message(&mut autoalloc, &senders.events, message).await,
-            Err(_) => {
-                log::debug!(
-                    "No message received in {} ms, refreshing state",
-                    timeout.as_millis()
-                );
-                Some(RefreshReason::UpdateAllQueues)
+        tokio::select! {
+            _ = periodic_update_interval.tick() => {
+                do_periodic_update(&senders, &mut autoalloc).await;
             }
-        };
-        if let Some(reason) = refresh_reason {
-            refresh_state(&senders, &mut autoalloc, reason).await;
+            msg = tokio::time::timeout(Duration::from_secs(30), receiver.recv()) => {
+                let schedule = match msg {
+                    Ok(None) | Ok(Some(AutoAllocMessage::QuitService)) => break,
+                    Ok(Some(message)) => handle_message(&mut autoalloc, &senders.events, message).await,
+                    Err(_) => true
+                };
+                if schedule {
+                    do_schedule(&mut autoalloc, &senders).await;
+                }
+            }
         }
     }
     log::debug!("Ending autoalloc, stopping all allocations");
     stop_all_allocations(&autoalloc).await;
 }
 
-/// Reacts to auto allocation message and returns a queue that should be refreshed.
+/// Reacts to auto allocation message.
+/// Returns `true` if scheduling should be performed after handling the message.
 async fn handle_message(
     autoalloc: &mut AutoAllocState,
     events: &EventStreamer,
     message: AutoAllocMessage,
-) -> Option<RefreshReason> {
+) -> bool {
     log::debug!("Handling message {message:?}");
     match message {
         AutoAllocMessage::WorkerConnected(id, manager_info) => {
@@ -100,16 +98,13 @@ async fn handle_message(
                     &allocation_id,
                     AllocationSyncReason::WorkedConnected(id),
                 );
-                autoalloc
-                    .get_queue_id_by_allocation(&manager_info.allocation_id)
-                    .map(RefreshReason::UpdateQueue)
             } else {
                 log::warn!(
                     "Worker {id} connected from an unknown allocation {}",
                     manager_info.allocation_id
                 );
-                None
             }
+            true
         }
         AutoAllocMessage::WorkerLost(id, manager_info, details) => {
             log::debug!(
@@ -126,20 +121,17 @@ async fn handle_message(
                     &allocation_id,
                     AllocationSyncReason::WorkerLost(id, details),
                 );
-                autoalloc
-                    .get_queue_id_by_allocation(&manager_info.allocation_id)
-                    .map(RefreshReason::UpdateQueue)
             } else {
                 log::warn!(
                     "Worker {id} disconnected to an unknown allocation {}",
                     manager_info.allocation_id
                 );
-                Some(RefreshReason::UpdateAllQueues)
             }
+            true
         }
         AutoAllocMessage::JobSubmitted(id) => {
-            log::debug!("Registering job {id}");
-            Some(RefreshReason::NewJob(id))
+            log::debug!("Registering submit of job {id}");
+            true
         }
         AutoAllocMessage::GetQueues(response) => {
             let queues: Map<QueueId, QueueData> = autoalloc
@@ -160,7 +152,7 @@ async fn handle_message(
                 })
                 .collect();
             response.respond(queues);
-            None
+            false
         }
         AutoAllocMessage::AddQueue {
             server_directory,
@@ -170,9 +162,8 @@ async fn handle_message(
         } => {
             log::debug!("Creating queue, params={params:?}");
             let result = create_queue(autoalloc, events, server_directory, params, queue_id);
-            let queue_id = result.as_ref().ok().copied();
             response.respond(result);
-            queue_id.map(RefreshReason::UpdateQueue)
+            true
         }
         AutoAllocMessage::RemoveQueue {
             id,
@@ -182,7 +173,7 @@ async fn handle_message(
             log::debug!("Removing queue {id}");
             let result = remove_queue(autoalloc, events, id, force).await;
             response.respond(result);
-            None
+            false
         }
         AutoAllocMessage::PauseQueue { id, response } => {
             let result = match autoalloc.get_queue_mut(id) {
@@ -196,7 +187,7 @@ async fn handle_message(
                 )),
             };
             response.respond(result);
-            None
+            false
         }
         AutoAllocMessage::ResumeQueue { id, response } => {
             let result = match autoalloc.get_queue_mut(id) {
@@ -210,7 +201,7 @@ async fn handle_message(
                 )),
             };
             response.respond(result);
-            Some(RefreshReason::UpdateQueue(id))
+            true
         }
         AutoAllocMessage::GetAllocations(queue_id, response) => {
             let result = match autoalloc.get_queue(queue_id) {
@@ -218,11 +209,13 @@ async fn handle_message(
                 None => Err(anyhow::anyhow!("Queue {queue_id} not found")),
             };
             response.respond(result);
-            None
+            false
         }
         AutoAllocMessage::QuitService => unreachable!(),
     }
 }
+
+async fn do_schedule(autoalloc: &mut AutoAllocState, senders: &AutoallocSenders) {}
 
 pub async fn try_submit_allocation(params: AllocationQueueParams) -> anyhow::Result<()> {
     let tmpdir = TempDir::with_prefix("hq")?;
@@ -398,29 +391,12 @@ async fn stop_all_allocations(autoalloc: &AutoAllocState) {
     }
 }
 
-/// Processes updates either for a single queue or for all queues and removes stale directories
-/// from disk.
-async fn refresh_state(
-    senders: &AutoallocSenders,
-    autoalloc: &mut AutoAllocState,
-    reason: RefreshReason,
-) {
-    let queue_ids: Vec<QueueId> = match reason {
-        RefreshReason::UpdateAllQueues | RefreshReason::NewJob(_) => {
-            autoalloc.queue_ids().collect()
-        }
-        RefreshReason::UpdateQueue(id) => {
-            vec![id]
-        }
-    };
-    let new_job_id = match reason {
-        RefreshReason::NewJob(id) => Some(id),
-        _ => None,
-    };
-
+/// Synchronizes state for all queues with the external allocation manager and removes stale
+/// directories from disk.
+async fn do_periodic_update(senders: &AutoallocSenders, autoalloc: &mut AutoAllocState) {
+    let queue_ids = autoalloc.queue_ids().collect::<Vec<_>>();
     for id in queue_ids {
         refresh_queue_allocations(&senders.events, autoalloc, id).await;
-        process_queue(senders, autoalloc, id, new_job_id).await;
     }
 
     remove_inactive_directories(autoalloc).await;
@@ -481,7 +457,7 @@ async fn refresh_queue_allocations(
     log::debug!("Attempt to refresh allocations of queue {queue_id}");
     let queue = get_or_return!(autoalloc.get_queue_mut(queue_id));
     if !queue.limiter().can_perform_status_check() {
-        log::debug!("Refresh attempt was rate limited");
+        log::debug!("Refresh attempt of {queue_id} was rate limited");
         return;
     }
 
@@ -688,7 +664,9 @@ fn sync_allocation_status(
                         status_error_count: _,
                     } => {
                         if !connected_workers.remove(&worker_id) {
-                            log::warn!("Worker {worker_id} has disconnected multiple times!");
+                            log::warn!(
+                                "Worker {worker_id} has disconnected multiple times (or it has disconnected before connecting)!"
+                            );
                         }
                         disconnected_workers.add_lost_worker(worker_id, details);
 
@@ -837,12 +815,12 @@ fn sync_allocation_status(
 
     match finished {
         Some(AllocationFinished::Success) => {
-            log::debug!("Marking allocation success");
+            log::debug!("Marking allocation {allocation_id} success");
             queue.limiter_mut().on_allocation_success();
             events.on_allocation_finished(queue_id, allocation_id.to_string());
         }
         Some(AllocationFinished::Failure) => {
-            log::debug!("Marking allocation failure");
+            log::debug!("Marking allocation {allocation_id} failure");
             queue.limiter_mut().on_allocation_fail();
             events.on_allocation_finished(queue_id, allocation_id.to_string());
         }
@@ -1045,7 +1023,7 @@ mod tests {
     use crate::common::manager::info::ManagerType;
     use crate::common::utils::time::mock_time::MockTime;
     use crate::server::autoalloc::process::{
-        AllocationSyncReason, RefreshReason, queue_try_submit, refresh_state,
+        AllocationSyncReason, RefreshReason, do_periodic_update, queue_try_submit,
         sync_allocation_status,
     };
     use crate::server::autoalloc::queue::{
@@ -1433,12 +1411,12 @@ mod tests {
 
         let s = EventStreamer::new(None);
         // Delete oldest directory
-        refresh_state(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
+        do_periodic_update(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
         assert!(!dirs[0].exists());
         assert!(dirs[1].exists());
 
         // Delete second oldest directory
-        refresh_state(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
+        do_periodic_update(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
         assert!(!dirs[1].exists());
     }
 
@@ -1461,9 +1439,9 @@ mod tests {
         shared.get_mut().allocation_will_fail = true;
 
         let s = EventStreamer::new(None);
-        refresh_state(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
+        do_periodic_update(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
         check_queue_exists(&state, queue_id);
-        refresh_state(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
+        do_periodic_update(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
         check_queue_paused(&state, queue_id);
     }
 
@@ -1487,7 +1465,7 @@ mod tests {
 
         let allocations = get_allocations(&state, queue_id);
         fail_allocation(queue_id, &mut state, &allocations[0].id);
-        refresh_state(
+        do_periodic_update(
             &hq_state,
             &s,
             &mut state,
@@ -1497,7 +1475,7 @@ mod tests {
         check_queue_exists(&state, queue_id);
 
         fail_allocation(queue_id, &mut state, &allocations[1].id);
-        refresh_state(
+        do_periodic_update(
             &hq_state,
             &s,
             &mut state,
@@ -1537,7 +1515,7 @@ mod tests {
         let mut now = Instant::now();
         {
             let _mock = MockTime::mock(now);
-            refresh_state(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
+            do_periodic_update(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
             check_alloc_count(1);
         }
 
@@ -1545,13 +1523,13 @@ mod tests {
         {
             now += Duration::from_millis(500);
             let _mock = MockTime::mock(now);
-            refresh_state(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
+            do_periodic_update(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
             check_alloc_count(1);
         }
         {
             now += Duration::from_millis(1500);
             let _mock = MockTime::mock(now);
-            refresh_state(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
+            do_periodic_update(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
             check_alloc_count(2);
         }
 
@@ -1559,20 +1537,20 @@ mod tests {
         {
             now += Duration::from_millis(5000);
             let _mock = MockTime::mock(now);
-            refresh_state(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
+            do_periodic_update(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
             check_alloc_count(2);
         }
         {
             now += Duration::from_millis(6000);
             let _mock = MockTime::mock(now);
-            refresh_state(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
+            do_periodic_update(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
             check_alloc_count(3);
         }
         // The delay shouldn't increase any more when we have reached the maximum delay
         {
             now += Duration::from_millis(11000);
             let _mock = MockTime::mock(now);
-            refresh_state(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
+            do_periodic_update(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
             check_alloc_count(4);
         }
     }
