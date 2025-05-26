@@ -5,9 +5,9 @@ use std::time::Duration;
 pub const MAX_KEPT_DIRECTORIES: usize = 20;
 
 /// If no autoalloc messages arrive after this duration, queues will be refreshed.
-pub fn get_refresh_timeout() -> Duration {
+pub fn get_refresh_interval() -> Duration {
     get_duration_from_env("HQ_AUTOALLOC_REFRESH_INTERVAL_MS")
-        .unwrap_or_else(|| Duration::from_secs(5 * 60))
+        .unwrap_or_else(|| Duration::from_secs(60))
 }
 
 /// Minimum time between successive status (e.g. qstat) checks.
