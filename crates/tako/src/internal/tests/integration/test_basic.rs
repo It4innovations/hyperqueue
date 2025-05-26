@@ -132,6 +132,7 @@ async fn test_query_no_output_immediate_call() {
             &mut handler,
             vec![WorkerTypeQuery {
                 descriptor: ResourceDescriptor::simple(12),
+                time_limit: None,
                 max_sn_workers: 2,
                 max_worker_per_allocation: 2,
                 min_utilization: 0.0,
@@ -157,6 +158,7 @@ async fn test_query_no_output_delayed_call() {
             &mut handler,
             vec![WorkerTypeQuery {
                 descriptor: ResourceDescriptor::simple(12),
+                time_limit: None,
                 max_sn_workers: 2,
                 max_worker_per_allocation: 2,
                 min_utilization: 0.0,
@@ -185,6 +187,7 @@ async fn test_query_new_workers_delayed_call() {
             &mut handler,
             vec![WorkerTypeQuery {
                 descriptor: ResourceDescriptor::simple(12),
+                time_limit: None,
                 max_sn_workers: 2,
                 max_worker_per_allocation: 2,
                 min_utilization: 0.0,
@@ -211,6 +214,7 @@ async fn test_query_new_workers_immediate() {
             &mut handler,
             vec![WorkerTypeQuery {
                 descriptor: ResourceDescriptor::simple(12),
+                time_limit: None,
                 max_sn_workers: 2,
                 max_worker_per_allocation: 2,
                 min_utilization: 0.0,
