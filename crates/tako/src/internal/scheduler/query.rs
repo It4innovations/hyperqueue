@@ -12,12 +12,15 @@ struct WorkerTypeState {
     max: u32,
 }
 
-/* Read the documentation of `new_worker_query`` in control.rs */
+/// Read the documentation of `new_worker_query`` in control.rs
 pub(crate) fn compute_new_worker_query(
     core: &mut Core,
     queries: &[WorkerTypeQuery],
 ) -> NewWorkerAllocationResponse {
     log::debug!("Compute new worker query: query = {:?}", queries);
+
+    // Scheduler has to be performed before the query, so there should be no ready_to_assign tasks
+    assert!(core.sn_ready_to_assign().is_empty() || !core.has_workers());
 
     let add_task = |new_loads: &mut [WorkerTypeState], task: &Task| {
         let request = &task.configuration.resources;

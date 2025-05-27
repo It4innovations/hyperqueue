@@ -1,17 +1,17 @@
 use std::future::Future;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use orion::aead::SecretKey;
 use tokio::net::TcpListener;
-use tokio::sync::{Notify, oneshot};
+use tokio::sync::Notify;
 
 use crate::events::EventProcessor;
 use crate::gateway::{MultiNodeAllocationResponse, TaskSubmit, WorkerRuntimeInfo};
 use crate::internal::messages::worker::ToWorkerMessage;
 use crate::internal::scheduler::query::compute_new_worker_query;
-use crate::internal::scheduler::state::scheduler_loop;
+use crate::internal::scheduler::state::{run_scheduling_now, scheduler_loop};
 use crate::internal::server::client::handle_new_tasks;
 use crate::internal::server::comm::{Comm, CommSenderRef};
 use crate::internal::server::core::{CoreRef, CustomConnectionHandler};
@@ -99,26 +99,24 @@ impl ServerRef {
       we can get in one allocation at most.
       This is used for planning multi-node tasks.
 
+      Note: This call may immediately call the full scheduler procedure.
+      This should not bother the user of the call, except it is probably not a good
+      idea to call this function often (several times per second) as it may bypass
+      a scheduler time limitations.
     */
     pub fn new_worker_query(
         &self,
         queries: Vec<WorkerTypeQuery>,
-    ) -> crate::Result<oneshot::Receiver<NewWorkerAllocationResponse>> {
+    ) -> crate::Result<NewWorkerAllocationResponse> {
         for query in &queries {
             query.descriptor.validate()?;
         }
-        let (sx, rx) = tokio::sync::oneshot::channel();
-        if self.comm_ref.get().get_scheduling_flag() {
-            self.comm_ref
-                .get_mut()
-                .add_after_scheduling_callback(Box::new(move |core| {
-                    let _ = sx.send(compute_new_worker_query(core, &queries));
-                }));
-        } else {
-            let mut core = self.core_ref.get_mut();
-            let _ = sx.send(compute_new_worker_query(&mut core, &queries));
-        };
-        Ok(rx)
+        let mut core = self.core_ref.get_mut();
+        let mut comm = self.comm_ref.get_mut();
+        if comm.get_scheduling_flag() {
+            run_scheduling_now(&mut core, &mut comm, Instant::now())
+        }
+        Ok(compute_new_worker_query(&mut core, &queries))
     }
 
     pub fn try_release_memory(&self) {
