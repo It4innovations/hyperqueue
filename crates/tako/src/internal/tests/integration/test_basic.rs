@@ -113,12 +113,11 @@ async fn test_task_time_limit_pass() {
     .await;
 }
 
-async fn query_helper(
+fn query_helper(
     handler: &mut ServerHandle,
     worker_queries: Vec<WorkerTypeQuery>,
 ) -> NewWorkerAllocationResponse {
-    let result = handler.server_ref.new_worker_query(worker_queries).unwrap();
-    result.await.unwrap()
+    handler.server_ref.new_worker_query(worker_queries).unwrap()
 }
 
 #[tokio::test]
@@ -137,8 +136,7 @@ async fn test_query_no_output_immediate_call() {
                 max_worker_per_allocation: 2,
                 min_utilization: 0.0,
             }],
-        )
-        .await;
+        );
         assert_eq!(msg.single_node_allocations, vec![0]);
         assert!(msg.multi_node_allocations.is_empty());
         handler.wait(&ids).await;
@@ -163,8 +161,7 @@ async fn test_query_no_output_delayed_call() {
                 max_worker_per_allocation: 2,
                 min_utilization: 0.0,
             }],
-        )
-        .await;
+        );
         assert_eq!(msg.single_node_allocations, vec![0]);
         assert!(msg.multi_node_allocations.is_empty());
         handler.wait(&ids).await;
@@ -192,8 +189,7 @@ async fn test_query_new_workers_delayed_call() {
                 max_worker_per_allocation: 2,
                 min_utilization: 0.0,
             }],
-        )
-        .await;
+        );
         assert_eq!(msg.single_node_allocations, vec![1]);
         assert!(msg.multi_node_allocations.is_empty());
     })
@@ -219,8 +215,7 @@ async fn test_query_new_workers_immediate() {
                 max_worker_per_allocation: 2,
                 min_utilization: 0.0,
             }],
-        )
-        .await;
+        );
         assert_eq!(msg.single_node_allocations, vec![1]);
         assert!(msg.multi_node_allocations.is_empty());
     })

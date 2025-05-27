@@ -8,7 +8,7 @@ use tokio::time::sleep;
 use crate::internal::common::Map;
 use crate::internal::messages::worker::{TaskIdsMsg, ToWorkerMessage};
 use crate::internal::scheduler::multinode::MultiNodeAllocator;
-use crate::internal::server::comm::{Comm, CommSenderRef};
+use crate::internal::server::comm::{Comm, CommSender, CommSenderRef};
 use crate::internal::server::core::{Core, CoreRef};
 use crate::internal::server::dataobjmap::DataObjectMap;
 use crate::internal::server::task::{Task, TaskRuntimeState};
@@ -43,6 +43,10 @@ pub(crate) async fn scheduler_loop(
     let mut last_schedule = Instant::now().checked_sub(minimum_delay * 2).unwrap();
     loop {
         scheduler_wakeup.notified().await;
+        if !comm_ref.get().get_scheduling_flag() {
+            last_schedule = Instant::now();
+            continue;
+        }
         let mut now = Instant::now();
         let since_last_schedule = now - last_schedule;
         if minimum_delay > since_last_schedule {
@@ -50,13 +54,20 @@ pub(crate) async fn scheduler_loop(
             now = Instant::now();
         }
         let mut comm = comm_ref.get_mut();
-        let mut state = SchedulerState::new(now);
+        if !comm.get_scheduling_flag() {
+            last_schedule = now;
+            continue;
+        }
         let mut core = core_ref.get_mut();
-        state.run_scheduling(&mut core, &mut *comm);
-        comm.reset_scheduling_flag();
+        run_scheduling_now(&mut core, &mut comm, now);
         last_schedule = Instant::now();
-        comm.call_after_scheduling_callbacks(&mut core);
     }
+}
+
+pub fn run_scheduling_now(core: &mut Core, comm: &mut CommSender, now: Instant) {
+    let mut state = SchedulerState::new(now);
+    state.run_scheduling(core, &mut *comm);
+    comm.reset_scheduling_flag();
 }
 
 impl SchedulerState {
