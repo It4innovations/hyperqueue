@@ -340,16 +340,6 @@ impl SchedulerState {
 
     /// Returns true if balancing is needed.
     fn schedule_available_tasks(&mut self, core: &mut Core) -> bool {
-        let multi_node_ready_tasks = core.take_multi_node_ready_to_assign();
-        if !multi_node_ready_tasks.is_empty() {
-            let (multi_node_queue, task_map, _, _) = core.multi_node_queue_split_mut();
-            for task_id in multi_node_ready_tasks {
-                if let Some(task) = task_map.find_task(task_id) {
-                    multi_node_queue.add_task(task)
-                }
-            }
-        }
-
         if !core.has_workers() {
             return false;
         }
