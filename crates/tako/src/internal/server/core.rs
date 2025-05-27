@@ -31,7 +31,6 @@ pub struct Core {
     parked_resources: Set<WorkerResources>, // Resources of workers that has flag NOTHING_TO_LOAD
     // TODO: benchmark and possibly replace with a set
     single_node_ready_to_assign: Vec<TaskId>,
-    multi_node_ready_to_assign: Vec<TaskId>,
     multi_node_queue: MultiNodeQueue,
     has_new_tasks: bool,
 
@@ -182,10 +181,6 @@ impl Core {
         std::mem::take(&mut self.single_node_ready_to_assign)
     }
 
-    pub fn take_multi_node_ready_to_assign(&mut self) -> Vec<TaskId> {
-        std::mem::take(&mut self.multi_node_ready_to_assign)
-    }
-
     pub fn get_worker_listen_port(&self) -> u16 {
         self.worker_listen_port
     }
@@ -323,13 +318,9 @@ impl Core {
     }
 
     pub fn add_ready_to_assign(&mut self, task_id: TaskId) {
-        let is_multi_node = self
-            .get_task(task_id)
-            .configuration
-            .resources
-            .is_multi_node();
-        if is_multi_node {
-            self.multi_node_ready_to_assign.push(task_id);
+        let task = self.tasks.get_task(task_id);
+        if task.configuration.resources.is_multi_node() {
+            self.multi_node_queue.add_task(task);
         } else {
             self.single_node_ready_to_assign.push(task_id);
         }
@@ -541,7 +532,6 @@ impl Core {
         self.worker_groups.shrink_to_fit();
         self.parked_resources.shrink_to_fit();
         self.single_node_ready_to_assign.shrink_to_fit();
-        self.multi_node_ready_to_assign.shrink_to_fit();
         self.sleeping_sn_tasks.shrink_to_fit();
         self.multi_node_queue.shrink_to_fit();
     }
@@ -569,7 +559,6 @@ mod tests {
 
         pub fn remove_from_ready_to_assign(&mut self, task_id: TaskId) {
             self.single_node_ready_to_assign.retain(|&id| id != task_id);
-            self.multi_node_ready_to_assign.retain(|&id| id != task_id);
         }
 
         pub fn assert_task_condition<T: Copy + Into<TaskId>, F: Fn(&Task) -> bool>(
