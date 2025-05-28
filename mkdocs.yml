@@ -33,6 +33,7 @@ nav:
       - Job Definition File: jobs/jobfile.md
       - Open jobs: jobs/openjobs.md
       - Multinode Tasks: jobs/multinode.md
+      - Explain command: jobs/explain.md
   - CLI:
       - Shortcuts: cli/shortcuts.md
       - Dashboard: cli/dashboard.md
