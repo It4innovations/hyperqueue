@@ -28,7 +28,7 @@ mod submit;
 
 use crate::common::serialization::Serialized;
 use crate::server::Senders;
-use crate::server::client::submit::handle_open_job;
+use crate::server::client::submit::{handle_open_job, handle_task_explain};
 use crate::server::event::payload::EventPayload;
 pub(crate) use submit::{submit_job_desc, validate_submit};
 
@@ -229,7 +229,9 @@ pub async fn client_rpc_loop<
                         };
                         ToClientMessage::Finished
                     }
-                    FromClientMessage::TaskExplain(opts) => ToClientMessage::TaskExplain(todo!()),
+                    FromClientMessage::TaskExplain(request) => {
+                        handle_task_explain(&state_ref, senders, request)
+                    }
                 };
                 if let Err(error) = tx.send(response).await {
                     log::error!("Cannot reply to client: {error:?}");

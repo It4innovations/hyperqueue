@@ -199,6 +199,10 @@ pub async fn output_job_task_explain(
     });
     let response =
         rpc_call!(session.connection(), message, ToClientMessage::TaskExplain(r) => r).await?;
-    todo!();
+    gsettings.printer().print_explanation(
+        response.task_id,
+        response.worker_id,
+        &response.explanation,
+    );
     Ok(())
 }

@@ -1,4 +1,4 @@
-use crate::internal::server::task::Task;
+use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::worker::Worker;
 use crate::internal::server::workergroup::WorkerGroup;
 use crate::resources::{NumOfNodes, ResourceAmount, ResourceMap};
@@ -7,7 +7,9 @@ use std::time::Duration;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskExplanation {
-    variants: Vec<Vec<TaskExplainItem>>,
+    pub variants: Vec<Vec<TaskExplainItem>>,
+    pub n_task_deps: u32,
+    pub n_waiting_deps: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -76,6 +78,11 @@ pub fn task_explain(
                 result
             })
             .collect(),
+        n_task_deps: task.task_deps.len() as u32,
+        n_waiting_deps: match &task.state {
+            TaskRuntimeState::Waiting(w) => w.unfinished_deps,
+            _ => 0,
+        },
     }
 }
 
