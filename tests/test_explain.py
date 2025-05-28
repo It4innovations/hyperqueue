@@ -13,9 +13,20 @@ def test_explain_single_node(hq_env: HqEnv):
     assert r == (
         "Task 1@0 can run on worker 1.\nTask is directly executable because it does not have any dependencies.\n"
     )
+    r = hq_env.command(["task", "--output-mode=json", "explain", "1", "0", "1"], as_json=True)
+    assert r == {"explanation": {"n_task_deps": 0, "n_waiting_deps": 0, "variants": [[]]}, "task_id": 1}
 
     r = hq_env.command(["task", "explain", "2", "0", "1"])
     assert r == "Task 2@0 cannot run on worker 1.\n* Task requests at least 10 cpus, but worker provides 5 cpus.\n"
+    r = hq_env.command(["task", "--output-mode=json", "explain", "2", "0", "1"], as_json=True)
+    assert r == {
+        "explanation": {
+            "n_task_deps": 0,
+            "n_waiting_deps": 0,
+            "variants": [[{"Resources": {"request_amount": 100000, "resource": "cpus", "worker_amount": 50000}}]],
+        },
+        "task_id": 1,
+    }
 
     r = hq_env.command(["task", "explain", "3", "0", "1"])
     assert r.startswith(
@@ -24,6 +35,25 @@ def test_explain_single_node(hq_env: HqEnv):
             "* Task requests at least 1h of running time, but worker remaining time is: 4m"
         )
     )
+    r = hq_env.command(["task", "--output-mode=json", "explain", "3", "0", "1"], as_json=True)
+    del r["explanation"]["variants"][0][0]["Time"]["remaining_time"]
+    assert r == {
+        "explanation": {
+            "n_task_deps": 0,
+            "n_waiting_deps": 0,
+            "variants": [
+                [
+                    {
+                        "Time": {
+                            "min_time": {"nanos": 0, "secs": 3600},
+                        }
+                    },
+                    {"Resources": {"request_amount": 100000, "resource": "cpus", "worker_amount": 50000}},
+                ]
+            ],
+        },
+        "task_id": 1,
+    }
 
 
 def test_explain_multi_node(hq_env: HqEnv):
