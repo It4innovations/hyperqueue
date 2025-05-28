@@ -12,7 +12,7 @@ use crate::internal::server::taskmap::TaskMap;
 use crate::internal::server::workerload::{ResourceRequestLowerBound, WorkerLoad, WorkerResources};
 use crate::internal::worker::configuration::WorkerConfiguration;
 use crate::{TaskId, WorkerId};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 bitflags::bitflags! {
     pub(crate) struct WorkerFlags: u32 {
@@ -265,11 +265,11 @@ impl Worker {
     pub fn new(
         id: WorkerId,
         configuration: WorkerConfiguration,
-        resource_map: ResourceMap,
+        resource_map: &ResourceMap,
+        now: Instant,
     ) -> Self {
-        let resources = WorkerResources::from_description(&configuration.resources, &resource_map);
+        let resources = WorkerResources::from_description(&configuration.resources, resource_map);
         let load = WorkerLoad::new(&resources);
-        let now = std::time::Instant::now();
         Self {
             id,
             termination_time: configuration.time_limit.map(|duration| now + duration),

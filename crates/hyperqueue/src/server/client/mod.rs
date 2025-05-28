@@ -229,6 +229,7 @@ pub async fn client_rpc_loop<
                         };
                         ToClientMessage::Finished
                     }
+                    FromClientMessage::TaskExplain(opts) => ToClientMessage::TaskExplain(todo!()),
                 };
                 if let Err(error) = tx.send(response).await {
                     log::error!("Cannot reply to client: {error:?}");

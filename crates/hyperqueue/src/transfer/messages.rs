@@ -36,6 +36,7 @@ pub enum FromClientMessage {
     ServerInfo,
     OpenJob(JobDescription),
     CloseJob(CloseJobRequest),
+    TaskExplain(TaskExplainRequest),
 
     // This command switches the connection into streaming connection,
     // it will no longer reacts to any other client messages
@@ -252,6 +253,13 @@ pub struct JobInfoRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct TaskExplainRequest {
+    pub job_selector: SingleIdSelector,
+    pub task_id: JobTaskId,
+    pub worker_id: WorkerId,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct JobDetailRequest {
     pub job_id_selector: IdSelector,
     pub task_selector: Option<TaskSelector>,
@@ -323,6 +331,9 @@ pub struct JobDetailResponse {
     pub server_uid: String,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct TaskExplainResponse {}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ServerInfo {
     pub server_uid: String,
@@ -354,6 +365,7 @@ pub enum ToClientMessage {
     CloseJobResponse(Vec<(JobId, CloseJobResponse)>),
     Error(String),
     ServerInfo(ServerInfo),
+    TaskExplain(TaskExplainResponse),
     Event(Event),
     // This indicates in live event streaming when old events where
     // old streamed, and now we are getting new ones

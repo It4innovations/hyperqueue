@@ -3,6 +3,7 @@ pub mod comm;
 pub mod core;
 pub(crate) mod dataobj;
 pub(crate) mod dataobjmap;
+mod explain;
 pub mod reactor;
 pub mod rpc;
 pub mod task;

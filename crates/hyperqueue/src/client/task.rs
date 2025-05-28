@@ -8,10 +8,10 @@ use crate::common::error::HqError;
 use crate::rpc_call;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
-    FromClientMessage, IdSelector, JobDetailRequest, SingleIdSelector, TaskIdSelector,
-    TaskSelector, TaskStatusSelector, ToClientMessage,
+    FromClientMessage, IdSelector, JobDetailRequest, SingleIdSelector, TaskExplainRequest,
+    TaskIdSelector, TaskSelector, TaskStatusSelector, ToClientMessage,
 };
-use tako::JobId;
+use tako::{JobId, JobTaskId, WorkerId};
 
 #[derive(clap::Parser)]
 pub struct TaskOpts {
@@ -25,6 +25,8 @@ pub enum TaskCommand {
     List(TaskListOpts),
     /// Displays detailed task info
     Info(TaskInfoOpts),
+    /// Explain if task can run on a selected worker
+    Explain(TaskExplainOpts),
 }
 
 #[derive(clap::Parser)]
@@ -51,6 +53,19 @@ pub struct TaskInfoOpts {
 
     #[clap(flatten)]
     pub verbosity: VerbosityFlag,
+}
+
+#[derive(clap::Parser)]
+pub struct TaskExplainOpts {
+    /// Select specific job
+    #[arg(value_parser = parse_last_single_id)]
+    pub job_selector: SingleIdSelector,
+
+    /// Select specific task(s)
+    pub task_id: JobTaskId,
+
+    /// Worker used in explanation
+    pub worker_id: WorkerId,
 }
 
 pub async fn output_job_task_list(
@@ -169,5 +184,21 @@ pub async fn output_job_task_ids(
         .collect::<crate::Result<Vec<(JobId, IntArray)>>>()?;
     job_task_ids.sort_unstable_by_key(|x| x.0);
     gsettings.printer().print_task_ids(job_task_ids);
+    Ok(())
+}
+
+pub async fn output_job_task_explain(
+    gsettings: &GlobalSettings,
+    session: &mut ClientSession,
+    opts: TaskExplainOpts,
+) -> anyhow::Result<()> {
+    let message = FromClientMessage::TaskExplain(TaskExplainRequest {
+        job_selector: opts.job_selector,
+        task_id: opts.task_id,
+        worker_id: opts.worker_id,
+    });
+    let response =
+        rpc_call!(session.connection(), message, ToClientMessage::TaskExplain(r) => r).await?;
+    todo!();
     Ok(())
 }
