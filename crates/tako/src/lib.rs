@@ -52,6 +52,7 @@ pub mod resources {
 pub mod server {
     pub use crate::control::server_start;
     pub use crate::internal::server::dataobj::ObjsToRemoveFromWorkers;
+    pub use crate::internal::server::explain::{TaskExplainItem, TaskExplanation};
     pub use crate::internal::server::rpc::ConnectionDescriptor;
 }
 

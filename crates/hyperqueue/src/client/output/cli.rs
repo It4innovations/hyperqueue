@@ -18,7 +18,7 @@ use crate::transfer::messages::{
     ServerInfo, TaskDescription, TaskKind, TaskKindProgram, WaitForJobsResponse, WorkerExitInfo,
     WorkerInfo,
 };
-use tako::{JobId, JobTaskCount, JobTaskId, WorkerId};
+use tako::{JobId, JobTaskCount, JobTaskId, TaskId, WorkerId};
 
 use chrono::{DateTime, Local, SubsecRound, Utc};
 use core::time::Duration;
@@ -48,6 +48,7 @@ use tako::gateway::{
     LostWorkerReason, ResourceRequest, ResourceRequestEntry, ResourceRequestVariants,
     WorkerRuntimeInfo,
 };
+use tako::server::{TaskExplainItem, TaskExplanation};
 use tako::{Map, format_comma_delimited};
 
 pub const TASK_COLOR_CANCELED: Colorization = Colorization::Magenta;
@@ -1043,6 +1044,99 @@ impl Output for CliOutput {
             "Job {} is open.",
             job_id.to_string().color(colored::Color::Green),
         );
+    }
+
+    fn print_explanation(
+        &self,
+        task_id: TaskId,
+        worker_id: WorkerId,
+        explanation: &TaskExplanation,
+    ) {
+        let all = explanation.variants.len();
+        let count: usize = explanation
+            .variants
+            .iter()
+            .map(|e| if e.is_empty() { 1 } else { 0 })
+            .sum();
+        if count > 0 {
+            if all == 1 {
+                println!(
+                    "Task {task_id} {} on worker {worker_id}.",
+                    "can run".color(colored::Color::Green)
+                );
+            } else {
+                println!(
+                    "Task {task_id} {} on worker {worker_id}, ({count}/{all} variants)",
+                    "can run".color(colored::Color::Green)
+                );
+            }
+            if explanation.n_task_deps == 0 {
+                println!("Task is directly executable because it does not have any dependencies.",);
+            } else if explanation.n_waiting_deps == explanation.n_task_deps {
+                println!(
+                    "Task is directly executable because all dependencies ({}) are already finished.",
+                    explanation.n_task_deps
+                );
+            } else {
+                println!(
+                    "Task is not directly executable because {} dependencies are not yet finished.",
+                    format!("{}/{}", explanation.n_waiting_deps, explanation.n_task_deps)
+                        .color(colored::Color::Red)
+                );
+            }
+        } else if all == 1 {
+            println!(
+                "Task {task_id} {} on worker {worker_id}.",
+                "cannot run".color(colored::Color::Red)
+            );
+        } else {
+            println!(
+                "Task {task_id} {} on worker {worker_id}, none of {all} variants.",
+                "cannot run".color(colored::Color::Red)
+            );
+        }
+        for (i, explanations) in explanation.variants.iter().enumerate() {
+            if all > 1 && !explanations.is_empty() {
+                println!("Resource variant {i}:")
+            }
+            for expl in explanations {
+                match expl {
+                    TaskExplainItem::Time {
+                        min_time,
+                        remaining_time,
+                    } => {
+                        println!(
+                            "* Task requests at least {} of running time, but worker remaining time is: {}.",
+                            human_duration(chrono::Duration::from_std(*min_time).unwrap())
+                                .color(colored::Color::Cyan),
+                            human_duration(chrono::Duration::from_std(*remaining_time).unwrap())
+                                .color(colored::Color::Red),
+                        )
+                    }
+                    TaskExplainItem::Resources {
+                        resource,
+                        request_amount,
+                        worker_amount,
+                    } => {
+                        println!(
+                            "* Task requests at least {}, but worker provides {}.",
+                            format!("{} {}", request_amount, resource).color(colored::Color::Cyan),
+                            format!("{} {}", worker_amount, resource).color(colored::Color::Red),
+                        )
+                    }
+                    TaskExplainItem::WorkerGroup {
+                        n_nodes,
+                        group_size,
+                    } => {
+                        println!(
+                            "* Task requests at least {} nodes, but worker is in group of size {}.",
+                            format!("{}", n_nodes).color(colored::Color::Cyan),
+                            format!("{}", group_size).color(colored::Color::Red),
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

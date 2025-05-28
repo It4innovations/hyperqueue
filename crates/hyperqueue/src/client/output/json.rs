@@ -8,11 +8,11 @@ use serde::{Serialize, Serializer};
 use serde_json;
 use serde_json::{Value, json};
 
-use tako::Map;
 use tako::gateway::{CrashLimit, ResourceRequest};
 use tako::program::{ProgramDefinition, StdioDef};
 use tako::resources::{ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind};
 use tako::worker::WorkerConfiguration;
+use tako::{Map, TaskId, WorkerId};
 
 use crate::client::job::WorkerMap;
 use crate::client::output::Verbosity;
@@ -27,6 +27,7 @@ use crate::transfer::messages::{
     AutoAllocListResponse, JobDetail, JobInfo, JobTaskDescription, PinMode, QueueData, ServerInfo,
     TaskDescription, TaskKind, TaskKindProgram, WaitForJobsResponse, WorkerInfo,
 };
+use tako::server::TaskExplanation;
 use tako::{JobId, JobTaskId};
 
 #[derive(Default)]
@@ -250,6 +251,15 @@ impl Output for JsonOutput {
 
     fn print_error(&self, error: Error) {
         self.print(json!({ "error": format!("{error:?}") }))
+    }
+
+    fn print_explanation(
+        &self,
+        task_id: TaskId,
+        worker_id: WorkerId,
+        explanation: &TaskExplanation,
+    ) {
+        self.print(json!({ "task_id": task_id, "task_id": worker_id, "explanation": explanation }));
     }
 }
 

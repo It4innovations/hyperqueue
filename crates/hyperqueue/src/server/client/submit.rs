@@ -19,9 +19,10 @@ use crate::server::Senders;
 use crate::server::job::{Job, SubmittedJobDescription};
 use crate::server::state::{State, StateRef};
 use crate::transfer::messages::{
-    JobDescription, JobSubmitDescription, JobTaskDescription, OpenJobResponse, SubmitRequest,
-    SubmitResponse, TaskBuildDescription, TaskDescription, TaskIdSelector, TaskKind,
-    TaskKindProgram, TaskSelector, TaskStatusSelector, TaskWithDependencies, ToClientMessage,
+    JobDescription, JobSubmitDescription, JobTaskDescription, OpenJobResponse, SingleIdSelector,
+    SubmitRequest, SubmitResponse, TaskBuildDescription, TaskDescription, TaskExplainRequest,
+    TaskExplainResponse, TaskIdSelector, TaskKind, TaskKindProgram, TaskSelector,
+    TaskStatusSelector, TaskWithDependencies, ToClientMessage,
 };
 use tako::{JobId, JobTaskCount, JobTaskId, Priority};
 
@@ -377,6 +378,30 @@ fn build_tasks_graph(
         tasks: task_configs,
         shared_data,
         adjust_instance_id_and_crash_counters: Default::default(),
+    }
+}
+
+pub(crate) fn handle_task_explain(
+    state_ref: &StateRef,
+    senders: &Senders,
+    request: TaskExplainRequest,
+) -> ToClientMessage {
+    let state = state_ref.get();
+    let job_id = match request.job_selector {
+        SingleIdSelector::Specific(job_id) => JobId::new(job_id),
+        SingleIdSelector::Last => state.last_job_id(),
+    };
+    let task_id = TaskId::new(job_id, request.task_id);
+    match senders
+        .server_control
+        .task_explain(task_id, request.worker_id)
+    {
+        Ok(explanation) => ToClientMessage::TaskExplain(TaskExplainResponse {
+            task_id,
+            worker_id: request.worker_id,
+            explanation,
+        }),
+        Err(e) => ToClientMessage::Error(e.to_string()),
     }
 }
 
