@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::datasrv::DataObjectId;
 use crate::gateway::LostWorkerReason;
@@ -66,7 +66,8 @@ fn test_worker_add() {
     let worker = Worker::new(
         402.into(),
         wcfg,
-        ResourceMap::from_vec(vec!["cpus".to_string()]),
+        &ResourceMap::from_vec(vec!["cpus".to_string()]),
+        Instant::now(),
     );
     on_new_worker(&mut core, &mut comm, worker);
 
@@ -121,11 +122,12 @@ fn test_worker_add() {
     let worker = Worker::new(
         502.into(),
         wcfg2,
-        ResourceMap::from_vec(vec![
+        &ResourceMap::from_vec(vec![
             "cpus".to_string(),
             "gpus".to_string(),
             "mem".to_string(),
         ]),
+        Instant::now(),
     );
     on_new_worker(&mut core, &mut comm, worker);
 

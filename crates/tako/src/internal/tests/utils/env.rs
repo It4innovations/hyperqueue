@@ -28,7 +28,7 @@ use crate::resources::{
 use crate::task::SerializedTaskContext;
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
 use crate::{InstanceId, TaskId, WorkerId};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 pub struct TestEnv {
     core: Core,
@@ -130,7 +130,12 @@ impl TestEnv {
                 extra: Default::default(),
             };
 
-            let worker = Worker::new(worker_id, wcfg, self.core.create_resource_map());
+            let worker = Worker::new(
+                worker_id,
+                wcfg,
+                &self.core.create_resource_map(),
+                Instant::now(),
+            );
             on_new_worker(&mut self.core, &mut TestComm::default(), worker);
         }
     }
