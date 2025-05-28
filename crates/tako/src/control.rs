@@ -9,12 +9,14 @@ use tokio::sync::Notify;
 
 use crate::events::EventProcessor;
 use crate::gateway::{MultiNodeAllocationResponse, TaskSubmit, WorkerRuntimeInfo};
+use crate::internal::common::error::DsError;
 use crate::internal::messages::worker::ToWorkerMessage;
 use crate::internal::scheduler::query::compute_new_worker_query;
 use crate::internal::scheduler::state::{run_scheduling_now, scheduler_loop};
 use crate::internal::server::client::handle_new_tasks;
 use crate::internal::server::comm::{Comm, CommSenderRef};
 use crate::internal::server::core::{CoreRef, CustomConnectionHandler};
+use crate::internal::server::explain::{TaskExplanation, task_explain};
 use crate::internal::server::reactor::on_cancel_tasks;
 use crate::internal::server::worker::DEFAULT_WORKER_OVERVIEW_INTERVAL;
 use crate::resources::ResourceDescriptor;
@@ -122,6 +124,27 @@ impl ServerRef {
     pub fn try_release_memory(&self) {
         let mut core = self.core_ref.get_mut();
         core.try_release_memory();
+    }
+
+    pub fn task_explain(
+        &self,
+        task_id: TaskId,
+        worker_id: WorkerId,
+    ) -> crate::Result<TaskExplanation> {
+        let core = self.core_ref.get();
+        let Some(task) = core.find_task(task_id) else {
+            return Err(DsError::from("Task not found"));
+        };
+        let Some(worker) = core.get_worker_by_id(worker_id) else {
+            return Err(DsError::from("Worker not found"));
+        };
+        let group = core
+            .worker_groups()
+            .get(&worker.configuration.group)
+            .unwrap();
+        let resource_map = core.create_resource_map();
+        let now = Instant::now();
+        Ok(task_explain(&resource_map, task, worker, group, now))
     }
 
     pub fn worker_info(&self, worker_id: WorkerId) -> Option<WorkerRuntimeInfo> {

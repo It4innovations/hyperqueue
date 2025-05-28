@@ -312,7 +312,10 @@ class HqEnv(Env):
             if as_lines:
                 return stdout.rstrip().split("\n")
             if as_json:
-                return json.loads(stdout)
+                try:
+                    return json.loads(stdout)
+                except json.JSONDecodeError:
+                    raise Exception(f"Cannot parse: '{stdout}' as json.")
             return stdout
 
     def final_check(self):

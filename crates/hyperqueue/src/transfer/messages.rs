@@ -17,6 +17,7 @@ use tako::gateway::{
     CrashLimit, LostWorkerReason, ResourceRequestVariants, TaskDataFlags, WorkerRuntimeInfo,
 };
 use tako::program::ProgramDefinition;
+use tako::server::TaskExplanation;
 use tako::worker::WorkerConfiguration;
 use tako::{JobId, JobTaskCount, JobTaskId, Map, TaskId, WorkerId};
 
@@ -334,7 +335,11 @@ pub struct JobDetailResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct TaskExplainResponse {}
+pub struct TaskExplainResponse {
+    pub task_id: TaskId,
+    pub worker_id: WorkerId,
+    pub explanation: TaskExplanation,
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ServerInfo {
