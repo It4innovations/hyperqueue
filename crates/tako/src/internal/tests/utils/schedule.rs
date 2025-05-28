@@ -47,9 +47,9 @@ pub fn new_test_worker(
     core: &mut Core,
     worker_id: WorkerId,
     configuration: WorkerConfiguration,
-    resource_map: ResourceMap,
+    resource_map: &ResourceMap,
 ) {
-    let worker = Worker::new(worker_id, configuration, resource_map);
+    let worker = Worker::new(worker_id, configuration, resource_map, Instant::now());
     on_new_worker(core, &mut TestComm::default(), worker);
 }
 
@@ -59,7 +59,7 @@ pub fn create_test_worker(core: &mut Core, worker_id: WorkerId, cpus: u32) {
         core,
         worker_id,
         wcfg,
-        ResourceMap::from_vec(vec!["cpus".to_string()]),
+        &ResourceMap::from_vec(vec!["cpus".to_string()]),
     );
 }
 
