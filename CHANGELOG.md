@@ -6,6 +6,7 @@
 
 ### New features
 
+* New command `hq task explain <job_id> <task_id> <worker_id>` explains why a task cannot be run on a given worker.
 * The server scheduler now slightly prioritizes tasks from older jobs and finishing partially-computed task graphs
 * New values for `--crash-limit`:
   * `never-restart` - task is never restarted, even if it "crashes" on a worker that was explicitly terminated.
