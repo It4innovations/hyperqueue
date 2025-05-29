@@ -1,6 +1,7 @@
-use crate::HQ_VERSION;
 use crate::common::serialization::SerializationConfig;
-use crate::server::event::journal::HQ_JOURNAL_HEADER;
+use crate::server::event::journal::{
+    HQ_JOURNAL_HEADER, HQ_JOURNAL_VERSION_MAJOR, HQ_JOURNAL_VERSION_MINOR, JournalVersion,
+};
 use crate::server::event::{Event, EventSerializationConfig};
 use anyhow::{anyhow, bail};
 use bincode::Options;
@@ -31,11 +32,22 @@ impl JournalReader {
         if header != HQ_JOURNAL_HEADER {
             bail!("Invalid journal format");
         }
-        let hq_version: String = EventSerializationConfig::config()
+        let journal_version: JournalVersion = EventSerializationConfig::config()
             .deserialize_from(&mut file)
             .map_err(|error| anyhow!("Cannot load HQ event log file header: {error:?}"))?;
-        if hq_version != HQ_VERSION {
-            bail!("Version of journal {hq_version} does not match with {HQ_VERSION}");
+        if journal_version.major != HQ_JOURNAL_VERSION_MAJOR {
+            bail!(
+                "Journal version mismatch; journal file: {}.{}, current HQ supports: {HQ_JOURNAL_VERSION_MAJOR}.{HQ_JOURNAL_VERSION_MINOR}",
+                journal_version.major,
+                journal_version.minor
+            );
+        }
+        if journal_version.minor > HQ_JOURNAL_VERSION_MINOR {
+            bail!(
+                "Cannot load newer journal file; journal file: {}.{}, current HQ supports: {HQ_JOURNAL_VERSION_MAJOR}.{HQ_JOURNAL_VERSION_MINOR}",
+                journal_version.major,
+                journal_version.minor
+            );
         }
         Ok(Self {
             position: file.stream_position()?,

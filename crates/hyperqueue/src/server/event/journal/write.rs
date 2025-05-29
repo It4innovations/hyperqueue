@@ -1,6 +1,7 @@
-use crate::HQ_VERSION;
 use crate::common::serialization::SerializationConfig;
-use crate::server::event::journal::HQ_JOURNAL_HEADER;
+use crate::server::event::journal::{
+    HQ_JOURNAL_HEADER, HQ_JOURNAL_VERSION_MAJOR, HQ_JOURNAL_VERSION_MINOR, JournalVersion,
+};
 use crate::server::event::{Event, EventSerializationConfig};
 use bincode::Options;
 use std::fs::{File, OpenOptions};
@@ -46,7 +47,13 @@ impl JournalWriter {
 
     fn write_header(mut file: &mut BufWriter<File>) -> anyhow::Result<()> {
         file.write_all(HQ_JOURNAL_HEADER)?;
-        EventSerializationConfig::config().serialize_into(&mut file, HQ_VERSION)?;
+        EventSerializationConfig::config().serialize_into(
+            &mut file,
+            &JournalVersion {
+                major: HQ_JOURNAL_VERSION_MAJOR,
+                minor: HQ_JOURNAL_VERSION_MINOR,
+            },
+        )?;
         file.flush()?;
         Ok(())
     }
