@@ -55,9 +55,6 @@ pub struct WorkerState {
     //pub(crate) secret_key: Option<Arc<SecretKey>>,
     pub(crate) start_time: Instant,
 
-    pub(crate) reservation: bool, // If true, idle timeout is blocked
-    pub(crate) last_task_finish_time: Instant,
-
     pub(crate) lc_state: RefCell<LocalCommState>,
     pub(crate) data_storage: DataStorage,
     download_manager: Option<WorkerDownloadManagerRef>,
@@ -166,10 +163,6 @@ impl WorkerState {
         !self.tasks.is_empty()
     }
 
-    pub fn reset_idle_timer(&mut self) {
-        self.last_task_finish_time = Instant::now();
-    }
-
     fn remove_task(
         &mut self,
         task_id: TaskId,
@@ -214,7 +207,6 @@ impl WorkerState {
         if self.tasks.is_empty() {
             self.comm.notify_worker_is_empty();
         }
-        self.reset_idle_timer();
         outputs
     }
 
@@ -466,8 +458,6 @@ impl WorkerStateRef {
             start_time: now,
             resource_map,
             resource_label_map,
-            last_task_finish_time: now,
-            reservation: false,
             worker_addresses: Default::default(),
             lc_state: RefCell::new(LocalCommState::new()),
             data_storage: DataStorage::new(),

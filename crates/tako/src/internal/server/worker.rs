@@ -5,14 +5,12 @@ use crate::internal::common::Set;
 use crate::internal::common::resources::TimeRequest;
 use crate::internal::common::resources::map::ResourceMap;
 use crate::internal::common::resources::{ResourceRequest, ResourceRequestVariants};
-use crate::internal::messages::worker::ToWorkerMessage;
-use crate::internal::server::comm::Comm;
 use crate::internal::server::task::Task;
 use crate::internal::server::taskmap::TaskMap;
 use crate::internal::server::workerload::{ResourceRequestLowerBound, WorkerLoad, WorkerResources};
 use crate::internal::worker::configuration::WorkerConfiguration;
 use crate::{TaskId, WorkerId};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 bitflags::bitflags! {
     pub(crate) struct WorkerFlags: u32 {
@@ -55,12 +53,15 @@ pub struct Worker {
     pub(crate) resources: WorkerResources,
     pub(crate) flags: WorkerFlags,
     // When the worker will be terminated
-    pub(crate) termination_time: Option<std::time::Instant>,
+    pub(crate) termination_time: Option<Instant>,
 
     pub(crate) mn_task: Option<MultiNodeTaskAssignment>,
 
+    // Saved timestamp when a worker is put into an idle state
+    pub(crate) idle_timestamp: Instant,
+
     // COLD DATA move it into a box (?)
-    pub(crate) last_heartbeat: std::time::Instant,
+    pub(crate) last_heartbeat: Instant,
     pub(crate) configuration: WorkerConfiguration,
 }
 
@@ -123,12 +124,12 @@ impl Worker {
 
     pub fn reset_mn_task(&mut self) {
         self.mn_task = None;
+        self.idle_timestamp = Instant::now();
     }
 
-    pub fn set_reservation(&mut self, value: bool, comm: &mut impl Comm) {
+    pub fn set_reservation(&mut self, value: bool) {
         if self.is_reserved() != value {
             self.flags.set(WorkerFlags::RESERVED, value);
-            comm.send_worker_message(self.id, &ToWorkerMessage::SetReservation(value))
         }
     }
 
@@ -148,6 +149,9 @@ impl Worker {
 
     pub fn remove_sn_task(&mut self, task: &Task) {
         assert!(self.sn_tasks.remove(&task.id));
+        if self.sn_tasks.is_empty() {
+            self.idle_timestamp = Instant::now();
+        }
         self.sn_load
             .remove_request(task.id, &task.configuration.resources, &self.resources);
     }
@@ -205,7 +209,7 @@ impl Worker {
         self.flags.contains(WorkerFlags::PARKED)
     }
 
-    pub fn is_capable_to_run(&self, request: &ResourceRequest, now: std::time::Instant) -> bool {
+    pub fn is_capable_to_run(&self, request: &ResourceRequest, now: Instant) -> bool {
         self.has_time_to_run(request.min_time(), now)
             && self.resources.is_capable_to_run_request(request)
     }
@@ -221,7 +225,7 @@ impl Worker {
     }
 
     // Returns None if there is no time limit for a worker or time limit was passed
-    pub fn remaining_time(&self, now: std::time::Instant) -> Option<Duration> {
+    pub fn remaining_time(&self, now: Instant) -> Option<Duration> {
         self.termination_time.map(|time| {
             if time < now {
                 Duration::default()
@@ -231,7 +235,7 @@ impl Worker {
         })
     }
 
-    pub fn has_time_to_run(&self, time_request: TimeRequest, now: std::time::Instant) -> bool {
+    pub fn has_time_to_run(&self, time_request: TimeRequest, now: Instant) -> bool {
         if let Some(time) = self.termination_time {
             now + time_request < time
         } else {
@@ -239,11 +243,7 @@ impl Worker {
         }
     }
 
-    pub fn has_time_to_run_for_rqv(
-        &self,
-        rqv: &ResourceRequestVariants,
-        now: std::time::Instant,
-    ) -> bool {
+    pub fn has_time_to_run_for_rqv(&self, rqv: &ResourceRequestVariants, now: Instant) -> bool {
         if self.termination_time.is_none() {
             return true;
         }
@@ -280,6 +280,7 @@ impl Worker {
             flags: WorkerFlags::empty(),
             last_heartbeat: now,
             mn_task: None,
+            idle_timestamp: now,
         }
     }
 }

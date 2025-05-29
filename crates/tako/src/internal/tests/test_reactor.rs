@@ -749,14 +749,6 @@ fn test_task_mn_cancel() {
     let mut scheduler = create_test_scheduler();
     scheduler.run_scheduling(&mut core, &mut comm);
     core.sanity_check();
-    assert!(matches!(
-        &comm.take_worker_msgs(100, 1)[0],
-        &ToWorkerMessage::SetReservation(false)
-    ));
-    assert!(matches!(
-        &comm.take_worker_msgs(101, 1)[0],
-        &ToWorkerMessage::SetReservation(false)
-    ));
     comm.emptiness_check();
 
     assert!(core.find_task(1.into()).is_none());

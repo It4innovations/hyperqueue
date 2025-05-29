@@ -177,10 +177,6 @@ pub async fn run_worker(
     let local_comm_fut = handle_local_comm(local_conn_listener, state_ref.clone());
 
     let heartbeat_fut = heartbeat_process(heartbeat_interval, state_ref.clone());
-    let idle_timeout_fut = match configuration.idle_timeout {
-        Some(timeout) => Either::Left(idle_timeout_process(timeout, state_ref.clone())),
-        None => Either::Right(futures::future::pending()),
-    };
     let overview_fut = send_overview_loop(state_ref.clone());
 
     let time_limit_fut = match time_limit {
@@ -219,10 +215,6 @@ pub async fn run_worker(
             _ = time_limit_fut => {
                 log::info!("Time limit reached");
                 Ok(Some(FromWorkerMessage::Stop(WorkerStopReason::TimeLimitReached)))
-            }
-            _ = idle_timeout_fut => {
-                log::info!("Idle timeout reached");
-                Ok(Some(FromWorkerMessage::Stop(WorkerStopReason::IdleTimeout)))
             }
             _ = stop_flag.notified() => {
                 log::info!("Worker received an external stop notification");
@@ -379,24 +371,6 @@ async fn heartbeat_process(heartbeat_interval: Duration, state_ref: WrappedRcRef
     }
 }
 
-/// Runs until an idle timeout happens.
-/// Idle timeout occurs when the worker doesn't have anything to do for the specified duration.
-async fn idle_timeout_process(idle_timeout: Duration, state_ref: WrappedRcRefCell<WorkerState>) {
-    let mut interval = tokio::time::interval(Duration::from_secs(1));
-
-    loop {
-        interval.tick().await;
-
-        let state = state_ref.get();
-        if !state.has_tasks() && !state.reservation {
-            let elapsed = state.last_task_finish_time.elapsed();
-            if elapsed > idle_timeout {
-                break;
-            }
-        }
-    }
-}
-
 pub(crate) fn process_worker_message(state: &mut WorkerState, message: ToWorkerMessage) -> bool {
     match message {
         ToWorkerMessage::ComputeTask(msg) => {
@@ -448,12 +422,6 @@ pub(crate) fn process_worker_message(state: &mut WorkerState, message: ToWorkerM
         }
         ToWorkerMessage::LostWorker(worker_id) => {
             state.remove_worker(worker_id);
-        }
-        ToWorkerMessage::SetReservation(on_off) => {
-            state.reservation = on_off;
-            if !on_off {
-                state.reset_idle_timer();
-            }
         }
         ToWorkerMessage::PlacementResponse(data_id, placement) => {
             state.process_resolved_placement(data_id, placement);
