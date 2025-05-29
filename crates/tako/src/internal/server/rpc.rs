@@ -188,7 +188,7 @@ async fn worker_rpc_loop(
                 // Idle timeout might be smaller than 500ms in tests.
                 #[allow(clippy::manual_clamp)]
                 heartbeat_interval
-                    .min(idle_timeout.unwrap_or(heartbeat_interval))
+                    .min(idle_timeout.map(|t| t / 16).unwrap_or(heartbeat_interval))
                     // Sanity check that interval is not too short
                     .max(Duration::from_millis(500)),
             )
@@ -203,6 +203,15 @@ async fn worker_rpc_loop(
             if elapsed > heartbeat_interval * 2 {
                 log::debug!("Heartbeat not arrived, worker={}", worker.id);
                 break LostWorkerReason::HeartbeatLost;
+            }
+
+            if let Some(timeout) = idle_timeout {
+                if worker.is_free()
+                    && !worker.is_reserved()
+                    && worker.idle_timestamp + timeout < now
+                {
+                    break LostWorkerReason::IdleTimeout;
+                }
             }
         }
     };

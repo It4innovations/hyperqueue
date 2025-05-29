@@ -189,7 +189,7 @@ impl SchedulerState {
                     );
                     for worker_id in &worker_ids[1..] {
                         let worker = worker_map.get_worker_mut(*worker_id);
-                        worker.set_reservation(true, comm);
+                        worker.set_reservation(true);
                     }
                 }
                 (
@@ -236,7 +236,7 @@ impl SchedulerState {
                     })
                     .unwrap_or(true);
                 if unreserve {
-                    worker.set_reservation(false, comm);
+                    worker.set_reservation(false);
                 }
             }
         }

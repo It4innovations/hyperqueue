@@ -141,24 +141,6 @@ fn test_worker_start_task_resource_variants() {
 }
 
 #[test]
-fn test_worker_reservation() {
-    let state_ref = create_test_worker_state(create_test_worker_config());
-    let mut state = state_ref.get_mut();
-    let finish_time = state.last_task_finish_time;
-    assert!(!state.reservation);
-    process_worker_message(&mut state, ToWorkerMessage::SetReservation(true));
-    let comm = state.comm().test();
-    comm.check_emptiness();
-    assert!(state.reservation);
-    assert_eq!(state.last_task_finish_time, finish_time);
-    process_worker_message(&mut state, ToWorkerMessage::SetReservation(false));
-    let comm = state.comm().test();
-    comm.check_emptiness();
-    assert!(!state.reservation);
-    assert_ne!(state.last_task_finish_time, finish_time);
-}
-
-#[test]
 fn test_worker_other_workers() {
     let state_ref = create_test_worker_state(create_test_worker_config());
     let mut state = state_ref.get_mut();
