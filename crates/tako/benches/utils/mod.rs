@@ -1,5 +1,5 @@
 use std::rc::Rc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tako::gateway::{CrashLimit, TaskDataFlags};
 use tako::internal::server::core::Core;
 use tako::internal::server::task::{Task, TaskConfiguration};
@@ -50,7 +50,8 @@ pub fn create_worker(id: u64) -> Worker {
             wait_between_download_tries: Duration::from_secs(1),
             extra: Default::default(),
         },
-        Default::default(),
+        &Default::default(),
+        Instant::now(),
     )
 }
 
