@@ -8,6 +8,8 @@ rust-version.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+anyhow = { workspace = true }
+derive_builder = { workspace = true }
 futures = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tokio-util = { workspace = true, features = ["codec"] }
@@ -27,6 +29,7 @@ bstr = { workspace = true }
 psutil = { workspace = true }
 thin-vec = { workspace = true }
 bitflags = { workspace = true }
+tempfile = { workspace = true }
 
 hashbrown = { version = "0.15", features = ["serde", "inline-more"], default-features = false }
 priority-queue = "2"
@@ -34,10 +37,7 @@ fxhash = "0.2"
 derive_more = { version = "2", features = ["add", "add_assign", "sum"] }
 
 [dev-dependencies]
-anyhow = { workspace = true }
 env_logger = { workspace = true }
-tempfile = { workspace = true }
-derive_builder = { workspace = true }
 criterion = { workspace = true }
 
 [[bench]]

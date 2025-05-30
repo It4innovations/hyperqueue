@@ -71,3 +71,7 @@ pub mod datasrv {
     pub use crate::internal::datasrv::dataobj::{DataInputId, DataObjectId, OutputId};
     pub use crate::internal::datasrv::local_client::LocalDataClient;
 }
+
+pub mod tests {
+    pub use crate::internal::tests::*;
+}

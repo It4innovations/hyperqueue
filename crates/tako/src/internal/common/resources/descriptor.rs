@@ -184,6 +184,27 @@ pub struct ResourceDescriptorItem {
     pub kind: ResourceDescriptorKind,
 }
 
+impl ResourceDescriptorItem {
+    pub fn range(name: &str, start: u32, end: u32) -> Self {
+        ResourceDescriptorItem {
+            name: name.to_string(),
+            kind: ResourceDescriptorKind::Range {
+                start: start.into(),
+                end: end.into(),
+            },
+        }
+    }
+
+    pub fn sum(name: &str, size: u32) -> Self {
+        ResourceDescriptorItem {
+            name: name.to_string(),
+            kind: ResourceDescriptorKind::Sum {
+                size: ResourceAmount::new_units(size),
+            },
+        }
+    }
+}
+
 /// Most precise description of request provided by a worker (without time resource)
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ResourceDescriptor {
@@ -227,27 +248,6 @@ impl ResourceDescriptor {
 mod tests {
     use super::*;
     use crate::resources::CPU_RESOURCE_NAME;
-
-    impl ResourceDescriptorItem {
-        pub fn range(name: &str, start: u32, end: u32) -> Self {
-            ResourceDescriptorItem {
-                name: name.to_string(),
-                kind: ResourceDescriptorKind::Range {
-                    start: start.into(),
-                    end: end.into(),
-                },
-            }
-        }
-
-        pub fn sum(name: &str, size: u32) -> Self {
-            ResourceDescriptorItem {
-                name: name.to_string(),
-                kind: ResourceDescriptorKind::Sum {
-                    size: ResourceAmount::new_units(size),
-                },
-            }
-        }
-    }
 
     impl ResourceDescriptor {
         pub fn simple(n_cpus: ResourceUnits) -> Self {

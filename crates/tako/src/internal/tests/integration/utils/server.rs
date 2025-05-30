@@ -119,7 +119,7 @@ impl ServerHandle {
 }
 
 #[derive(Clone)]
-pub(crate) enum TestTaskState {
+pub enum TestTaskState {
     Running(WorkerId),
     Finished(Option<WorkerId>),
     Failed(Option<WorkerId>, TaskFailInfo),
@@ -146,19 +146,19 @@ impl TestTaskState {
 }
 
 #[derive(Debug)]
-pub(crate) struct TestWorkerState {
+pub struct TestWorkerState {
     pub configuration: WorkerConfiguration,
     pub lost_reason: Option<LostWorkerReason>,
 }
 
-pub(crate) struct AsyncTestClientProcessor {
+pub struct AsyncTestClientProcessor {
     pub notify: Rc<Notify>,
     pub task_state: Map<TaskId, TestTaskState>,
     pub overviews: Map<WorkerId, Box<WorkerOverview>>,
     pub worker_state: Map<WorkerId, TestWorkerState>,
 }
 
-pub(crate) type AsyncTestClientProcessorRef = WrappedRcRefCell<AsyncTestClientProcessor>;
+pub type AsyncTestClientProcessorRef = WrappedRcRefCell<AsyncTestClientProcessor>;
 
 impl AsyncTestClientProcessorRef {
     fn update_state(&self, task_id: TaskId, state: TestTaskState) {

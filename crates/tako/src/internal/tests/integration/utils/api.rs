@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use crate::gateway::LostWorkerReason;
 use crate::internal::common::Map;
 use crate::internal::messages::worker::WorkerOverview;
@@ -5,7 +7,7 @@ use crate::internal::tests::integration::utils::server::{ServerHandle, TestTaskS
 use crate::worker::WorkerConfiguration;
 use crate::{TaskId, WorkerId};
 
-pub(crate) struct WaitResult {
+pub struct WaitResult {
     tasks: Map<TaskId, TestTaskState>,
 }
 
