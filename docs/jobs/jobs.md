@@ -451,13 +451,22 @@ $ hq job cat <job-id> [--tasks <task-selector>] <stdout/stderr>
 
 ## Crashing limit
 
-When a worker is lost then all running tasks on the worker are suspicious that they may cause the crash of the
-worker. HyperQueue server remembers how many times were a task running while a worker is lost. If the count
-reaches the limit, then the task is set to the failed state.
+When a worker is lost, then all running tasks on the worker are suspicious that they may cause the crash of the
+worker. HyperQueue server remembers how many times were a task running while a worker is lost (crash counter).
+If the count reaches the limit, then the task is set to the failed state.
 By default, this limit is `5` but it can be changed as follows:
 
 ```commandline
 $ hq submit --crash-limit=<NEWLIMIT> ...
 ```
 
-If the limit is set to 0, then the limit is disabled.
+The crash counter of a task is not increased when worker is stopped for known reason (via command `hq server stop` or
+time limit is reached), because it was not the cause of the termination.
+
+Among numerical value, the option `--crash-limit` may have two special values:
+
+* `never-restart` or just `n` -- Task is never restarted. It is similar to `--crash-counter=1`, but
+  the task is never restarted even in the case when the task
+  was running on a worker that was stopped by a way that does not increase crash counter.
+* `unlimited` -- Task will always be restarted.
+

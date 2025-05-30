@@ -1,8 +1,15 @@
 ## DEV
 
+### Breaking change
+
+* In `--crash-limit` value 0 is no longer allowed, use `--crash-limit=unlimited`.
+
 ### New features
 
 * The server scheduler now slightly prioritizes tasks from older jobs and finishing partially-computed task graphs
+* New values for `--crash-limit`:
+   * `never-restart` or `n` - task is never restarted, even it is terminated on worker that was explicitly terminated.
+   * `unlimited` - unlimited crash limit
 * `hq worker info` contains more information
 * `hq job forget` tries to free more memory
 * You can now configure Job name in the Python API.
