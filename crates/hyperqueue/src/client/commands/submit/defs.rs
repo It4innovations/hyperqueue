@@ -1,10 +1,10 @@
-use crate::JobDataObjectId;
 use crate::client::commands::submit::command::parse_crash_limit;
 use crate::client::resources::parse_allocation_request;
 use crate::common::arraydef::IntArray;
 use crate::common::arrayparser::parse_array;
 use crate::common::error::HqError;
 use crate::common::utils::time::parse_human_time;
+use crate::JobDataObjectId;
 use bstr::BString;
 use serde::de::MapAccess;
 use serde::{Deserialize, Deserializer};
@@ -64,6 +64,13 @@ where
 
         fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
             write!(formatter, "a number or string representing crash limit")
+        }
+
+        fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            self.visit_u16(value.try_into().map_err(serde::de::Error::custom)?)
         }
 
         fn visit_u16<E>(self, value: u16) -> Result<Self::Value, E>

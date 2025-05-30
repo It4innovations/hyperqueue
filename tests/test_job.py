@@ -993,9 +993,11 @@ def test_zero_custom_error_message(hq_env: HqEnv):
 def test_crashing_job_status_default(count: Optional[int], hq_env: HqEnv):
     hq_env.start_server()
 
-    count = count if count is not None else 5
-
-    hq_env.command(["submit", f"--crash-limit={count}", "sleep", "10"])
+    if count is None:
+        hq_env.command(["submit", "sleep", "10"])
+        count = 5
+    else:
+        hq_env.command(["submit", f"--crash-limit={count}", "sleep", "10"])
 
     for i in range(count):
         hq_env.start_worker()
