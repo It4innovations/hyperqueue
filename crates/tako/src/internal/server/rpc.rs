@@ -210,6 +210,7 @@ async fn worker_rpc_loop(
                     && !worker.is_reserved()
                     && worker.idle_timestamp + timeout < now
                 {
+                    log::debug!("Idle timeout reached, worker={}", worker.id);
                     break LostWorkerReason::IdleTimeout;
                 }
             }
@@ -234,7 +235,7 @@ async fn worker_rpc_loop(
             LostWorkerReason::ConnectionLost
         }
         r = periodic_check => {
-            log::debug!("Heartbeat loop terminated, worker={}", worker_id);
+            log::debug!("Worker time check loop terminated, worker={}", worker_id);
             r
         }
     };
