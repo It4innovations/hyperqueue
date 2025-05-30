@@ -303,7 +303,7 @@ impl ServerCompletion {
     }
 }
 
-pub async fn run_test<
+pub async fn run_server_test<
     CreateTestFut: FnOnce(ServerHandle) -> TestFut,
     TestFut: Future<Output = ()>,
 >(

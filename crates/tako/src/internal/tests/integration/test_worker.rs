@@ -6,7 +6,7 @@ use crate::gateway::LostWorkerReason;
 use crate::internal::tests::integration::utils::api::{
     wait_for_task_start, wait_for_worker_connected, wait_for_worker_lost, wait_for_worker_overview,
 };
-use crate::internal::tests::integration::utils::server::run_test;
+use crate::internal::tests::integration::utils::server::run_server_test;
 use crate::internal::tests::integration::utils::task::{GraphBuilder, simple_task};
 
 use super::utils::server::ServerConfigBuilder;
@@ -14,7 +14,7 @@ use super::utils::worker::WorkerConfigBuilder;
 
 #[tokio::test]
 async fn test_hw_monitoring() {
-    run_test(Default::default(), |mut handler| async move {
+    run_server_test(Default::default(), |mut handler| async move {
         let config =
             WorkerConfigBuilder::default().send_overview_interval(Some(Duration::from_millis(10)));
         let worker = handler.start_worker(config).await.unwrap();
@@ -41,7 +41,7 @@ async fn test_hw_monitoring() {
 
 #[tokio::test]
 async fn test_worker_connected_event() {
-    run_test(Default::default(), |mut handler| async move {
+    run_server_test(Default::default(), |mut handler| async move {
         for _ in 0..3 {
             let worker = handler
                 .start_worker(WorkerConfigBuilder::default())
@@ -56,7 +56,7 @@ async fn test_worker_connected_event() {
 
 #[tokio::test]
 async fn test_worker_lost_killed() {
-    run_test(Default::default(), |mut handler| async move {
+    run_server_test(Default::default(), |mut handler| async move {
         let worker = handler
             .start_worker(WorkerConfigBuilder::default())
             .await
@@ -70,7 +70,7 @@ async fn test_worker_lost_killed() {
 
 #[tokio::test]
 async fn test_worker_lost_stopped() {
-    run_test(Default::default(), |mut handler| async move {
+    run_server_test(Default::default(), |mut handler| async move {
         let worker = handler
             .start_worker(WorkerConfigBuilder::default())
             .await
@@ -85,7 +85,7 @@ async fn test_worker_lost_stopped() {
 
 #[tokio::test]
 async fn test_worker_lost_heartbeat_expired() {
-    run_test(Default::default(), |mut handler| async move {
+    run_server_test(Default::default(), |mut handler| async move {
         let config = WorkerConfigBuilder::default().heartbeat_interval(Duration::from_millis(200));
         let worker = handler.start_worker(config).await.unwrap();
         let _token = worker.pause().await;
@@ -98,7 +98,7 @@ async fn test_worker_lost_heartbeat_expired() {
 
 #[tokio::test]
 async fn test_worker_lost_idle_timeout() {
-    run_test(Default::default(), |mut handler| async move {
+    run_server_test(Default::default(), |mut handler| async move {
         let builder = WorkerConfigBuilder::default().idle_timeout(Some(Duration::from_millis(200)));
         let worker = handler.start_worker(builder).await.unwrap();
 
@@ -110,7 +110,7 @@ async fn test_worker_lost_idle_timeout() {
 
 #[tokio::test]
 async fn test_worker_idle_timeout_stays_alive_with_tasks() {
-    run_test(Default::default(), |mut handle| async move {
+    run_server_test(Default::default(), |mut handle| async move {
         handle
             .submit(
                 GraphBuilder::default()
@@ -140,7 +140,7 @@ async fn test_worker_idle_timeout_stays_alive_with_tasks() {
 #[should_panic]
 async fn test_panic_on_worker_lost() {
     let config = ServerConfigBuilder::default().panic_on_worker_lost(true);
-    let completion = run_test(config, |mut handle| async move {
+    let completion = run_server_test(config, |mut handle| async move {
         let worker = handle.start_worker(Default::default()).await.unwrap();
         handle.kill_worker(worker.id).await;
     })
@@ -150,7 +150,7 @@ async fn test_panic_on_worker_lost() {
 
 #[tokio::test]
 async fn test_lost_worker_with_tasks_continue() {
-    run_test(Default::default(), |mut handler| async move {
+    run_server_test(Default::default(), |mut handler| async move {
         let _workers = handler.start_workers(Default::default, 2).await.unwrap();
 
         let task_ids = handler
@@ -166,7 +166,7 @@ async fn test_lost_worker_with_tasks_continue() {
 
 #[tokio::test]
 async fn test_lost_worker_with_tasks_restarts() {
-    run_test(Default::default(), |mut handle| async move {
+    run_server_test(Default::default(), |mut handle| async move {
         handle
             .submit(GraphBuilder::singleton(simple_task(&["sleep", "1"], 1)))
             .await;
