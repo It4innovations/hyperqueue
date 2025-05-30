@@ -1,6 +1,8 @@
 use crate::internal::common::resources::{ResourceRequest, ResourceRequestVariants};
 
-use crate::gateway::{SharedTaskConfiguration, TaskSubmit};
+use crate::gateway::{
+    ResourceRequestVariants as ClientResourceRequestVariants, SharedTaskConfiguration, TaskSubmit,
+};
 
 use crate::internal::common::resources::request::ResourceRequestEntry;
 use crate::internal::server::comm::CommSender;
@@ -9,12 +11,12 @@ use crate::internal::server::reactor::on_new_tasks;
 use crate::internal::server::task::{Task, TaskConfiguration};
 use std::rc::Rc;
 
-fn create_task_configuration(
-    core_ref: &mut Core,
-    msg: SharedTaskConfiguration,
-) -> TaskConfiguration {
-    let resources = ResourceRequestVariants::new(
-        msg.resources
+fn convert_client_resources(
+    core: &mut Core,
+    resources: ClientResourceRequestVariants,
+) -> ResourceRequestVariants {
+    ResourceRequestVariants::new(
+        resources
             .variants
             .into_iter()
             .map(|rq| {
@@ -24,7 +26,7 @@ fn create_task_configuration(
                     rq.resources
                         .into_iter()
                         .map(|r| {
-                            let resource_id = core_ref.get_or_create_resource_id(&r.resource);
+                            let resource_id = core.get_or_create_resource_id(&r.resource);
                             ResourceRequestEntry {
                                 resource_id,
                                 request: r.policy,
@@ -34,8 +36,11 @@ fn create_task_configuration(
                 )
             })
             .collect(),
-    );
+    )
+}
 
+fn create_task_configuration(core: &mut Core, msg: SharedTaskConfiguration) -> TaskConfiguration {
+    let resources = convert_client_resources(core, msg.resources);
     TaskConfiguration {
         resources,
         time_limit: msg.time_limit,

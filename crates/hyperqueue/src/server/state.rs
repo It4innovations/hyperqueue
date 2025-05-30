@@ -95,6 +95,10 @@ impl State {
         ((self.job_id_counter - n)..self.job_id_counter).map(|id| id.into())
     }
 
+    pub fn last_job_id(&self) -> JobId {
+        JobId::new(self.job_id_counter - 1)
+    }
+
     pub fn get_workers(&self) -> &Map<WorkerId, Worker> {
         &self.workers
     }

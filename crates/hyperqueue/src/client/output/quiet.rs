@@ -21,7 +21,8 @@ use crate::transfer::messages::{
     AutoAllocListResponse, JobDetail, JobInfo, ServerInfo, WaitForJobsResponse, WorkerExitInfo,
     WorkerInfo,
 };
-use tako::{JobId, JobTaskId};
+use tako::server::TaskExplanation;
+use tako::{JobId, JobTaskId, TaskId, WorkerId};
 
 #[derive(Default)]
 pub struct Quiet;
@@ -150,6 +151,14 @@ impl Output for Quiet {
 
     fn print_error(&self, error: Error) {
         eprintln!("{error:?}");
+    }
+
+    fn print_explanation(
+        &self,
+        _task_id: TaskId,
+        _worker_id: WorkerId,
+        _explanation: &TaskExplanation,
+    ) {
     }
 }
 

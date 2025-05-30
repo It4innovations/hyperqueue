@@ -2,6 +2,7 @@
 
 ### New features
 
+* New command `hq task explain <job_id> <task_id> <worker_id>` explains why a task cannot be run on a given worker.
 * The server scheduler now slightly prioritizes tasks from older jobs and finishing partially-computed task graphs
 * `hq worker info` contains more information
 * `hq job forget` tries to free more memory

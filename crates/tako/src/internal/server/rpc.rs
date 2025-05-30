@@ -139,7 +139,13 @@ async fn worker_rpc_loop(
         for item in &configuration.resources.resources {
             core.get_or_create_resource_id(&item.name);
         }
-        let worker = Worker::new(worker_id, configuration.clone(), core.create_resource_map());
+        let now = Instant::now();
+        let worker = Worker::new(
+            worker_id,
+            configuration.clone(),
+            &core.create_resource_map(),
+            now,
+        );
 
         on_new_worker(&mut core, &mut *comm_ref.get_mut(), worker);
     }

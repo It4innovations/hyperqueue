@@ -31,8 +31,8 @@ use hyperqueue::client::output::outputs::{Output, Outputs};
 use hyperqueue::client::output::quiet::Quiet;
 use hyperqueue::client::status::Status;
 use hyperqueue::client::task::{
-    TaskCommand, TaskInfoOpts, TaskListOpts, output_job_task_ids, output_job_task_info,
-    output_job_task_list,
+    TaskCommand, TaskExplainOpts, TaskInfoOpts, TaskListOpts, output_job_task_explain,
+    output_job_task_ids, output_job_task_info, output_job_task_list,
 };
 use hyperqueue::common::cli::{
     ColorPolicy, CommonOpts, DeploySshOpts, GenerateCompletionOpts, HwDetectOpts, JobCommand,
@@ -202,6 +202,14 @@ async fn command_task_info(gsettings: &GlobalSettings, opts: TaskInfoOpts) -> an
         opts.verbosity.into(),
     )
     .await
+}
+
+async fn command_task_explain(
+    gsettings: &GlobalSettings,
+    opts: TaskExplainOpts,
+) -> anyhow::Result<()> {
+    let mut session = get_client_session(gsettings.server_directory()).await?;
+    output_job_task_explain(gsettings, &mut session, opts).await
 }
 
 async fn command_worker_start(
@@ -495,6 +503,7 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Task(opts) => match opts.subcmd {
             TaskCommand::List(opts) => command_task_list(&gsettings, opts).await,
             TaskCommand::Info(opts) => command_task_info(&gsettings, opts).await,
+            TaskCommand::Explain(opts) => command_task_explain(&gsettings, opts).await,
         },
         SubCommand::Data(opts) => command_task_data(&gsettings, opts).await,
         #[cfg(feature = "dashboard")]

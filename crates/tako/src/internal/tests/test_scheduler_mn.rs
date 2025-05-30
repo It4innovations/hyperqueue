@@ -292,25 +292,16 @@ fn test_mn_sleep_wakeup_at_once() {
 fn test_mn_schedule_on_groups() {
     let mut core = Core::default();
 
+    let resource_map = ResourceMap::from_vec(vec!["cpus".to_string()]);
     let worker_id = WorkerId::new(100);
     let mut wcfg1 = create_test_worker_config(worker_id, ResourceDescriptor::simple(1));
     wcfg1.group = "group1".to_string();
-    new_test_worker(
-        &mut core,
-        worker_id,
-        wcfg1,
-        ResourceMap::from_vec(vec!["cpus".to_string()]),
-    );
+    new_test_worker(&mut core, worker_id, wcfg1, &resource_map);
 
     let worker_id = WorkerId::new(101);
     let mut wcfg2 = create_test_worker_config(worker_id, ResourceDescriptor::simple(1));
     wcfg2.group = "group2".to_string();
-    new_test_worker(
-        &mut core,
-        worker_id,
-        wcfg2,
-        ResourceMap::from_vec(vec!["cpus".to_string()]),
-    );
+    new_test_worker(&mut core, worker_id, wcfg2, &resource_map);
 
     let mut comm = create_test_comm();
     let task1 = TaskBuilder::new(1).n_nodes(2).build();
