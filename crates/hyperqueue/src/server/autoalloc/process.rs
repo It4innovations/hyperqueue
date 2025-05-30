@@ -313,8 +313,7 @@ async fn perform_submits(
         .iter()
         .map(|(_, queue)| create_queue_worker_query(queue))
         .collect();
-    let query_rx = senders.server.new_worker_query(queries)?;
-    let response = query_rx.await?;
+    let response = senders.server.new_worker_query(queries)?;
 
     // Now schedule the workers into the individual queues
     let queue_ids: Vec<QueueId> = queues.into_iter().map(|(id, _)| id).collect();
@@ -334,11 +333,11 @@ fn create_queue_worker_query(queue: &AllocationQueue) -> WorkerTypeQuery {
     WorkerTypeQuery {
         // The maximum number of workers that we can provide in this queue
         // TODO: estimate the resources of the queue in a better way
-        // TODO: min time
         descriptor: ResourceDescriptor::new(vec![ResourceDescriptorItem {
             name: CPU_RESOURCE_NAME.to_string(),
             kind: ResourceDescriptorKind::regular_sockets(1, 1),
         }]),
+        time_limit: Some(info.timelimit()),
         // How many workers can we provide at the moment
         max_sn_workers: info.backlog() * info.workers_per_alloc(),
         max_workers_per_allocation: info.workers_per_alloc(),
