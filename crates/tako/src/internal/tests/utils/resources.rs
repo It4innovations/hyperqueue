@@ -5,12 +5,6 @@ use crate::internal::common::resources::{ResourceId, ResourceRequestVariants, Re
 use crate::resources::{AllocationRequest, NumOfNodes, ResourceAmount, ResourceUnits};
 pub use ResourceRequestBuilder as ResBuilder;
 
-impl From<u32> for ResourceAmount {
-    fn from(val: u32) -> Self {
-        ResourceAmount::new_units(val)
-    }
-}
-
 #[derive(Default, Clone)]
 pub struct ResourceRequestBuilder {
     n_nodes: NumOfNodes,

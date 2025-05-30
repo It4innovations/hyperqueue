@@ -71,6 +71,12 @@ impl ResourceAmount {
     }
 }
 
+impl From<u32> for ResourceAmount {
+    fn from(val: u32) -> Self {
+        ResourceAmount::new_units(val)
+    }
+}
+
 impl std::fmt::Display for ResourceAmount {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let fractions = self.fractions();
