@@ -7,7 +7,7 @@ use crate::common::rpc::RpcReceiver;
 use crate::get_or_return;
 use crate::server::autoalloc::config::{
     MAX_QUEUED_STATUS_ERROR_COUNT, MAX_RUNNING_STATUS_ERROR_COUNT, MAX_SUBMISSION_FAILS,
-    SUBMISSION_DELAYS, get_refresh_interval, get_status_check_interval, max_allocation_fails,
+    SUBMISSION_DELAYS, get_refresh_interval, max_allocation_fails,
 };
 use crate::server::autoalloc::queue::pbs::PbsHandler;
 use crate::server::autoalloc::queue::slurm::SlurmHandler;
@@ -518,7 +518,6 @@ fn create_rate_limiter() -> RateLimiter {
         SUBMISSION_DELAYS.to_vec(),
         MAX_SUBMISSION_FAILS,
         max_allocation_fails(),
-        get_status_check_interval(),
     )
 }
 
@@ -645,10 +644,6 @@ async fn refresh_queue_allocations(
 ) {
     log::debug!("Attempt to refresh allocations of queue {queue_id}");
     let queue = get_or_return!(autoalloc.get_queue_mut(queue_id));
-    if !queue.limiter().can_perform_status_check() {
-        log::debug!("Refresh attempt of {queue_id} was rate limited");
-        return;
-    }
 
     let (status_fut, allocation_ids) = {
         let allocations: Vec<_> = queue.active_allocations().collect();
@@ -664,7 +659,6 @@ async fn refresh_queue_allocations(
         (fut, allocation_ids)
     };
 
-    queue.limiter_mut().on_status_attempt();
     let result = status_fut.await;
 
     log::debug!("Allocations of queue {queue_id} have been refreshed: {result:?}");
@@ -1090,8 +1084,7 @@ mod tests {
     use crate::common::manager::info::ManagerType;
     use crate::common::utils::time::mock_time::MockTime;
     use crate::server::autoalloc::process::{
-        AllocationSyncReason, RefreshReason, do_periodic_update, queue_try_submit,
-        sync_allocation_status,
+        AllocationSyncReason, do_periodic_update, queue_try_submit, sync_allocation_status,
     };
     use crate::server::autoalloc::queue::{
         AllocationExternalStatus, AllocationStatusMap, AllocationSubmissionResult, QueueHandler,
