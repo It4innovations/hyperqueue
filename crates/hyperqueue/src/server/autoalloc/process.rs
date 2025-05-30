@@ -1030,7 +1030,8 @@ mod tests {
     use smallvec::smallvec;
     use tako::WorkerId;
     use tako::gateway::{
-        LostWorkerReason, ResourceRequest, ResourceRequestEntry, ResourceRequestVariants,
+        CrashLimit, LostWorkerReason, ResourceRequest, ResourceRequestEntry,
+        ResourceRequestVariants,
     };
     use tako::program::ProgramDefinition;
     use tako::resources::{AllocationRequest, CPU_RESOURCE_NAME, TimeRequest};
@@ -1962,7 +1963,7 @@ mod tests {
                         resources,
                         time_limit: None,
                         priority: 0,
-                        crash_limit: 5,
+                        crash_limit: CrashLimit::default(),
                     },
                 },
                 submit_dir: Default::default(),

@@ -1,5 +1,5 @@
 use crate::datasrv::{DataObjectId, OutputId};
-use crate::gateway::LostWorkerReason;
+use crate::gateway::{CrashLimit, LostWorkerReason};
 use crate::internal::common::{Map, Set};
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{
@@ -147,26 +147,27 @@ pub(crate) fn on_remove_worker(
     comm.client()
         .on_worker_lost(worker_id, &running_tasks, reason.clone());
 
-    if reason.is_failure() {
-        for task_id in running_tasks {
-            let task = core.get_task_mut(task_id);
-            if task.increment_crash_counter() {
-                let count = task.crash_counter;
-                log::debug!("Task {} reached crash limit {}", task_id, count);
-                fail_task_helper(
-                    core,
-                    comm,
-                    None,
-                    task_id,
-                    TaskFailInfo {
-                        message: format!(
-                            "Task was running on a worker that was lost; the task has occurred {count} times in this situation and limit was reached."
-                        ),
-                    },
-                );
-            }
+    for task_id in running_tasks {
+        let task = core.get_task_mut(task_id);
+        if CrashLimit::NeverRestart == task.configuration.crash_limit {
+            log::debug!("Task {} with never restart flag crashed", task_id);
+            let error_info = TaskFailInfo {
+                message: "Task was running on a lost worker while never restart flag was set."
+                    .to_string(),
+            };
+            fail_task_helper(core, comm, None, task_id, error_info);
+        } else if reason.is_failure() && task.increment_crash_counter() {
+            let count = task.crash_counter;
+            log::debug!("Task {} reached crash limit {}", task_id, count);
+            let error_info = TaskFailInfo {
+                message: format!(
+                    "Task was running on a worker that was lost; the task has occurred {count} times in this situation and limit was reached."
+                ),
+            };
+            fail_task_helper(core, comm, None, task_id, error_info);
         }
     }
+
     comm.ask_for_scheduling();
 }
 

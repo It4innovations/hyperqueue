@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::fmt::Display;
+use std::fmt::{Display, Formatter};
 
 use crate::internal::common::error::DsError;
 use crate::internal::datasrv::dataobj::DataObjectId;
@@ -97,6 +97,29 @@ bitflags::bitflags! {
     }
 }
 
+#[derive(Deserialize, Serialize, Debug, Eq, PartialEq, Clone, Copy)]
+pub enum CrashLimit {
+    NeverRestart,
+    MaxCrashes(u16),
+    Unlimited,
+}
+
+impl Default for CrashLimit {
+    fn default() -> Self {
+        CrashLimit::MaxCrashes(5)
+    }
+}
+
+impl Display for CrashLimit {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CrashLimit::NeverRestart => f.write_str("never-restart"),
+            CrashLimit::MaxCrashes(count) => write!(f, "{}", count),
+            CrashLimit::Unlimited => f.write_str("unlimited"),
+        }
+    }
+}
+
 /// Task data that is often shared by multiple tasks.
 /// It is sent out-of-band in NewTasksMessage to save bandwidth and allocations.
 #[derive(Deserialize, Serialize, Debug)]
@@ -107,7 +130,7 @@ pub struct SharedTaskConfiguration {
 
     pub priority: Priority,
 
-    pub crash_limit: u32,
+    pub crash_limit: CrashLimit,
 
     pub data_flags: TaskDataFlags,
 }

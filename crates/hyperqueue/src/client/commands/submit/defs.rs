@@ -1,4 +1,5 @@
 use crate::JobDataObjectId;
+use crate::client::commands::submit::command::parse_crash_limit;
 use crate::client::resources::parse_allocation_request;
 use crate::common::arraydef::IntArray;
 use crate::common::arrayparser::parse_array;
@@ -10,7 +11,7 @@ use serde::{Deserialize, Deserializer};
 use smallvec::SmallVec;
 use std::path::PathBuf;
 use std::time::Duration;
-use tako::gateway::{ResourceRequest, ResourceRequestEntries, ResourceRequestEntry};
+use tako::gateway::{CrashLimit, ResourceRequest, ResourceRequestEntries, ResourceRequestEntry};
 use tako::program::FileOnCloseBehavior;
 use tako::resources::{AllocationRequest, NumOfNodes, ResourceAmount};
 use tako::{JobTaskCount, JobTaskId, Map, Priority};
@@ -50,6 +51,40 @@ where
 {
     let buf = String::deserialize(deserializer)?;
     parse_human_time(&buf).map_err(serde::de::Error::custom)
+}
+
+fn deserialize_crash_limit<'de, D>(deserializer: D) -> Result<CrashLimit, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    struct CrashLimitVisitor;
+
+    impl<'de> serde::de::Visitor<'de> for CrashLimitVisitor {
+        type Value = CrashLimit;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            write!(formatter, "a number or string representing crash limit")
+        }
+
+        fn visit_u16<E>(self, value: u16) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            if value == 0 {
+                return Err(E::custom("Crash limit cannot be 0"));
+            }
+            Ok(CrashLimit::MaxCrashes(value))
+        }
+
+        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            parse_crash_limit(value).map_err(serde::de::Error::custom)
+        }
+    }
+
+    deserializer.deserialize_any(CrashLimitVisitor)
 }
 
 fn deserialize_resource_entries<'de, D>(deserializer: D) -> Result<ResourceRequestEntries, D::Error>
@@ -201,8 +236,8 @@ pub struct TaskConfigDef {
     #[serde(default)]
     pub priority: Priority,
 
-    #[serde(default)]
-    pub crash_limit: u32,
+    #[serde(default, deserialize_with = "deserialize_crash_limit")]
+    pub crash_limit: CrashLimit,
 
     #[serde(default)]
     pub stdin: Option<String>,
