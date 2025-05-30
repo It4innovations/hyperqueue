@@ -967,14 +967,14 @@ fn make_entries_from_json(filename: &Path) -> anyhow::Result<Vec<BString>> {
 }
 
 pub fn parse_crash_limit(text: &str) -> anyhow::Result<CrashLimit> {
-    if text == "n" || text == "never-restart" {
+    if text == "never-restart" {
         Ok(CrashLimit::NeverRestart)
     } else if text == "unlimited" {
         Ok(CrashLimit::Unlimited)
     } else {
         let v: u16 = text.parse().map_err(|_| anyhow!("Invalid crash limit"))?;
         if v == 0 {
-            bail!("Crash limit cannot be 0");
+            bail!("Crash limit cannot be 0. Use `never-restart` or `unlimited` instead.");
         }
         Ok(CrashLimit::MaxCrashes(v))
     }

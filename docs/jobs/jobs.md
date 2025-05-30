@@ -463,7 +463,7 @@ $ hq submit --crash-limit=<NEWLIMIT> ...
 The crash counter of a task is not increased when worker is stopped for known reason (via command `hq server stop` or
 time limit is reached), because it was not the cause of the termination.
 
-Among numerical value, the option `--crash-limit` may have two special values:
+In addition to a numerical value, the option `--crash-limit` may have two special values:
 
 * `never-restart` or just `n` -- Task is never restarted. It is similar to `--crash-counter=1`, but
   the task is never restarted even in the case when the task

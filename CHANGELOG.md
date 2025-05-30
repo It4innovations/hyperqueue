@@ -8,12 +8,13 @@
 
 * The server scheduler now slightly prioritizes tasks from older jobs and finishing partially-computed task graphs
 * New values for `--crash-limit`:
-   * `never-restart` or `n` - task is never restarted, even it is terminated on worker that was explicitly terminated.
-   * `unlimited` - unlimited crash limit
+  * `never-restart` - task is never restarted, even if it "crashes" on a worker that was explicitly terminated.
+  * `unlimited` - unlimited crash limit
 * `hq worker info` contains more information
 * `hq job forget` tries to free more memory
 * You can now configure Job name in the Python API.
-* `hq job progress` now displays all jobs and tasks that you wait for, rather than those that were unfinished at the time when the command was executed.
+* `hq job progress` now displays all jobs and tasks that you wait for, rather than those that were unfinished at the
+  time when the command was executed.
 
 ### Fixes
 
