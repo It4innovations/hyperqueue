@@ -1,6 +1,6 @@
 use crate::control::{NewWorkerAllocationResponse, WorkerTypeQuery};
 use crate::internal::tests::integration::utils::check_file_contents;
-use crate::internal::tests::integration::utils::server::{ServerHandle, run_test};
+use crate::internal::tests::integration::utils::server::{ServerHandle, run_server_test};
 use crate::internal::tests::integration::utils::task::ResourceRequestConfigBuilder;
 use crate::internal::tests::integration::utils::task::{
     GraphBuilder, TaskConfigBuilder, simple_args, simple_task,
@@ -12,7 +12,7 @@ use tokio::time::sleep;
 
 #[tokio::test]
 async fn test_submit_simple_task_ok() {
-    run_test(Default::default(), |mut handler| async move {
+    run_server_test(Default::default(), |mut handler| async move {
         let worker = handler.start_worker(Default::default()).await.unwrap();
 
         let stdout = worker.workdir.join("test.out");
@@ -48,7 +48,7 @@ async fn test_submit_simple_task_ok() {
 
 #[tokio::test]
 async fn test_submit_simple_task_fail() {
-    run_test(Default::default(), |mut handler| async move {
+    run_server_test(Default::default(), |mut handler| async move {
         handler.start_worker(Default::default()).await.unwrap();
 
         let ids = handler
@@ -77,7 +77,7 @@ async fn test_submit_simple_task_fail() {
 
 #[tokio::test]
 async fn test_task_time_limit_fail() {
-    run_test(Default::default(), |mut handle| async move {
+    run_server_test(Default::default(), |mut handle| async move {
         handle.start_worker(Default::default()).await.unwrap();
 
         handle
@@ -98,7 +98,7 @@ async fn test_task_time_limit_fail() {
 
 #[tokio::test]
 async fn test_task_time_limit_pass() {
-    run_test(Default::default(), |mut handle| async move {
+    run_server_test(Default::default(), |mut handle| async move {
         handle.start_worker(Default::default()).await.unwrap();
 
         handle
@@ -122,7 +122,7 @@ fn query_helper(
 
 #[tokio::test]
 async fn test_query_no_output_immediate_call() {
-    run_test(Default::default(), |mut handler| async move {
+    run_server_test(Default::default(), |mut handler| async move {
         handler.start_worker(Default::default()).await.unwrap();
         let ids = handler
             .submit(GraphBuilder::singleton(simple_task(&["sleep", "1"], 1)))
@@ -146,7 +146,7 @@ async fn test_query_no_output_immediate_call() {
 
 #[tokio::test]
 async fn test_query_no_output_delayed_call() {
-    run_test(Default::default(), |mut handler| async move {
+    run_server_test(Default::default(), |mut handler| async move {
         handler.start_worker(Default::default()).await.unwrap();
         let ids = handler
             .submit(GraphBuilder::singleton(simple_task(&["sleep", "1"], 1)))
@@ -171,7 +171,7 @@ async fn test_query_no_output_delayed_call() {
 
 #[tokio::test]
 async fn test_query_new_workers_delayed_call() {
-    run_test(Default::default(), |mut handler| async move {
+    run_server_test(Default::default(), |mut handler| async move {
         handler.start_worker(Default::default()).await.unwrap();
         let _ = handler
             .submit(GraphBuilder::singleton(
@@ -198,7 +198,7 @@ async fn test_query_new_workers_delayed_call() {
 
 #[tokio::test]
 async fn test_query_new_workers_immediate() {
-    run_test(Default::default(), |mut handler| async move {
+    run_server_test(Default::default(), |mut handler| async move {
         handler.start_worker(Default::default()).await.unwrap();
         let _ = handler
             .submit(GraphBuilder::singleton(

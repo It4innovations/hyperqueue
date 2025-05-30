@@ -6,7 +6,7 @@ use crate::WorkerId;
 use crate::internal::tests::integration::utils::api::{
     wait_for_task_start, wait_for_worker_overview, wait_for_workers_overview,
 };
-use crate::internal::tests::integration::utils::server::run_test;
+use crate::internal::tests::integration::utils::server::run_server_test;
 use crate::internal::tests::integration::utils::task::ResourceRequestConfigBuilder as RR;
 use crate::internal::tests::integration::utils::task::{
     GraphBuilder as GB, GraphBuilder, TaskConfigBuilder as TC, simple_args, simple_task,
@@ -16,7 +16,7 @@ use crate::resources::ResourceDescriptor;
 
 #[tokio::test]
 async fn test_submit_2_sleeps_on_1() {
-    run_test(Default::default(), |mut handle| async move {
+    run_server_test(Default::default(), |mut handle| async move {
         handle
             .submit(
                 GraphBuilder::default()
@@ -50,7 +50,7 @@ async fn test_submit_2_sleeps_on_1() {
 
 #[tokio::test]
 async fn test_submit_2_sleeps_on_2() {
-    run_test(Default::default(), |mut handler| async move {
+    run_server_test(Default::default(), |mut handler| async move {
         handler
             .submit(
                 GraphBuilder::default()
@@ -82,7 +82,7 @@ async fn test_submit_2_sleeps_on_2() {
 
 #[tokio::test]
 async fn test_submit_2_sleeps_on_separated_2() {
-    run_test(Default::default(), |mut handler| async move {
+    run_server_test(Default::default(), |mut handler| async move {
         handler
             .submit(
                 GraphBuilder::default()
@@ -119,7 +119,7 @@ async fn test_submit_2_sleeps_on_separated_2() {
 
 #[tokio::test]
 async fn test_submit_sleeps_more_cpus1() {
-    run_test(Default::default(), |mut handler| async move {
+    run_server_test(Default::default(), |mut handler| async move {
         let rq1 = RR::default().cpus(3);
         let rq2 = RR::default().cpus(2);
         handler
@@ -167,7 +167,7 @@ async fn test_submit_sleeps_more_cpus1() {
 
 #[tokio::test]
 async fn test_submit_sleeps_more_cpus2() {
-    run_test(Default::default(), |mut handler| async move {
+    run_server_test(Default::default(), |mut handler| async move {
         let rq1 = RR::default().cpus(3);
         let rq2 = RR::default().cpus(2);
         let t = |rq: &RR| {
@@ -202,7 +202,7 @@ async fn test_submit_sleeps_more_cpus2() {
 
 #[tokio::test]
 async fn test_submit_sleeps_more_cpus3() {
-    run_test(Default::default(), |mut handler| async move {
+    run_server_test(Default::default(), |mut handler| async move {
         let rq1 = RR::default().cpus(3);
         let rq2 = RR::default().cpus(2);
         let t = |rq: &RR| {
@@ -238,7 +238,7 @@ async fn test_submit_sleeps_more_cpus3() {
 
 #[tokio::test]
 async fn test_force_compact() {
-    run_test(Default::default(), |mut handler| async move {
+    run_server_test(Default::default(), |mut handler| async move {
         let rq = RR::default().add_force_compact("cpus", 4);
 
         handler
