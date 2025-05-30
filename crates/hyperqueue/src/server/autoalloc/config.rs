@@ -10,12 +10,6 @@ pub fn get_refresh_interval() -> Duration {
         .unwrap_or_else(|| Duration::from_secs(60))
 }
 
-/// Minimum time between successive status (e.g. qstat) checks.
-pub fn get_status_check_interval() -> Duration {
-    get_duration_from_env("HQ_AUTOALLOC_STATUS_CHECK_INTERVAL_MS")
-        .unwrap_or_else(|| Duration::from_secs(30 * 60))
-}
-
 fn get_duration_from_env(key: &str) -> Option<Duration> {
     std::env::var(key)
         .ok()

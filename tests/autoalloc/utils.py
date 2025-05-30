@@ -142,10 +142,9 @@ def wait_for_alloc(hq_env: HqEnv, state: str, allocation_id: str, timeout=DEFAUL
         raise e
 
 
-def start_server_with_quick_refresh(hq_env: HqEnv, autoalloc_refresh_ms=100, autoalloc_status_check_ms=100):
+def start_server_with_quick_refresh(hq_env: HqEnv, autoalloc_refresh_ms=100):
     hq_env.start_server(
         env={
             "HQ_AUTOALLOC_REFRESH_INTERVAL_MS": str(autoalloc_refresh_ms),
-            "HQ_AUTOALLOC_STATUS_CHECK_INTERVAL_MS": str(autoalloc_status_check_ms),
         }
     )
