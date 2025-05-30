@@ -1,6 +1,6 @@
 use std::rc::Rc;
 use std::time::Duration;
-use tako::gateway::TaskDataFlags;
+use tako::gateway::{CrashLimit, TaskDataFlags};
 use tako::internal::server::core::Core;
 use tako::internal::server::task::{Task, TaskConfiguration};
 use tako::internal::server::worker::Worker;
@@ -17,7 +17,7 @@ pub fn create_task(id: TaskId) -> Task {
         resources: Default::default(),
         user_priority: 0,
         time_limit: None,
-        crash_limit: 5,
+        crash_limit: CrashLimit::default(),
         data_flags: TaskDataFlags::empty(),
     };
     Task::new(

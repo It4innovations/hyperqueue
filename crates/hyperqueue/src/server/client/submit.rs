@@ -409,8 +409,8 @@ mod tests {
     use std::path::PathBuf;
     use std::time::Duration;
     use tako::gateway::{
-        ResourceRequest, ResourceRequestEntry, ResourceRequestVariants, SharedTaskConfiguration,
-        TaskDataFlags,
+        CrashLimit, ResourceRequest, ResourceRequestEntry, ResourceRequestVariants,
+        SharedTaskConfiguration, TaskDataFlags,
     };
     use tako::internal::tests::utils::sorted_vec;
     use tako::program::ProgramDefinition;
@@ -614,7 +614,7 @@ mod tests {
             }),
             time_limit,
             priority,
-            crash_limit: 5,
+            crash_limit: CrashLimit::default(),
         }
     }
 

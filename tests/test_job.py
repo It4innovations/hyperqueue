@@ -13,7 +13,7 @@ from .utils import wait_for_job_state
 from .utils.cmd import python
 from .utils.io import check_file_contents, read_file, read_task_pid
 from .utils.job import default_task_output, list_jobs
-from .utils.wait import wait_until, wait_for_task_state
+from .utils.wait import wait_until, wait_for_task_state, wait_for_worker_state
 
 
 def test_job_submit(hq_env: HqEnv):
@@ -993,9 +993,11 @@ def test_zero_custom_error_message(hq_env: HqEnv):
 def test_crashing_job_status_default(count: Optional[int], hq_env: HqEnv):
     hq_env.start_server()
 
-    count = count if count is not None else 5
-
-    hq_env.command(["submit", f"--crash-limit={count}", "sleep", "10"])
+    if count is None:
+        hq_env.command(["submit", "sleep", "10"])
+        count = 5
+    else:
+        hq_env.command(["submit", f"--crash-limit={count}", "sleep", "10"])
 
     for i in range(count):
         hq_env.start_worker()
@@ -1008,6 +1010,35 @@ def test_crashing_job_status_default(count: Optional[int], hq_env: HqEnv):
 
     table = list_jobs(hq_env)
     table.check_column_value("State", 0, "FAILED")
+
+
+def test_crashing_job_no_restart_stop_worker(hq_env: HqEnv):
+    hq_env.start_server()
+
+    hq_env.command(["submit", f"--crash-limit=never-restart", "sleep", "10"])
+    hq_env.command(["submit", f"--crash-limit=1", "sleep", "10"])
+
+    w = hq_env.start_worker(cpus=2)
+    wait_for_job_state(hq_env, [1, 2], "RUNNING")
+    hq_env.command(["worker", "stop", "1"])
+    wait_for_worker_state(hq_env, 1, "STOPPED", check_running_processes=False)
+    hq_env.check_process_exited(w)
+
+    wait_for_job_state(hq_env, 1, "FAILED")
+    wait_for_job_state(hq_env, 2, "WAITING")
+
+
+def test_crashing_job_no_restart_kill_worker(hq_env: HqEnv):
+    hq_env.start_server()
+
+    hq_env.command(["submit", f"--crash-limit=never-restart", "sleep", "10"])
+    hq_env.command(["submit", f"--crash-limit=1", "sleep", "10"])
+
+    w = hq_env.start_worker(cpus=2)
+    wait_for_job_state(hq_env, [1, 2], "RUNNING")
+    hq_env.kill_worker(1)
+
+    wait_for_job_state(hq_env, [1, 2], "FAILED")
 
 
 def test_crashing_job_by_files(hq_env: HqEnv):

@@ -90,7 +90,7 @@ resources = { "gpus" = 1.1 }
     table.check_row_value("Pin", "taskset")
     table.check_row_value("Time limit", "None")
     table.check_row_value("Priority", "0")
-    table.check_row_value("Crash limit", "0")
+    table.check_row_value("Crash limit", "5")
     table.check_row_value("Task dir", "no")
 
     assert table.get_row_value("Workdir").endswith("test-200")

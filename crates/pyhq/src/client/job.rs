@@ -1,9 +1,7 @@
 use crate::marshal::FromPy;
 use crate::utils::error::ToPyResult;
 use crate::{ClientContextPtr, FromPyObject, PyJobId, PyTaskId, borrow_mut, run_future};
-use hyperqueue::client::commands::submit::command::{
-    DEFAULT_CRASH_LIMIT, DEFAULT_STDERR_PATH, DEFAULT_STDOUT_PATH,
-};
+use hyperqueue::client::commands::submit::command::{DEFAULT_STDERR_PATH, DEFAULT_STDOUT_PATH};
 use hyperqueue::client::output::resolve_task_paths;
 use hyperqueue::client::resources::parse_allocation_request;
 use hyperqueue::client::status::{Status, is_terminated};
@@ -26,7 +24,8 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tako::gateway::{
-    ResourceRequestEntries, ResourceRequestEntry, ResourceRequestVariants, TaskDataFlags,
+    CrashLimit, ResourceRequestEntries, ResourceRequestEntry, ResourceRequestVariants,
+    TaskDataFlags,
 };
 use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
 use tako::resources::{AllocationRequest, NumOfNodes, ResourceAmount};
@@ -65,7 +64,7 @@ pub struct TaskDescription {
     task_dir: bool,
     priority: tako::Priority,
     resource_request: Vec<ResourceRequestDescription>,
-    crash_limit: Option<u32>,
+    crash_limit: Option<u16>,
 }
 
 #[derive(Debug, FromPyObject)]
@@ -236,7 +235,10 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<H
         resources,
         priority: desc.priority,
         time_limit: None,
-        crash_limit: desc.crash_limit.unwrap_or(DEFAULT_CRASH_LIMIT),
+        crash_limit: desc
+            .crash_limit
+            .map(|v| CrashLimit::MaxCrashes(v))
+            .unwrap_or_default(),
     })
 }
 
