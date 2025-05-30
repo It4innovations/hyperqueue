@@ -1,13 +1,14 @@
 use std::future::Future;
 use std::path::PathBuf;
-use std::time::{Duration, SystemTime};
+use std::time::{Instant, SystemTime};
 
 use crate::common::manager::info::{ManagerInfo, ManagerType};
 use crate::common::rpc::RpcReceiver;
 use crate::get_or_return;
 use crate::server::autoalloc::config::{
     MAX_QUEUED_STATUS_ERROR_COUNT, MAX_RUNNING_STATUS_ERROR_COUNT, MAX_SUBMISSION_FAILS,
-    SUBMISSION_DELAYS, get_refresh_interval, max_allocation_fails,
+    SUBMISSION_DELAYS, get_allocation_refresh_interval, get_allocation_schedule_tick_interval,
+    get_max_allocation_schedule_delay, max_allocation_fails,
 };
 use crate::server::autoalloc::queue::pbs::PbsHandler;
 use crate::server::autoalloc::queue::slurm::SlurmHandler;
@@ -44,24 +45,54 @@ pub async fn autoalloc_process(
 ) {
     let senders = AutoallocSenders { server, events };
 
+    // The loop below is a bit complicated, because it needs to manage several things:
+    // - Repeatedly, we want to update the external state of allocation queues, by querying the
+    // allocation manager. This is not related much to the of the functionality, and can progress
+    // on its own.
+    // - We are receiving messages from `receiver`, which contain information about what happened
+    // in HQ (new job submits, workers connected/disconnected, etc.). Some of these messages should
+    // result in new "allocation scheduling".
+    // - We want to do "allocation scheduling", where we query the HQ task scheduler for what kinds
+    // of workers it wants, and try to submit new allocations based on that.
+    //
+    // The allocation scheduling should not happen too often, it should happen after certain
+    // messages are received, and it should also happen periodically if no new message was received
+    // in some time. So we need to be a bit smart about when to run it.
+
     // Periodically update external state
-    let mut periodic_update_interval = tokio::time::interval(get_refresh_interval());
+    let mut periodic_update_interval = tokio::time::interval(get_allocation_refresh_interval());
+
+    // When no message is not received after this interval, run scheduling
+    let max_scheduling_delay = get_max_allocation_schedule_delay();
+    // How often to check scheduling
+    let mut scheduling_interval = tokio::time::interval(get_allocation_schedule_tick_interval());
+
+    // Should scheduling be performed at the next scheduling "tick"?
+    let mut should_schedule = false;
+    let mut last_schedule = Instant::now();
 
     loop {
         tokio::select! {
             _ = periodic_update_interval.tick() => {
                 do_periodic_update(&senders, &mut autoalloc).await;
             }
-            msg = tokio::time::timeout(Duration::from_secs(30), receiver.recv()) => {
+            _ = scheduling_interval.tick() => {
+                if should_schedule || last_schedule.elapsed() >= max_scheduling_delay {
+                    if let Err(error) = perform_submits(&mut autoalloc, &senders).await {
+                        log::error!("Autoalloc scheduling failed: {error:?}");
+                    }
+                    should_schedule = false;
+                    last_schedule = Instant::now();
+                }
+            }
+            msg = tokio::time::timeout(max_scheduling_delay, receiver.recv()) => {
                 let schedule = match msg {
                     Ok(None) | Ok(Some(AutoAllocMessage::QuitService)) => break,
                     Ok(Some(message)) => handle_message(&mut autoalloc, &senders.events, message).await,
                     Err(_) => true
                 };
                 if schedule {
-                    if let Err(error) = perform_submits(&mut autoalloc, &senders).await {
-                        log::error!("Autoalloc scheduling failed: {error:?}");
-                    }
+                    should_schedule = true;
                 }
             }
         }
