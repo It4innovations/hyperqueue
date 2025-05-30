@@ -124,7 +124,7 @@ pub(crate) fn compute_new_worker_query(
                         return None;
                     }
                 }
-                if worker_type.max_worker_per_allocation >= n_nodes {
+                if worker_type.max_workers_per_allocation >= n_nodes {
                     Some(MultiNodeAllocationResponse {
                         worker_type: i,
                         worker_per_allocation: n_nodes,
@@ -139,7 +139,7 @@ pub(crate) fn compute_new_worker_query(
     multi_node_allocations.sort_unstable_by_key(|x| (x.worker_type, x.worker_per_allocation));
 
     NewWorkerAllocationResponse {
-        single_node_allocations,
+        single_node_workers_per_query: single_node_allocations,
         multi_node_allocations,
     }
 }

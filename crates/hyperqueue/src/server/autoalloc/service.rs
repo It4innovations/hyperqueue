@@ -2,6 +2,7 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tako::Map;
+use tako::control::ServerRef;
 
 use tako::WorkerId;
 use tako::gateway::LostWorkerReason;
@@ -13,7 +14,6 @@ use crate::server::autoalloc::process::autoalloc_process;
 use crate::server::autoalloc::state::AutoAllocState;
 use crate::server::autoalloc::{Allocation, QueueId};
 use crate::server::event::streamer::EventStreamer;
-use crate::server::state::StateRef;
 use crate::transfer::messages::{AllocationQueueParams, QueueData};
 use tako::JobId;
 
@@ -22,7 +22,8 @@ pub enum AutoAllocMessage {
     // Events
     WorkerConnected(WorkerId, ManagerInfo),
     WorkerLost(WorkerId, ManagerInfo, LostWorkerDetails),
-    JobCreated(JobId),
+    // Some tasks were submitted to a job
+    JobSubmitted(JobId),
     // Requests
     GetQueues(ResponseToken<Map<QueueId, QueueData>>),
     AddQueue {
@@ -80,8 +81,8 @@ impl AutoAllocService {
         }
     }
 
-    pub fn on_job_created(&self, job_id: JobId) {
-        self.send(AutoAllocMessage::JobCreated(job_id));
+    pub fn on_job_submit(&self, job_id: JobId) {
+        self.send(AutoAllocMessage::JobSubmitted(job_id));
     }
 
     pub fn get_queues(&self) -> impl Future<Output = Map<QueueId, QueueData>> + use<> {
@@ -155,13 +156,13 @@ impl AutoAllocService {
 }
 
 pub fn create_autoalloc_service(
-    state_ref: StateRef,
+    server_ref: ServerRef,
     queue_id_initial_value: u32,
     events: EventStreamer,
 ) -> (AutoAllocService, impl Future<Output = ()>) {
     let (tx, rx) = make_rpc_queue();
     let autoalloc = AutoAllocState::new(queue_id_initial_value);
-    let process = autoalloc_process(state_ref, events, autoalloc, rx);
+    let process = autoalloc_process(server_ref, events, autoalloc, rx);
     let service = AutoAllocService { sender: tx };
     (service, process)
 }
