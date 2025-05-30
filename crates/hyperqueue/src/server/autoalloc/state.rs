@@ -357,10 +357,6 @@ pub struct RateLimiter {
     current_delay: usize,
     /// Time when a submission (e.g. qsub) was last attempted.
     last_submission: Option<Instant>,
-    /// Time when a status check (e.g. qstat) was last attempted.
-    last_status: Option<Instant>,
-    /// How often can status be checked.
-    status_delay: Duration,
     /// How many times has an allocation failed in a row.
     allocation_fails: u64,
     max_allocation_fails: u64,
@@ -371,18 +367,15 @@ pub struct RateLimiter {
 
 impl RateLimiter {
     pub fn new(
-        delays: Vec<Duration>,
+        submission_delays: Vec<Duration>,
         max_submission_fails: u64,
         max_allocation_fails: u64,
-        status_delay: Duration,
     ) -> Self {
-        assert!(!delays.is_empty());
+        assert!(!submission_delays.is_empty());
         Self {
-            submission_delays: delays,
+            submission_delays,
             current_delay: 0,
             last_submission: None,
-            last_status: None,
-            status_delay,
             allocation_fails: 0,
             max_allocation_fails,
             submission_fails: 0,
@@ -411,17 +404,6 @@ impl RateLimiter {
     pub fn on_allocation_fail(&mut self) {
         self.allocation_fails += 1;
         self.increase_delay();
-    }
-
-    pub fn on_status_attempt(&mut self) {
-        self.last_status = Some(now_monotonic());
-    }
-
-    pub fn can_perform_status_check(&self) -> bool {
-        match self.last_status {
-            Some(last_status) => now_monotonic().duration_since(last_status) >= self.status_delay,
-            None => true,
-        }
     }
 
     /// Submission will be attempted, reset the limiter timer.
@@ -524,7 +506,7 @@ mod tests {
                 ),
                 None,
                 Box::new(NullHandler),
-                RateLimiter::new(vec![Duration::from_secs(1)], 1, 1, Duration::from_secs(1)),
+                RateLimiter::new(vec![Duration::from_secs(1)], 1, 1),
             ),
             None,
         );
