@@ -13,7 +13,9 @@ use crate::server::job::{JobTaskCounters, JobTaskInfo, SubmittedJobDescription};
 use bstr::BString;
 use std::path::PathBuf;
 use std::time::Duration;
-use tako::gateway::{LostWorkerReason, ResourceRequestVariants, TaskDataFlags, WorkerRuntimeInfo};
+use tako::gateway::{
+    CrashLimit, LostWorkerReason, ResourceRequestVariants, TaskDataFlags, WorkerRuntimeInfo,
+};
 use tako::program::ProgramDefinition;
 use tako::worker::WorkerConfiguration;
 use tako::{JobId, JobTaskCount, JobTaskId, Map, TaskId, WorkerId};
@@ -105,7 +107,7 @@ pub struct TaskDescription {
     pub resources: ResourceRequestVariants,
     pub time_limit: Option<Duration>,
     pub priority: tako::Priority,
-    pub crash_limit: u32,
+    pub crash_limit: CrashLimit,
 }
 
 impl TaskDescription {

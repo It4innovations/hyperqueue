@@ -7,7 +7,7 @@ use crate::WorkerId;
 use crate::internal::common::Set;
 use crate::internal::common::stablemap::ExtractKey;
 
-use crate::gateway::TaskDataFlags;
+use crate::gateway::{CrashLimit, TaskDataFlags};
 use crate::internal::datasrv::dataobj::DataObjectId;
 
 use crate::internal::messages::worker::{ComputeTaskMsg, ToWorkerMessage};
@@ -61,7 +61,7 @@ pub struct TaskConfiguration {
     pub resources: crate::internal::common::resources::ResourceRequestVariants,
     pub user_priority: Priority,
     pub time_limit: Option<Duration>,
-    pub crash_limit: u32,
+    pub crash_limit: CrashLimit,
     pub data_flags: TaskDataFlags,
 }
 
@@ -218,7 +218,11 @@ impl Task {
 
     pub(crate) fn increment_crash_counter(&mut self) -> bool {
         self.crash_counter += 1;
-        self.crash_counter >= self.configuration.crash_limit && self.configuration.crash_limit > 0
+        match self.configuration.crash_limit {
+            CrashLimit::NeverRestart => true,
+            CrashLimit::MaxCrashes(count) => self.crash_counter >= count as u32,
+            CrashLimit::Unlimited => false,
+        }
     }
 
     pub(crate) fn make_compute_message(&self, node_list: Vec<WorkerId>) -> ToWorkerMessage {

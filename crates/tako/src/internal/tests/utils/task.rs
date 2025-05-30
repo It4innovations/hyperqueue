@@ -1,6 +1,6 @@
 use super::resources::ResBuilder;
 use crate::datasrv::DataObjectId;
-use crate::gateway::TaskDataFlags;
+use crate::gateway::{CrashLimit, TaskDataFlags};
 use crate::internal::common::resources::{
     NumOfNodes, ResourceAmount, ResourceId, ResourceRequestVariants,
 };
@@ -19,7 +19,7 @@ pub struct TaskBuilder {
     finished_resources: Vec<ResourceRequest>,
     resources_builder: ResBuilder,
     user_priority: Priority,
-    crash_limit: u32,
+    crash_limit: CrashLimit,
     data_flags: TaskDataFlags,
 }
 
@@ -32,7 +32,7 @@ impl TaskBuilder {
             finished_resources: vec![],
             resources_builder: Default::default(),
             user_priority: 0,
-            crash_limit: 5,
+            crash_limit: CrashLimit::default(),
             data_flags: TaskDataFlags::empty(),
         }
     }

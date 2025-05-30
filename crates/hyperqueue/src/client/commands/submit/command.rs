@@ -36,14 +36,14 @@ use chumsky::text::TextParser;
 use clap::{ArgMatches, Parser};
 use smallvec::smallvec;
 use tako::gateway::{
-    ResourceRequest, ResourceRequestEntries, ResourceRequestEntry, ResourceRequestVariants,
+    CrashLimit, ResourceRequest, ResourceRequestEntries, ResourceRequestEntry,
+    ResourceRequestVariants,
 };
 use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
 use tako::resources::{AllocationRequest, CPU_RESOURCE_NAME, NumOfNodes, ResourceAmount};
 use tako::{JobId, JobTaskCount, Map};
 
 const SUBMIT_ARRAY_LIMIT: JobTaskCount = 999;
-pub const DEFAULT_CRASH_LIMIT: u32 = 5;
 
 // Keep in sync with `tests/util/job.py::default_task_output` and `pyhq/python/hyperqueue/output.py`
 pub const DEFAULT_STDOUT_PATH: &str = const_format::concatcp!(
@@ -295,16 +295,16 @@ pub struct SubmitJobTaskConfOpts {
     #[arg(long)]
     stream: Option<PathBuf>,
 
-    /// Create a temporary directory for task, path is provided in HQ_TASK_DIR
-    /// The directory is automatically deleted when task is finished
+    /// Create a temporary directory for the task, the path is provided in HQ_TASK_DIR
+    /// The directory is automatically deleted when the task is finished
     #[arg(long)]
     task_dir: bool,
 
     /// Limits how many times may task be in a running state while worker is lost.
     /// If the limit is reached, the task is marked as failed. If the limit is zero,
     /// the limit is disabled.
-    #[arg(long, default_value_t = 5)]
-    crash_limit: u32,
+    #[arg(long, default_value = "5", value_parser = parse_crash_limit)]
+    crash_limit: CrashLimit,
 }
 
 impl OptsWithMatches<SubmitJobTaskConfOpts> {
@@ -963,6 +963,20 @@ fn make_entries_from_json(filename: &Path) -> anyhow::Result<Vec<BString>> {
             "{}: The top element of the provided JSON file has to be an array",
             filename.display()
         )
+    }
+}
+
+pub fn parse_crash_limit(text: &str) -> anyhow::Result<CrashLimit> {
+    if text == "n" || text == "never-restart" {
+        Ok(CrashLimit::NeverRestart)
+    } else if text == "unlimited" {
+        Ok(CrashLimit::Unlimited)
+    } else {
+        let v: u16 = text.parse().map_err(|_| anyhow!("Invalid crash limit"))?;
+        if v == 0 {
+            bail!("Crash limit cannot be 0");
+        }
+        Ok(CrashLimit::MaxCrashes(v))
     }
 }
 
