@@ -71,7 +71,9 @@ where
             E: serde::de::Error,
         {
             if value == 0 {
-                return Err(E::custom("Crash limit cannot be 0"));
+                return Err(E::custom(
+                    "Crash limit cannot be 0. Use `never-restart` or `unlimited` instead.",
+                ));
             }
             Ok(CrashLimit::MaxCrashes(value))
         }
