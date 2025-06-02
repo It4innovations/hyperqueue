@@ -9,7 +9,7 @@ use serde_json;
 use serde_json::{Value, json};
 
 use tako::Map;
-use tako::gateway::ResourceRequest;
+use tako::gateway::{CrashLimit, ResourceRequest};
 use tako::program::{ProgramDefinition, StdioDef};
 use tako::resources::{ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind};
 use tako::worker::WorkerConfiguration;
@@ -253,6 +253,14 @@ impl Output for JsonOutput {
     }
 }
 
+fn format_crash_limit(limit: CrashLimit) -> Value {
+    match limit {
+        CrashLimit::NeverRestart => json!("never-restart"),
+        CrashLimit::MaxCrashes(v) => json!(v),
+        CrashLimit::Unlimited => json!("unlimited"),
+    }
+}
+
 fn format_task_description(task_desc: &TaskDescription) -> Value {
     let TaskDescription {
         kind,
@@ -313,7 +321,7 @@ fn format_task_description(task_desc: &TaskDescription) -> Value {
                 "priority": priority,
                 "time_limit": time_limit.map(format_duration),
                 "task_dir": task_dir,
-                "crash_limit": crash_limit,
+                "crash_limit": format_crash_limit(*crash_limit),
             })
         }
     }
