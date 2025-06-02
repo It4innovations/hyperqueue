@@ -107,6 +107,7 @@ pub fn build_task_def_from_config(
         priority: 0,
         crash_limit: 5,
         data_flags: TaskDataFlags::empty(),
+        body: body.into_boxed_slice(),
     };
     (
         TaskConfiguration {
@@ -114,7 +115,7 @@ pub fn build_task_def_from_config(
             shared_data_index: 0,
             task_deps: ThinVec::new(),
             dataobj_deps: ThinVec::new(),
-            body: body.into_boxed_slice(),
+            entry: None,
         },
         conf,
     )
