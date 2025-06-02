@@ -1,10 +1,10 @@
+use crate::JobDataObjectId;
 use crate::client::commands::submit::command::parse_crash_limit;
 use crate::client::resources::parse_allocation_request;
 use crate::common::arraydef::IntArray;
 use crate::common::arrayparser::parse_array;
 use crate::common::error::HqError;
 use crate::common::utils::time::parse_human_time;
-use crate::JobDataObjectId;
 use bstr::BString;
 use serde::de::MapAccess;
 use serde::{Deserialize, Deserializer};
@@ -59,6 +59,7 @@ where
 {
     struct CrashLimitVisitor;
 
+    #[allow(clippy::needless_lifetimes)] // Fix invalid warning on CI
     impl<'de> serde::de::Visitor<'de> for CrashLimitVisitor {
         type Value = CrashLimit;
 
