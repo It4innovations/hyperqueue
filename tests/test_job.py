@@ -1015,8 +1015,8 @@ def test_crashing_job_status_default(count: Optional[int], hq_env: HqEnv):
 def test_crashing_job_no_restart_stop_worker(hq_env: HqEnv):
     hq_env.start_server()
 
-    hq_env.command(["submit", f"--crash-limit=never-restart", "sleep", "10"])
-    hq_env.command(["submit", f"--crash-limit=1", "sleep", "10"])
+    hq_env.command(["submit", "--crash-limit=never-restart", "sleep", "10"])
+    hq_env.command(["submit", "--crash-limit=1", "sleep", "10"])
 
     w = hq_env.start_worker(cpus=2)
     wait_for_job_state(hq_env, [1, 2], "RUNNING")
@@ -1031,10 +1031,10 @@ def test_crashing_job_no_restart_stop_worker(hq_env: HqEnv):
 def test_crashing_job_no_restart_kill_worker(hq_env: HqEnv):
     hq_env.start_server()
 
-    hq_env.command(["submit", f"--crash-limit=never-restart", "sleep", "10"])
-    hq_env.command(["submit", f"--crash-limit=1", "sleep", "10"])
+    hq_env.command(["submit", "--crash-limit=never-restart", "sleep", "10"])
+    hq_env.command(["submit", "--crash-limit=1", "sleep", "10"])
 
-    w = hq_env.start_worker(cpus=2)
+    hq_env.start_worker(cpus=2)
     wait_for_job_state(hq_env, [1, 2], "RUNNING")
     hq_env.kill_worker(1)
 
