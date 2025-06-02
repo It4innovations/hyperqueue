@@ -237,7 +237,7 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<H
         time_limit: None,
         crash_limit: desc
             .crash_limit
-            .map(|v| CrashLimit::MaxCrashes(v))
+            .map(CrashLimit::MaxCrashes)
             .unwrap_or_default(),
     })
 }
