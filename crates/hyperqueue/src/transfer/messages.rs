@@ -259,7 +259,7 @@ pub struct JobInfoRequest {
 pub struct TaskExplainRequest {
     pub job_selector: SingleIdSelector,
     pub task_id: JobTaskId,
-    pub worker_id: WorkerId,
+    pub worker_ids: IdSelector,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -337,7 +337,6 @@ pub struct JobDetailResponse {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TaskExplainResponse {
     pub task_id: TaskId,
-    pub worker_id: WorkerId,
     pub explanation: TaskExplanation,
 }
 

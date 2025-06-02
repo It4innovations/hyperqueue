@@ -12,7 +12,7 @@ use tako::gateway::{CrashLimit, ResourceRequest};
 use tako::program::{ProgramDefinition, StdioDef};
 use tako::resources::{ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind};
 use tako::worker::WorkerConfiguration;
-use tako::{Map, TaskId, WorkerId};
+use tako::{Map, TaskId};
 
 use crate::client::job::WorkerMap;
 use crate::client::output::Verbosity;
@@ -253,13 +253,8 @@ impl Output for JsonOutput {
         self.print(json!({ "error": format!("{error:?}") }))
     }
 
-    fn print_explanation(
-        &self,
-        task_id: TaskId,
-        worker_id: WorkerId,
-        explanation: &TaskExplanation,
-    ) {
-        self.print(json!({ "task_id": task_id, "task_id": worker_id, "explanation": explanation }));
+    fn print_explanation(&self, task_id: TaskId, explanation: &TaskExplanation) {
+        self.print(json!({ "task_id": task_id, "explanation": explanation }));
     }
 }
 

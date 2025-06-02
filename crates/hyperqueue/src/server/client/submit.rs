@@ -4,11 +4,11 @@ use std::time::Duration;
 
 use bstr::BString;
 use chrono::{DateTime, Utc};
-use tako::Set;
 use tako::gateway::{
     ResourceRequestVariants, SharedTaskConfiguration, TaskConfiguration, TaskDataFlags, TaskSubmit,
 };
 use tako::{Map, TaskId};
+use tako::{Set, WorkerId};
 use thin_vec::ThinVec;
 
 use crate::common::arraydef::IntArray;
@@ -19,10 +19,10 @@ use crate::server::Senders;
 use crate::server::job::{Job, SubmittedJobDescription};
 use crate::server::state::{State, StateRef};
 use crate::transfer::messages::{
-    JobDescription, JobSubmitDescription, JobTaskDescription, OpenJobResponse, SingleIdSelector,
-    SubmitRequest, SubmitResponse, TaskBuildDescription, TaskDescription, TaskExplainRequest,
-    TaskExplainResponse, TaskIdSelector, TaskKind, TaskKindProgram, TaskSelector,
-    TaskStatusSelector, TaskWithDependencies, ToClientMessage,
+    IdSelector, JobDescription, JobSubmitDescription, JobTaskDescription, OpenJobResponse,
+    SingleIdSelector, SubmitRequest, SubmitResponse, TaskBuildDescription, TaskDescription,
+    TaskExplainRequest, TaskExplainResponse, TaskIdSelector, TaskKind, TaskKindProgram,
+    TaskSelector, TaskStatusSelector, TaskWithDependencies, ToClientMessage,
 };
 use tako::{JobId, JobTaskCount, JobTaskId, Priority};
 
@@ -392,13 +392,28 @@ pub(crate) fn handle_task_explain(
         SingleIdSelector::Last => state.last_job_id(),
     };
     let task_id = TaskId::new(job_id, request.task_id);
-    match senders
-        .server_control
-        .task_explain(task_id, request.worker_id)
-    {
+    let all_worker_ids = senders.server_control.worker_ids();
+    let worker_ids: Vec<WorkerId> = match request.worker_ids {
+        IdSelector::All => all_worker_ids,
+        IdSelector::LastN(n) => {
+            if n as usize >= all_worker_ids.len() {
+                all_worker_ids
+            } else {
+                all_worker_ids[all_worker_ids.len() - n as usize..].to_vec()
+            }
+        }
+        IdSelector::Specific(values) => {
+            let ids = Set::from_iter(all_worker_ids.iter().copied());
+            values
+                .iter()
+                .map(WorkerId::new)
+                .filter(|w| ids.contains(w))
+                .collect()
+        }
+    };
+    match senders.server_control.task_explain(task_id, &worker_ids) {
         Ok(explanation) => ToClientMessage::TaskExplain(TaskExplainResponse {
             task_id,
-            worker_id: request.worker_id,
             explanation,
         }),
         Err(e) => ToClientMessage::Error(e.to_string()),

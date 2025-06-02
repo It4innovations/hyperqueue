@@ -22,7 +22,7 @@ use crate::transfer::messages::{
     WorkerInfo,
 };
 use tako::server::TaskExplanation;
-use tako::{JobId, JobTaskId, TaskId, WorkerId};
+use tako::{JobId, JobTaskId, TaskId};
 
 #[derive(Default)]
 pub struct Quiet;
@@ -153,13 +153,7 @@ impl Output for Quiet {
         eprintln!("{error:?}");
     }
 
-    fn print_explanation(
-        &self,
-        _task_id: TaskId,
-        _worker_id: WorkerId,
-        _explanation: &TaskExplanation,
-    ) {
-    }
+    fn print_explanation(&self, _task_id: TaskId, _explanation: &TaskExplanation) {}
 }
 
 fn format_status(status: &Status) -> &str {

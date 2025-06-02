@@ -211,7 +211,7 @@ def test_worker_info(hq_env: HqEnv):
     hq_env.start_worker(cpus="10", args=["--heartbeat", "10s", "--manager", "none"])
 
     table = hq_env.command(["worker", "info", "1"], as_table=True)
-    table.check_row_value("Worker ID", "1")
+    table.check_row_value("Worker", "1")
     table.check_row_value("Heartbeat", "10s")
     table.check_row_value("Resources", "cpus: 10")
     table.check_row_value("Manager", "None")
