@@ -14,7 +14,7 @@ use crate::server::job::JobTaskInfo;
 use core::time::Duration;
 use tako::resources::ResourceDescriptor;
 use tako::server::TaskExplanation;
-use tako::{JobId, JobTaskId, TaskId, WorkerId};
+use tako::{JobId, JobTaskId, TaskId};
 
 pub const MAX_DISPLAYED_WORKERS: usize = 2;
 
@@ -93,10 +93,5 @@ pub trait Output {
 
     fn print_error(&self, error: anyhow::Error);
 
-    fn print_explanation(
-        &self,
-        task_id: TaskId,
-        worker_id: WorkerId,
-        explanation: &TaskExplanation,
-    );
+    fn print_explanation(&self, task_id: TaskId, explanation: &TaskExplanation);
 }

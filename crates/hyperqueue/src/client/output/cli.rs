@@ -40,8 +40,8 @@ use crate::common::arraydef::IntArray;
 use crate::common::utils::str::{pluralize, select_plural, truncate_middle};
 use crate::worker::start::WORKER_EXTRA_PROCESS_PID;
 use anyhow::Error;
-use colored::Color as Colorization;
 use colored::Colorize;
+use colored::{Color as Colorization, ColoredString};
 use std::collections::BTreeSet;
 use std::fs::File;
 use tako::gateway::{
@@ -281,7 +281,7 @@ impl Output for CliOutput {
 
         let manager_info = configuration.get_manager_info();
         let mut rows = vec![
-            vec!["Worker ID".cell().bold(true), id.cell()],
+            vec!["Worker".cell().bold(true), id.cell()],
             vec!["State".cell().bold(true), state],
             vec!["Hostname".cell().bold(true), configuration.hostname.cell()],
             vec!["Started".cell().bold(true), format_datetime(started).cell()],
@@ -1046,97 +1046,176 @@ impl Output for CliOutput {
         );
     }
 
-    fn print_explanation(
-        &self,
-        task_id: TaskId,
-        worker_id: WorkerId,
-        explanation: &TaskExplanation,
-    ) {
-        let all = explanation.variants.len();
-        let count: usize = explanation
-            .variants
-            .iter()
-            .map(|e| if e.is_empty() { 1 } else { 0 })
-            .sum();
-        if count > 0 {
-            if all == 1 {
-                println!(
-                    "Task {task_id} {} on worker {worker_id}.",
-                    "can run".color(colored::Color::Green)
-                );
-            } else {
-                println!(
-                    "Task {task_id} {} on worker {worker_id}, ({count}/{all} variants)",
-                    "can run".color(colored::Color::Green)
-                );
-            }
-            if explanation.n_task_deps == 0 {
-                println!("Task is directly executable because it does not have any dependencies.",);
-            } else if explanation.n_waiting_deps == explanation.n_task_deps {
-                println!(
-                    "Task is directly executable because all dependencies ({}) are already finished.",
-                    explanation.n_task_deps
-                );
-            } else {
-                println!(
-                    "Task is not directly executable because {} dependencies are not yet finished.",
-                    format!("{}/{}", explanation.n_waiting_deps, explanation.n_task_deps)
-                        .color(colored::Color::Red)
-                );
-            }
-        } else if all == 1 {
+    fn print_explanation(&self, task_id: TaskId, explanation: &TaskExplanation) {
+        if explanation.n_task_deps == 0 {
             println!(
-                "Task {task_id} {} on worker {worker_id}.",
-                "cannot run".color(colored::Color::Red)
-            );
+                "Task {} is {} to run because it has no dependencies.",
+                task_id.to_string().color(colored::Color::Cyan),
+                "ready".color(colored::Color::Yellow),
+            )
+        } else if explanation.n_waiting_deps == explanation.n_task_deps {
+            println!(
+                "Task {} is {} to run because its all {} dependencies are finished.",
+                task_id.to_string().color(colored::Color::Cyan),
+                "ready".color(colored::Color::Yellow),
+                explanation
+                    .n_task_deps
+                    .to_string()
+                    .color(colored::Color::Cyan),
+            )
         } else {
             println!(
-                "Task {task_id} {} on worker {worker_id}, none of {all} variants.",
-                "cannot run".color(colored::Color::Red)
-            );
+                "Task {} is {} to run, because {} dependencies are not finished.",
+                task_id.to_string().color(colored::Color::Cyan),
+                "not ready".color(colored::Color::Green),
+                format!("{}/{}", explanation.n_waiting_deps, explanation.n_task_deps)
+                    .to_string()
+                    .color(colored::Color::Red)
+            )
         }
-        for (i, explanations) in explanation.variants.iter().enumerate() {
-            if all > 1 && !explanations.is_empty() {
-                println!("Resource variant {i}:")
-            }
-            for expl in explanations {
-                match expl {
-                    TaskExplainItem::Time {
-                        min_time,
-                        remaining_time,
-                    } => {
-                        println!(
-                            "* Task requests at least {} of running time, but worker remaining time is: {}.",
-                            human_duration(chrono::Duration::from_std(*min_time).unwrap())
-                                .color(colored::Color::Cyan),
-                            human_duration(chrono::Duration::from_std(*remaining_time).unwrap())
-                                .color(colored::Color::Red),
-                        )
+        let mut rows = Vec::new();
+        for w in &explanation.workers {
+            let all_varints = w.variants.len();
+            let runnable_variants: usize = w
+                .variants
+                .iter()
+                .map(|e| if e.is_empty() { 1 } else { 0 })
+                .sum();
+            let can_run = if runnable_variants == 0 {
+                "No".cell().foreground_color(Some(Color::Red))
+            } else if all_varints == 1 {
+                "Yes".cell().foreground_color(Some(Color::Green))
+            } else {
+                format!(
+                    "{} ({}/{})",
+                    "Yes".color(colored::Color::Green),
+                    runnable_variants.to_string().color(colored::Color::Green),
+                    all_varints
+                )
+                .cell()
+            };
+            let mut header = vec![w.worker_id.cell(), can_run];
+            for (i, variant) in w.variants.iter().enumerate() {
+                if !variant.is_empty() {
+                    let (mut rtype, mut provs, mut rqs) = (Vec::new(), Vec::new(), Vec::new());
+                    variant.iter().for_each(|v| {
+                        let (rt, rq, pr) = explanation_item_to_strings(v);
+                        rtype.push(rt.to_string());
+                        provs.push(rq.to_string());
+                        rqs.push(pr.to_string());
+                    });
+                    if header.is_empty() {
+                        header.push("".cell());
+                        header.push("".cell());
                     }
-                    TaskExplainItem::Resources {
-                        resource,
-                        request_amount,
-                        worker_amount,
-                    } => {
-                        println!(
-                            "* Task requests at least {}, but worker provides {}.",
-                            format!("{} {}", request_amount, resource).color(colored::Color::Cyan),
-                            format!("{} {}", worker_amount, resource).color(colored::Color::Red),
-                        )
-                    }
-                    TaskExplainItem::WorkerGroup {
-                        n_nodes,
-                        group_size,
-                    } => {
-                        println!(
-                            "* Task requests at least {} nodes, but worker is in group of size {}.",
-                            format!("{}", n_nodes).color(colored::Color::Cyan),
-                            format!("{}", group_size).color(colored::Color::Red),
-                        )
-                    }
+                    header.push(i.cell());
+                    header.push(rtype.join("\n").cell());
+                    header.push(provs.join("\n").cell());
+                    header.push(rqs.join("\n").cell());
+                    rows.push(std::mem::take(&mut header));
                 }
             }
+            if !header.is_empty() {
+                for _ in 0..5 {
+                    header.push("".cell());
+                }
+                rows.push(header);
+            }
         }
+        let header = vec![
+            "Worker Id".cell(),
+            "Runnable".cell(),
+            "Variant".cell(),
+            "Type".cell(),
+            "Provides".cell(),
+            "Request".cell(),
+        ];
+        self.print_horizontal_table(rows, header);
+        // let all = explanation.variants.len();
+        // let count: usize = explanation
+        //     .variants
+        //     .iter()
+        //     .map(|e| if e.is_empty() { 1 } else { 0 })
+        //     .sum();
+        // if count > 0 {
+        //     if all == 1 {
+        //         println!(
+        //             "Task {task_id} {} on worker {worker_id}.",
+        //             "can run".color(colored::Color::Green)
+        //         );
+        //     } else {
+        //         println!(
+        //             "Task {task_id} {} on worker {worker_id}, ({count}/{all} variants)",
+        //             "can run".color(colored::Color::Green)
+        //         );
+        //     }
+        //     if explanation.n_task_deps == 0 {
+        //         println!("Task is directly executable because it does not have any dependencies.",);
+        //     } else if explanation.n_waiting_deps == explanation.n_task_deps {
+        //         println!(
+        //             "Task is directly executable because all dependencies ({}) are already finished.",
+        //             explanation.n_task_deps
+        //         );
+        //     } else {
+        //         println!(
+        //             "Task is not directly executable because {} dependencies are not yet finished.",
+        //             format!("{}/{}", explanation.n_waiting_deps, explanation.n_task_deps)
+        //                 .color(colored::Color::Red)
+        //         );
+        //     }
+        // } else if all == 1 {
+        //     println!(
+        //         "Task {task_id} {} on worker {worker_id}.",
+        //         "cannot run".color(colored::Color::Red)
+        //     );
+        // } else {
+        //     println!(
+        //         "Task {task_id} {} on worker {worker_id}, none of {all} variants.",
+        //         "cannot run".color(colored::Color::Red)
+        //     );
+        // }
+        // for (i, explanations) in explanation.variants.iter().enumerate() {
+        //     if all > 1 && !explanations.is_empty() {
+        //         println!("Resource variant {i}:")
+        //     }
+        //     for expl in explanations {
+        //         match expl {
+        //             TaskExplainItem::Time {
+        //                 min_time,
+        //                 remaining_time,
+        //             } => {
+        //                 println!(
+        //                     "* Task requests at least {} of running time, but worker remaining time is: {}.",
+        //                     human_duration(chrono::Duration::from_std(*min_time).unwrap())
+        //                         .color(colored::Color::Cyan),
+        //                     human_duration(chrono::Duration::from_std(*remaining_time).unwrap())
+        //                         .color(colored::Color::Red),
+        //                 )
+        //             }
+        //             TaskExplainItem::Resources {
+        //                 resource,
+        //                 request_amount,
+        //                 worker_amount,
+        //             } => {
+        //                 println!(
+        //                     "* Task requests at least {}, but worker provides {}.",
+        //                     format!("{} {}", request_amount, resource).color(colored::Color::Cyan),
+        //                     format!("{} {}", worker_amount, resource).color(colored::Color::Red),
+        //                 )
+        //             }
+        //             TaskExplainItem::WorkerGroup {
+        //                 n_nodes,
+        //                 group_size,
+        //             } => {
+        //                 println!(
+        //                     "* Task requests at least {} nodes, but worker is in group of size {}.",
+        //                     format!("{}", n_nodes).color(colored::Color::Cyan),
+        //                     format!("{}", group_size).color(colored::Color::Red),
+        //                 )
+        //             }
+        //         }
+        //     }
+        // }
     }
 }
 
@@ -1649,6 +1728,42 @@ fn resources_summary(resources: &ResourceDescriptor, multiline: bool) -> String 
         first = false;
     }
     result
+}
+
+fn explanation_item_to_strings(
+    item: &TaskExplainItem,
+) -> (ColoredString, ColoredString, ColoredString) {
+    match item {
+        TaskExplainItem::Time {
+            min_time,
+            remaining_time,
+        } => (
+            "time".color(colored::Color::Magenta),
+            human_duration(chrono::Duration::from_std(*remaining_time).unwrap())
+                .to_string()
+                .color(colored::Color::Yellow),
+            human_duration(chrono::Duration::from_std(*min_time).unwrap())
+                .to_string()
+                .color(colored::Color::Red),
+        ),
+        TaskExplainItem::Resources {
+            resource,
+            request_amount,
+            worker_amount,
+        } => (
+            resource.color(colored::Color::Cyan),
+            format!("{}", worker_amount).color(colored::Color::Yellow),
+            format!("{}", request_amount).color(colored::Color::Red),
+        ),
+        TaskExplainItem::WorkerGroup {
+            n_nodes,
+            group_size,
+        } => (
+            "nodes".color(colored::Color::Magenta),
+            format!("group size {}", group_size).color(colored::Color::Yellow),
+            format!("{}", n_nodes).color(colored::Color::Red),
+        ),
+    }
 }
 
 #[cfg(test)]

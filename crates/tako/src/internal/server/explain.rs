@@ -1,3 +1,4 @@
+use crate::WorkerId;
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::worker::Worker;
 use crate::internal::server::workergroup::WorkerGroup;
@@ -7,9 +8,15 @@ use std::time::Duration;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskExplanation {
-    pub variants: Vec<Vec<TaskExplainItem>>,
     pub n_task_deps: u32,
     pub n_waiting_deps: u32,
+    pub workers: Vec<TaskExplanationForWorker>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskExplanationForWorker {
+    pub worker_id: WorkerId,
+    pub variants: Vec<Vec<TaskExplainItem>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -29,14 +36,26 @@ pub enum TaskExplainItem {
     },
 }
 
-pub fn task_explain(
+pub fn task_explain_init(task: &Task) -> TaskExplanation {
+    TaskExplanation {
+        n_task_deps: task.task_deps.len() as u32,
+        n_waiting_deps: match &task.state {
+            TaskRuntimeState::Waiting(w) => w.unfinished_deps,
+            _ => 0,
+        },
+        workers: Vec::new(),
+    }
+}
+
+pub fn task_explain_for_worker(
     resource_map: &ResourceMap,
     task: &Task,
     worker: &Worker,
     worker_group: &WorkerGroup,
     now: std::time::Instant,
-) -> TaskExplanation {
-    TaskExplanation {
+) -> TaskExplanationForWorker {
+    TaskExplanationForWorker {
+        worker_id: worker.id,
         variants: task
             .configuration
             .resources
@@ -78,17 +97,12 @@ pub fn task_explain(
                 result
             })
             .collect(),
-        n_task_deps: task.task_deps.len() as u32,
-        n_waiting_deps: match &task.state {
-            TaskRuntimeState::Waiting(w) => w.unfinished_deps,
-            _ => 0,
-        },
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::internal::server::explain::{TaskExplainItem, task_explain};
+    use crate::internal::server::explain::{TaskExplainItem, task_explain_for_worker};
     use crate::internal::server::worker::Worker;
     use crate::internal::server::workergroup::WorkerGroup;
     use crate::internal::tests::utils::schedule::create_test_worker_config;
@@ -119,7 +133,7 @@ mod tests {
 
         let explain = |task, worker, now| {
             let group = WorkerGroup::new(Set::new());
-            task_explain(&resource_map, task, worker, &group, now)
+            task_explain_for_worker(&resource_map, task, worker, &group, now)
         };
 
         let task_id = 1;
@@ -221,7 +235,7 @@ mod tests {
         wset.insert(WorkerId::new(3));
         wset.insert(WorkerId::new(132));
         let group = WorkerGroup::new(wset);
-        let r = task_explain(&resource_map, &task, &worker, &group, now);
+        let r = task_explain_for_worker(&resource_map, &task, &worker, &group, now);
         assert_eq!(r.variants.len(), 1);
         assert!(r.variants[0].is_empty());
 
@@ -229,7 +243,7 @@ mod tests {
         wset.insert(WorkerId::new(1));
         wset.insert(WorkerId::new(132));
         let group = WorkerGroup::new(wset);
-        let r = task_explain(&resource_map, &task, &worker, &group, now);
+        let r = task_explain_for_worker(&resource_map, &task, &worker, &group, now);
         assert_eq!(r.variants.len(), 1);
         assert_eq!(r.variants[0].len(), 1);
         assert!(matches!(

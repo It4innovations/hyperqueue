@@ -16,7 +16,9 @@ use crate::internal::scheduler::state::{run_scheduling_now, scheduler_loop};
 use crate::internal::server::client::handle_new_tasks;
 use crate::internal::server::comm::{Comm, CommSenderRef};
 use crate::internal::server::core::{CoreRef, CustomConnectionHandler};
-use crate::internal::server::explain::{TaskExplanation, task_explain};
+use crate::internal::server::explain::{
+    TaskExplanation, task_explain_for_worker, task_explain_init,
+};
 use crate::internal::server::reactor::on_cancel_tasks;
 use crate::internal::server::worker::DEFAULT_WORKER_OVERVIEW_INTERVAL;
 use crate::resources::ResourceDescriptor;
@@ -129,22 +131,35 @@ impl ServerRef {
     pub fn task_explain(
         &self,
         task_id: TaskId,
-        worker_id: WorkerId,
+        worker_ids: &[WorkerId],
     ) -> crate::Result<TaskExplanation> {
         let core = self.core_ref.get();
         let Some(task) = core.find_task(task_id) else {
             return Err(DsError::from("Task not found"));
         };
-        let Some(worker) = core.get_worker_by_id(worker_id) else {
-            return Err(DsError::from("Worker not found"));
-        };
-        let group = core
-            .worker_groups()
-            .get(&worker.configuration.group)
-            .unwrap();
         let resource_map = core.create_resource_map();
         let now = Instant::now();
-        Ok(task_explain(&resource_map, task, worker, group, now))
+        let mut explanation = task_explain_init(task);
+        explanation.workers = worker_ids
+            .iter()
+            .map(|worker_id| {
+                let Some(worker) = core.get_worker_by_id(*worker_id) else {
+                    return Err(DsError::from("Worker not found"));
+                };
+                let group = core
+                    .worker_groups()
+                    .get(&worker.configuration.group)
+                    .unwrap();
+                Ok(task_explain_for_worker(
+                    &resource_map,
+                    task,
+                    worker,
+                    group,
+                    now,
+                ))
+            })
+            .collect::<crate::Result<Vec<_>>>()?;
+        Ok(explanation)
     }
 
     pub fn worker_info(&self, worker_id: WorkerId) -> Option<WorkerRuntimeInfo> {
@@ -152,6 +167,11 @@ impl ServerRef {
         core.get_worker_map()
             .get(&worker_id)
             .map(|w| w.worker_info(core.task_map()))
+    }
+
+    pub fn worker_ids(&self) -> Vec<WorkerId> {
+        let core = self.core_ref.get();
+        core.get_workers().map(|w| w.id).collect()
     }
 
     pub fn add_worker_overview_listener(&self) {

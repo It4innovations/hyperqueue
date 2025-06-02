@@ -3,7 +3,9 @@ use crate::client::globalsettings::GlobalSettings;
 use crate::client::job::get_worker_map;
 use crate::client::output::{Verbosity, VerbosityFlag};
 use crate::common::arraydef::IntArray;
-use crate::common::cli::{TaskSelectorArg, parse_last_range, parse_last_single_id};
+use crate::common::cli::{
+    TaskSelectorArg, parse_last_all_range, parse_last_range, parse_last_single_id,
+};
 use crate::common::error::HqError;
 use crate::rpc_call;
 use crate::transfer::connection::ClientSession;
@@ -11,7 +13,7 @@ use crate::transfer::messages::{
     FromClientMessage, IdSelector, JobDetailRequest, SingleIdSelector, TaskExplainRequest,
     TaskIdSelector, TaskSelector, TaskStatusSelector, ToClientMessage,
 };
-use tako::{JobId, JobTaskId, WorkerId};
+use tako::{JobId, JobTaskId};
 
 #[derive(clap::Parser)]
 pub struct TaskOpts {
@@ -64,8 +66,9 @@ pub struct TaskExplainOpts {
     /// Select specific task(s)
     pub task_id: JobTaskId,
 
-    /// Worker used in explanation
-    pub worker_id: WorkerId,
+    /// Workers used in explanation
+    #[arg(value_parser = parse_last_all_range)]
+    pub worker_ids: IdSelector,
 }
 
 pub async fn output_job_task_list(
@@ -195,14 +198,12 @@ pub async fn output_job_task_explain(
     let message = FromClientMessage::TaskExplain(TaskExplainRequest {
         job_selector: opts.job_selector,
         task_id: opts.task_id,
-        worker_id: opts.worker_id,
+        worker_ids: opts.worker_ids,
     });
     let response =
         rpc_call!(session.connection(), message, ToClientMessage::TaskExplain(r) => r).await?;
-    gsettings.printer().print_explanation(
-        response.task_id,
-        response.worker_id,
-        &response.explanation,
-    );
+    gsettings
+        .printer()
+        .print_explanation(response.task_id, &response.explanation);
     Ok(())
 }
