@@ -251,6 +251,10 @@ impl Output for JsonOutput {
     fn print_error(&self, error: Error) {
         self.print(json!({ "error": format!("{error:?}") }))
     }
+
+    fn finalize_output(&self) {
+        self.print(json!({}));
+    }
 }
 
 fn format_crash_limit(limit: CrashLimit) -> Value {
