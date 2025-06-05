@@ -23,7 +23,13 @@ impl TaskExplanationForWorker {
     pub fn n_enabled_variants(&self) -> u32 {
         self.variants
             .iter()
-            .map(|v| if v.is_empty() { 1 } else { 0 })
+            .map(|v| {
+                if v.iter().any(|item| item.is_blocking()) {
+                    0
+                } else {
+                    1
+                }
+            })
             .sum()
     }
 
@@ -40,7 +46,7 @@ impl TaskExplanationForWorker {
 pub enum TaskExplainItem {
     Time {
         min_time: Duration,
-        remaining_time: Duration,
+        remaining_time: Option<Duration>,
     },
     Resources {
         resource: String,
@@ -51,6 +57,30 @@ pub enum TaskExplainItem {
         n_nodes: NumOfNodes,
         group_size: NumOfNodes,
     },
+}
+
+impl TaskExplainItem {
+    pub fn is_blocking(&self) -> bool {
+        match self {
+            TaskExplainItem::Time {
+                min_time,
+                remaining_time: Some(remaining_time),
+            } => min_time > remaining_time,
+            TaskExplainItem::Time {
+                min_time: _,
+                remaining_time: None,
+            } => false,
+            TaskExplainItem::Resources {
+                resource: _,
+                request_amount,
+                worker_amount,
+            } => request_amount > worker_amount,
+            TaskExplainItem::WorkerGroup {
+                n_nodes,
+                group_size,
+            } => n_nodes > group_size,
+        }
+    }
 }
 
 pub fn task_explain_init(task: &Task) -> TaskExplanation {
@@ -80,35 +110,29 @@ pub fn task_explain_for_worker(
             .iter()
             .map(|rq| {
                 let mut result = Vec::new();
-                if let Some(remaining_time) = worker.remaining_time(now) {
-                    if rq.min_time() > remaining_time {
-                        result.push(TaskExplainItem::Time {
-                            min_time: rq.min_time(),
-                            remaining_time,
-                        });
-                    }
+                if !rq.min_time().is_zero() {
+                    result.push(TaskExplainItem::Time {
+                        min_time: rq.min_time(),
+                        remaining_time: worker.remaining_time(now),
+                    });
                 }
                 if rq.is_multi_node() {
-                    if rq.n_nodes() > worker_group.size() as NumOfNodes {
-                        result.push(TaskExplainItem::WorkerGroup {
-                            n_nodes: rq.n_nodes(),
-                            group_size: worker_group.size() as NumOfNodes,
-                        })
-                    }
+                    result.push(TaskExplainItem::WorkerGroup {
+                        n_nodes: rq.n_nodes(),
+                        group_size: worker_group.size() as NumOfNodes,
+                    })
                 } else {
                     for entry in rq.entries() {
                         let request_amount = entry.request.min_amount();
                         let worker_amount = worker.resources.get(entry.resource_id);
-                        if request_amount > worker_amount {
-                            result.push(TaskExplainItem::Resources {
-                                resource: resource_map
-                                    .get_name(entry.resource_id)
-                                    .unwrap()
-                                    .to_string(),
-                                request_amount,
-                                worker_amount,
-                            })
-                        }
+                        result.push(TaskExplainItem::Resources {
+                            resource: resource_map
+                                .get_name(entry.resource_id)
+                                .unwrap()
+                                .to_string(),
+                            request_amount,
+                            worker_amount,
+                        })
                     }
                 }
                 result
@@ -157,32 +181,37 @@ mod tests {
         let task = TaskBuilder::new(task_id).build();
         let r = explain(&task, &worker1, now);
         assert_eq!(r.variants.len(), 1);
-        assert!(r.variants[0].is_empty());
+        assert_eq!(r.variants[0].len(), 1);
+        assert_eq!(r.n_enabled_variants(), 1);
 
         let task = TaskBuilder::new(task_id).time_request(20_000).build();
         let r = explain(&task, &worker1, now);
         assert_eq!(r.variants.len(), 1);
-        assert!(r.variants[0].is_empty());
+        assert_eq!(r.variants[0].len(), 2);
+        assert_eq!(r.n_enabled_variants(), 1);
 
         let r = explain(&task, &worker2, now);
         assert_eq!(r.variants.len(), 1);
-        assert!(r.variants[0].is_empty());
+        assert_eq!(r.variants[0].len(), 2);
+        assert_eq!(r.n_enabled_variants(), 1);
 
         let now2 = now + Duration::from_secs(21_000);
         let r = explain(&task, &worker1, now2);
         assert_eq!(r.variants.len(), 1);
-        assert!(r.variants[0].is_empty());
+        assert_eq!(r.variants[0].len(), 2);
+        assert_eq!(r.n_enabled_variants(), 1);
 
         let r = explain(&task, &worker2, now2);
         assert_eq!(r.variants.len(), 1);
-        assert_eq!(r.variants[0].len(), 1);
+        assert_eq!(r.variants[0].len(), 2);
         assert!(matches!(
             r.variants[0][0],
             TaskExplainItem::Time {
                 min_time,
                 remaining_time,
-            } if min_time == Duration::from_secs(20_000) && remaining_time == Duration::from_secs(19_000)
+            } if min_time == Duration::from_secs(20_000) && remaining_time == Some(Duration::from_secs(19_000))
         ));
+        assert_eq!(r.n_enabled_variants(), 0);
 
         let task = TaskBuilder::new(task_id)
             .time_request(20_000)
@@ -191,13 +220,14 @@ mod tests {
             .build();
         let r = explain(&task, &worker2, now);
         assert_eq!(r.variants.len(), 1);
-        assert_eq!(r.variants[0].len(), 1);
+        assert_eq!(r.variants[0].len(), 3);
         assert!(matches!(
-            &r.variants[0][0],
+            &r.variants[0][1],
             TaskExplainItem::Resources {
                 resource, request_amount, worker_amount
             } if resource == "cpus" && *request_amount == ResourceAmount::new_units(30) && *worker_amount == ResourceAmount::new_units(10)
         ));
+        assert_eq!(r.n_enabled_variants(), 0);
 
         let task = TaskBuilder::new(task_id)
             .time_request(30_000)
@@ -210,13 +240,13 @@ mod tests {
         let r = explain(&task, &worker2, now2);
         assert_eq!(r.variants.len(), 2);
         assert_eq!(r.variants[0].len(), 3);
-        assert_eq!(r.variants[1].len(), 1);
+        assert_eq!(r.variants[1].len(), 2);
         assert!(matches!(
             r.variants[0][0],
             TaskExplainItem::Time {
                 min_time,
                 remaining_time,
-            } if min_time == Duration::from_secs(30_000) && remaining_time == Duration::from_secs(19_000)
+            } if min_time == Duration::from_secs(30_000) && remaining_time == Some(Duration::from_secs(19_000))
         ));
         assert!(matches!(
             &r.variants[0][1],
@@ -231,7 +261,7 @@ mod tests {
             } if resource == "gpus" && *request_amount == ResourceAmount::new_units(8) && *worker_amount == ResourceAmount::new_units(4)
         ));
         assert!(matches!(
-            &r.variants[1][0],
+            &r.variants[1][1],
             TaskExplainItem::Resources {
                 resource, request_amount, worker_amount
             } if resource == "gpus" && *request_amount == ResourceAmount::new_units(32) && *worker_amount == ResourceAmount::new_units(4)
@@ -254,7 +284,8 @@ mod tests {
         let group = WorkerGroup::new(wset);
         let r = task_explain_for_worker(&resource_map, &task, &worker, &group, now);
         assert_eq!(r.variants.len(), 1);
-        assert!(r.variants[0].is_empty());
+        assert_eq!(r.variants[0].len(), 1);
+        assert_eq!(r.n_enabled_variants(), 1);
 
         let mut wset = Set::new();
         wset.insert(WorkerId::new(1));
@@ -270,5 +301,6 @@ mod tests {
                 group_size: 2
             }
         ));
+        assert_eq!(r.n_enabled_variants(), 0);
     }
 }
