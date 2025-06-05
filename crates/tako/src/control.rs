@@ -128,11 +128,7 @@ impl ServerRef {
         core.try_release_memory();
     }
 
-    pub fn task_explain(
-        &self,
-        task_id: TaskId,
-        worker_ids: &[WorkerId],
-    ) -> crate::Result<TaskExplanation> {
+    pub fn task_explain(&self, task_id: TaskId) -> crate::Result<TaskExplanation> {
         let core = self.core_ref.get();
         let Some(task) = core.find_task(task_id) else {
             return Err(DsError::from("Task not found"));
@@ -140,12 +136,9 @@ impl ServerRef {
         let resource_map = core.create_resource_map();
         let now = Instant::now();
         let mut explanation = task_explain_init(task);
-        explanation.workers = worker_ids
-            .iter()
-            .map(|worker_id| {
-                let Some(worker) = core.get_worker_by_id(*worker_id) else {
-                    return Err(DsError::from("Worker not found"));
-                };
+        explanation.workers = core
+            .get_workers()
+            .map(|worker| {
                 let group = core
                     .worker_groups()
                     .get(&worker.configuration.group)
@@ -159,6 +152,7 @@ impl ServerRef {
                 ))
             })
             .collect::<crate::Result<Vec<_>>>()?;
+        explanation.workers.sort_by_key(|w| w.worker_id);
         Ok(explanation)
     }
 
@@ -167,11 +161,6 @@ impl ServerRef {
         core.get_worker_map()
             .get(&worker_id)
             .map(|w| w.worker_info(core.task_map()))
-    }
-
-    pub fn worker_ids(&self) -> Vec<WorkerId> {
-        let core = self.core_ref.get();
-        core.get_workers().map(|w| w.id).collect()
     }
 
     pub fn add_worker_overview_listener(&self) {

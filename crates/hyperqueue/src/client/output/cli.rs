@@ -1,5 +1,6 @@
 use cli_table::format::{Justify, Separator};
 use cli_table::{Cell, CellStruct, Color, ColorChoice, Style, Table, TableStruct, print_stdout};
+use itertools::Itertools;
 
 use std::fmt::{Display, Write};
 use std::io::Write as write;
@@ -1073,149 +1074,80 @@ impl Output for CliOutput {
                     .color(colored::Color::Red)
             )
         }
-        let mut rows = Vec::new();
-        for w in &explanation.workers {
-            let all_varints = w.variants.len();
-            let runnable_variants: usize = w
-                .variants
-                .iter()
-                .map(|e| if e.is_empty() { 1 } else { 0 })
-                .sum();
-            let can_run = if runnable_variants == 0 {
-                "No".cell().foreground_color(Some(Color::Red))
-            } else if all_varints == 1 {
-                "Yes".cell().foreground_color(Some(Color::Green))
-            } else {
-                format!(
-                    "{} ({}/{})",
-                    "Yes".color(colored::Color::Green),
-                    runnable_variants.to_string().color(colored::Color::Green),
-                    all_varints
-                )
-                .cell()
-            };
-            let mut header = vec![w.worker_id.cell(), can_run];
-            for (i, variant) in w.variants.iter().enumerate() {
-                if !variant.is_empty() {
-                    let (mut rtype, mut provs, mut rqs) = (Vec::new(), Vec::new(), Vec::new());
-                    variant.iter().for_each(|v| {
-                        let (rt, rq, pr) = explanation_item_to_strings(v);
-                        rtype.push(rt.to_string());
-                        provs.push(rq.to_string());
-                        rqs.push(pr.to_string());
-                    });
-                    if header.is_empty() {
-                        header.push("".cell());
+        let mut runnable_worker_ids = explanation
+            .workers
+            .iter()
+            .filter_map(|w| w.is_enabled().then(|| w.worker_id.as_num()))
+            .collect_vec();
+        if runnable_worker_ids.is_empty() {
+            println!(
+                "There is {} where the task can run.",
+                "no worker".color(colored::Color::Red)
+            );
+        } else {
+            let ids = IntArray::from_sorted_ids(runnable_worker_ids.into_iter());
+            println!(
+                "The task can run on {} workers: {}",
+                ids.id_count().to_string().color(colored::Color::Green),
+                ids.to_string().color(colored::Color::Green)
+            );
+        }
+        if !explanation.workers.is_empty() {
+            let mut rows = Vec::new();
+            for w in &explanation.workers {
+                let all_varints = w.n_variants();
+                let enabled_variants = w.n_enabled_variants();
+                let can_run = if enabled_variants == 0 {
+                    "No".cell().foreground_color(Some(Color::Red))
+                } else if all_varints == 1 {
+                    "Yes".cell().foreground_color(Some(Color::Green))
+                } else {
+                    format!(
+                        "{} ({}/{})",
+                        "Yes".color(colored::Color::Green),
+                        enabled_variants.to_string().color(colored::Color::Green),
+                        all_varints
+                    )
+                    .cell()
+                };
+                let mut header = vec![w.worker_id.cell(), can_run];
+                for (i, variant) in w.variants.iter().enumerate() {
+                    if !variant.is_empty() {
+                        let (mut rtype, mut provs, mut rqs) = (Vec::new(), Vec::new(), Vec::new());
+                        variant.iter().for_each(|v| {
+                            let (rt, rq, pr) = explanation_item_to_strings(v);
+                            rtype.push(rt.to_string());
+                            provs.push(rq.to_string());
+                            rqs.push(pr.to_string());
+                        });
+                        if header.is_empty() {
+                            header.push("".cell());
+                            header.push("".cell());
+                        }
+                        header.push(i.cell());
+                        header.push(rtype.join("\n").cell());
+                        header.push(provs.join("\n").cell());
+                        header.push(rqs.join("\n").cell());
+                        rows.push(std::mem::take(&mut header));
+                    }
+                }
+                if !header.is_empty() {
+                    for _ in 0..5 {
                         header.push("".cell());
                     }
-                    header.push(i.cell());
-                    header.push(rtype.join("\n").cell());
-                    header.push(provs.join("\n").cell());
-                    header.push(rqs.join("\n").cell());
-                    rows.push(std::mem::take(&mut header));
+                    rows.push(header);
                 }
             }
-            if !header.is_empty() {
-                for _ in 0..5 {
-                    header.push("".cell());
-                }
-                rows.push(header);
-            }
+            let header = vec![
+                "Worker Id".cell(),
+                "Runnable".cell(),
+                "Variant".cell(),
+                "Type".cell(),
+                "Provides".cell(),
+                "Request".cell(),
+            ];
+            self.print_horizontal_table(rows, header);
         }
-        let header = vec![
-            "Worker Id".cell(),
-            "Runnable".cell(),
-            "Variant".cell(),
-            "Type".cell(),
-            "Provides".cell(),
-            "Request".cell(),
-        ];
-        self.print_horizontal_table(rows, header);
-        // let all = explanation.variants.len();
-        // let count: usize = explanation
-        //     .variants
-        //     .iter()
-        //     .map(|e| if e.is_empty() { 1 } else { 0 })
-        //     .sum();
-        // if count > 0 {
-        //     if all == 1 {
-        //         println!(
-        //             "Task {task_id} {} on worker {worker_id}.",
-        //             "can run".color(colored::Color::Green)
-        //         );
-        //     } else {
-        //         println!(
-        //             "Task {task_id} {} on worker {worker_id}, ({count}/{all} variants)",
-        //             "can run".color(colored::Color::Green)
-        //         );
-        //     }
-        //     if explanation.n_task_deps == 0 {
-        //         println!("Task is directly executable because it does not have any dependencies.",);
-        //     } else if explanation.n_waiting_deps == explanation.n_task_deps {
-        //         println!(
-        //             "Task is directly executable because all dependencies ({}) are already finished.",
-        //             explanation.n_task_deps
-        //         );
-        //     } else {
-        //         println!(
-        //             "Task is not directly executable because {} dependencies are not yet finished.",
-        //             format!("{}/{}", explanation.n_waiting_deps, explanation.n_task_deps)
-        //                 .color(colored::Color::Red)
-        //         );
-        //     }
-        // } else if all == 1 {
-        //     println!(
-        //         "Task {task_id} {} on worker {worker_id}.",
-        //         "cannot run".color(colored::Color::Red)
-        //     );
-        // } else {
-        //     println!(
-        //         "Task {task_id} {} on worker {worker_id}, none of {all} variants.",
-        //         "cannot run".color(colored::Color::Red)
-        //     );
-        // }
-        // for (i, explanations) in explanation.variants.iter().enumerate() {
-        //     if all > 1 && !explanations.is_empty() {
-        //         println!("Resource variant {i}:")
-        //     }
-        //     for expl in explanations {
-        //         match expl {
-        //             TaskExplainItem::Time {
-        //                 min_time,
-        //                 remaining_time,
-        //             } => {
-        //                 println!(
-        //                     "* Task requests at least {} of running time, but worker remaining time is: {}.",
-        //                     human_duration(chrono::Duration::from_std(*min_time).unwrap())
-        //                         .color(colored::Color::Cyan),
-        //                     human_duration(chrono::Duration::from_std(*remaining_time).unwrap())
-        //                         .color(colored::Color::Red),
-        //                 )
-        //             }
-        //             TaskExplainItem::Resources {
-        //                 resource,
-        //                 request_amount,
-        //                 worker_amount,
-        //             } => {
-        //                 println!(
-        //                     "* Task requests at least {}, but worker provides {}.",
-        //                     format!("{} {}", request_amount, resource).color(colored::Color::Cyan),
-        //                     format!("{} {}", worker_amount, resource).color(colored::Color::Red),
-        //                 )
-        //             }
-        //             TaskExplainItem::WorkerGroup {
-        //                 n_nodes,
-        //                 group_size,
-        //             } => {
-        //                 println!(
-        //                     "* Task requests at least {} nodes, but worker is in group of size {}.",
-        //                     format!("{}", n_nodes).color(colored::Color::Cyan),
-        //                     format!("{}", group_size).color(colored::Color::Red),
-        //                 )
-        //             }
-        //         }
-        //     }
-        // }
     }
 }
 
