@@ -19,6 +19,23 @@ pub struct TaskExplanationForWorker {
     pub variants: Vec<Vec<TaskExplainItem>>,
 }
 
+impl TaskExplanationForWorker {
+    pub fn n_enabled_variants(&self) -> u32 {
+        self.variants
+            .iter()
+            .map(|v| if v.is_empty() { 1 } else { 0 })
+            .sum()
+    }
+
+    pub fn n_variants(&self) -> u32 {
+        self.variants.len() as u32
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        self.n_enabled_variants() > 0
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TaskExplainItem {
     Time {
