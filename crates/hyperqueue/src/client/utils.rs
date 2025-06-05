@@ -9,7 +9,7 @@ macro_rules! rpc_call {
             match $conn.send_and_receive($message).await? {
                 $matcher => $crate::Result::Ok(($($result),*)),
                 $crate::transfer::messages::ToClientMessage::Error(e) => {
-                    $crate::common::error::error(format!("Received error: {:?}", e))
+                    $crate::common::error::error(format!("{}", e))
                 }
                 msg => {
                     $crate::common::error::error(format!("Received an invalid message {:?}", msg))
