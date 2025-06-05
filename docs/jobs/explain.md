@@ -3,9 +3,9 @@ this purpose, there is an `explain` command in HQ.
 
 It can be used as follows:
 
-`hq task explain <JOB_ID> <TASK_ID> <WORKER_IDS>`
+`hq task explain <JOB_ID> <TASK_ID>`
 
-This command provides information about whether the given task can run on the specified workers.
+This command provides information about whether the given task can run on workers.
 If it cannot run, it returns explanation why. The explanation considers the following areas:
 
 * Resources
