@@ -15,7 +15,7 @@ use crate::common::placeholders::{
     fill_placeholders_after_submit, fill_placeholders_log, normalize_path,
 };
 use crate::server::Senders;
-use crate::server::job::{Job, SubmittedJobDescription};
+use crate::server::job::{Job, JobTaskState, SubmittedJobDescription};
 use crate::server::state::{State, StateRef};
 use crate::transfer::messages::{
     JobDescription, JobSubmitDescription, JobTaskDescription, OpenJobResponse, SingleIdSelector,
@@ -390,13 +390,26 @@ pub(crate) fn handle_task_explain(
         SingleIdSelector::Specific(job_id) => JobId::new(job_id),
         SingleIdSelector::Last => state.last_job_id(),
     };
-    let task_id = TaskId::new(job_id, request.task_id);
-    match senders.server_control.task_explain(task_id) {
-        Ok(explanation) => ToClientMessage::TaskExplain(TaskExplainResponse {
-            task_id,
-            explanation,
-        }),
-        Err(e) => ToClientMessage::Error(e.to_string()),
+    let Some(job) = state.get_job(job_id) else {
+        return ToClientMessage::Error("Job not found".to_string());
+    };
+    let Some(task) = job.tasks.get(&request.task_id) else {
+        return ToClientMessage::Error("Task not found".to_string());
+    };
+    match task.state {
+        JobTaskState::Waiting | JobTaskState::Running { .. } => {
+            let task_id = TaskId::new(job_id, request.task_id);
+            match senders.server_control.task_explain(task_id) {
+                Ok(explanation) => ToClientMessage::TaskExplain(TaskExplainResponse {
+                    task_id,
+                    explanation,
+                }),
+                Err(e) => ToClientMessage::Error(e.to_string()),
+            }
+        }
+        _ => ToClientMessage::Error(
+            "Explain command works only for tasks in WAITING or RUNNING state".to_string(),
+        ),
     }
 }
 
