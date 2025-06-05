@@ -1074,10 +1074,11 @@ impl Output for CliOutput {
                     .color(colored::Color::Red)
             )
         }
-        let mut runnable_worker_ids = explanation
+        let runnable_worker_ids = explanation
             .workers
             .iter()
-            .filter_map(|w| w.is_enabled().then(|| w.worker_id.as_num()))
+            .filter(|&w| w.is_enabled())
+            .map(|w| w.worker_id.as_num())
             .collect_vec();
         if runnable_worker_ids.is_empty() {
             println!(
@@ -1085,10 +1086,12 @@ impl Output for CliOutput {
                 "no worker".color(colored::Color::Red)
             );
         } else {
+            let count = runnable_worker_ids.len();
             let ids = IntArray::from_sorted_ids(runnable_worker_ids.into_iter());
             println!(
-                "The task can run on {} workers: {}",
-                ids.id_count().to_string().color(colored::Color::Green),
+                "The task can run on {} {}: {}",
+                count.to_string().color(colored::Color::Green),
+                pluralize("worker", count),
                 ids.to_string().color(colored::Color::Green)
             );
         }
@@ -1124,7 +1127,13 @@ impl Output for CliOutput {
                             header.push("".cell());
                             header.push("".cell());
                         }
-                        header.push(i.cell());
+                        header.push(i.cell().foreground_color(
+                            if variant.iter().any(|v| v.is_blocking()) {
+                                Some(Color::Red)
+                            } else {
+                                None
+                            },
+                        ));
                         header.push(rtype.join("\n").cell());
                         header.push(provs.join("\n").cell());
                         header.push(rqs.join("\n").cell());
@@ -1665,18 +1674,27 @@ fn resources_summary(resources: &ResourceDescriptor, multiline: bool) -> String 
 fn explanation_item_to_strings(
     item: &TaskExplainItem,
 ) -> (ColoredString, ColoredString, ColoredString) {
+    let request_color = if item.is_blocking() {
+        colored::Color::Red
+    } else {
+        colored::Color::Green
+    };
     match item {
         TaskExplainItem::Time {
             min_time,
             remaining_time,
         } => (
             "time".color(colored::Color::Magenta),
-            human_duration(chrono::Duration::from_std(*remaining_time).unwrap())
-                .to_string()
-                .color(colored::Color::Yellow),
+            if let Some(time) = remaining_time {
+                human_duration(chrono::Duration::from_std(*time).unwrap())
+                    .to_string()
+                    .color(colored::Color::Yellow)
+            } else {
+                "unknown".color(colored::Color::Yellow)
+            },
             human_duration(chrono::Duration::from_std(*min_time).unwrap())
                 .to_string()
-                .color(colored::Color::Red),
+                .color(request_color),
         ),
         TaskExplainItem::Resources {
             resource,
@@ -1685,7 +1703,7 @@ fn explanation_item_to_strings(
         } => (
             resource.color(colored::Color::Cyan),
             format!("{}", worker_amount).color(colored::Color::Yellow),
-            format!("{}", request_amount).color(colored::Color::Red),
+            format!("{}", request_amount).color(request_color),
         ),
         TaskExplainItem::WorkerGroup {
             n_nodes,
@@ -1693,7 +1711,7 @@ fn explanation_item_to_strings(
         } => (
             "nodes".color(colored::Color::Magenta),
             format!("group size {}", group_size).color(colored::Color::Yellow),
-            format!("{}", n_nodes).color(colored::Color::Red),
+            format!("{}", n_nodes).color(request_color),
         ),
     }
 }

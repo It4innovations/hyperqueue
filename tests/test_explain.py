@@ -12,30 +12,18 @@ def test_explain_single_node(hq_env: HqEnv):
     hq_env.command(["submit", "--cpus=10", "sleep", "1"])
     hq_env.command(["submit", "--cpus=10", "--time-request=1h", "sleep", "1"])
 
-    r = hq_env.command(["task", "explain", "1", "0", "all"])
-    assert r == snapshot("""Task 1@0 is ready to run because it has no dependencies.
+    r = hq_env.command(["task", "explain", "1", "0"])
+    assert r == snapshot(
+        """Task 1@0 is ready to run because it has no dependencies.
+The task can run on 1 worker: 1
 +-----------+----------+---------+------+----------+---------+
 | Worker Id | Runnable | Variant | Type | Provides | Request |
 +-----------+----------+---------+------+----------+---------+
-| 1         | Yes      |         |      |          |         |
+| 1         | Yes      | 0       | cpus | 5        | 1       |
 +-----------+----------+---------+------+----------+---------+
-""")
-    r = hq_env.command(["task", "--output-mode=json", "explain", "1", "0", "1"], as_json=True)
-    assert r == {
-        "explanation": {"n_task_deps": 0, "n_waiting_deps": 0, "workers": [{"variants": [[]], "worker_id": 1}]},
-        "task_id": {"job_id": 1, "job_task_id": 0},
-    }
-
-    r = hq_env.command(["task", "explain", "2", "0", "1"])
-    assert r == snapshot("""Task 2@0 is ready to run because it has no dependencies.
-+-----------+----------+---------+------+----------+---------+
-| Worker Id | Runnable | Variant | Type | Provides | Request |
-+-----------+----------+---------+------+----------+---------+
-| 1         | No       | 0       | cpus | 5        | 10      |
-+-----------+----------+---------+------+----------+---------+
-""")
-    r = hq_env.command(["task", "--output-mode=json", "explain", "2", "0", "1"], as_json=True)
-
+"""
+    )
+    r = hq_env.command(["task", "--output-mode=json", "explain", "1", "0"], as_json=True)
     assert r == {
         "explanation": {
             "n_task_deps": 0,
@@ -43,7 +31,52 @@ def test_explain_single_node(hq_env: HqEnv):
             "workers": [
                 {
                     "variants": [
-                        [{"Resources": {"request_amount": 100000, "resource": "cpus", "worker_amount": 50000}}]
+                        [
+                            {
+                                "Resources": {
+                                    "request_amount": 10000,
+                                    "resource": "cpus",
+                                    "worker_amount": 50000,
+                                }
+                            }
+                        ]
+                    ],
+                    "worker_id": 1,
+                }
+            ],
+        },
+        "task_id": {"job_id": 1, "job_task_id": 0},
+    }
+
+    r = hq_env.command(["task", "explain", "2", "0"])
+    assert r == snapshot(
+        """Task 2@0 is ready to run because it has no dependencies.
+There is no worker where the task can run.
++-----------+----------+---------+------+----------+---------+
+| Worker Id | Runnable | Variant | Type | Provides | Request |
++-----------+----------+---------+------+----------+---------+
+| 1         | No       | 0       | cpus | 5        | 10      |
++-----------+----------+---------+------+----------+---------+
+"""
+    )
+    r = hq_env.command(["task", "--output-mode=json", "explain", "2", "0"], as_json=True)
+    print(r)
+    assert r == {
+        "explanation": {
+            "n_task_deps": 0,
+            "n_waiting_deps": 0,
+            "workers": [
+                {
+                    "variants": [
+                        [
+                            {
+                                "Resources": {
+                                    "request_amount": 100000,
+                                    "resource": "cpus",
+                                    "worker_amount": 50000,
+                                }
+                            }
+                        ]
                     ],
                     "worker_id": 1,
                 }
@@ -52,17 +85,20 @@ def test_explain_single_node(hq_env: HqEnv):
         "task_id": {"job_id": 2, "job_task_id": 0},
     }
 
-    r = hq_env.command(["task", "explain", "3", "0", "1"])
+    r = hq_env.command(["task", "explain", "3", "0"])
     r = re.sub(r"5\ds", "5Xs", r, count=1)
-    assert r == snapshot("""Task 3@0 is ready to run because it has no dependencies.
+    assert r == snapshot(
+        """Task 3@0 is ready to run because it has no dependencies.
+There is no worker where the task can run.
 +-----------+----------+---------+------+----------+---------+
 | Worker Id | Runnable | Variant | Type | Provides | Request |
 +-----------+----------+---------+------+----------+---------+
 | 1         | No       | 0       | time | 4m 5Xs   | 1h      |
 |           |          |         | cpus | 5        | 10      |
 +-----------+----------+---------+------+----------+---------+
-""")
-    r = hq_env.command(["task", "--output-mode=json", "explain", "3", "0", "1"], as_json=True)
+"""
+    )
+    r = hq_env.command(["task", "--output-mode=json", "explain", "3", "0"], as_json=True)
     del r["explanation"]["workers"][0]["variants"][0][0]["Time"]["remaining_time"]
     assert r == {
         "explanation": {
@@ -73,7 +109,13 @@ def test_explain_single_node(hq_env: HqEnv):
                     "variants": [
                         [
                             {"Time": {"min_time": {"nanos": 0, "secs": 3600}}},
-                            {"Resources": {"request_amount": 100000, "resource": "cpus", "worker_amount": 50000}},
+                            {
+                                "Resources": {
+                                    "request_amount": 100000,
+                                    "resource": "cpus",
+                                    "worker_amount": 50000,
+                                }
+                            },
                         ]
                     ],
                     "worker_id": 1,
@@ -92,14 +134,19 @@ def test_explain_multi_node(hq_env: HqEnv):
 
     hq_env.command(["submit", "--nodes=3", "sleep", "10"])
 
-    r = hq_env.command(["task", "explain", "1", "0", "1"])
-    assert r == snapshot("""Task 1@0 is ready to run because it has no dependencies.
+    r = hq_env.command(["task", "explain", "1", "0"])
+    assert r == snapshot(
+        """Task 1@0 is ready to run because it has no dependencies.
+There is no worker where the task can run.
 +-----------+----------+---------+-------+--------------+---------+
 | Worker Id | Runnable | Variant | Type  | Provides     | Request |
 +-----------+----------+---------+-------+--------------+---------+
 | 1         | No       | 0       | nodes | group size 2 | 3       |
+| 2         | No       | 0       | nodes | group size 1 | 3       |
+| 3         | No       | 0       | nodes | group size 2 | 3       |
 +-----------+----------+---------+-------+--------------+---------+
-""")
+"""
+    )
 
 
 def test_explain_variants(hq_env: HqEnv, tmp_path):
@@ -132,14 +179,31 @@ resources = { "cpus" = "1", "gpus" = "1" }
 """
     )
     hq_env.command(["job", "submit-file", "job.toml"])
-    r = hq_env.command(["task", "explain", "1", "1", "1"])
-    assert r == snapshot("""Task 1@1 is ready to run because it has no dependencies.
+    r = hq_env.command(["task", "explain", "1", "1"])
+    assert r == snapshot(
+        """Task 1@1 is ready to run because it has no dependencies.
+The task can run on 5 workers: 1-5
 +-----------+-----------+---------+------+----------+---------+
 | Worker Id | Runnable  | Variant | Type | Provides | Request |
 +-----------+-----------+---------+------+----------+---------+
-| 1         | Yes (1/2) | 1       | gpus | 0        | 1       |
+| 1         | Yes (1/2) | 0       | cpus | 4        | 2       |
+|           |           | 1       | cpus | 4        | 1       |
+|           |           |         | gpus | 0        | 1       |
+| 2         | Yes (1/2) | 0       | cpus | 4        | 2       |
+|           |           | 1       | cpus | 4        | 1       |
+|           |           |         | gpus | 0        | 1       |
+| 3         | Yes (2/2) | 0       | cpus | 2        | 2       |
+|           |           | 1       | cpus | 2        | 1       |
+|           |           |         | gpus | 2        | 1       |
+| 4         | Yes (1/2) | 0       | cpus | 4        | 2       |
+|           |           | 1       | cpus | 4        | 1       |
+|           |           |         | gpus | 0        | 1       |
+| 5         | Yes (1/2) | 0       | cpus | 4        | 2       |
+|           |           | 1       | cpus | 4        | 1       |
+|           |           |         | gpus | 0        | 1       |
 +-----------+-----------+---------+------+----------+---------+
-""")
+"""
+    )
 
 
 def test_explain_deps(hq_env: HqEnv, tmp_path):
@@ -165,11 +229,15 @@ deps = [0, 1]
     hq_env.command(["job", "submit-file", "job.toml"])
     wait_for_task_state(hq_env, 1, [0, 1, 2], ["finished", "running", "waiting"])
     hq_env.command(["job", "submit-file", "job.toml"])
-    r = hq_env.command(["task", "explain", "1", "2", "1"])
-    assert r == snapshot("""Task 1@2 is not ready to run, because 1/2 dependencies are not finished.
+    r = hq_env.command(["task", "explain", "1", "2"])
+    assert r == snapshot(
+        """Task 1@2 is not ready to run, because 1/2 dependencies are not finished.
+The task can run on 2 workers: 1-2
 +-----------+----------+---------+------+----------+---------+
 | Worker Id | Runnable | Variant | Type | Provides | Request |
 +-----------+----------+---------+------+----------+---------+
-| 1         | Yes      |         |      |          |         |
+| 1         | Yes      | 0       | cpus | 4        | 1       |
+| 2         | Yes      | 0       | cpus | 4        | 1       |
 +-----------+----------+---------+------+----------+---------+
-""")
+"""
+    )
