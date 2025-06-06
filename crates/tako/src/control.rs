@@ -39,6 +39,7 @@ pub struct WorkerTypeQuery {
     pub min_utilization: f32,
 }
 
+#[derive(Debug)]
 pub struct NewWorkerAllocationResponse {
     /// Array of the same size as number of queries, it returns the number of workers that should
     /// be spawned for the given query
