@@ -1,4 +1,5 @@
 use std::fmt::{Debug, Formatter};
+use tokio::sync::oneshot::Receiver;
 use tokio::sync::{mpsc, oneshot};
 
 /// Can be used to respond to a RPC call.
@@ -14,6 +15,11 @@ impl<T> Debug for ResponseToken<T> {
 }
 
 impl<T> ResponseToken<T> {
+    pub fn new() -> (ResponseToken<T>, Receiver<T>) {
+        let (tx, rx) = oneshot::channel::<T>();
+        (Self { sender: tx }, rx)
+    }
+
     pub fn respond(self, response: T) {
         if let Err(_e) = self.sender.send(response) {
             log::warn!("Could not send response to RPC method, the other end hang up");
@@ -29,8 +35,7 @@ where
     F: FnOnce(ResponseToken<Response>) -> Result<(), mpsc::error::SendError<R>>,
     R: std::fmt::Debug,
 {
-    let (tx, rx) = oneshot::channel::<Response>();
-    let token = ResponseToken { sender: tx };
+    let (token, rx) = ResponseToken::new();
     if let Err(error) = make_request(token) {
         log::warn!("Could not make RPC request: {error:?}");
     }

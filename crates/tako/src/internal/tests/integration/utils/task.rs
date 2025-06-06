@@ -46,16 +46,34 @@ impl GraphBuilder {
             self.id_counter += 1;
             Some(id)
         });
+        self.add_task_from_config(config);
+        self
+    }
 
-        let (mut tdef, tconf) = build_task_def_from_config(config);
-        tdef.shared_data_index = self.configurations.len() as u32;
-        self.tasks.push(tdef);
-        self.configurations.push(tconf);
+    pub fn task_copied(mut self, builder: TaskConfigBuilder, count: u64) -> Self {
+        let config = builder.build().unwrap();
+        for _ in 0..count {
+            let mut config: TaskConfig = config.clone();
+            assert!(config.id.is_none());
+            config.id = {
+                let id = self.id_counter;
+                self.id_counter += 1;
+                Some(id)
+            };
+            self.add_task_from_config(config);
+        }
         self
     }
 
     pub fn simple_task(self, args: &[&'static str]) -> Self {
         self.task(TaskConfigBuilder::default().args(simple_args(args)))
+    }
+
+    fn add_task_from_config(&mut self, config: TaskConfig) {
+        let (mut tdef, tconf) = build_task_def_from_config(config);
+        tdef.shared_data_index = self.configurations.len() as u32;
+        self.tasks.push(tdef);
+        self.configurations.push(tconf);
     }
 
     pub fn build(self) -> (Vec<TaskConfiguration>, Vec<SharedTaskConfiguration>) {
@@ -124,7 +142,7 @@ pub fn build_task_def_from_config(
 #[builder(pattern = "owned")]
 pub struct TaskConfig {
     #[builder(default)]
-    pub id: Option<u32>,
+    id: Option<u32>,
 
     #[builder(default)]
     time_limit: Option<Duration>,

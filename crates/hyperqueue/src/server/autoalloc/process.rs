@@ -441,8 +441,9 @@ Backlog: {}, currently queued: {queued_allocs}, max workers to spawn: {max_worke
         if remaining_workers == 0 {
             break;
         }
-        max_workers_to_spawn = max_workers_to_spawn.saturating_sub(remaining_workers);
-        allocations.push(info.workers_per_alloc().min(remaining_workers) as u64);
+        let to_spawn = info.workers_per_alloc().min(remaining_workers);
+        max_workers_to_spawn = max_workers_to_spawn.saturating_sub(to_spawn);
+        allocations.push(to_spawn as u64);
     }
 
     log::debug!("Determined allocations to submit: {allocs_to_submit:?}");
@@ -1093,34 +1094,24 @@ pub fn prepare_queue_cleanup(
 #[cfg(test)]
 mod tests {
     use std::future::Future;
+    use std::path::PathBuf;
     use std::pin::Pin;
 
     use std::time::{Duration, Instant};
 
-    use anyhow::anyhow;
-    use chrono::Utc;
-    use derive_builder::Builder;
-    use smallvec::smallvec;
-    use tako::WorkerId;
-    use tako::gateway::{
-        CrashLimit, LostWorkerReason, ResourceRequest, ResourceRequestEntry,
-        ResourceRequestVariants,
-    };
-    use tako::program::ProgramDefinition;
-    use tako::resources::{AllocationRequest, CPU_RESOURCE_NAME, TimeRequest};
-    use tako::{Map, Set, WrappedRcRefCell};
-    use tempfile::TempDir;
-
     use crate::common::arraydef::IntArray;
     use crate::common::manager::info::ManagerType;
+    use crate::common::rpc::{ResponseToken, initiate_request};
     use crate::common::utils::time::mock_time::MockTime;
     use crate::server::autoalloc::process::{
-        AllocationSyncReason, do_periodic_update, queue_try_submit, sync_allocation_status,
+        AllocationSyncReason, AutoallocSenders, do_periodic_update, handle_message,
+        perform_submits, queue_try_submit, sync_allocation_status,
     };
     use crate::server::autoalloc::queue::{
         AllocationExternalStatus, AllocationStatusMap, AllocationSubmissionResult, QueueHandler,
         SubmitMode,
     };
+    use crate::server::autoalloc::service::AutoAllocMessage;
     use crate::server::autoalloc::state::{
         AllocationQueue, AllocationQueueState, AllocationState, AutoAllocState, RateLimiter,
     };
@@ -1132,42 +1123,168 @@ mod tests {
     use crate::server::state::{State, StateRef};
     use crate::tests::utils::create_hq_state;
     use crate::transfer::messages::{
-        JobDescription, JobSubmitDescription, JobTaskDescription, PinMode, TaskDescription,
-        TaskKind, TaskKindProgram,
+        AllocationQueueParams, JobDescription, JobSubmitDescription, JobTaskDescription, PinMode,
+        TaskDescription, TaskKind, TaskKindProgram,
     };
+    use anyhow::anyhow;
+    use chrono::Utc;
+    use derive_builder::Builder;
+    use log::LevelFilter;
+    use smallvec::smallvec;
+    use tako::WorkerId;
+    use tako::gateway::{
+        CrashLimit, LostWorkerReason, ResourceRequest, ResourceRequestEntry,
+        ResourceRequestVariants,
+    };
+    use tako::program::ProgramDefinition;
     use tako::resources::ResourceAmount;
+    use tako::resources::{AllocationRequest, CPU_RESOURCE_NAME, TimeRequest};
+    use tako::tests::integration::utils::server::{
+        ServerConfigBuilder, ServerHandle, run_server_test,
+    };
+    use tako::tests::integration::utils::task::{
+        GraphBuilder, TaskConfigBuilder, simple_args, simple_task,
+    };
+    use tako::{Map, Set, WrappedRcRefCell};
+    use tempfile::TempDir;
 
-    /*#[tokio::test]
-    async fn fill_backlog() {
-        let hq_state = new_hq_state(1000);
-        let mut state = AutoAllocState::new(1);
+    struct TestCtx {
+        state: AutoAllocState,
+        senders: AutoallocSenders,
+        handle: ServerHandle,
+    }
 
-        let handler = always_queued_handler();
-        let queue_id = add_queue(
-            &mut state,
-            handler,
-            QueueBuilder::default().backlog(4).workers_per_alloc(2),
-        );
+    impl TestCtx {
+        async fn add_queue(
+            &mut self,
+            handler: Box<dyn QueueHandler>,
+            queue_builder: QueueBuilder,
+        ) -> QueueId {
+            let (queue_info, _rate_limiter) = queue_builder.build();
+            let (token, rx) = ResponseToken::new();
+            handle_message(
+                &mut self.state,
+                &self.senders.events,
+                AutoAllocMessage::AddQueue {
+                    server_directory: PathBuf::from("test"),
+                    params: AllocationQueueParams {
+                        manager: queue_info.manager().clone(),
+                        workers_per_alloc: queue_info.workers_per_alloc(),
+                        backlog: queue_info.backlog(),
+                        timelimit: queue_info.timelimit(),
+                        name: Some("Queue".to_string()),
+                        max_worker_count: queue_info.max_worker_count(),
+                        additional_args: vec![],
+                        worker_start_cmd: None,
+                        worker_stop_cmd: None,
+                        worker_args: queue_info.worker_args().iter().cloned().collect(),
+                        idle_timeout: None,
+                    },
+                    queue_id: None,
+                    response: token,
+                },
+            )
+            .await;
+            let queue_id = rx.await.unwrap().unwrap();
 
-        queue_try_submit(
-            queue_id,
-            &mut state,
-            &hq_state,
-            &EventStreamer::new(None),
-            None,
-        )
-        .await;
+            // A bit hacky, but easier than creating a mock for an external service, as we do in
+            // Python.
+            self.state
+                .get_queue_mut(queue_id)
+                .unwrap()
+                .set_handler(handler);
 
-        let allocations = get_allocations(&state, queue_id);
-        assert_eq!(allocations.len(), 4);
-        assert!(
+            queue_id
+        }
+
+        async fn try_submit(&mut self) {
+            perform_submits(&mut self.state, &self.senders)
+                .await
+                .unwrap();
+        }
+
+        fn get_allocations(&self, id: QueueId) -> Vec<Allocation> {
+            let mut allocations: Vec<_> = self
+                .state
+                .get_queue(id)
+                .unwrap()
+                .all_allocations()
+                .cloned()
+                .collect();
+            allocations.sort_by(|a, b| a.id.cmp(&b.id));
             allocations
-                .iter()
-                .all(|alloc| alloc.target_worker_count == 2)
-        );
+        }
+    }
+
+    async fn run_test<F: AsyncFnOnce(TestCtx)>(f: F) {
+        let _ = env_logger::Builder::default()
+            .filter(None, LevelFilter::Debug)
+            .try_init();
+
+        let state = AutoAllocState::new(1);
+        run_server_test(ServerConfigBuilder::default(), |handle| async move {
+            let server_ref = handle.server_ref.clone();
+            let ctx = TestCtx {
+                state,
+                senders: AutoallocSenders {
+                    server: server_ref,
+                    events: EventStreamer::new(None),
+                },
+                handle,
+            };
+            f(ctx).await;
+        })
+        .await;
     }
 
     #[tokio::test]
+    async fn no_submit_without_tasks() {
+        run_test(async |mut ctx: TestCtx| {
+            let handler = always_queued_handler();
+            let queue_id = ctx
+                .add_queue(
+                    handler,
+                    QueueBuilder::default().backlog(4).workers_per_alloc(2),
+                )
+                .await;
+            ctx.try_submit().await;
+            assert!(ctx.get_allocations(queue_id).is_empty());
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn fill_backlog() {
+        run_test(async |mut ctx: TestCtx| {
+            let handler = always_queued_handler();
+            let queue_id = ctx
+                .add_queue(
+                    handler,
+                    QueueBuilder::default().backlog(4).workers_per_alloc(2),
+                )
+                .await;
+
+            ctx.handle
+                .submit(
+                    GraphBuilder::default()
+                        .task_copied(TaskConfigBuilder::default().args(simple_args(&["ls"])), 100)
+                        .build(),
+                )
+                .await;
+            ctx.try_submit().await;
+
+            let allocations = ctx.get_allocations(queue_id);
+            assert_eq!(allocations.len(), 4);
+            assert!(
+                allocations
+                    .iter()
+                    .all(|alloc| alloc.target_worker_count == 2)
+            );
+        })
+        .await;
+    }
+
+    /*#[tokio::test]
     async fn do_nothing_on_full_backlog() {
         let hq_state = new_hq_state(1000);
         let mut state = AutoAllocState::new(1);
