@@ -271,7 +271,7 @@ fn test_query_multi_node_time_limit() {
                 descriptor: ResourceDescriptor::simple(1),
                 time_limit: Some(Duration::from_secs(secs)),
                 max_sn_workers: 4,
-                max_worker_per_allocation: 4,
+                max_workers_per_allocation: 4,
                 min_utilization: 0.0,
             }],
         );
@@ -392,11 +392,11 @@ fn test_query_min_time2() {
                 descriptor: descriptor.clone(),
                 time_limit: Some(Duration::from_secs(secs)),
                 max_sn_workers: 2,
-                max_worker_per_allocation: 1,
+                max_workers_per_allocation: 1,
                 min_utilization: 0.0f32,
             }],
         );
-        assert_eq!(r.single_node_allocations, vec![alloc]);
+        assert_eq!(r.single_node_workers_per_query, vec![alloc]);
         assert!(r.multi_node_allocations.is_empty());
     }
 }
@@ -429,11 +429,11 @@ fn test_query_min_time1() {
             descriptor: descriptor.clone(),
             time_limit: Some(Duration::from_secs(99)),
             max_sn_workers: 2,
-            max_worker_per_allocation: 1,
+            max_workers_per_allocation: 1,
             min_utilization: 0.0f32,
         }],
     );
-    assert_eq!(r.single_node_allocations, vec![0]);
+    assert_eq!(r.single_node_workers_per_query, vec![0]);
     assert!(r.multi_node_allocations.is_empty());
 
     let r = compute_new_worker_query(
@@ -442,11 +442,11 @@ fn test_query_min_time1() {
             descriptor: descriptor.clone(),
             time_limit: Some(Duration::from_secs(101)),
             max_sn_workers: 2,
-            max_worker_per_allocation: 1,
+            max_workers_per_allocation: 1,
             min_utilization: 0.0f32,
         }],
     );
-    assert_eq!(r.single_node_allocations, vec![2]);
+    assert_eq!(r.single_node_workers_per_query, vec![2]);
     assert!(r.multi_node_allocations.is_empty());
 
     let descriptor = ResourceDescriptor::new(vec![ResourceDescriptorItem {
@@ -459,10 +459,10 @@ fn test_query_min_time1() {
             descriptor,
             time_limit: Some(Duration::from_secs(101)),
             max_sn_workers: 2,
-            max_worker_per_allocation: 1,
+            max_workers_per_allocation: 1,
             min_utilization: 0.0f32,
         }],
     );
-    assert_eq!(r.single_node_allocations, vec![1]);
+    assert_eq!(r.single_node_workers_per_query, vec![1]);
     assert!(r.multi_node_allocations.is_empty());
 }

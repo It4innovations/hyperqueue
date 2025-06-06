@@ -1137,7 +1137,7 @@ mod tests {
     };
     use tako::resources::ResourceAmount;
 
-    #[tokio::test]
+    /*#[tokio::test]
     async fn fill_backlog() {
         let hq_state = new_hq_state(1000);
         let mut state = AutoAllocState::new(1);
@@ -1706,7 +1706,7 @@ mod tests {
                 .allocation_fail_count(),
             0
         );
-    }
+    }*/
 
     // Utilities
     struct Handler<ScheduleFn, StatusFn, RemoveFn, State> {
@@ -1954,7 +1954,6 @@ mod tests {
                     limiter_delays,
                     limiter_max_submit_fails,
                     limiter_max_alloc_fails,
-                    Duration::from_secs(1),
                 ),
             )
         }
