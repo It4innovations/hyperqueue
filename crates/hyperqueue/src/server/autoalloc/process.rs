@@ -410,19 +410,19 @@ fn compute_submission_permit(queue: &AllocationQueue, required_workers: u32) -> 
         .sum::<u32>();
     let queued_allocs = queue.queued_allocations().count() as u32;
 
-    let mut max_workers_to_spawn = match info.max_worker_count() {
+    let mut max_remaining_workers_to_spawn = match info.max_worker_count() {
         Some(max) => max.saturating_sub(active_workers),
         None => u32::MAX,
     };
 
     log::debug!(
         r"Counting possible allocations: required worker count is {required_workers}.
-Backlog: {}, currently queued: {queued_allocs}, max workers to spawn: {max_workers_to_spawn}
+Backlog: {}, currently queued: {queued_allocs}, max workers to spawn: {max_remaining_workers_to_spawn}
 ",
         info.backlog(),
     );
 
-    if max_workers_to_spawn == 0 {
+    if max_remaining_workers_to_spawn == 0 {
         return SubmissionPermit::empty();
     }
 
@@ -439,16 +439,15 @@ Backlog: {}, currently queued: {queued_allocs}, max workers to spawn: {max_worke
 
     let mut allocations = vec![];
     for _ in 0..allocs_to_submit {
-        let remaining_workers = max_workers_to_spawn.saturating_sub(info.workers_per_alloc());
-        if remaining_workers == 0 {
+        let to_spawn = info.workers_per_alloc().min(max_remaining_workers_to_spawn);
+        if to_spawn == 0 {
             break;
         }
-        let to_spawn = info.workers_per_alloc().min(remaining_workers);
-        max_workers_to_spawn = max_workers_to_spawn.saturating_sub(to_spawn);
+        max_remaining_workers_to_spawn = max_remaining_workers_to_spawn.saturating_sub(to_spawn);
         allocations.push(to_spawn as u64);
     }
 
-    log::debug!("Determined allocations to submit: {allocs_to_submit:?}");
+    log::debug!("Determined allocations to submit: {allocations:?}");
 
     SubmissionPermit {
         allocs_to_submit: allocations,
@@ -1146,7 +1145,9 @@ mod tests {
     use tako::tests::integration::utils::server::{
         ServerConfigBuilder, ServerHandle, run_server_test,
     };
-    use tako::tests::integration::utils::task::{GraphBuilder, TaskConfigBuilder, simple_args};
+    use tako::tests::integration::utils::task::{
+        GraphBuilder, ResourceRequestConfigBuilder, TaskConfigBuilder, simple_args, simple_task,
+    };
     use tako::tests::integration::utils::worker::WorkerConfigBuilder;
     use tako::worker::WorkerConfiguration;
     use tako::{Map, Set, WrappedRcRefCell};
@@ -1314,7 +1315,7 @@ mod tests {
 
     async fn run_test<F: AsyncFnOnce(TestCtx)>(f: F) {
         let _ = env_logger::Builder::default()
-            .filter(None, LevelFilter::Debug)
+            .filter(Some("hyperqueue::server::autoalloc"), LevelFilter::Debug)
             .try_init();
 
         let state = AutoAllocState::new(1);
@@ -1619,70 +1620,82 @@ mod tests {
         .await;
     }
 
-    /*#[tokio::test]
+    #[tokio::test]
     async fn ignore_task_with_high_time_request() {
-        let hq_state = new_hq_state(0);
-        attach_job(&mut hq_state.get_mut(), 0, 1, Duration::from_secs(60 * 60));
-        let mut state = AutoAllocState::new(1);
+        run_test(async |mut ctx: TestCtx| {
+            let handler = always_queued_handler();
 
-        let handler = always_queued_handler();
-        let queue_id = add_queue(
-            &mut state,
-            handler,
-            QueueBuilder::default().timelimit(Duration::from_secs(60 * 30)),
-        );
+            let queue_id = ctx
+                .add_queue(
+                    handler,
+                    QueueBuilder::default().timelimit(Duration::from_secs(60 * 30)),
+                )
+                .await;
+            ctx.handle
+                .submit(
+                    GraphBuilder::default()
+                        .task(
+                            TaskConfigBuilder::default().resources(
+                                ResourceRequestConfigBuilder::default()
+                                    .cpus(1)
+                                    .min_time(Duration::from_secs(60 * 60)),
+                            ),
+                        )
+                        .build(),
+                )
+                .await;
 
-        // Allocations last for 30 minutes, but job requires 60 minutes
-        // Nothing should be scheduled
-        let s = EventStreamer::new(None);
-        queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
-        assert_eq!(get_allocations(&state, queue_id).len(), 0);
+            // Allocations last for 30 minutes, but the task requires 60 minutes
+            // Nothing should be scheduled
+            ctx.try_submit().await;
+            assert_eq!(ctx.get_allocations(queue_id).len(), 0);
+        })
+        .await;
     }
 
     #[tokio::test]
     async fn respect_max_worker_count() {
-        let hq_state = new_hq_state(100);
-        let mut state = AutoAllocState::new(1);
+        run_test(async |mut ctx: TestCtx| {
+            let handler_state = WrappedRcRefCell::wrap(HandlerState::default());
+            let handler = stateful_handler(handler_state.clone());
 
-        let handler_state = WrappedRcRefCell::wrap(HandlerState::default());
-        let handler = stateful_handler(handler_state.clone());
+            let queue_id = ctx
+                .add_queue(
+                    handler,
+                    QueueBuilder::default().backlog(4).max_worker_count(Some(5)),
+                )
+                .await;
 
-        let queue_id = add_queue(
-            &mut state,
-            handler,
-            QueueBuilder::default().backlog(4).max_worker_count(Some(5)),
-        );
+            ctx.create_simple_tasks(100).await;
 
-        let s = EventStreamer::new(None);
-        // Put 4 allocations into the queue.
-        queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
-        let allocations = get_allocations(&state, queue_id);
-        assert_eq!(allocations.len(), 4);
+            // Put 4 allocations into the queue.
+            ctx.try_submit().await;
+            let allocations = ctx.get_allocations(queue_id);
+            assert_eq!(allocations.len(), 4);
 
-        // Start 2 allocations
-        on_worker_added(&s, queue_id, &mut state, &allocations[0].id, 0);
-        on_worker_added(&s, queue_id, &mut state, &allocations[1].id, 1);
+            // Start 2 allocations
+            let w0 = ctx
+                .start_worker(WorkerConfigBuilder::default(), allocations[0].id.as_str())
+                .await;
+            let w1 = ctx
+                .start_worker(WorkerConfigBuilder::default(), allocations[1].id.as_str())
+                .await;
 
-        // Create only one additional allocation
-        queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
-        assert_eq!(get_allocations(&state, queue_id).len(), 5);
+            // Create only one additional allocation
+            ctx.try_submit().await;
+            assert_eq!(ctx.get_allocations(queue_id).len(), 5);
 
-        // Finish one allocation
-        on_worker_lost(
-            &s,
-            queue_id,
-            &mut state,
-            &allocations[1].id,
-            1,
-            lost_worker_normal(LostWorkerReason::ConnectionLost),
-        );
+            ctx.stop_worker(w1, lost_worker_normal(LostWorkerReason::ConnectionLost))
+                .await;
 
-        // One worker was freed, create an additional allocation
-        queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
-        assert_eq!(get_allocations(&state, queue_id).len(), 6);
+            // One worker was freed, create an additional allocation
+            ctx.try_submit().await;
+            assert_eq!(ctx.get_allocations(queue_id).len(), 6);
+        })
+        .await;
     }
 
-    #[tokio::test]
+    /*#[tokio::test]
     async fn max_worker_count_shorten_last_allocation() {
         let hq_state = new_hq_state(100);
         let mut state = AutoAllocState::new(1);
