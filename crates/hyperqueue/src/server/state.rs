@@ -122,10 +122,12 @@ impl State {
 
         let job_id = task_id.job_id();
         let job = self.get_job_mut(job_id).unwrap();
-        log::debug!(
-            "Tasks id={:?} canceled because of task dependency fails",
-            &cancelled_tasks
-        );
+        if !cancelled_tasks.is_empty() {
+            log::debug!(
+                "Tasks {:?} canceled because of task dependency fails",
+                &cancelled_tasks
+            );
+        }
 
         job.set_cancel_state(cancelled_tasks, senders);
         job.set_failed_state(task_id.job_task_id(), info.message, senders);
@@ -136,7 +138,6 @@ impl State {
                 let task_ids = job.non_finished_task_ids();
                 job.set_cancel_state(task_ids.clone(), senders);
                 return task_ids;
-                // return job.non_finished_task_ids();
             }
         }
         Vec::new()
