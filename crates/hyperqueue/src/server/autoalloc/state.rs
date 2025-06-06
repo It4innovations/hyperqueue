@@ -113,7 +113,7 @@ pub type QueueId = u32;
 
 pub enum AllocationQueueState {
     /// The queue is being processed as normal.
-    Running,
+    Active,
     /// The queue is paused. Its allocations are still being refreshed, but no new allocations
     /// will be submitted until the queue is resumed.
     ///
@@ -123,8 +123,8 @@ pub enum AllocationQueueState {
 }
 
 impl AllocationQueueState {
-    pub fn is_running(&self) -> bool {
-        matches!(self, AllocationQueueState::Running)
+    pub fn is_active(&self) -> bool {
+        matches!(self, AllocationQueueState::Active)
     }
 }
 
@@ -146,7 +146,7 @@ impl AllocationQueue {
         rate_limiter: RateLimiter,
     ) -> Self {
         Self {
-            state: AllocationQueueState::Running,
+            state: AllocationQueueState::Active,
             info,
             name,
             handler,
@@ -164,7 +164,7 @@ impl AllocationQueue {
     }
 
     pub fn resume(&mut self) {
-        self.state = AllocationQueueState::Running;
+        self.state = AllocationQueueState::Active;
     }
 
     pub fn manager(&self) -> &ManagerType {

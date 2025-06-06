@@ -504,7 +504,7 @@ pub struct AutoAllocListResponse {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum QueueState {
-    Running,
+    Active,
     Paused,
 }
 
