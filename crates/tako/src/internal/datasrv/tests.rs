@@ -251,19 +251,21 @@ async fn download_cancel1() {
         let (dm_ref, interface) = test_download_manager();
         interface.register_hosts(&[data_id1], PlacementConfig::Ignore);
 
-        let mut dm = dm_ref.get_mut();
-        dm.download_object(data_id1, 2);
-        dm.download_object(data_id2, 1);
-        dm.download_object(data_id3, 0);
-        drop(dm);
+        {
+            let mut dm = dm_ref.get_mut();
+            dm.download_object(data_id1, 2);
+            dm.download_object(data_id2, 1);
+            dm.download_object(data_id3, 0);
+        }
         tokio::time::sleep(Duration::new(1, 0)).await;
         interface.take_resolved_ids(0);
         interface.check_empty();
-        let mut dm = dm_ref.get_mut();
-        dm.cancel_download(data_id3);
-        dm.cancel_download(data_id1);
-        dm.cancel_download(data_id2);
-        drop(dm);
+        {
+            let mut dm = dm_ref.get_mut();
+            dm.cancel_download(data_id3);
+            dm.cancel_download(data_id1);
+            dm.cancel_download(data_id2);
+        }
         tokio::time::sleep(Duration::new(1, 0)).await;
         let dm = dm_ref.get_mut();
         assert!(dm.queue().is_empty());
