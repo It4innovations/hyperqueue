@@ -1,4 +1,5 @@
 from queue import Queue
+from subprocess import Popen
 from typing import List, Literal, Optional, Union
 
 from .mock.manager import CommandHandler, CommandInput, ManagerAdapter
@@ -142,8 +143,8 @@ def wait_for_alloc(hq_env: HqEnv, state: str, allocation_id: str, timeout=DEFAUL
         raise e
 
 
-def start_server_with_quick_refresh(hq_env: HqEnv):
-    hq_env.start_server(
+def start_server_with_quick_refresh(hq_env: HqEnv) -> Popen:
+    return hq_env.start_server(
         env={
             "HQ_AUTOALLOC_REFRESH_INTERVAL_MS": "100",
             "HQ_AUTOALLOC_MAX_SCHEDULE_DELAY_MS": "100",
