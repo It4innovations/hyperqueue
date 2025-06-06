@@ -40,7 +40,7 @@ def test_pbs_queue_qsub_args(hq_env: HqEnv):
     manager = ExtractSubmitScriptPath(PbsManagerFlavor().create_adapter())
 
     with MockJobManager(hq_env, manager):
-        hq_env.start_server()
+        start_server_with_quick_refresh(hq_env)
         prepare_tasks(hq_env)
 
         add_queue(
@@ -68,7 +68,7 @@ def test_slurm_queue_sbatch_args(hq_env: HqEnv):
     manager = ExtractSubmitScriptPath(SlurmManagerFlavor().create_adapter())
 
     with MockJobManager(hq_env, manager):
-        hq_env.start_server()
+        start_server_with_quick_refresh(hq_env)
         prepare_tasks(hq_env)
 
         add_queue(
@@ -108,7 +108,7 @@ No reservation for this job
             )
 
     with MockJobManager(hq_env, Handler(SlurmManagerFlavor().create_adapter())):
-        hq_env.start_server()
+        start_server_with_quick_refresh(hq_env)
         prepare_tasks(hq_env)
 
         add_queue(
@@ -122,7 +122,7 @@ No reservation for this job
 @all_flavors
 def test_queue_submit_success(hq_env: HqEnv, flavor: ManagerFlavor):
     with MockJobManager(hq_env, flavor.default_handler()):
-        hq_env.start_server()
+        start_server_with_quick_refresh(hq_env)
         prepare_tasks(hq_env)
 
         add_queue(hq_env, manager=flavor.manager_type())
@@ -132,7 +132,7 @@ def test_queue_submit_success(hq_env: HqEnv, flavor: ManagerFlavor):
 @all_flavors
 def test_submit_time_request_equal_to_time_limit(hq_env: HqEnv, flavor: ManagerFlavor):
     with MockJobManager(hq_env, flavor.default_handler()):
-        hq_env.start_server()
+        start_server_with_quick_refresh(hq_env)
         hq_env.command(["submit", "--time-request", "10m", "sleep", "1"])
 
         add_queue(hq_env, manager=flavor.manager_type(), time_limit="10m")
@@ -151,7 +151,7 @@ def test_pbs_multinode_allocation(hq_env: HqEnv):
     manager = ExtractSubmitScriptPath(PbsManagerFlavor().create_adapter())
 
     with MockJobManager(hq_env, manager):
-        hq_env.start_server()
+        start_server_with_quick_refresh(hq_env)
         prepare_tasks(hq_env)
 
         add_queue(hq_env, manager="pbs", workers_per_alloc=2)
@@ -170,7 +170,7 @@ def test_slurm_multinode_allocation(hq_env: HqEnv):
     manager = ExtractSubmitScriptPath(SlurmManagerFlavor().create_adapter())
 
     with MockJobManager(hq_env, manager):
-        hq_env.start_server()
+        start_server_with_quick_refresh(hq_env)
         prepare_tasks(hq_env)
 
         add_queue(hq_env, manager="slurm", workers_per_alloc=2)
@@ -187,7 +187,7 @@ def test_slurm_multinode_allocation(hq_env: HqEnv):
 @all_flavors
 def test_allocations_job_lifecycle(hq_env: HqEnv, flavor: ManagerFlavor):
     with MockJobManager(hq_env, flavor.default_handler()) as mock:
-        hq_env.start_server()
+        start_server_with_quick_refresh(hq_env)
         prepare_tasks(hq_env)
 
         job_id = default_job_id(0)
@@ -219,7 +219,7 @@ def test_check_submit_working_directory(hq_env: HqEnv, flavor: ManagerFlavor):
             return await super().handle_cli_submit(input)
 
     with MockJobManager(hq_env, Manager(flavor.create_adapter())):
-        hq_env.start_server()
+        start_server_with_quick_refresh(hq_env)
         prepare_tasks(hq_env)
 
         add_queue(hq_env, flavor.manager_type(), name="foo")
@@ -231,7 +231,7 @@ def test_check_submit_working_directory(hq_env: HqEnv, flavor: ManagerFlavor):
 @all_flavors
 def test_cancel_jobs_on_server_stop(hq_env: HqEnv, flavor: ManagerFlavor):
     with MockJobManager(hq_env, CommandHandler(flavor.create_adapter())) as mock:
-        process = hq_env.start_server()
+        process = start_server_with_quick_refresh(hq_env)
         prepare_tasks(hq_env)
 
         add_queue(
@@ -267,7 +267,7 @@ def test_cancel_jobs_on_server_stop(hq_env: HqEnv, flavor: ManagerFlavor):
 @all_flavors
 def test_fail_on_remove_queue_with_running_jobs(hq_env: HqEnv, flavor: ManagerFlavor):
     with MockJobManager(hq_env, flavor.default_handler()) as mock:
-        hq_env.start_server()
+        start_server_with_quick_refresh(hq_env)
         prepare_tasks(hq_env)
 
         add_queue(
@@ -279,6 +279,7 @@ def test_fail_on_remove_queue_with_running_jobs(hq_env: HqEnv, flavor: ManagerFl
         )
         job_id = default_job_id(0)
 
+        wait_for_alloc(hq_env, "QUEUED", job_id)
         mock.handler.add_worker(hq_env, job_id)
         wait_for_alloc(hq_env, "RUNNING", job_id)
 
@@ -296,7 +297,7 @@ def test_fail_on_remove_queue_with_running_jobs(hq_env: HqEnv, flavor: ManagerFl
 @all_flavors
 def test_cancel_active_jobs_on_forced_remove_queue(hq_env: HqEnv, flavor: ManagerFlavor):
     with MockJobManager(hq_env, CommandHandler(flavor.create_adapter())) as mock:
-        hq_env.start_server()
+        start_server_with_quick_refresh(hq_env)
         prepare_tasks(hq_env)
 
         add_queue(
@@ -458,7 +459,7 @@ def test_pass_cpu_and_resources_to_worker(hq_env: HqEnv, flavor: ManagerFlavor):
     manager = ExtractSubmitScriptPath(flavor.create_adapter())
 
     with MockJobManager(hq_env, manager):
-        hq_env.start_server()
+        start_server_with_quick_refresh(hq_env)
         prepare_tasks(hq_env)
 
         add_queue(
@@ -510,7 +511,7 @@ def test_pass_idle_timeout_to_worker(hq_env: HqEnv, flavor: ManagerFlavor):
     manager = ExtractSubmitScriptPath(flavor.create_adapter())
 
     with MockJobManager(hq_env, manager):
-        hq_env.start_server()
+        start_server_with_quick_refresh(hq_env)
         prepare_tasks(hq_env)
 
         add_queue(
@@ -535,7 +536,7 @@ def test_pass_on_server_lost(hq_env: HqEnv, flavor: ManagerFlavor):
     manager = ExtractSubmitScriptPath(flavor.create_adapter())
 
     with MockJobManager(hq_env, manager):
-        hq_env.start_server()
+        start_server_with_quick_refresh(hq_env)
         prepare_tasks(hq_env)
 
         add_queue(
@@ -556,7 +557,7 @@ def test_pass_worker_time_limit(hq_env: HqEnv, flavor: ManagerFlavor):
     manager = ExtractSubmitScriptPath(flavor.create_adapter())
 
     with MockJobManager(hq_env, manager):
-        hq_env.start_server()
+        start_server_with_quick_refresh(hq_env)
         prepare_tasks(hq_env)
 
         add_queue(hq_env, manager=flavor.manager_type(), worker_time_limit="30m")
@@ -573,7 +574,7 @@ def test_start_stop_cmd(hq_env: HqEnv, flavor: ManagerFlavor):
     manager = ExtractSubmitScriptPath(flavor.create_adapter())
 
     with MockJobManager(hq_env, manager):
-        hq_env.start_server()
+        start_server_with_quick_refresh(hq_env)
         prepare_tasks(hq_env)
 
         add_queue(
@@ -594,7 +595,7 @@ def test_start_stop_cmd(hq_env: HqEnv, flavor: ManagerFlavor):
 @all_flavors
 def test_do_not_submit_from_paused_queue(hq_env: HqEnv, flavor: ManagerFlavor):
     with MockJobManager(hq_env, flavor.default_handler()):
-        hq_env.start_server()
+        start_server_with_quick_refresh(hq_env)
 
         add_queue(hq_env, manager=flavor.manager_type())
         pause_queue(hq_env, 1)
@@ -621,7 +622,7 @@ def test_slurm_allocation_name(hq_env: HqEnv):
             raise Exception(f"Slurm name {name} not found in {path}")
 
     with MockJobManager(hq_env, manager):
-        hq_env.start_server()
+        start_server_with_quick_refresh(hq_env)
         prepare_tasks(hq_env)
 
         add_queue(hq_env, manager="slurm", name="foo", backlog=2)

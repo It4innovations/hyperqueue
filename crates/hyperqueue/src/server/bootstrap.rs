@@ -194,9 +194,6 @@ pub async fn initialize_server(
     let (events, event_stream_fut) =
         prepare_event_management(&server_cfg, &server_uid, truncate_log).await?;
 
-    let (autoalloc_service, autoalloc_process) =
-        create_autoalloc_service(state_ref.clone(), queue_id_initial_value, events.clone());
-
     let msd = Duration::from_millis(20);
     let (server_ref, comm_fut) = tako::server::server_start(
         worker_listener,
@@ -208,6 +205,8 @@ pub async fn initialize_server(
         state_ref.get().server_info().server_uid.clone(),
         worker_id_initial_value,
     )?;
+    let (autoalloc_service, autoalloc_process) =
+        create_autoalloc_service(server_ref.clone(), queue_id_initial_value, events.clone());
 
     let worker_port = server_ref.get_worker_listen_port();
     state_ref.get_mut().set_worker_port(worker_port);
@@ -274,7 +273,7 @@ pub async fn initialize_server(
                 Ok(())
             }
             _ = crate::server::client::handle_client_connections(
-                state_ref.clone(),
+                state_ref,
                 &senders,
                 server_dir,
                 client_listener,

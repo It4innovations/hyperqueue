@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 use crate::TaskId;
 use crate::internal::common::Set;
 use crate::internal::messages::worker::{

@@ -130,7 +130,7 @@ def test_autoalloc_pause_resume_queue_status(hq_env: HqEnv):
     add_queue(hq_env, manager="pbs")
 
     table = hq_env.command(["alloc", "list"], as_table=True)
-    table.check_column_value("State", 0, "RUNNING")
+    table.check_column_value("State", 0, "ACTIVE")
 
     pause_queue(hq_env, 1)
     table = hq_env.command(["alloc", "list"], as_table=True)
@@ -138,4 +138,4 @@ def test_autoalloc_pause_resume_queue_status(hq_env: HqEnv):
 
     resume_queue(hq_env, 1)
     table = hq_env.command(["alloc", "list"], as_table=True)
-    table.check_column_value("State", 0, "RUNNING")
+    table.check_column_value("State", 0, "ACTIVE")

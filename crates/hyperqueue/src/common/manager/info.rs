@@ -5,7 +5,7 @@ use tako::worker::WorkerConfiguration;
 
 pub const WORKER_EXTRA_MANAGER_KEY: &str = "JobManager";
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub enum ManagerType {
     Pbs,
     Slurm,
@@ -20,7 +20,7 @@ impl Display for ManagerType {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct ManagerInfo {
     pub manager: ManagerType,
     pub allocation_id: String,

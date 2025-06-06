@@ -21,11 +21,11 @@ use tokio::io::AsyncWriteExt;
 use tokio::sync::Notify;
 use tokio::task::LocalSet;
 
-use crate::WorkerId;
 use crate::internal::worker::rpc::run_worker;
 use crate::launcher::{TaskLaunchData, TaskLauncher, command_from_definitions};
 use crate::resources::ResourceDescriptorItem;
 use crate::worker::ServerLostPolicy;
+use crate::{Map, WorkerId};
 
 pub enum WorkerSecretKey {
     Server,
@@ -53,6 +53,8 @@ pub struct WorkerConfig {
         default = "ResourceDescriptor::new(vec![ResourceDescriptorItem::range(\"cpus\", 0, 0)])"
     )]
     resources: ResourceDescriptor,
+    #[builder(default)]
+    extra: Map<String, String>,
 }
 
 pub(super) fn create_worker_configuration(
@@ -64,6 +66,7 @@ pub(super) fn create_worker_configuration(
         secret_key,
         heartbeat_interval,
         resources,
+        extra,
     } = builder.build().unwrap();
     (
         WorkerConfiguration {
@@ -85,7 +88,7 @@ pub(super) fn create_worker_configuration(
             max_download_tries: DEFAULT_MAX_DOWNLOAD_TRIES,
             wait_between_download_tries: DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES,
             time_limit: None,
-            extra: Default::default(),
+            extra,
         },
         secret_key,
     )
