@@ -6,9 +6,9 @@ use crate::common::manager::info::{ManagerInfo, ManagerType};
 use crate::common::rpc::RpcReceiver;
 use crate::get_or_return;
 use crate::server::autoalloc::config::{
-    MAX_QUEUED_STATUS_ERROR_COUNT, MAX_RUNNING_STATUS_ERROR_COUNT, MAX_SUBMISSION_FAILS,
-    SUBMISSION_DELAYS, get_allocation_refresh_interval, get_allocation_schedule_tick_interval,
-    get_max_allocation_schedule_delay, max_allocation_fails,
+    get_allocation_refresh_interval, get_allocation_schedule_tick_interval, get_max_allocation_schedule_delay,
+    max_allocation_fails, MAX_QUEUED_STATUS_ERROR_COUNT, MAX_RUNNING_STATUS_ERROR_COUNT,
+    MAX_SUBMISSION_FAILS, SUBMISSION_DELAYS,
 };
 use crate::server::autoalloc::queue::pbs::PbsHandler;
 use crate::server::autoalloc::queue::slurm::SlurmHandler;
@@ -22,11 +22,11 @@ use crate::server::autoalloc::{Allocation, AllocationId, AutoAllocResult, QueueI
 use crate::server::event::streamer::EventStreamer;
 use crate::transfer::messages::{AllocationQueueParams, QueueData, QueueState};
 use futures::future::join_all;
-use tako::WorkerId;
 use tako::control::{ServerRef, WorkerTypeQuery};
 use tako::resources::{
-    CPU_RESOURCE_NAME, ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind,
+    ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind, CPU_RESOURCE_NAME,
 };
+use tako::WorkerId;
 use tako::{Map, Set};
 use tempfile::TempDir;
 
@@ -1097,15 +1097,14 @@ mod tests {
     use std::path::PathBuf;
     use std::pin::Pin;
 
-    use std::time::{Duration, Instant};
+    use std::time::Duration;
 
     use crate::common::arraydef::IntArray;
-    use crate::common::manager::info::ManagerType;
-    use crate::common::rpc::{ResponseToken, initiate_request};
-    use crate::common::utils::time::mock_time::MockTime;
+    use crate::common::manager::info::{ManagerInfo, ManagerType, WORKER_EXTRA_MANAGER_KEY};
+    use crate::common::rpc::ResponseToken;
     use crate::server::autoalloc::process::{
-        AllocationSyncReason, AutoallocSenders, do_periodic_update, handle_message,
-        perform_submits, queue_try_submit, sync_allocation_status,
+        handle_message, perform_submits, sync_allocation_status,
+        AllocationSyncReason, AutoallocSenders,
     };
     use crate::server::autoalloc::queue::{
         AllocationExternalStatus, AllocationStatusMap, AllocationSubmissionResult, QueueHandler,
@@ -1131,20 +1130,21 @@ mod tests {
     use derive_builder::Builder;
     use log::LevelFilter;
     use smallvec::smallvec;
-    use tako::WorkerId;
     use tako::gateway::{
         CrashLimit, LostWorkerReason, ResourceRequest, ResourceRequestEntry,
         ResourceRequestVariants,
     };
     use tako::program::ProgramDefinition;
     use tako::resources::ResourceAmount;
-    use tako::resources::{AllocationRequest, CPU_RESOURCE_NAME, TimeRequest};
+    use tako::resources::{AllocationRequest, TimeRequest, CPU_RESOURCE_NAME};
     use tako::tests::integration::utils::server::{
-        ServerConfigBuilder, ServerHandle, run_server_test,
+        run_server_test, ServerConfigBuilder, ServerHandle,
     };
     use tako::tests::integration::utils::task::{
-        GraphBuilder, TaskConfigBuilder, simple_args, simple_task,
+        simple_args, GraphBuilder, TaskConfigBuilder,
     };
+    use tako::tests::integration::utils::worker::WorkerConfigBuilder;
+    use tako::WorkerId;
     use tako::{Map, Set, WrappedRcRefCell};
     use tempfile::TempDir;
 
@@ -1203,6 +1203,30 @@ mod tests {
                 .unwrap();
         }
 
+        async fn create_simple_tasks(&mut self, count: u64) {
+            self.handle
+                .submit(
+                    GraphBuilder::default()
+                        .task_copied(
+                            TaskConfigBuilder::default().args(simple_args(&["ls"])),
+                            count,
+                        )
+                        .build(),
+                )
+                .await;
+        }
+
+        async fn start_worker<Id: Into<WorkerId>>(&mut self, worker_id: Id, info: ManagerInfo) {
+            assert!(
+                handle_message(
+                    &mut self.state,
+                    &self.senders.events,
+                    AutoAllocMessage::WorkerConnected(worker_id.into(), info)
+                )
+                .await
+            );
+        }
+
         fn get_allocations(&self, id: QueueId) -> Vec<Allocation> {
             let mut allocations: Vec<_> = self
                 .state
@@ -1237,6 +1261,23 @@ mod tests {
         .await;
     }
 
+    trait WorkerConfigBuilderExt {
+        fn with_manager_info(self, info: ManagerInfo) -> Self;
+    }
+
+    impl WorkerConfigBuilderExt for WorkerConfigBuilder {
+        fn with_manager_info(self, info: ManagerInfo) -> Self {
+            self.extra({
+                let mut map = Map::default();
+                map.insert(
+                    WORKER_EXTRA_MANAGER_KEY.to_string(),
+                    serde_json::to_string(&info).unwrap(),
+                );
+                map
+            })
+        }
+    }
+
     #[tokio::test]
     async fn no_submit_without_tasks() {
         run_test(async |mut ctx: TestCtx| {
@@ -1264,13 +1305,7 @@ mod tests {
                 )
                 .await;
 
-            ctx.handle
-                .submit(
-                    GraphBuilder::default()
-                        .task_copied(TaskConfigBuilder::default().args(simple_args(&["ls"])), 100)
-                        .build(),
-                )
-                .await;
+            ctx.create_simple_tasks(100).await;
             ctx.try_submit().await;
 
             let allocations = ctx.get_allocations(queue_id);
@@ -1284,52 +1319,63 @@ mod tests {
         .await;
     }
 
-    /*#[tokio::test]
+    #[tokio::test]
     async fn do_nothing_on_full_backlog() {
-        let hq_state = new_hq_state(1000);
-        let mut state = AutoAllocState::new(1);
+        run_test(async |mut ctx: TestCtx| {
+            let handler = always_queued_handler();
+            let queue_id = ctx
+                .add_queue(
+                    handler,
+                    QueueBuilder::default().backlog(4).workers_per_alloc(1),
+                )
+                .await;
 
-        let handler = always_queued_handler();
-        let queue_id = add_queue(&mut state, handler, QueueBuilder::default().backlog(4));
+            ctx.create_simple_tasks(100).await;
 
-        for _ in 0..5 {
-            queue_try_submit(
-                queue_id,
-                &mut state,
-                &hq_state,
-                &EventStreamer::new(None),
-                None,
-            )
-            .await;
-        }
+            for _ in 0..5 {
+                ctx.try_submit().await;
+            }
 
-        assert_eq!(get_allocations(&state, queue_id).len(), 4);
+            let allocations = ctx.get_allocations(queue_id);
+            assert_eq!(allocations.len(), 4);
+        })
+        .await;
     }
 
     #[tokio::test]
     async fn worker_connects_from_unknown_allocation() {
-        let hq_state = new_hq_state(1000);
-        let mut state = AutoAllocState::new(1);
+        run_test(async |mut ctx: TestCtx| {
+            let handler = always_queued_handler();
+            let queue_id = ctx
+                .add_queue(
+                    handler,
+                    QueueBuilder::default().backlog(1).workers_per_alloc(1),
+                )
+                .await;
 
-        let handler = always_queued_handler();
-        let queue_id = add_queue(
-            &mut state,
-            handler,
-            QueueBuilder::default().backlog(1).workers_per_alloc(1),
-        );
+            ctx.create_simple_tasks(100).await;
+            ctx.try_submit().await;
+            ctx.start_worker(
+                0,
+                ManagerInfo::new(
+                    ManagerType::Pbs,
+                    // Unknown allocation
+                    "foo".to_string(),
+                    None,
+                ),
+            )
+            .await;
 
-        let s = EventStreamer::new(None);
-        queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
-        on_worker_added(&s, queue_id, &mut state, "foo", 0);
-
-        assert!(
-            get_allocations(&state, queue_id)
-                .iter()
-                .all(|alloc| !alloc.is_running())
-        );
+            assert!(
+                ctx.get_allocations(queue_id)
+                    .iter()
+                    .all(|alloc| !alloc.is_running())
+            );
+        })
+        .await;
     }
 
-    #[tokio::test]
+    /*#[tokio::test]
     async fn start_allocation_when_worker_connects() {
         let hq_state = new_hq_state(1000);
         let mut state = AutoAllocState::new(1);
@@ -2097,17 +2143,6 @@ mod tests {
             );
         }
         state
-    }
-
-    fn get_allocations(autoalloc: &AutoAllocState, queue_id: QueueId) -> Vec<Allocation> {
-        let mut allocations: Vec<_> = autoalloc
-            .get_queue(queue_id)
-            .unwrap()
-            .all_allocations()
-            .cloned()
-            .collect();
-        allocations.sort_by(|a, b| a.id.cmp(&b.id));
-        allocations
     }
 
     fn create_job(job_id: u32, tasks: u32, min_time: TimeRequest) -> Job {
