@@ -1109,15 +1109,13 @@ mod tests {
 
     use std::time::{Duration, Instant};
 
-    use crate::common::arraydef::IntArray;
     use crate::common::manager::info::{
         GetManagerInfo, ManagerInfo, ManagerType, WORKER_EXTRA_MANAGER_KEY,
     };
     use crate::common::rpc::ResponseToken;
     use crate::common::utils::time::mock_time::MockTime;
     use crate::server::autoalloc::process::{
-        AllocationSyncReason, AutoallocSenders, do_periodic_update, handle_message,
-        perform_submits, sync_allocation_status,
+        AutoallocSenders, do_periodic_update, handle_message, perform_submits,
     };
     use crate::server::autoalloc::queue::{
         AllocationExternalStatus, AllocationStatusMap, AllocationSubmissionResult, QueueHandler,
@@ -1125,32 +1123,18 @@ mod tests {
     };
     use crate::server::autoalloc::service::AutoAllocMessage;
     use crate::server::autoalloc::state::{
-        AllocationQueue, AllocationQueueState, AllocationState, AutoAllocState, RateLimiter,
+        AllocationQueueState, AllocationState, AutoAllocState, RateLimiter,
     };
     use crate::server::autoalloc::{
         Allocation, AllocationId, AutoAllocResult, LostWorkerDetails, QueueId, QueueInfo,
     };
     use crate::server::event::streamer::EventStreamer;
-    use crate::server::job::{Job, SubmittedJobDescription};
-    use crate::server::state::{State, StateRef};
-    use crate::tests::utils::create_hq_state;
-    use crate::transfer::messages::{
-        AllocationQueueParams, JobDescription, JobSubmitDescription, JobTaskDescription, PinMode,
-        TaskDescription, TaskKind, TaskKindProgram,
-    };
+    use crate::transfer::messages::AllocationQueueParams;
     use anyhow::anyhow;
-    use chrono::Utc;
     use derive_builder::Builder;
     use log::LevelFilter;
-    use smallvec::smallvec;
     use tako::WorkerId;
-    use tako::gateway::{
-        CrashLimit, LostWorkerReason, ResourceRequest, ResourceRequestEntry,
-        ResourceRequestVariants,
-    };
-    use tako::program::ProgramDefinition;
-    use tako::resources::ResourceAmount;
-    use tako::resources::{AllocationRequest, CPU_RESOURCE_NAME, TimeRequest};
+    use tako::gateway::LostWorkerReason;
     use tako::tests::integration::utils::api::wait_for_worker_connected;
     use tako::tests::integration::utils::server::{
         ServerConfigBuilder, ServerHandle, run_server_test,
@@ -1193,7 +1177,7 @@ mod tests {
                         additional_args: vec![],
                         worker_start_cmd: None,
                         worker_stop_cmd: None,
-                        worker_args: queue_info.worker_args().iter().cloned().collect(),
+                        worker_args: queue_info.worker_args().to_vec(),
                         idle_timeout: None,
                     },
                     queue_id: None,
@@ -1612,12 +1596,11 @@ mod tests {
     async fn stop_allocating_on_error() {
         run_test(async |mut ctx: TestCtx| {
             let handler_state = WrappedRcRefCell::wrap(HandlerState::default());
-            let queue_id = ctx
-                .add_queue(
-                    stateful_handler(handler_state.clone()),
-                    QueueBuilder::default().backlog(5).workers_per_alloc(1),
-                )
-                .await;
+            ctx.add_queue(
+                stateful_handler(handler_state.clone()),
+                QueueBuilder::default().backlog(5).workers_per_alloc(1),
+            )
+            .await;
             ctx.create_simple_tasks(5).await;
 
             handler_state.get_mut().allocation_will_fail = true;
@@ -1956,7 +1939,7 @@ mod tests {
         RemoveFnFut: Future<Output = AutoAllocResult<()>>,
     > Handler<ScheduleFn, StatusFn, RemoveFn, State>
     {
-        fn new(
+        fn create(
             custom_state: WrappedRcRefCell<State>,
             schedule_fn: ScheduleFn,
             status_fn: StatusFn,
@@ -2039,7 +2022,7 @@ mod tests {
 
     // Handlers
     fn always_queued_handler() -> Box<dyn QueueHandler> {
-        Handler::new(
+        Handler::create(
             WrappedRcRefCell::wrap(0),
             move |state, _| async move {
                 let mut s = state.get_mut();
@@ -2056,7 +2039,7 @@ mod tests {
     }
 
     fn fails_submit_handler() -> Box<dyn QueueHandler> {
-        Handler::new(
+        Handler::create(
             WrappedRcRefCell::wrap(()),
             move |_, _| async move {
                 let tempdir = TempDir::with_prefix("hq").unwrap();
@@ -2075,7 +2058,7 @@ mod tests {
     /// Handler that spawns allocations with sequentially increasing IDs (starting at *0*) and
     /// returns allocation statuses from [`HandlerState`].
     fn stateful_handler(state: WrappedRcRefCell<HandlerState>) -> Box<dyn QueueHandler> {
-        Handler::new(
+        Handler::create(
             state,
             move |state, _worker_count| async move {
                 let mut state = state.get_mut();
@@ -2166,202 +2149,6 @@ mod tests {
                 ),
             )
         }
-    }
-
-    fn add_queue(
-        autoalloc: &mut AutoAllocState,
-        handler: Box<dyn QueueHandler>,
-        queue_builder: QueueBuilder,
-    ) -> QueueId {
-        let (queue_info, limiter) = queue_builder.build();
-        let queue = AllocationQueue::new(queue_info, None, handler, limiter);
-        autoalloc.add_queue(queue, None)
-    }
-
-    fn new_hq_state(waiting_tasks: u32) -> StateRef {
-        let state = create_hq_state();
-        if waiting_tasks > 0 {
-            attach_job(
-                &mut state.get_mut(),
-                0,
-                waiting_tasks,
-                Duration::from_secs(0),
-            );
-        }
-        state
-    }
-
-    fn create_job(job_id: u32, tasks: u32, min_time: TimeRequest) -> Job {
-        let def = ProgramDefinition {
-            args: vec![],
-            env: Default::default(),
-            stdout: Default::default(),
-            stderr: Default::default(),
-            stdin: vec![],
-            cwd: Default::default(),
-        };
-        let resources = ResourceRequestVariants::new_simple(ResourceRequest {
-            n_nodes: 0,
-            min_time,
-            resources: smallvec![ResourceRequestEntry {
-                resource: CPU_RESOURCE_NAME.to_string(),
-                policy: AllocationRequest::Compact(ResourceAmount::new_units(1)),
-            }],
-        });
-
-        let mut job = Job::new(
-            job_id.into(),
-            JobDescription {
-                name: "job".to_string(),
-                max_fails: None,
-            },
-            false,
-        );
-        job.attach_submit(SubmittedJobDescription::at(
-            Utc::now(),
-            JobSubmitDescription {
-                task_desc: JobTaskDescription::Array {
-                    ids: IntArray::from_range(0, tasks),
-                    entries: None,
-                    task_desc: TaskDescription {
-                        kind: TaskKind::ExternalProgram(TaskKindProgram {
-                            program: def,
-                            pin_mode: PinMode::None,
-                            task_dir: false,
-                        }),
-                        resources,
-                        time_limit: None,
-                        priority: 0,
-                        crash_limit: CrashLimit::default(),
-                    },
-                },
-                submit_dir: Default::default(),
-                stream_path: None,
-            },
-        ));
-        job
-    }
-
-    fn attach_job(state: &mut State, job_id: u32, tasks: u32, min_time: TimeRequest) {
-        let job = create_job(job_id, tasks, min_time);
-        state.add_job(job);
-    }
-
-    fn on_worker_added(
-        streamer: &EventStreamer,
-        queue_id: QueueId,
-        state: &mut AutoAllocState,
-        allocation_id: &str,
-        worker_id: u32,
-    ) {
-        sync_allocation_status(
-            streamer,
-            queue_id,
-            state.get_queue_mut(queue_id).unwrap(),
-            allocation_id,
-            AllocationSyncReason::WorkedConnected(worker_id.into()),
-        );
-    }
-
-    fn on_worker_lost(
-        streamer: &EventStreamer,
-        queue_id: QueueId,
-        state: &mut AutoAllocState,
-        allocation_id: &str,
-        worker_id: u32,
-        details: LostWorkerDetails,
-    ) {
-        sync_allocation_status(
-            streamer,
-            queue_id,
-            state.get_queue_mut(queue_id).unwrap(),
-            allocation_id,
-            AllocationSyncReason::WorkerLost(worker_id.into(), details),
-        );
-    }
-
-    fn check_running_workers(allocation: &Allocation, workers: Vec<u32>) {
-        let workers: Vec<WorkerId> = workers.into_iter().map(WorkerId::from).collect();
-        match &allocation.status {
-            AllocationState::Running {
-                connected_workers, ..
-            } => {
-                let mut connected: Vec<WorkerId> = connected_workers.iter().cloned().collect();
-                connected.sort_unstable();
-                assert_eq!(connected, workers);
-            }
-            _ => panic!("Allocation should be in running status"),
-        }
-    }
-
-    fn check_disconnected_running_workers(
-        allocation: &Allocation,
-        workers: Vec<(u32, LostWorkerReason)>,
-    ) {
-        let workers: Vec<(WorkerId, LostWorkerReason)> = workers
-            .into_iter()
-            .map(|(id, reason)| (WorkerId::from(id), reason))
-            .collect();
-        match &allocation.status {
-            AllocationState::Running {
-                disconnected_workers,
-                ..
-            } => {
-                let mut disconnected: Vec<_> = disconnected_workers
-                    .clone()
-                    .into_iter()
-                    .map(|(id, details)| (id, details.reason))
-                    .collect();
-                disconnected.sort_unstable_by_key(|(id, _)| *id);
-                assert_eq!(disconnected, workers);
-            }
-            _ => panic!("Allocation should be in running status"),
-        }
-    }
-
-    fn check_finished_workers(allocation: &Allocation, workers: Vec<(u32, LostWorkerReason)>) {
-        let workers: Vec<(WorkerId, LostWorkerReason)> = workers
-            .into_iter()
-            .map(|(id, reason)| (WorkerId::from(id), reason))
-            .collect();
-        match &allocation.status {
-            AllocationState::Finished {
-                disconnected_workers,
-                ..
-            } => {
-                let mut disconnected: Vec<_> = disconnected_workers
-                    .clone()
-                    .into_iter()
-                    .map(|(id, details)| (id, details.reason))
-                    .collect();
-                disconnected.sort_unstable_by_key(|(id, _)| *id);
-                assert_eq!(disconnected, workers);
-            }
-            _ => panic!("Allocation should be in finished status"),
-        }
-    }
-
-    fn check_queue_exists(autoalloc: &AutoAllocState, id: QueueId) {
-        assert!(autoalloc.get_queue(id).is_some());
-    }
-    fn check_queue_paused(autoalloc: &AutoAllocState, id: QueueId) {
-        assert!(matches!(
-            autoalloc.get_queue(id).unwrap().state(),
-            AllocationQueueState::Paused
-        ));
-    }
-
-    fn fail_allocation(queue_id: QueueId, autoalloc: &mut AutoAllocState, allocation_id: &str) {
-        let s = EventStreamer::new(None);
-        on_worker_added(&s, queue_id, autoalloc, allocation_id, 0);
-        on_worker_lost(
-            &s,
-            queue_id,
-            autoalloc,
-            allocation_id,
-            0,
-            lost_worker_quick(LostWorkerReason::ConnectionLost),
-        );
     }
 
     fn lost_worker_normal(reason: LostWorkerReason) -> LostWorkerDetails {

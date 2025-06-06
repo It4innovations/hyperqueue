@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 use crate::internal::messages::worker::ToWorkerMessage;
 use crate::internal::server::core::Core;
 use crate::internal::server::task::Task;
