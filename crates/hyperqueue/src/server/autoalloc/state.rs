@@ -187,6 +187,11 @@ impl AllocationQueue {
         self.handler.as_mut()
     }
 
+    #[cfg(test)]
+    pub fn set_handler(&mut self, handler: Box<dyn QueueHandler>) {
+        self.handler = handler;
+    }
+
     pub fn limiter(&self) -> &RateLimiter {
         &self.rate_limiter
     }

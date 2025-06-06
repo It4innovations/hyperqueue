@@ -136,7 +136,7 @@ pub struct SharedTaskConfiguration {
 }
 
 /// Task data that is unique for each task.
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct TaskConfiguration {
     pub id: TaskId,
     /// Index into NewTasksMessage::shared_data that contains the shared data for this task.
