@@ -22,7 +22,6 @@ use crate::internal::tests::integration::utils::worker::{
     WorkerContext, WorkerHandle, start_worker,
 };
 use crate::task::SerializedTaskContext;
-use crate::tests::integration::utils::api::wait_for_worker_connected;
 use crate::worker::{WorkerConfiguration, WorkerOverview};
 use crate::{InstanceId, TaskId, WorkerId, WrappedRcRefCell};
 
