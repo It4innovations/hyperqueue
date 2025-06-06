@@ -252,7 +252,7 @@ async fn handle_message(
                             name: queue.name().map(|name| name.to_string()),
                             manager_type: queue.manager().clone(),
                             state: match queue.state() {
-                                AllocationQueueState::Running => QueueState::Running,
+                                AllocationQueueState::Active => QueueState::Active,
                                 AllocationQueueState::Paused => QueueState::Paused,
                             },
                         },
@@ -330,10 +330,10 @@ async fn perform_submits(
     autoalloc: &mut AutoAllocState,
     senders: &AutoallocSenders,
 ) -> anyhow::Result<()> {
-    // Figure out which queues are running
+    // Figure out which queues are active
     let queues = autoalloc
         .queues()
-        .filter(|(_, queue)| queue.state().is_running())
+        .filter(|(_, queue)| queue.state().is_active())
         .collect::<Vec<_>>();
     if queues.is_empty() {
         return Ok(());
@@ -468,7 +468,7 @@ async fn queue_try_submit(
     // Also check the rate limiter
     let permit = {
         let queue = get_or_return!(autoalloc.get_queue_mut(queue_id));
-        if !queue.state().is_running() {
+        if !queue.state().is_active() {
             return;
         }
 
@@ -1057,7 +1057,7 @@ async fn remove_inactive_directories(autoalloc: &mut AutoAllocState) {
 
 fn try_pause_queue(autoalloc: &mut AutoAllocState, id: QueueId) {
     let queue = get_or_return!(autoalloc.get_queue_mut(id));
-    if !queue.state().is_running() {
+    if !queue.state().is_active() {
         return;
     }
     let limiter = queue.limiter();

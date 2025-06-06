@@ -967,7 +967,7 @@ impl Output for CliOutput {
                 vec![
                     id.cell(),
                     match state {
-                        QueueState::Running => "RUNNING",
+                        QueueState::Active => "ACTIVE",
                         QueueState::Paused => "PAUSED",
                     }
                     .cell(),
