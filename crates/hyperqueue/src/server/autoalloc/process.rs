@@ -352,8 +352,11 @@ async fn perform_submits(
     let queue_ids: Vec<QueueId> = queues.into_iter().map(|(id, _)| id).collect();
     for (required_workers, queue_id) in response.single_node_workers_per_query.iter().zip(queue_ids)
     {
-        queue_try_submit(autoalloc, queue_id, senders, *required_workers as u32).await;
-        try_pause_queue(autoalloc, queue_id);
+        // Try to pause the queue both before and after submitting
+        if !try_pause_queue(autoalloc, queue_id) {
+            queue_try_submit(autoalloc, queue_id, senders, *required_workers as u32).await;
+            try_pause_queue(autoalloc, queue_id);
+        }
     }
 
     Ok(())
@@ -1057,10 +1060,14 @@ async fn remove_inactive_directories(autoalloc: &mut AutoAllocState) {
     }
 }
 
-fn try_pause_queue(autoalloc: &mut AutoAllocState, id: QueueId) {
-    let queue = get_or_return!(autoalloc.get_queue_mut(id));
+/// Try to pause a queue automatically.
+/// Returns true if the queue is paused after this function finishes.
+fn try_pause_queue(autoalloc: &mut AutoAllocState, id: QueueId) -> bool {
+    let Some(queue) = autoalloc.get_queue_mut(id) else {
+        return false;
+    };
     if !queue.state().is_active() {
-        return;
+        return true;
     }
     let limiter = queue.limiter();
 
@@ -1069,12 +1076,14 @@ fn try_pause_queue(autoalloc: &mut AutoAllocState, id: QueueId) {
         RateLimiterStatus::TooManyFailedSubmissions => {
             log::error!("The queue {id} had too many failed submissions, it will be paused.");
             queue.pause();
+            true
         }
         RateLimiterStatus::TooManyFailedAllocations => {
             log::error!("The queue {id} had too many failed allocations, it will be paused.");
             queue.pause();
+            true
         }
-        RateLimiterStatus::Ok | RateLimiterStatus::Wait => (),
+        RateLimiterStatus::Ok | RateLimiterStatus::Wait => false,
     }
 }
 
@@ -1098,13 +1107,14 @@ mod tests {
     use std::path::PathBuf;
     use std::pin::Pin;
 
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     use crate::common::arraydef::IntArray;
     use crate::common::manager::info::{
         GetManagerInfo, ManagerInfo, ManagerType, WORKER_EXTRA_MANAGER_KEY,
     };
     use crate::common::rpc::ResponseToken;
+    use crate::common::utils::time::mock_time::MockTime;
     use crate::server::autoalloc::process::{
         AllocationSyncReason, AutoallocSenders, do_periodic_update, handle_message,
         perform_submits, sync_allocation_status,
@@ -1146,7 +1156,7 @@ mod tests {
         ServerConfigBuilder, ServerHandle, run_server_test,
     };
     use tako::tests::integration::utils::task::{
-        GraphBuilder, ResourceRequestConfigBuilder, TaskConfigBuilder, simple_args, simple_task,
+        GraphBuilder, ResourceRequestConfigBuilder, TaskConfigBuilder, simple_args,
     };
     use tako::tests::integration::utils::worker::WorkerConfigBuilder;
     use tako::worker::WorkerConfiguration;
@@ -1195,7 +1205,7 @@ mod tests {
 
             // A bit hacky, but easier than creating a mock for an external service, as we do in
             // Python.
-            let mut queue = self.state.get_queue_mut(queue_id).unwrap();
+            let queue = self.state.get_queue_mut(queue_id).unwrap();
             queue.set_handler(handler);
             *queue.limiter_mut() = rate_limiter;
 
@@ -1269,6 +1279,14 @@ mod tests {
             do_periodic_update(&self.senders, &mut self.state).await;
         }
 
+        async fn fail_allocation_quick(&mut self, allocation: &Allocation) {
+            let w0 = self
+                .start_worker(WorkerConfigBuilder::default(), allocation.id.as_str())
+                .await;
+            self.stop_worker(w0, lost_worker_quick(LostWorkerReason::ConnectionLost))
+                .await;
+        }
+
         fn get_allocations(&self, id: QueueId) -> Vec<Allocation> {
             let mut allocations: Vec<_> = self
                 .state
@@ -1314,6 +1332,10 @@ mod tests {
                 }
                 _ => panic!("Allocation should be in finished status"),
             }
+        }
+
+        fn check_queue_status(&self, id: QueueId, state: AllocationQueueState) {
+            assert_eq!(*self.state.get_queue(id).unwrap().state(), state);
         }
     }
 
@@ -1590,11 +1612,9 @@ mod tests {
     async fn stop_allocating_on_error() {
         run_test(async |mut ctx: TestCtx| {
             let handler_state = WrappedRcRefCell::wrap(HandlerState::default());
-            let handler = stateful_handler(handler_state.clone());
-
             let queue_id = ctx
                 .add_queue(
-                    handler,
+                    stateful_handler(handler_state.clone()),
                     QueueBuilder::default().backlog(5).workers_per_alloc(1),
                 )
                 .await;
@@ -1664,8 +1684,7 @@ mod tests {
             assert_eq!(allocations.len(), 4);
 
             // Start 2 allocations
-            let w0 = ctx
-                .start_worker(WorkerConfigBuilder::default(), allocations[0].id.as_str())
+            ctx.start_worker(WorkerConfigBuilder::default(), allocations[0].id.as_str())
                 .await;
             let w1 = ctx
                 .start_worker(WorkerConfigBuilder::default(), allocations[1].id.as_str())
@@ -1741,202 +1760,183 @@ mod tests {
         .await;
     }
 
-    /*#[tokio::test]
+    #[tokio::test]
     async fn pause_queue_when_submission_fails_too_many_times() {
-        let hq_state = new_hq_state(100);
-        let mut state = AutoAllocState::new(1);
+        run_test(async |mut ctx: TestCtx| {
+            let queue_id = ctx
+                .add_queue(
+                    fails_submit_handler(),
+                    QueueBuilder::default()
+                        .backlog(5)
+                        .limiter_max_submit_fails(2),
+                )
+                .await;
+            ctx.create_simple_tasks(100).await;
 
-        let shared = WrappedRcRefCell::wrap(HandlerState::default());
-        let handler = stateful_handler(shared.clone());
-
-        let queue_id = add_queue(
-            &mut state,
-            handler,
-            QueueBuilder::default()
-                .backlog(5)
-                .limiter_max_submit_fails(2),
-        );
-
-        shared.get_mut().allocation_will_fail = true;
-
-        let s = EventStreamer::new(None);
-        do_periodic_update(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
-        check_queue_exists(&state, queue_id);
-        do_periodic_update(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
-        check_queue_paused(&state, queue_id);
+            ctx.try_submit().await;
+            ctx.check_queue_status(queue_id, AllocationQueueState::Active);
+            ctx.try_submit().await;
+            ctx.check_queue_status(queue_id, AllocationQueueState::Paused);
+        })
+        .await;
     }
 
     #[tokio::test]
     async fn pause_queue_when_allocation_fails_too_many_times() {
-        let hq_state = new_hq_state(100);
-        let mut state = AutoAllocState::new(1);
+        run_test(async |mut ctx: TestCtx| {
+            let queue_id = ctx
+                .add_queue(
+                    always_queued_handler(),
+                    QueueBuilder::default()
+                        .backlog(5)
+                        .limiter_max_alloc_fails(2),
+                )
+                .await;
+            ctx.create_simple_tasks(100).await;
+            ctx.try_submit().await;
 
-        let shared = WrappedRcRefCell::wrap(HandlerState::default());
-        let handler = stateful_handler(shared.clone());
+            let allocations = ctx.get_allocations(queue_id);
+            ctx.fail_allocation_quick(&allocations[0]).await;
+            ctx.try_submit().await;
+            ctx.check_queue_status(queue_id, AllocationQueueState::Active);
 
-        let queue_id = add_queue(
-            &mut state,
-            handler,
-            QueueBuilder::default()
-                .backlog(5)
-                .limiter_max_alloc_fails(2),
-        );
-        let s = EventStreamer::new(None);
-        queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
+            ctx.fail_allocation_quick(&allocations[1]).await;
 
-        let allocations = get_allocations(&state, queue_id);
-        fail_allocation(queue_id, &mut state, &allocations[0].id);
-        do_periodic_update(
-            &hq_state,
-            &s,
-            &mut state,
-            RefreshReason::UpdateQueue(queue_id),
-        )
+            let allocations = ctx.get_allocations(queue_id);
+            ctx.try_submit().await;
+            ctx.check_queue_status(queue_id, AllocationQueueState::Paused);
+
+            // Make sure the try_submit call above did not actually submit anything
+            assert_eq!(ctx.get_allocations(queue_id).len(), allocations.len());
+        })
         .await;
-        check_queue_exists(&state, queue_id);
-
-        fail_allocation(queue_id, &mut state, &allocations[1].id);
-        do_periodic_update(
-            &hq_state,
-            &s,
-            &mut state,
-            RefreshReason::UpdateQueue(queue_id),
-        )
-        .await;
-        check_queue_paused(&state, queue_id);
     }
 
     #[tokio::test]
     async fn respect_rate_limiter() {
-        let hq_state = new_hq_state(100);
-        let mut state = AutoAllocState::new(1);
+        run_test(async |mut ctx: TestCtx| {
+            let shared = WrappedRcRefCell::wrap(HandlerState::default());
+            ctx.add_queue(
+                stateful_handler(shared.clone()),
+                QueueBuilder::default()
+                    .backlog(5)
+                    .limiter_max_alloc_fails(100)
+                    .limiter_delays(vec![
+                        Duration::ZERO,
+                        Duration::from_secs(1),
+                        Duration::from_secs(10),
+                    ]),
+            )
+            .await;
+            ctx.create_simple_tasks(100).await;
 
-        let shared = WrappedRcRefCell::wrap(HandlerState::default());
-        let handler = stateful_handler(shared.clone());
+            shared.get_mut().allocation_will_fail = true;
 
-        add_queue(
-            &mut state,
-            handler,
-            QueueBuilder::default()
-                .backlog(5)
-                .limiter_max_alloc_fails(100)
-                .limiter_delays(vec![
-                    Duration::ZERO,
-                    Duration::from_secs(1),
-                    Duration::from_secs(10),
-                ]),
-        );
+            let check_alloc_count = |count: usize| {
+                assert_eq!(shared.get().allocation_attempts, count);
+            };
+            let mut now = Instant::now();
+            {
+                let _mock = MockTime::mock(now);
+                ctx.try_submit().await;
+                check_alloc_count(1);
+            }
 
-        shared.get_mut().allocation_will_fail = true;
+            // Now we should sleep until +1 sec
+            {
+                now += Duration::from_millis(500);
+                let _mock = MockTime::mock(now);
+                ctx.try_submit().await;
+                check_alloc_count(1);
+            }
+            {
+                now += Duration::from_millis(1500);
+                let _mock = MockTime::mock(now);
+                ctx.try_submit().await;
+                check_alloc_count(2);
+            }
 
-        let check_alloc_count = |count: usize| {
-            assert_eq!(shared.get().allocation_attempts, count);
-        };
-        let s = EventStreamer::new(None);
-        let mut now = Instant::now();
-        {
-            let _mock = MockTime::mock(now);
-            do_periodic_update(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
-            check_alloc_count(1);
-        }
-
-        // Now we should sleep until +1 sec
-        {
-            now += Duration::from_millis(500);
-            let _mock = MockTime::mock(now);
-            do_periodic_update(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
-            check_alloc_count(1);
-        }
-        {
-            now += Duration::from_millis(1500);
-            let _mock = MockTime::mock(now);
-            do_periodic_update(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
-            check_alloc_count(2);
-        }
-
-        // Now we should sleep until +10 sec
-        {
-            now += Duration::from_millis(5000);
-            let _mock = MockTime::mock(now);
-            do_periodic_update(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
-            check_alloc_count(2);
-        }
-        {
-            now += Duration::from_millis(6000);
-            let _mock = MockTime::mock(now);
-            do_periodic_update(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
-            check_alloc_count(3);
-        }
-        // The delay shouldn't increase any more when we have reached the maximum delay
-        {
-            now += Duration::from_millis(11000);
-            let _mock = MockTime::mock(now);
-            do_periodic_update(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
-            check_alloc_count(4);
-        }
+            // Now we should sleep until +10 sec
+            {
+                now += Duration::from_millis(5000);
+                let _mock = MockTime::mock(now);
+                ctx.try_submit().await;
+                check_alloc_count(2);
+            }
+            {
+                now += Duration::from_millis(6000);
+                let _mock = MockTime::mock(now);
+                ctx.try_submit().await;
+                check_alloc_count(3);
+            }
+            // The delay shouldn't increase any more when we have reached the maximum delay
+            {
+                now += Duration::from_millis(11000);
+                let _mock = MockTime::mock(now);
+                ctx.try_submit().await;
+                check_alloc_count(4);
+            }
+        })
+        .await;
     }
 
     #[tokio::test]
     async fn bump_fail_counter_if_worker_fails_quick() {
-        let hq_state = new_hq_state(1000);
-        let mut state = AutoAllocState::new(1);
+        run_test(async |mut ctx: TestCtx| {
+            let queue_id = ctx
+                .add_queue(
+                    always_queued_handler(),
+                    QueueBuilder::default().backlog(1).workers_per_alloc(1),
+                )
+                .await;
+            ctx.create_simple_tasks(1000).await;
 
-        let handler = always_queued_handler();
-        let queue_id = add_queue(
-            &mut state,
-            handler,
-            QueueBuilder::default().backlog(1).workers_per_alloc(1),
-        );
+            ctx.try_submit().await;
+            let allocations = ctx.get_allocations(queue_id);
 
-        let s = EventStreamer::new(None);
-        queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
-        let allocs = get_allocations(&state, queue_id);
-
-        fail_allocation(queue_id, &mut state, &allocs[0].id);
-        assert_eq!(
-            state
-                .get_queue(queue_id)
-                .unwrap()
-                .limiter()
-                .allocation_fail_count(),
-            1
-        );
+            ctx.fail_allocation_quick(&allocations[0]).await;
+            assert_eq!(
+                ctx.state
+                    .get_queue(queue_id)
+                    .unwrap()
+                    .limiter()
+                    .allocation_fail_count(),
+                1
+            );
+        })
+        .await;
     }
 
     #[tokio::test]
     async fn do_not_bump_fail_counter_if_worker_fails_normally() {
-        let hq_state = new_hq_state(1000);
-        let mut state = AutoAllocState::new(1);
+        run_test(async |mut ctx: TestCtx| {
+            let queue_id = ctx
+                .add_queue(
+                    always_queued_handler(),
+                    QueueBuilder::default().backlog(1).workers_per_alloc(1),
+                )
+                .await;
+            ctx.create_simple_tasks(1000).await;
 
-        let handler = always_queued_handler();
-        let queue_id = add_queue(
-            &mut state,
-            handler,
-            QueueBuilder::default().backlog(1).workers_per_alloc(1),
-        );
+            ctx.try_submit().await;
+            let allocations = ctx.get_allocations(queue_id);
 
-        let s = EventStreamer::new(None);
-        queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
-        let allocs = get_allocations(&state, queue_id);
-
-        on_worker_added(&s, queue_id, &mut state, &allocs[0].id, 0);
-        on_worker_lost(
-            &s,
-            queue_id,
-            &mut state,
-            &allocs[0].id,
-            0,
-            lost_worker_normal(LostWorkerReason::ConnectionLost),
-        );
-        assert_eq!(
-            state
-                .get_queue(queue_id)
-                .unwrap()
-                .limiter()
-                .allocation_fail_count(),
-            0
-        );
-    }*/
+            let w0 = ctx
+                .start_worker(WorkerConfigBuilder::default(), allocations[0].id.as_str())
+                .await;
+            ctx.stop_worker(w0, lost_worker_normal(LostWorkerReason::ConnectionLost))
+                .await;
+            assert_eq!(
+                ctx.state
+                    .get_queue(queue_id)
+                    .unwrap()
+                    .limiter()
+                    .allocation_fail_count(),
+                0
+            );
+        })
+        .await;
+    }
 
     // Utilities
     struct Handler<ScheduleFn, StatusFn, RemoveFn, State> {
@@ -2068,27 +2068,6 @@ mod tests {
                 ))
             },
             move |_, _| async move { Ok(Some(AllocationExternalStatus::Queued)) },
-            |_, _| async move { Ok(()) },
-        )
-    }
-
-    fn fails_status_handler() -> Box<dyn QueueHandler> {
-        Handler::new(
-            WrappedRcRefCell::wrap(0),
-            move |state, _| async move {
-                let mut s = state.get_mut();
-                let id = *s;
-                *s += 1;
-                Ok(AllocationSubmissionResult::new(
-                    Ok(id.to_string()),
-                    Default::default(),
-                ))
-            },
-            move |_, alloc_id| async move {
-                Err(anyhow::anyhow!(
-                    "Cannot get status of allocation {alloc_id}"
-                ))
-            },
             |_, _| async move { Ok(()) },
         )
     }

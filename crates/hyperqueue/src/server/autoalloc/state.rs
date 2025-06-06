@@ -111,6 +111,7 @@ impl AutoAllocState {
 // Queue
 pub type QueueId = u32;
 
+#[derive(Debug, PartialEq)]
 pub enum AllocationQueueState {
     /// The queue is being processed as normal.
     Active,
