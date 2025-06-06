@@ -517,6 +517,7 @@ fn fail_task_helper(
     }
     drop(state);
     objs_to_remove.send(comm);
+    comm.ask_for_scheduling();
     let cancel_ids = comm.client().on_task_error(task_id, consumers, error_info);
     if !cancel_ids.is_empty() {
         on_cancel_tasks(core, comm, &cancel_ids);
