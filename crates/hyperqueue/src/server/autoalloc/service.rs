@@ -85,17 +85,17 @@ impl AutoAllocService {
         self.send(AutoAllocMessage::JobSubmitted(job_id));
     }
 
-    pub fn get_queues(&self) -> impl Future<Output = Map<QueueId, QueueData>> + use<> {
+    pub async fn get_queues(&self) -> Map<QueueId, QueueData> {
         let fut = initiate_request(|token| self.sender.send(AutoAllocMessage::GetQueues(token)));
-        async move { fut.await.unwrap() }
+        fut.await.unwrap()
     }
 
-    pub fn add_queue(
+    pub async fn add_queue(
         &self,
         server_dir: &Path,
         params: AllocationQueueParams,
         queue_id: Option<QueueId>,
-    ) -> impl Future<Output = anyhow::Result<QueueId>> + use<> {
+    ) -> anyhow::Result<QueueId> {
         let fut = initiate_request(|token| {
             self.sender.send(AutoAllocMessage::AddQueue {
                 server_directory: server_dir.to_path_buf(),
@@ -104,13 +104,9 @@ impl AutoAllocService {
                 response: token,
             })
         });
-        async move { fut.await.unwrap() }
+        fut.await?
     }
-    pub fn remove_queue(
-        &self,
-        id: QueueId,
-        force: bool,
-    ) -> impl Future<Output = anyhow::Result<()>> + use<> {
+    pub async fn remove_queue(&self, id: QueueId, force: bool) -> anyhow::Result<()> {
         let fut = initiate_request(|token| {
             self.sender.send(AutoAllocMessage::RemoveQueue {
                 id,
@@ -118,36 +114,33 @@ impl AutoAllocService {
                 response: token,
             })
         });
-        async move { fut.await.unwrap() }
+        fut.await?
     }
-    pub fn pause_queue(&self, id: QueueId) -> impl Future<Output = anyhow::Result<()>> + use<> {
+    pub async fn pause_queue(&self, id: QueueId) -> anyhow::Result<()> {
         let fut = initiate_request(|token| {
             self.sender.send(AutoAllocMessage::PauseQueue {
                 id,
                 response: token,
             })
         });
-        async move { fut.await.unwrap() }
+        fut.await?
     }
-    pub fn resume_queue(&self, id: QueueId) -> impl Future<Output = anyhow::Result<()>> + use<> {
+    pub async fn resume_queue(&self, id: QueueId) -> anyhow::Result<()> {
         let fut = initiate_request(|token| {
             self.sender.send(AutoAllocMessage::ResumeQueue {
                 id,
                 response: token,
             })
         });
-        async move { fut.await.unwrap() }
+        fut.await?
     }
 
-    pub fn get_allocations(
-        &self,
-        id: QueueId,
-    ) -> impl Future<Output = anyhow::Result<Vec<Allocation>>> + use<> {
+    pub async fn get_allocations(&self, id: QueueId) -> anyhow::Result<Vec<Allocation>> {
         let fut = initiate_request(|token| {
             self.sender
                 .send(AutoAllocMessage::GetAllocations(id, token))
         });
-        async move { fut.await.unwrap() }
+        fut.await?
     }
 
     fn send(&self, msg: AutoAllocMessage) {
