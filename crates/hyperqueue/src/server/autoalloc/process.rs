@@ -346,6 +346,8 @@ async fn perform_submits(
         .collect();
     let response = senders.server.new_worker_query(queries)?;
 
+    log::debug!("Scheduler query result: {response:?}");
+
     // Now schedule the workers into the individual queues
     let queue_ids: Vec<QueueId> = queues.into_iter().map(|(id, _)| id).collect();
     for (required_workers, queue_id) in response.single_node_workers_per_query.iter().zip(queue_ids)
@@ -1146,6 +1148,7 @@ mod tests {
     };
     use tako::tests::integration::utils::task::{GraphBuilder, TaskConfigBuilder, simple_args};
     use tako::tests::integration::utils::worker::WorkerConfigBuilder;
+    use tako::worker::WorkerConfiguration;
     use tako::{Map, Set, WrappedRcRefCell};
     use tempfile::TempDir;
 
@@ -1153,6 +1156,7 @@ mod tests {
         state: AutoAllocState,
         senders: AutoallocSenders,
         handle: ServerHandle,
+        workers: Map<WorkerId, WorkerConfiguration>,
     }
 
     impl TestCtx {
@@ -1161,7 +1165,7 @@ mod tests {
             handler: Box<dyn QueueHandler>,
             queue_builder: QueueBuilder,
         ) -> QueueId {
-            let (queue_info, _rate_limiter) = queue_builder.build();
+            let (queue_info, rate_limiter) = queue_builder.build();
             let (token, rx) = ResponseToken::new();
             handle_message(
                 &mut self.state,
@@ -1190,10 +1194,9 @@ mod tests {
 
             // A bit hacky, but easier than creating a mock for an external service, as we do in
             // Python.
-            self.state
-                .get_queue_mut(queue_id)
-                .unwrap()
-                .set_handler(handler);
+            let mut queue = self.state.get_queue_mut(queue_id).unwrap();
+            queue.set_handler(handler);
+            *queue.limiter_mut() = rate_limiter;
 
             queue_id
         }
@@ -1241,7 +1244,24 @@ mod tests {
                 )
                 .await
             );
+
+            assert!(self.workers.insert(handle.id, config).is_none());
+
             handle.id
+        }
+
+        async fn stop_worker(&mut self, id: WorkerId, details: LostWorkerDetails) {
+            self.handle.stop_worker(id).await;
+            let config = self.workers.get(&id).unwrap();
+            let info = config.get_manager_info().unwrap();
+            assert!(
+                handle_message(
+                    &mut self.state,
+                    &self.senders.events,
+                    AutoAllocMessage::WorkerLost(id, info, details)
+                )
+                .await
+            );
         }
 
         fn get_allocations(&self, id: QueueId) -> Vec<Allocation> {
@@ -1268,6 +1288,28 @@ mod tests {
                 _ => panic!("Allocation {allocation:?} should be in running status"),
             }
         }
+
+        fn check_finished_workers(
+            &self,
+            allocation: &Allocation,
+            workers: Vec<(WorkerId, LostWorkerReason)>,
+        ) {
+            match &allocation.status {
+                AllocationState::Finished {
+                    disconnected_workers,
+                    ..
+                } => {
+                    let mut disconnected: Vec<_> = disconnected_workers
+                        .clone()
+                        .into_iter()
+                        .map(|(id, details)| (id, details.reason))
+                        .collect();
+                    disconnected.sort_unstable_by_key(|(id, _)| *id);
+                    assert_eq!(disconnected, workers);
+                }
+                _ => panic!("Allocation should be in finished status"),
+            }
+        }
     }
 
     async fn run_test<F: AsyncFnOnce(TestCtx)>(f: F) {
@@ -1285,6 +1327,7 @@ mod tests {
                     events: EventStreamer::new(None),
                 },
                 handle,
+                workers: Default::default(),
             };
             f(ctx).await;
         })
@@ -1316,22 +1359,6 @@ mod tests {
                 time_limit: None,
             }
         }
-    }
-
-    #[tokio::test]
-    async fn no_submit_without_tasks() {
-        run_test(async |mut ctx: TestCtx| {
-            let handler = always_queued_handler();
-            let queue_id = ctx
-                .add_queue(
-                    handler,
-                    QueueBuilder::default().backlog(4).workers_per_alloc(2),
-                )
-                .await;
-            ctx.try_submit().await;
-            assert!(ctx.get_allocations(queue_id).is_empty());
-        })
-        .await;
     }
 
     #[tokio::test]
@@ -1376,8 +1403,7 @@ mod tests {
                 ctx.try_submit().await;
             }
 
-            let allocations = ctx.get_allocations(queue_id);
-            assert_eq!(allocations.len(), 4);
+            assert_eq!(ctx.get_allocations(queue_id).len(), 4);
         })
         .await;
     }
@@ -1427,175 +1453,173 @@ mod tests {
                 .start_worker(WorkerConfigBuilder::default(), allocations[0].id.as_str())
                 .await;
 
+            ctx.check_running_workers(&ctx.get_allocations(queue_id)[0], vec![worker_id]);
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn add_another_worker_to_allocation() {
+        run_test(async |mut ctx: TestCtx| {
+            let handler = always_queued_handler();
+            let queue_id = ctx
+                .add_queue(
+                    handler,
+                    QueueBuilder::default().backlog(1).workers_per_alloc(2),
+                )
+                .await;
+
+            ctx.create_simple_tasks(100).await;
+            ctx.try_submit().await;
+
             let allocations = ctx.get_allocations(queue_id);
-            ctx.check_running_workers(&allocations[0], vec![worker_id]);
+            let w0 = ctx
+                .start_worker(WorkerConfigBuilder::default(), allocations[0].id.as_str())
+                .await;
+            let w1 = ctx
+                .start_worker(WorkerConfigBuilder::default(), allocations[0].id.as_str())
+                .await;
+
+            ctx.check_running_workers(&ctx.get_allocations(queue_id)[0], vec![w0, w1]);
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn finish_allocation_when_worker_disconnects() {
+        run_test(async |mut ctx: TestCtx| {
+            let handler = always_queued_handler();
+            let queue_id = ctx
+                .add_queue(
+                    handler,
+                    QueueBuilder::default().backlog(1).workers_per_alloc(1),
+                )
+                .await;
+
+            ctx.create_simple_tasks(100).await;
+            ctx.try_submit().await;
+
+            let w0 = ctx
+                .start_worker(
+                    WorkerConfigBuilder::default(),
+                    ctx.get_allocations(queue_id)[0].id.as_str(),
+                )
+                .await;
+            ctx.stop_worker(w0, lost_worker_normal(LostWorkerReason::ConnectionLost))
+                .await;
+            ctx.check_finished_workers(
+                &ctx.get_allocations(queue_id)[0],
+                vec![(w0, LostWorkerReason::ConnectionLost)],
+            );
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn finish_allocation_when_last_worker_disconnects() {
+        run_test(async |mut ctx: TestCtx| {
+            let handler = always_queued_handler();
+            let queue_id = ctx
+                .add_queue(
+                    handler,
+                    QueueBuilder::default().backlog(1).workers_per_alloc(2),
+                )
+                .await;
+
+            ctx.create_simple_tasks(100).await;
+            ctx.try_submit().await;
+
+            let allocations = ctx.get_allocations(queue_id);
+            let w0 = ctx
+                .start_worker(WorkerConfigBuilder::default(), allocations[0].id.as_str())
+                .await;
+            let w1 = ctx
+                .start_worker(WorkerConfigBuilder::default(), allocations[0].id.as_str())
+                .await;
+
+            ctx.stop_worker(w0, lost_worker_normal(LostWorkerReason::ConnectionLost))
+                .await;
+            ctx.check_running_workers(&ctx.get_allocations(queue_id)[0], vec![w1]);
+
+            ctx.stop_worker(w1, lost_worker_normal(LostWorkerReason::HeartbeatLost))
+                .await;
+            ctx.check_finished_workers(
+                &ctx.get_allocations(queue_id)[0],
+                vec![
+                    (w0, LostWorkerReason::ConnectionLost),
+                    (w1, LostWorkerReason::HeartbeatLost),
+                ],
+            );
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn do_not_create_allocations_without_tasks() {
+        run_test(async |mut ctx: TestCtx| {
+            let handler = always_queued_handler();
+            let queue_id = ctx
+                .add_queue(
+                    handler,
+                    QueueBuilder::default().backlog(4).workers_per_alloc(2),
+                )
+                .await;
+            ctx.try_submit().await;
+            assert!(ctx.get_allocations(queue_id).is_empty());
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn do_not_fill_backlog_when_tasks_run_out() {
+        run_test(async |mut ctx: TestCtx| {
+            let handler = always_queued_handler();
+            let queue_id = ctx
+                .add_queue(
+                    handler,
+                    QueueBuilder::default().backlog(5).workers_per_alloc(2),
+                )
+                .await;
+
+            ctx.create_simple_tasks(5).await;
+            ctx.try_submit().await;
+
+            // 5 tasks, 3 * 2 workers -> last two allocations should be ignored
+            assert_eq!(ctx.get_allocations(queue_id).len(), 3);
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn stop_allocating_on_error() {
+        run_test(async |mut ctx: TestCtx| {
+            let handler_state = WrappedRcRefCell::wrap(HandlerState::default());
+            let handler = stateful_handler(handler_state.clone());
+
+            let queue_id = ctx
+                .add_queue(
+                    handler,
+                    QueueBuilder::default().backlog(5).workers_per_alloc(1),
+                )
+                .await;
+            ctx.create_simple_tasks(5).await;
+
+            handler_state.get_mut().allocation_will_fail = true;
+
+            // Only try the first allocation in the backlog
+            ctx.try_submit().await;
+            assert_eq!(handler_state.get().allocation_attempts, 1);
+
+            handler_state.get_mut().allocation_will_fail = false;
+
+            // Finish the rest
+            ctx.try_submit().await;
+            assert_eq!(handler_state.get().allocation_attempts, 6);
         })
         .await;
     }
 
     /*#[tokio::test]
-    async fn add_another_worker_to_allocation() {
-        let hq_state = new_hq_state(1000);
-        let mut state = AutoAllocState::new(1);
-
-        let handler = always_queued_handler();
-        let queue_id = add_queue(
-            &mut state,
-            handler,
-            QueueBuilder::default().backlog(1).workers_per_alloc(2),
-        );
-
-        let s = EventStreamer::new(None);
-        queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
-        let allocs = get_allocations(&state, queue_id);
-
-        for id in [0u32, 1] {
-            on_worker_added(&s, queue_id, &mut state, &allocs[0].id, id);
-        }
-        check_running_workers(
-            get_allocations(&state, queue_id).first().unwrap(),
-            vec![0, 1],
-        );
-    }
-
-    #[tokio::test]
-    async fn finish_allocation_when_worker_disconnects() {
-        let hq_state = new_hq_state(1000);
-        let mut state = AutoAllocState::new(1);
-
-        let handler = always_queued_handler();
-        let queue_id = add_queue(
-            &mut state,
-            handler,
-            QueueBuilder::default().backlog(1).workers_per_alloc(1),
-        );
-
-        let s = EventStreamer::new(None);
-        queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
-        let allocs = get_allocations(&state, queue_id);
-
-        on_worker_added(&s, queue_id, &mut state, &allocs[0].id, 0);
-        on_worker_lost(
-            &s,
-            queue_id,
-            &mut state,
-            &allocs[0].id,
-            0,
-            lost_worker_normal(LostWorkerReason::ConnectionLost),
-        );
-        check_finished_workers(
-            get_allocations(&state, queue_id).first().unwrap(),
-            vec![(0, LostWorkerReason::ConnectionLost)],
-        );
-    }
-
-    #[tokio::test]
-    async fn finish_allocation_when_last_worker_disconnects() {
-        let hq_state = new_hq_state(1000);
-        let mut state = AutoAllocState::new(1);
-
-        let handler = always_queued_handler();
-        let queue_id = add_queue(
-            &mut state,
-            handler,
-            QueueBuilder::default().backlog(1).workers_per_alloc(2),
-        );
-
-        let s = EventStreamer::new(None);
-
-        queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
-        let allocs = get_allocations(&state, queue_id);
-
-        for id in [0u32, 1] {
-            on_worker_added(&s, queue_id, &mut state, &allocs[0].id, id);
-        }
-        on_worker_lost(
-            &s,
-            queue_id,
-            &mut state,
-            &allocs[0].id,
-            0,
-            lost_worker_normal(LostWorkerReason::ConnectionLost),
-        );
-        let allocation = get_allocations(&state, queue_id)[0].clone();
-        check_running_workers(&allocation, vec![1]);
-        check_disconnected_running_workers(
-            &allocation,
-            vec![(0, LostWorkerReason::ConnectionLost)],
-        );
-        on_worker_lost(
-            &s,
-            queue_id,
-            &mut state,
-            &allocs[0].id,
-            1,
-            lost_worker_normal(LostWorkerReason::HeartbeatLost),
-        );
-        let allocation = get_allocations(&state, queue_id)[0].clone();
-        check_finished_workers(
-            &allocation,
-            vec![
-                (0, LostWorkerReason::ConnectionLost),
-                (1, LostWorkerReason::HeartbeatLost),
-            ],
-        );
-    }
-
-    #[tokio::test]
-    async fn do_not_create_allocations_without_tasks() {
-        let hq_state = new_hq_state(0);
-        let mut state = AutoAllocState::new(1);
-
-        let handler = always_queued_handler();
-        let queue_id = add_queue(&mut state, handler, QueueBuilder::default().backlog(3));
-
-        let s = EventStreamer::new(None);
-        queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
-        assert_eq!(get_allocations(&state, queue_id).len(), 0);
-    }
-
-    #[tokio::test]
-    async fn do_not_fill_backlog_when_tasks_run_out() {
-        let hq_state = new_hq_state(5);
-        let mut state = AutoAllocState::new(1);
-
-        let handler = always_queued_handler();
-        let queue_id = add_queue(
-            &mut state,
-            handler,
-            QueueBuilder::default().backlog(5).workers_per_alloc(2),
-        );
-
-        // 5 tasks, 3 * 2 workers -> last two allocations should be ignored
-        let s = EventStreamer::new(None);
-        queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
-        assert_eq!(get_allocations(&state, queue_id).len(), 3);
-    }
-
-    #[tokio::test]
-    async fn stop_allocating_on_error() {
-        let hq_state = new_hq_state(5);
-        let mut state = AutoAllocState::new(1);
-
-        let handler_state = WrappedRcRefCell::wrap(HandlerState::default());
-        let handler = stateful_handler(handler_state.clone());
-        let queue_id = add_queue(&mut state, handler, QueueBuilder::default().backlog(5));
-
-        handler_state.get_mut().allocation_will_fail = true;
-
-        // Only try the first allocation in the backlog
-        let s = EventStreamer::new(None);
-        queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
-        assert_eq!(handler_state.get().allocation_attempts, 1);
-
-        handler_state.get_mut().allocation_will_fail = false;
-
-        // Finish the rest
-        queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
-        assert_eq!(handler_state.get().allocation_attempts, 6);
-    }
-
-    #[tokio::test]
     async fn ignore_task_with_high_time_request() {
         let hq_state = new_hq_state(0);
         attach_job(&mut hq_state.get_mut(), 0, 1, Duration::from_secs(60 * 60));
