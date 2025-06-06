@@ -61,11 +61,24 @@ pub async fn autoalloc_process(
 
     // Periodically update external state
     let mut periodic_update_interval = tokio::time::interval(get_allocation_refresh_interval());
+    log::debug!(
+        "Periodic refresh interval: {}s",
+        get_allocation_refresh_interval().as_secs_f64()
+    );
 
     // When no message is not received after this interval, run scheduling
     let max_scheduling_delay = get_max_allocation_schedule_delay();
+    log::debug!(
+        "Max delay between submits: {}s",
+        max_scheduling_delay.as_secs_f64()
+    );
+
     // How often to check scheduling
     let mut scheduling_interval = tokio::time::interval(get_allocation_schedule_tick_interval());
+    log::debug!(
+        "Submit check interval: {}s",
+        get_allocation_schedule_tick_interval().as_secs_f64()
+    );
 
     // Should scheduling be performed at the next scheduling "tick"?
     let mut should_schedule = false;
@@ -74,10 +87,12 @@ pub async fn autoalloc_process(
     loop {
         tokio::select! {
             _ = periodic_update_interval.tick() => {
+                log::debug!("Performing periodic update");
                 do_periodic_update(&senders, &mut autoalloc).await;
             }
             _ = scheduling_interval.tick() => {
                 if should_schedule || last_schedule.elapsed() >= max_scheduling_delay {
+                    log::debug!("Performing submits");
                     if let Err(error) = perform_submits(&mut autoalloc, &senders).await {
                         log::error!("Autoalloc scheduling failed: {error:?}");
                     }
