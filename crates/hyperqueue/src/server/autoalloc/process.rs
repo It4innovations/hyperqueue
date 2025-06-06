@@ -1106,8 +1106,8 @@ mod tests {
     };
     use crate::common::rpc::ResponseToken;
     use crate::server::autoalloc::process::{
-        AllocationSyncReason, AutoallocSenders, handle_message, perform_submits,
-        sync_allocation_status,
+        AllocationSyncReason, AutoallocSenders, do_periodic_update, handle_message,
+        perform_submits, sync_allocation_status,
     };
     use crate::server::autoalloc::queue::{
         AllocationExternalStatus, AllocationStatusMap, AllocationSubmissionResult, QueueHandler,
@@ -1265,6 +1265,10 @@ mod tests {
             );
         }
 
+        async fn periodic_update(&mut self) {
+            do_periodic_update(&self.senders, &mut self.state).await;
+        }
+
         fn get_allocations(&self, id: QueueId) -> Vec<Allocation> {
             let mut allocations: Vec<_> = self
                 .state
@@ -1365,10 +1369,9 @@ mod tests {
     #[tokio::test]
     async fn fill_backlog() {
         run_test(async |mut ctx: TestCtx| {
-            let handler = always_queued_handler();
             let queue_id = ctx
                 .add_queue(
-                    handler,
+                    always_queued_handler(),
                     QueueBuilder::default().backlog(4).workers_per_alloc(2),
                 )
                 .await;
@@ -1390,10 +1393,9 @@ mod tests {
     #[tokio::test]
     async fn do_nothing_on_full_backlog() {
         run_test(async |mut ctx: TestCtx| {
-            let handler = always_queued_handler();
             let queue_id = ctx
                 .add_queue(
-                    handler,
+                    always_queued_handler(),
                     QueueBuilder::default().backlog(4).workers_per_alloc(1),
                 )
                 .await;
@@ -1412,10 +1414,9 @@ mod tests {
     #[tokio::test]
     async fn worker_connects_from_unknown_allocation() {
         run_test(async |mut ctx: TestCtx| {
-            let handler = always_queued_handler();
             let queue_id = ctx
                 .add_queue(
-                    handler,
+                    always_queued_handler(),
                     QueueBuilder::default().backlog(1).workers_per_alloc(1),
                 )
                 .await;
@@ -1438,10 +1439,9 @@ mod tests {
     #[tokio::test]
     async fn start_allocation_when_worker_connects() {
         run_test(async |mut ctx: TestCtx| {
-            let handler = always_queued_handler();
             let queue_id = ctx
                 .add_queue(
-                    handler,
+                    always_queued_handler(),
                     QueueBuilder::default().backlog(1).workers_per_alloc(1),
                 )
                 .await;
@@ -1462,10 +1462,9 @@ mod tests {
     #[tokio::test]
     async fn add_another_worker_to_allocation() {
         run_test(async |mut ctx: TestCtx| {
-            let handler = always_queued_handler();
             let queue_id = ctx
                 .add_queue(
-                    handler,
+                    always_queued_handler(),
                     QueueBuilder::default().backlog(1).workers_per_alloc(2),
                 )
                 .await;
@@ -1489,10 +1488,9 @@ mod tests {
     #[tokio::test]
     async fn finish_allocation_when_worker_disconnects() {
         run_test(async |mut ctx: TestCtx| {
-            let handler = always_queued_handler();
             let queue_id = ctx
                 .add_queue(
-                    handler,
+                    always_queued_handler(),
                     QueueBuilder::default().backlog(1).workers_per_alloc(1),
                 )
                 .await;
@@ -1519,10 +1517,9 @@ mod tests {
     #[tokio::test]
     async fn finish_allocation_when_last_worker_disconnects() {
         run_test(async |mut ctx: TestCtx| {
-            let handler = always_queued_handler();
             let queue_id = ctx
                 .add_queue(
-                    handler,
+                    always_queued_handler(),
                     QueueBuilder::default().backlog(1).workers_per_alloc(2),
                 )
                 .await;
@@ -1558,10 +1555,9 @@ mod tests {
     #[tokio::test]
     async fn do_not_create_allocations_without_tasks() {
         run_test(async |mut ctx: TestCtx| {
-            let handler = always_queued_handler();
             let queue_id = ctx
                 .add_queue(
-                    handler,
+                    always_queued_handler(),
                     QueueBuilder::default().backlog(4).workers_per_alloc(2),
                 )
                 .await;
@@ -1574,10 +1570,9 @@ mod tests {
     #[tokio::test]
     async fn do_not_fill_backlog_when_tasks_run_out() {
         run_test(async |mut ctx: TestCtx| {
-            let handler = always_queued_handler();
             let queue_id = ctx
                 .add_queue(
-                    handler,
+                    always_queued_handler(),
                     QueueBuilder::default().backlog(5).workers_per_alloc(2),
                 )
                 .await;
@@ -1623,11 +1618,9 @@ mod tests {
     #[tokio::test]
     async fn ignore_task_with_high_time_request() {
         run_test(async |mut ctx: TestCtx| {
-            let handler = always_queued_handler();
-
             let queue_id = ctx
                 .add_queue(
-                    handler,
+                    always_queued_handler(),
                     QueueBuilder::default().timelimit(Duration::from_secs(60 * 30)),
                 )
                 .await;
@@ -1656,12 +1649,9 @@ mod tests {
     #[tokio::test]
     async fn respect_max_worker_count() {
         run_test(async |mut ctx: TestCtx| {
-            let handler_state = WrappedRcRefCell::wrap(HandlerState::default());
-            let handler = stateful_handler(handler_state.clone());
-
             let queue_id = ctx
                 .add_queue(
-                    handler,
+                    always_queued_handler(),
                     QueueBuilder::default().backlog(4).max_worker_count(Some(5)),
                 )
                 .await;
@@ -1695,61 +1685,63 @@ mod tests {
         .await;
     }
 
-    /*#[tokio::test]
+    #[tokio::test]
     async fn max_worker_count_shorten_last_allocation() {
-        let hq_state = new_hq_state(100);
-        let mut state = AutoAllocState::new(1);
+        run_test(async |mut ctx: TestCtx| {
+            let queue_id = ctx
+                .add_queue(
+                    always_queued_handler(),
+                    QueueBuilder::default()
+                        .backlog(2)
+                        .workers_per_alloc(4)
+                        .max_worker_count(Some(6)),
+                )
+                .await;
 
-        let handler = always_queued_handler();
+            ctx.create_simple_tasks(100).await;
 
-        let queue_id = add_queue(
-            &mut state,
-            handler,
-            QueueBuilder::default()
-                .backlog(2)
-                .workers_per_alloc(4)
-                .max_worker_count(Some(6)),
-        );
-
-        let s = EventStreamer::new(None);
-        queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
-        let allocations = get_allocations(&state, queue_id);
-        assert_eq!(allocations.len(), 2);
-        assert_eq!(allocations[0].target_worker_count, 4);
-        assert_eq!(allocations[1].target_worker_count, 2);
+            ctx.try_submit().await;
+            let allocations = ctx.get_allocations(queue_id);
+            assert_eq!(allocations.len(), 2);
+            assert_eq!(allocations[0].target_worker_count, 4);
+            assert_eq!(allocations[1].target_worker_count, 2);
+        })
+        .await;
     }
 
     #[tokio::test]
     async fn delete_stale_directories_of_unsubmitted_allocations() {
-        let hq_state = new_hq_state(100);
-        let mut state = AutoAllocState::new(1);
+        run_test(async |mut ctx: TestCtx| {
+            let make_dir = || {
+                let tempdir = TempDir::with_prefix("hq").unwrap();
+                tempdir.into_path()
+            };
 
-        let make_dir = || {
-            let tempdir = TempDir::with_prefix("hq").unwrap();
-            tempdir.into_path()
-        };
+            let max_kept = 2;
+            ctx.state.set_max_kept_directories(max_kept);
+            ctx.add_queue(fails_submit_handler(), QueueBuilder::default())
+                .await;
+            ctx.create_simple_tasks(100).await;
 
-        let handler = fails_submit_handler();
+            let dirs = [make_dir(), make_dir()];
+            ctx.state
+                .set_inactive_allocation_directories(dirs.iter().cloned().collect());
 
-        let max_kept = 2;
-        state.set_max_kept_directories(max_kept);
-        add_queue(&mut state, handler, QueueBuilder::default());
+            // Delete oldest directory
+            ctx.try_submit().await;
+            ctx.periodic_update().await;
+            assert!(!dirs[0].exists());
+            assert!(dirs[1].exists());
 
-        let dirs = [make_dir(), make_dir()];
-        state.set_inactive_allocation_directories(dirs.iter().cloned().collect());
-
-        let s = EventStreamer::new(None);
-        // Delete oldest directory
-        do_periodic_update(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
-        assert!(!dirs[0].exists());
-        assert!(dirs[1].exists());
-
-        // Delete second oldest directory
-        do_periodic_update(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
-        assert!(!dirs[1].exists());
+            // Delete second oldest directory
+            ctx.try_submit().await;
+            ctx.periodic_update().await;
+            assert!(!dirs[1].exists());
+        })
+        .await;
     }
 
-    #[tokio::test]
+    /*#[tokio::test]
     async fn pause_queue_when_submission_fails_too_many_times() {
         let hq_state = new_hq_state(100);
         let mut state = AutoAllocState::new(1);
