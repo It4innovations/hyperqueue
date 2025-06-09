@@ -100,8 +100,12 @@ pub struct SharedWorkerStartOpts {
     #[arg(long)]
     pub group: Option<String>,
 
+    /// Resource coupling
+    ///
+    /// Examples:{n}
+    /// - `--coupling cpus,gpus"
     #[arg(long, action = clap::ArgAction::Append, value_parser = passthrough_parser(parse_resource_coupling))]
-    pub coupling: Vec<PassThroughArgument<ResourceDescriptiorCoupling>>,
+    pub coupling: Option<PassThroughArgument<ResourceDescriptiorCoupling>>,
 
     #[clap(long)]
     /// Disables auto-detection of resources
@@ -311,7 +315,7 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
             );
         }
     }
-    let coupling: Vec<_> = coupling.into_iter().map(|x| x.into_parsed_arg()).collect();
+    let coupling: Option<_> = coupling.map(|x| x.into_parsed_arg());
     let resources = ResourceDescriptor::new(resources, coupling);
     resources.validate(true)?;
 
