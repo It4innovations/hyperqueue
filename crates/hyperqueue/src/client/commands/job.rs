@@ -17,11 +17,12 @@ use crate::transfer::messages::{
 
 #[derive(Parser)]
 pub struct JobListOpts {
-    /// Display all jobs.
+    /// Display all jobs
     #[arg(long, conflicts_with("filter"))]
     pub all: bool,
 
-    /// Display only jobs with the given states.
+    /// Display only jobs with the given states
+    ///
     /// You can use multiple states separated by a comma.
     #[arg(long, value_delimiter(','), value_enum)]
     pub filter: Vec<Status>,
@@ -53,7 +54,8 @@ pub struct JobForgetOpts {
     /// Select job(s) to forget
     #[arg(value_parser = parse_last_all_range)]
     pub selector: IdSelector,
-    /// Forget only jobs with the given states.
+    /// Forget only jobs with the given states
+    ///
     /// You can use multiple states separated by a comma.
     /// You can only filter by states that mark a completed job.
     #[arg(
@@ -67,11 +69,12 @@ pub struct JobForgetOpts {
 
 #[derive(Parser)]
 pub struct JobTaskIdsOpts {
-    /// Single ID, ID range or `last` to display the most recently submitted job
+    /// Selects job(s)
     #[arg(value_parser = parse_last_all_range)]
     pub selector: IdSelector,
 
-    /// Select only tasks with given state(s)
+    /// Selects only tasks with the given state(s)
+    ///
     /// You can use multiple states separated by a comma.
     #[arg(long, value_delimiter(','), value_enum)]
     pub filter: Vec<Status>,
@@ -96,14 +99,16 @@ impl CompletedJobStatus {
 
 #[derive(Parser)]
 pub struct JobCatOpts {
-    /// Select specific job
+    /// Select a job
     #[arg(value_parser = parse_last_range)]
     pub job_selector: IdSelector,
 
     #[clap(flatten)]
     pub task_selector: TaskSelectorArg,
 
-    /// Prepend the output of each task with a header line that identifies the task
+    /// Add task headers to the output
+    ///
+    /// Prepends the output of each task with a header line that identifies the task
     /// which produced that output.
     #[arg(long)]
     pub print_task_header: bool,

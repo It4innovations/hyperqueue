@@ -1,7 +1,7 @@
 [package]
 name = "hyperqueue"
 version = "0.22.0"
-description = "Job execution system"
+description = "Task execution system for clusters"
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
