@@ -321,7 +321,7 @@ wasted allocation duration."
             format!("\"{}\"", arg.into_original_input()),
         ]);
     }
-    for arg in coupling {
+    if let Some(arg) = coupling {
         worker_args.extend([
             "--coupling".to_string(),
             format!("\"{}\"", arg.into_original_input()),
