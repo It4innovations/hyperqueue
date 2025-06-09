@@ -21,28 +21,37 @@ pub struct JournalOpts {
 
 #[derive(Parser)]
 enum JournalCommand {
-    /// Export events from a journal to NDJSON (line-delimited JSON).
-    /// Events will be exported to `stdout`, you can redirect it e.g. to a file.
+    /// Export events from a journal file
+    ///
+    /// Events are exported as NDJSON on `stdout`.
     Export(ExportOpts),
 
-    /// Stream events from a running server, it first replays old events
-    /// then it waits for new live events.
+    /// Replays all old events, then streams new events
+    ///
+    /// The command blocks and waits for new live events until
+    /// the server is not stopped.
+    ///
+    /// Events are exported as NDJSON on `stdout`.
     Stream,
 
-    /// Stream events from a running server, it replays old events
-    /// after that it terminates the connection.
+    /// Replays old events, then terminate
+    ///
+    /// Events are exported as NDJSON on `stdout`.
     Replay,
 
-    /// Connect to a server and remove completed tasks and non-active workers from journal
+    /// Prune a journal of a running server
+    ///
+    /// Connects to a server and remove completed tasks and non-active workers from the journal.
     Prune,
 
-    /// Connect to a server and forces to flush a journal
+    /// Forces to flush its journal of a running server
     Flush,
 }
 
 #[derive(Parser)]
 struct ExportOpts {
-    /// Path to a journal.
+    /// Path to a journal
+    ///
     /// It had to be created with `hq server start --journal=<PATH>`.
     #[arg(value_hint = ValueHint::FilePath)]
     journal: PathBuf,

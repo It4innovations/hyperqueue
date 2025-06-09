@@ -29,9 +29,10 @@ enum AutoAllocCommand {
     List,
     /// Display allocations of the specified allocation queue
     Info(AllocationsOpts),
-    /// Add new allocation queue
+    /// Add a new allocation queue
     Add(AddQueueOpts),
-    /// Pause an existing allocation queue.
+    /// Pause an existing allocation queue
+    ///
     /// Paused queues do not submit new allocations.
     Pause(PauseQueueOpts),
     /// Resume a previously paused allocation queue.
@@ -53,7 +54,8 @@ struct RemoveQueueOpts {
     /// ID of the allocation queue that should be removed
     queue_id: QueueId,
 
-    /// Remove the queue even if there are currently running jobs.
+    /// Remove the queue even if there are currently running jobs
+    ///
     /// The running jobs will be canceled.
     #[arg(long, num_args(0))]
     force: bool,
@@ -78,7 +80,7 @@ fn parse_backlog(value: &str) -> Result<u32, anyhow::Error> {
 
 #[derive(Parser)]
 struct SharedQueueOpts {
-    /// How many jobs should be waiting in the queue to be started
+    /// The maximal number of jobs that can be waiting in the queue
     #[arg(long, short, default_value_t = 1, value_parser = parse_backlog)]
     backlog: u32,
 
@@ -86,15 +88,17 @@ struct SharedQueueOpts {
         long,
         short('t'),
         value_parser = parse_hms_or_human_time,
-        help = duration_doc!("Time limit (walltime) of PBS/Slurm allocations.")
+        help = duration_doc!("Time limit (walltime) of PBS/Slurm allocations")
     )]
     time_limit: Duration,
 
-    /// Maximum number of workers (=nodes) that should be spawned in a single allocation.
+    /// The maximal number of workers (=nodes) spawned in a single allocation
     #[arg(long, short, default_value_t = 1)]
     max_workers_per_alloc: u32,
 
-    /// Maximum number of workers that can be queued or running at any given time in this queue
+    /// Maximum number of concurrent workers in any state
+    ///
+    /// It counts workers that can be queued or running.
     #[arg(long)]
     max_worker_count: Option<u32>,
 
@@ -105,23 +109,28 @@ struct SharedQueueOpts {
     #[clap(flatten)]
     worker_args: SharedWorkerStartOpts,
 
-    /// Behavior when a connection to a server is lost
+    /// The policy when a connection to a server is lost
     #[arg(long, default_value_t = ArgServerLostPolicy::FinishRunning, value_enum)]
     on_server_lost: ArgServerLostPolicy,
 
-    /// Disables dry-run, which submits an allocation with the specified parameters to verify
-    /// whether the parameters are correct.
+    /// Disables veryfing the parameter correctness via dry-run
+    ///
+    /// If dry run is enabled, the server tries to submit a probing allocation to verify
+    /// whether the parameters are correct. The allocation is immediately canceled.
     // This flag currently cannot be in [`AddQueueOpts`] because of a bug in clap:
     // https://github.com/clap-rs/clap/issues/1570.
     #[arg(long, global = true)]
     no_dry_run: bool,
 
-    /// Shell command that will be executed on each allocated node, before a worker is created on
-    /// that node.
+    /// A command executed before the start of the worker
+    ///
+    /// It is executed as a shell command.
     #[arg(long)]
     worker_start_cmd: Option<String>,
 
-    /// Shell command that will be executed on each allocated node, just before the allocation ends.
+    /// A command executed after the worker terminates
+    ///
+    /// It is executed as a shell command.
     /// Note that this execution is best-effort. It is not guaranteed that the script will always
     /// be executed.
     #[arg(long)]
@@ -131,6 +140,8 @@ struct SharedQueueOpts {
         long,
         value_parser = parse_hms_or_human_time,
         help = duration_doc!(r#"
+Worker's time limit
+
 Time limit after which workers in the submitted allocations will be stopped.
 By default, it is set to the time limit of the allocation.
 However, if you want the workers to be stopped sooner, for example to give `worker_stop_cmd`
