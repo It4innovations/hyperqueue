@@ -8,8 +8,8 @@ use std::time::Duration;
 use crate::internal::common::error::DsError;
 use crate::internal::common::resources::ResourceDescriptor;
 use crate::internal::worker::configuration::{
-    DEFAULT_MAX_DOWNLOAD_TRIES, DEFAULT_MAX_PARALLEL_DOWNLOADS,
-    DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES, OverviewConfiguration,
+    OverviewConfiguration, DEFAULT_MAX_DOWNLOAD_TRIES, DEFAULT_MAX_PARALLEL_DOWNLOADS,
+    DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES,
 };
 use crate::launcher::{StopReason, TaskBuildContext, TaskResult};
 use crate::program::ProgramDefinition;
@@ -22,7 +22,7 @@ use tokio::sync::Notify;
 use tokio::task::LocalSet;
 
 use crate::internal::worker::rpc::run_worker;
-use crate::launcher::{TaskLaunchData, TaskLauncher, command_from_definitions};
+use crate::launcher::{command_from_definitions, TaskLaunchData, TaskLauncher};
 use crate::worker::ServerLostPolicy;
 use crate::{Map, WorkerId};
 
@@ -73,9 +73,7 @@ pub fn create_worker_configuration(
     } = builder.build().unwrap();
     (
         WorkerConfiguration {
-            resources: ResourceDescriptor {
-                resources: resources.resources,
-            },
+            resources: ResourceDescriptor::new(resources.resources, Vec::new()),
             listen_address: "".to_string(),
             hostname: "".to_string(),
             group: "".to_string(),
