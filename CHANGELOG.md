@@ -40,9 +40,14 @@ As this is a large behavioral change, we would be happy to hear your feedback!
 * Fixed restoring crash counters and instance ids from journal
 * Fixed some corner cases of load balancing in server scheduler
 
+### Docs
+
+* CLI documentation (when `--help` is used) was cleaned up and improved
+
 ### Experimental
 
 * Added direct data transfers between tasks. User API not stabilized
+
 
 ## 0.22.0
 

@@ -120,7 +120,7 @@ pub enum ColorPolicy {
 // Common CLI options
 #[derive(Parser)]
 pub struct CommonOpts {
-    /// Path to a directory that stores HyperQueue access files
+    /// The path where access files are stored
     #[arg(
     long,
     value_hint = clap::ValueHint::DirPath,
@@ -131,7 +131,7 @@ pub struct CommonOpts {
     )]
     pub server_dir: Option<PathBuf>,
 
-    /// Console color policy.
+    /// Sets console color policy
     #[arg(
         long,
         default_value_t = ColorPolicy::Auto,
@@ -142,7 +142,7 @@ pub struct CommonOpts {
     )]
     pub colors: ColorPolicy,
 
-    /// How should the output of the command be formatted.
+    /// Sets output formatting
     #[arg(
         long,
         env = "HQ_OUTPUT_MODE",
@@ -154,7 +154,7 @@ pub struct CommonOpts {
     )]
     pub output_mode: Outputs,
 
-    /// Turn on a more detailed log output
+    /// Enables more detailed log output
     #[arg(
         long,
         env = "HQ_DEBUG",
@@ -185,35 +185,35 @@ pub struct RootOptions {
 #[allow(clippy::large_enum_variant)]
 #[derive(Parser)]
 pub enum SubCommand {
-    /// Commands for controlling the HyperQueue server
+    /// Commands for the server
     Server(ServerOpts),
-    /// Commands for controlling HyperQueue jobs
+    /// Commands for jobs
     Job(JobOpts),
-    /// Commands for displaying task(s)
+    /// Commands for tasks
     Task(TaskOpts),
-    /// Submit a job to HyperQueue
+    /// Submit a new job
     Submit(JobSubmitOpts),
-    /// Commands for controlling HyperQueue workers
+    /// Commands for workers
     Worker(WorkerOpts),
-    /// Operations with log
+    /// Operations for streaming logs
     OutputLog(OutputLogOpts),
     /// Automatic allocation management
     #[command(name = "alloc")]
     AutoAlloc(AutoAllocOpts),
-    /// Event and journal management
+    /// Journal management
     Journal(JournalOpts),
     /// Data object management inside a task
     Data(DataOpts),
-    /// Start the HyperQueue CLI dashboard
+    /// Starts CLI dashboard
     #[cfg(feature = "dashboard")]
     Dashboard(DashboardOpts),
-    /// Display a link to or open HyperQueue documentation.
+    /// Show documentation.
     Doc(DocOpts),
     /// Generate shell completion script
     GenerateCompletion(GenerateCompletionOpts),
 }
 
-/// HyperQueue Dashboard
+/// Dashboard
 #[derive(Parser)]
 pub struct DashboardOpts {
     #[clap(subcommand)]
@@ -222,14 +222,17 @@ pub struct DashboardOpts {
 
 #[derive(Parser, Default)]
 pub enum DashboardCommand {
-    /// Stream events from a server.
-    /// Note that this will replay all events from the currently active
-    /// journal file before new events will be streamed.
+    /// Stream events from a server
+    ///
+    /// Note: It will replay all events from the currently active
+    /// journal file before new events are streamed.
     #[default]
     Stream,
-    /// Replay events from a recorded journal file.
+    /// Replay events from a journal file
     Replay {
-        /// Path to a journal file created via `hq server start --journal=<path>`.
+        /// Path to a journal file
+        ///
+        /// New journal file can be created by `hq server start --journal=<path>`.
         journal: PathBuf,
     },
 }
@@ -245,17 +248,21 @@ pub struct WorkerOpts {
 #[allow(clippy::large_enum_variant)]
 #[derive(Parser)]
 pub enum WorkerCommand {
-    /// Start worker
+    /// Start a worker
     Start(WorkerStartOpts),
-    /// Stop worker
+    /// Stop a worker
     Stop(WorkerStopOpts),
-    /// Display information about workers.
+    /// Display information about workers
+    ///
     /// By default, only running workers will be displayed.
     List(WorkerListOpts),
-    /// Hwdetect
+    /// Perform hardware detection
+    ///
+    /// This serves to test how a worker sees the hardware
+    /// on a machine where command is invoked.
     #[command(name = "hwdetect")]
     HwDetect(HwDetectOpts),
-    /// Display information about a specific worker
+    /// Display information about a worker
     Info(WorkerInfoOpts),
     /// Display worker's hostname
     Address(WorkerAddressOpts),
@@ -270,18 +277,18 @@ pub enum WorkerCommand {
 
 #[derive(Parser)]
 pub struct WorkerStopOpts {
-    /// Select worker(s) to stop
+    /// Selectes worker(s) to stop
     #[arg(value_parser = parse_last_all_range)]
     pub selector_arg: IdSelector,
 }
 
 #[derive(Parser)]
 pub struct WorkerListOpts {
-    /// Display all workers.
+    /// Display all workers
     #[arg(long, conflicts_with("filter"))]
     pub all: bool,
 
-    /// Select only workers with the given state.
+    /// Select only workers in the given state
     #[arg(long, value_enum)]
     pub filter: Option<WorkerFilter>,
 }
@@ -300,7 +307,7 @@ pub struct WorkerInfoOpts {
 
 #[derive(Parser)]
 pub struct WorkerWaitOpts {
-    /// Number of worker(s) to wait on
+    /// The number of worker(s) to wait on
     pub worker_count: u32,
 }
 
@@ -313,18 +320,21 @@ pub struct HwDetectOpts {
 
 #[derive(Parser, Debug)]
 pub struct DeploySshOpts {
-    /// Show log output of the spawned worker(s).
+    /// Show log output of the spawned worker(s)
     #[arg(long)]
     pub show_output: bool,
 
+    /// Path to a file with target hostnames
+    ///
     /// Path to a file that contains the hostnames to which should
-    /// HQ workers be deployed to.
+    /// workers be deployed to.
     /// Each line in the file should correspond to one hostname address.
     pub hostfile: PathBuf,
     // This is essentially [WorkerStartOpts], but we parse it in an opaque way
     // so that we can forward it verbatim to the SSH command. See `deploy_ssh_workers`
     // for more information
     /// Arguments passed to `worker start` at the remote node.
+    ///
     /// To display possible options, use `deploy-ssh -- --help`.
     #[arg(trailing_var_arg(true), allow_hyphen_values = true)]
     pub worker_start_args: Vec<String>,
@@ -341,36 +351,41 @@ pub struct JobOpts {
 #[allow(clippy::large_enum_variant)]
 #[derive(Parser)]
 pub enum JobCommand {
-    /// Display information about jobs.
+    /// Display information about jobs
+    ///
     /// By default, only queued or running jobs will be displayed.
     List(JobListOpts),
-    /// Display a summary with the amount of jobs per each job state.
+    /// Display a summary with the number of jobs.
     Summary,
-    /// Display detailed information of the selected job
+    /// Display detailed information of a job
     Info(JobInfoOpts),
-    /// Cancel a specific job.
-    /// This will cancel all tasks, stopping them from being computation.
+    /// Cancel a job
+    ///
+    /// This will cancel all job's tasks, stopping them from being computation.
     Cancel(JobCancelOpts),
-    /// Forget a specific job.
+    /// Forget a job
+    ///
     /// This will remove the job from the server's memory, forgetting it completely and reducing
     /// the server's memory usage.
     ///
     /// You can only forget jobs that have been completed, i.e. that are not running or waiting to
-    /// be executed. You have to cancel these jobs first.
+    /// be executed. If they are not completed, you have to cancel these jobs first.
     Forget(JobForgetOpts),
-    /// Shows task(s) streams(stdout, stderr) of a specific job
+    /// Shows task(s) stdout and stderr
     Cat(JobCatOpts),
-    /// Submit a job to HyperQueue
+    /// Submit a new job
+    ///
+    /// This is the same as `hq submit`
     Submit(JobSubmitOpts),
-    /// Submit a job through a job definition file
+    /// Submit a job by a job definition file
     SubmitFile(JobSubmitFileOpts),
     /// Waits until a job is finished
     Wait(JobWaitOpts),
-    /// Interactively observe the execution of a job
+    /// Shows a progressbar with tasks/jobs
     Progress(JobProgressOpts),
-    /// Print task Ids for given job
+    /// Prints task ids for a job
     TaskIds(JobTaskIdsOpts),
-    /// Open new job (without attaching any tasks yet)
+    /// Open a new job (without attaching any tasks yet)
     Open(SubmitJobConfOpts),
     /// Close an open job
     Close(JobCloseOpts),
@@ -378,18 +393,18 @@ pub enum JobCommand {
 
 #[derive(Parser)]
 pub struct JobWaitOpts {
-    /// Select job(s) to wait for
+    /// Jobs to wait for
     #[arg(value_parser = parse_last_all_range)]
     pub selector: IdSelector,
 
-    /// Wait until all tasks are completed, even if the job is still open
+    /// Waits until all tasks are completed, even if the job is still open
     #[clap(long, action)]
     pub without_close: bool,
 }
 
 #[derive(Parser)]
 pub struct JobProgressOpts {
-    /// Select job(s) to observe
+    /// Job(s) to observe
     #[arg(value_parser = parse_last_all_range)]
     pub selector: IdSelector,
 }

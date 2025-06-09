@@ -183,12 +183,13 @@ impl From<PinModeArg> for PinMode {
 
 #[derive(Parser)]
 pub struct SubmitJobConfOpts {
-    /// Name of the job
+    /// The name of the job
     #[arg(long)]
     name: Option<String>,
 
-    /// Maximum number of permitted task failures.
-    /// If this limit is reached, the job will fail immediately.
+    /// Maximum number tasks that may fail in the job
+    ///
+    /// If this limit is reached, the all other tasks are cancelled.
     #[arg(long)]
     max_fails: Option<JobTaskCount>,
 }
@@ -206,7 +207,10 @@ pub struct SubmitJobTaskConfOpts {
     /* Other resource configurations is not yet supported in combination of nodes,
       remove conflict_with as support is done
     */
-    /// Number of nodes; 0
+    /// The number of nodes
+    ///
+    /// If a positive integer is set; a multinode task is submitted.
+    /// The zero means a subnode task.
     #[arg(
         long,
         conflicts_with("pin"),
@@ -215,11 +219,11 @@ pub struct SubmitJobTaskConfOpts {
     )]
     nodes: NumOfNodes,
 
-    /// Number and placement of CPUs for each job
+    /// The number and placement of CPUs for each job
     #[arg(long, value_parser = parse_allocation_request)]
     cpus: Option<AllocationRequest>,
 
-    /// Generic resource request in the form <NAME>=<AMOUNT>
+    /// The request of resources in the form <NAME>=<AMOUNT>
     #[arg(long, action = clap::ArgAction::Append, value_parser = parse_resource_request)]
     resource: Vec<(String, AllocationRequest)>,
 
@@ -231,59 +235,66 @@ pub struct SubmitJobTaskConfOpts {
     )]
     time_request: Duration,
 
-    /// Pin the job to the cores specified in `--cpus`.
+    /// Pins the job to the cores specified in `--cpus`
     #[arg(long, value_enum)]
     pin: Option<PinModeArg>,
 
-    /// Working directory for the submitted job.
+    /// Working directory for submitted tasks
+    ///
     /// The path must be accessible from worker nodes
     /// [default: %{SUBMIT_DIR}]
     #[arg(long)]
     cwd: Option<PathBuf>,
 
-    /// Path where the standard output of the job will be stored.
-    /// The path must be accessible from worker nodes
+    /// Where to store the standard output of tasks
+    ///
+    /// The path must be accessible from worker nodes.
     #[arg(long)]
     stdout: Option<StdioDefInput>,
 
-    /// Path where the standard error of the job will be stored.
+    /// Where to store the standard error output of tasks
+    ///
     /// The path must be accessible from worker nodes
     #[arg(long)]
     stderr: Option<StdioDefInput>,
 
-    /// Specify additional environment variable for the job.
-    /// You can pass this flag multiple times to pass multiple variables
+    /// Additional environment variable for tasks
     ///
+    /// You can pass this flag multiple times to pass multiple variables.
     /// `--env=KEY=VAL` - set an environment variable named `KEY` with the value `VAL`
     #[arg(long, action = clap::ArgAction::Append)]
     env: Vec<ArgEnvironmentVar>,
 
     // Parameters for creating array jobs
-    /// Create a task array where a task will be created for each line of the given file.
-    /// The corresponding line will be passed to the task in environment variable `HQ_ENTRY`.
+    /// Creates a task for each line of the given file
+    ///
+    /// The corresponding line will be passed to the task in the environment variable `HQ_ENTRY`.
     #[arg(long, value_hint = clap::ValueHint::FilePath)]
     each_line: Option<PathBuf>,
 
-    /// Create a task array where a task will be created for each item of a JSON array stored in
-    /// the given file.
+    /// Creates a task for each item of JSON array in the given file
+    ///
     /// The corresponding item from the array will be passed as a JSON string to the task in
-    /// environment variable `HQ_ENTRY`.
+    /// the environment variable `HQ_ENTRY`.
     #[arg(long, conflicts_with("each_line"), value_hint = clap::ValueHint::FilePath)]
     from_json: Option<PathBuf>,
 
-    /// Create a task array where a task will be created for each number in the specified number range.
+    /// Creates a task array
+    ///
+    /// Create a task for each integer in the specified number range.
     /// Each task will be passed an environment variable `HQ_TASK_ID`.
     ///
-    /// `--array=5` - create task array with one job with task ID 5
+    /// `--array=3-5` - create a task array with three jobs with task IDs 3, 4, 5
     ///
-    /// `--array=3-5` - create task array with three jobs with task IDs 3, 4, 5
+    /// `--array=5` - create a task array with one job with task ID 5
     #[arg(long)]
     array: Option<IntArray>,
 
-    /// Priority of each task
+    /// Tasks priority
     #[arg(long, default_value_t = 0)]
     priority: tako::Priority,
 
+    /// Task's time limit
     #[arg(
         long,
         value_parser = parse_hms_or_human_time,
@@ -291,18 +302,28 @@ pub struct SubmitJobTaskConfOpts {
     )]
     time_limit: Option<Duration>,
 
-    /// Stream the output of tasks into this log file.
+    /// Stream the output of tasks into the given log file
     #[arg(long)]
     stream: Option<PathBuf>,
 
-    /// Create a temporary directory for the task, the path is provided in HQ_TASK_DIR
-    /// The directory is automatically deleted when the task is finished
+    /// Create a temporary directory for task(s)
+    ///
+    /// The path is provided in HQ_TASK_DIR.
+    /// The directory is automatically deleted when the task is finished.
     #[arg(long)]
     task_dir: bool,
 
-    /// Limits how many times may task be in a running state while worker is lost.
-    /// If the limit is reached, the task is marked as failed. If the limit is zero,
-    /// the limit is disabled.
+    /// Sets the crash counter limit
+    ///
+    /// Crash counter counts how many times a task was in a running state while a worker was lost.
+    /// The crash limit is *not* increased when terminated by `hq worker stop` or worker's time limit is reached.
+    ///
+    /// If the crash limit is reached, the task is marked as failed.
+    ///
+    /// The option takes a positive integer, "never-restart", or "unlimited".
+    ///
+    /// * "never-restart" = task is never restarted even the crash counter is not increased
+    /// * "unlimited" = there is no limit on crash counter value
     #[arg(long, default_value = "5", value_parser = parse_crash_limit)]
     crash_limit: CrashLimit,
 }
@@ -419,16 +440,20 @@ pub struct JobSubmitOpts {
     #[arg(long, conflicts_with("progress"))]
     wait: bool,
 
-    /// Interactively observe the progress of the submitted job.
+    /// Shows a progressbar
+    ///
+    /// It is the same as call `hq progress` immediately called after the submit
     #[arg(long, conflicts_with("wait"))]
     progress: bool,
 
-    /// Capture stdin and start the task with the given stdin;
-    /// the job will be submitted when the stdin is closed.
+    /// Attach the stdin to the task
+    ///
+    /// Captures stdin and start the task with the given stdin.
+    /// The job will be submitted when the stdin is closed.
     #[arg(long)]
     stdin: bool,
 
-    /// Select directives parsing mode.
+    /// Select directives parsing mode
     ///
     /// `auto`: Directives will be parsed if the suffix of the first command is ".sh".{n}
     /// `file`: Directives will be parsed regardless of the first command extension.{n}

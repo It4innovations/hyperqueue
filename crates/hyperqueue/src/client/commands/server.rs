@@ -24,18 +24,20 @@ pub struct ServerOpts {
 
 #[derive(Parser)]
 pub struct GenerateAccessOpts {
-    /// Target filename of the full access file that will be generated
+    /// The filename of the generated full access file
     access_file: PathBuf,
 
-    /// Target filename of the access file for client that will be generated
+    /// The filename of the generated client's access file
     #[arg(long)]
     client_file: Option<PathBuf>,
 
-    /// Target filename of the access file for worker that will be generated
+    /// The filename of the generated worker's access file
     #[arg(long)]
     worker_file: Option<PathBuf>,
 
-    /// Override target host name, otherwise local hostname is used
+    /// Override the target host name
+    ///
+    /// If not set, the local hostname is used
     #[arg(long)]
     host: Option<String>,
 
@@ -47,30 +49,32 @@ pub struct GenerateAccessOpts {
     #[arg(long)]
     worker_host: Option<String>,
 
-    /// Port for connecting client
+    /// The port for connecting client
     #[arg(long)]
     client_port: u16,
 
-    /// Port for connecting workers
+    /// The port for connecting workers
     #[arg(long)]
     worker_port: u16,
 }
 
 #[derive(Parser)]
 pub enum ServerCommand {
-    /// Start the HyperQueue server
+    /// Start the server
     Start(ServerStartOpts),
-    /// Stop the HyperQueue server, if it is running
+    /// Stop the server
     Stop(ServerStopOpts),
-    /// Show info of running HyperQueue server
+    /// Show info of a running server
     Info(ServerInfoOpts),
-    /// Generate access file without starting server
+    /// Generate an access file without starting the server
     GenerateAccess(GenerateAccessOpts),
 }
 
 #[derive(Parser)]
 pub struct ServerStartOpts {
-    /// Hostname/IP of the machine under which is visible to others, default: hostname
+    /// Hostname/IP of the machine under which is visible to others
+    ///
+    /// Default: hostname
     #[arg(long)]
     host: Option<String>,
 
@@ -81,15 +85,17 @@ pub struct ServerStartOpts {
     )]
     idle_timeout: Option<Duration>,
 
-    /// Port for client connections (used e.g. for `hq submit`)
+    /// The port for client connections
     #[arg(long)]
     client_port: Option<u16>,
 
-    /// Port for worker connections
+    /// The port for worker connections
     #[arg(long)]
     worker_port: Option<u16>,
 
-    /// Path to a journal file where events is stored. If the file already exists, the file is used to restore the server state
+    /// The path to a journal file
+    ///
+    /// If the file already exists, the file is first used to restore the server state.
     #[arg(long)]
     journal: Option<PathBuf>,
 
@@ -101,17 +107,19 @@ pub struct ServerStartOpts {
     )]
     journal_flush_period: Duration,
 
-    /// Path to access file that is used for configuration of secret keys and ports
+    /// The path to an access file
     #[arg(long)]
     access_file: Option<PathBuf>,
 
-    /// If set, client connection will NOT be AUTHENTICATED and ENCRYPTED.
+    /// If set, the client connection will NOT be AUTHENTICATED and ENCRYPTED.
+    ///
     /// ANYONE CAN CONNECT TO THE SERVER AS CLIENT!
     /// USE AT YOUR OWN RISK.
     #[arg(long)]
     disable_client_authentication_and_encryption: bool,
 
-    /// If set, worker connection will NOT be AUTHENTICATED and ENCRYPTED.
+    /// If set, the worker connection will NOT be AUTHENTICATED and ENCRYPTED.
+    ///
     /// ANYONE CAN CONNECT TO THE SERVER AS WORKER!
     /// USE AT YOUR OWN RISK.
     #[arg(long)]

@@ -7,14 +7,14 @@ use tako::JobId;
 
 #[derive(Parser)]
 pub struct OutputLogOpts {
-    /// Path of log file
+    /// Path of the log file
     path: PathBuf,
 
-    /// Filter files for given server instance
+    /// Filter files for the given server instance
     #[arg(long)]
     pub server_uid: Option<String>,
 
-    /// Operation with log file
+    /// Operations with log files
     #[clap(subcommand)]
     command: StreamCommand,
 }
@@ -28,7 +28,7 @@ pub struct ShowOpts {
     #[arg(long)]
     pub job: Option<JobId>,
 
-    /// Filter only specific channel
+    /// Show only the specific channel
     #[arg(long, value_enum)]
     pub channel: Option<Channel>,
 }
@@ -42,11 +42,13 @@ pub struct CatOpts {
     #[arg(value_enum)]
     pub channel: Channel,
 
-    /// Print only the specified task(s) output. You can use the array syntax to specify multiple tasks.
+    /// Prints only outputs of the selected tasks
+    ///
+    /// You can use the array syntax to specify multiple tasks.
     #[arg(long)]
     pub task: Option<IntArray>,
 
-    /// Allow unfinished channel
+    /// Allow unfinished channels
     #[arg(long)]
     pub allow_unfinished: bool,
 }
@@ -56,26 +58,28 @@ pub struct ExportOpts {
     /// Job to export
     pub job: JobId,
 
-    /// Export only the specified task(s) output. You can use the array syntax to specify multiple tasks.
+    /// Exports only output of the selected tasks
+    ///
+    /// You can use the array syntax to specify multiple tasks.
     #[arg(long)]
     pub task: Option<IntArray>,
 }
 
 #[derive(Parser)]
 pub enum StreamCommand {
-    /// Prints summary of log file
+    /// Prints summary of the log file
     Summary(SummaryOpts),
 
-    /// Prints jobs ids in stream
+    /// Prints jobs ids in the stream
     Jobs,
 
-    /// Prints content of stream ordered by time
+    /// Prints the stream content ordered by time
     Show(ShowOpts),
 
-    /// Prints a raw content of one channel
+    /// Prints the content of a stream's channel
     Cat(CatOpts),
 
-    /// Export stream into JSON
+    /// Exports stream into JSON
     Export(ExportOpts),
 }
 
