@@ -1,8 +1,8 @@
-use crate::WorkerId;
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::worker::Worker;
 use crate::internal::server::workergroup::WorkerGroup;
 use crate::resources::{NumOfNodes, ResourceAmount, ResourceMap};
+use crate::WorkerId;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
@@ -143,7 +143,7 @@ pub fn task_explain_for_worker(
 
 #[cfg(test)]
 mod tests {
-    use crate::internal::server::explain::{TaskExplainItem, task_explain_for_worker};
+    use crate::internal::server::explain::{task_explain_for_worker, TaskExplainItem};
     use crate::internal::server::worker::Worker;
     use crate::internal::server::workergroup::WorkerGroup;
     use crate::internal::tests::utils::schedule::create_test_worker_config;
@@ -164,10 +164,13 @@ mod tests {
 
         let mut wcfg = create_test_worker_config(
             2.into(),
-            ResourceDescriptor::new(vec![
-                ResourceDescriptorItem::range("cpus", 1, 10),
-                ResourceDescriptorItem::range("gpus", 1, 4),
-            ]),
+            ResourceDescriptor::new(
+                vec![
+                    ResourceDescriptorItem::range("cpus", 1, 10),
+                    ResourceDescriptorItem::range("gpus", 1, 4),
+                ],
+                Vec::new(),
+            ),
         );
         wcfg.time_limit = Some(Duration::from_secs(40_000));
         let worker2 = Worker::new(2.into(), wcfg, &resource_map, now);

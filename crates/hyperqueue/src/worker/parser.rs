@@ -1,9 +1,11 @@
+use anyhow::bail;
 use chumsky::primitive::{filter, just};
 use chumsky::text::TextParser;
 use chumsky::{Error, Parser};
-
+use itertools::Itertools;
 use tako::resources::{
-    DescriptorError, ResourceDescriptorItem, ResourceDescriptorKind, ResourceUnits,
+    DescriptorError, ResourceDescriptiorCoupling, ResourceDescriptorItem, ResourceDescriptorKind,
+    ResourceUnits,
 };
 
 use crate::common::parser2::{
@@ -204,6 +206,14 @@ fn parse_resource_definition_inner() -> impl CharParser<ResourceDescriptorItem> 
 
 pub fn parse_resource_definition(input: &str) -> anyhow::Result<ResourceDescriptorItem> {
     all_consuming(parse_resource_definition_inner()).parse_text(input)
+}
+
+pub fn parse_resource_coupling(input: &str) -> anyhow::Result<ResourceDescriptiorCoupling> {
+    let names = input.split(",").map(|s| s.trim().to_string()).collect_vec();
+    if names.len() < 2 {
+        bail!("Resource coupling needs at least two resources");
+    }
+    Ok(ResourceDescriptiorCoupling { names })
 }
 
 #[cfg(test)]
