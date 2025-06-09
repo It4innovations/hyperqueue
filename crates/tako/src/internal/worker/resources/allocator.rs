@@ -9,14 +9,19 @@ use crate::internal::worker::resources::pool::ResourcePool;
 use crate::resources::{
     Allocation, ResourceAmount, ResourceDescriptor, ResourceMap, ResourceUnits,
 };
+use smallvec::SmallVec;
 use std::rc::Rc;
 use std::time::Duration;
 
+pub(crate) struct ResourceCoupling {
+    resources: Vec<ResourceId>,
+}
+
 pub struct ResourceAllocator {
     pools: ResourceVec<ResourcePool>,
+    couplings: SmallVec<[ResourceCoupling; 1]>,
     free_resources: ConciseFreeResources,
     remaining_time: Option<Duration>,
-
     blocked_requests: Vec<BlockedRequest>,
     higher_priority_blocked_requests: usize,
     running_tasks: Vec<Rc<Allocation>>, // TODO: Rework on multiset?
@@ -65,8 +70,21 @@ impl ResourceAllocator {
                 .into(),
         );
 
+        let couplings = desc
+            .couplings
+            .iter()
+            .map(|c| ResourceCoupling {
+                resources: c
+                    .names
+                    .iter()
+                    .map(|name| resource_map.get_index(&name).unwrap())
+                    .collect(),
+            })
+            .collect();
+
         ResourceAllocator {
             pools,
+            couplings,
             free_resources,
             remaining_time: None,
             blocked_requests: Vec::new(),
