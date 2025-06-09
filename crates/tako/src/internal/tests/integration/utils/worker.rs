@@ -50,7 +50,7 @@ pub struct WorkerConfig {
     #[builder(default = "Duration::from_millis(250)")]
     heartbeat_interval: Duration,
     #[builder(
-        default = "ResourceDescriptor::new(vec![ResourceDescriptorItem::range(\"cpus\", 0, 0)], Vec::new())"
+        default = "ResourceDescriptor::new(vec![ResourceDescriptorItem::range(\"cpus\", 0, 0)], Default::default())"
     )]
     resources: ResourceDescriptor,
 }
@@ -67,7 +67,7 @@ pub(super) fn create_worker_configuration(
     } = builder.build().unwrap();
     (
         WorkerConfiguration {
-            resources: ResourceDescriptor::new(resources.resources, Vec::new()),
+            resources: ResourceDescriptor::new(resources.resources, None),
             listen_address: "".to_string(),
             hostname: "".to_string(),
             group: "".to_string(),

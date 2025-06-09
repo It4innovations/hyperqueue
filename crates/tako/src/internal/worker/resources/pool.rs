@@ -23,6 +23,7 @@ pub(crate) struct GroupsResourcePool {
     indices: Vec<Vec<ResourceIndex>>,
     fractions: Vec<Map<ResourceIndex, ResourceFractions>>,
     min_group_size: ResourceAmount,
+    is_coupled: bool,
     //reverse_map: Map<ResourceIndex, usize>,
 }
 
@@ -45,6 +46,7 @@ impl ResourcePool {
         kind: &ResourceDescriptorKind,
         resource_id: ResourceId,
         label_map: &ResourceLabelMap,
+        is_coupled: bool,
     ) -> Self {
         match kind {
             ResourceDescriptorKind::List { values } => ResourcePool::Indices(IndicesResourcePool {
@@ -87,6 +89,7 @@ impl ResourcePool {
                             .unwrap_or(1),
                     ),
                     fractions: groups.iter().map(|_| Map::new()).collect(),
+                    is_coupled,
                 })
             }
             ResourceDescriptorKind::Range { start, end } => {

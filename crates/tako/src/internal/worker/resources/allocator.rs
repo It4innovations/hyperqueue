@@ -19,7 +19,7 @@ pub(crate) struct ResourceCoupling {
 
 pub struct ResourceAllocator {
     pools: ResourceVec<ResourcePool>,
-    couplings: SmallVec<[ResourceCoupling; 1]>,
+    couplings: Option<ResourceCoupling>,
     free_resources: ConciseFreeResources,
     remaining_time: Option<Duration>,
     blocked_requests: Vec<BlockedRequest>,
@@ -59,7 +59,12 @@ impl ResourceAllocator {
 
         for item in &desc.resources {
             let idx = resource_map.get_index(&item.name).unwrap();
-            pools[idx] = ResourcePool::new(&item.kind, idx, label_map);
+            let is_coupled = desc
+                .coupling
+                .as_ref()
+                .map(|c| c.names.contains(&item.name))
+                .unwrap_or(false);
+            pools[idx] = ResourcePool::new(&item.kind, idx, label_map, is_coupled);
         }
 
         let free_resources = ConciseFreeResources::new(
@@ -70,17 +75,13 @@ impl ResourceAllocator {
                 .into(),
         );
 
-        let couplings = desc
-            .couplings
-            .iter()
-            .map(|c| ResourceCoupling {
-                resources: c
-                    .names
-                    .iter()
-                    .map(|name| resource_map.get_index(&name).unwrap())
-                    .collect(),
-            })
-            .collect();
+        let couplings = desc.coupling.as_ref().map(|c| ResourceCoupling {
+            resources: c
+                .names
+                .iter()
+                .map(|name| resource_map.get_index(&name).unwrap())
+                .collect(),
+        });
 
         ResourceAllocator {
             pools,

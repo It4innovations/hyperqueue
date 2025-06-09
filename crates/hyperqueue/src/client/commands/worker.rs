@@ -91,14 +91,13 @@ pub struct SharedWorkerStartOpts {
     )]
     pub resource: Vec<PassThroughArgument<ResourceDescriptorItem>>,
 
-    /// .
+    /// Resource coupling
     ///
     /// Examples:{n}
-    /// - `--resource gpus=[0,1,2,3]`{n}
-    /// - `--resource "memory=sum(1024)"`
-    #[arg(long, action = clap::ArgAction::Append, value_parser = passthrough_parser(parse_resource_coupling)
+    /// - `--coupling cpus,gpus"
+    #[arg(long, value_parser = passthrough_parser(parse_resource_coupling)
     )]
-    pub coupling: Vec<PassThroughArgument<ResourceDescriptiorCoupling>>,
+    pub coupling: Option<PassThroughArgument<ResourceDescriptiorCoupling>>,
 
     /// Manual configuration of worker's group
     /// Workers from the same group are used for multi-node tasks
@@ -297,7 +296,7 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
             );
         }
     }
-    let coupling: Vec<_> = coupling.into_iter().map(|x| x.into_parsed_arg()).collect();
+    let coupling: Option<_> = coupling.map(|x| x.into_parsed_arg());
     let resources = ResourceDescriptor::new(resources, coupling);
     resources.validate()?;
 
