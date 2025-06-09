@@ -214,19 +214,19 @@ pub struct ResourceDescriptiorCoupling {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ResourceDescriptor {
     pub resources: Vec<ResourceDescriptorItem>,
-    pub couplings: Vec<ResourceDescriptiorCoupling>,
+    pub coupling: Option<ResourceDescriptiorCoupling>,
 }
 
 impl ResourceDescriptor {
     pub fn new(
         mut resources: Vec<ResourceDescriptorItem>,
-        couplings: Vec<ResourceDescriptiorCoupling>,
+        coupling: Option<ResourceDescriptiorCoupling>,
     ) -> Self {
         resources.sort_by(|x, y| x.name.cmp(&y.name));
 
         ResourceDescriptor {
             resources,
-            couplings,
+            coupling,
         }
     }
 
@@ -240,7 +240,7 @@ impl ResourceDescriptor {
                 name: CPU_RESOURCE_NAME.to_string(),
                 kind: ResourceDescriptorKind::regular_sockets(n_sockets, n_cpus_per_socket),
             }],
-            Vec::new(),
+            None,
         )
     }
 
@@ -266,15 +266,12 @@ impl ResourceDescriptor {
         if !has_cpus && needs_cpus {
             return Err("Resource 'cpus' is missing".into());
         }
-        for (i, coupling) in self.couplings.iter().enumerate() {
+        if let Some(coupling) = &self.coupling {
             if coupling.names.len() < 2 {
                 return Err("Invalid number of coupled resources".into());
             }
             let mut group_size = None;
             for name in &coupling.names {
-                if self.couplings[..i].iter().any(|c| c.names.contains(name)) {
-                    return Err(format!("Resource '{name}' is in more than one coupling").into());
-                }
                 if let Some(r) = self.resources.iter().find(|r| &r.name == name) {
                     if let Some(g) = &group_size {
                         if *g != r.kind.n_groups() {

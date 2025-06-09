@@ -2,7 +2,7 @@ use crate::internal::common::resources::{ResourceAmount, ResourceId, ResourceInd
 use crate::resources::ResourceFractions;
 use smallvec::SmallVec;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AllocationIndex {
     pub index: ResourceIndex,
     pub group_idx: u32,
@@ -51,6 +51,10 @@ impl Allocation {
 
     pub fn resource_allocation(&self, id: ResourceId) -> Option<&ResourceAllocation> {
         self.resources.iter().find(|r| r.resource_id == id)
+    }
+
+    pub fn normalize_allocation(&mut self) {
+        self.resources.sort_unstable_by_key(|r| r.resource_id);
     }
 }
 
