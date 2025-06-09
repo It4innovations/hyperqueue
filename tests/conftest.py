@@ -179,7 +179,8 @@ class HqEnv(Env):
         work_dir: Optional[str] = None,
         final_check: bool = True,
         hostname=None,
-    ) -> subprocess.Popen:
+        expect_fail=None,
+    ) -> subprocess.Popen | None:
         self.id_counter += 1
         worker_id = self.id_counter
         worker_env = self.make_default_env()
@@ -206,6 +207,21 @@ class HqEnv(Env):
             worker_args += ["--cpus", str(cpus)]
         if args:
             worker_args += list(args)
+        if expect_fail is not None:
+            process = subprocess.Popen(
+                worker_args,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                cwd=self.work_path,
+            )
+            stdout = process.communicate(timeout=5)[0].decode()
+            if process.returncode != 0:
+                if expect_fail not in stdout:
+                    raise Exception(f"Command should failed with message '{expect_fail}' but got:\n{stdout}")
+                else:
+                    return None
+            raise Exception("Worker process does not failed")
+
         r = self.start_process(hostname, worker_args, final_check=final_check, env=worker_env)
 
         if wait_for_start:

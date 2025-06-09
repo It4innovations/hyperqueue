@@ -289,7 +289,7 @@ fn command_worker_hwdetect(gsettings: &GlobalSettings, opts: HwDetectOpts) -> an
     detect_additional_resources(&mut resources)?;
     gsettings
         .printer()
-        .print_hw(&ResourceDescriptor::new(resources));
+        .print_hw(&ResourceDescriptor::new(resources, Vec::new()));
     Ok(())
 }
 
