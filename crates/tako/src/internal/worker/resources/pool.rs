@@ -27,6 +27,20 @@ pub(crate) struct GroupsResourcePool {
     //reverse_map: Map<ResourceIndex, usize>,
 }
 
+impl GroupsResourcePool {
+    pub fn group_amounts(&self) -> impl Iterator<Item = ResourceAmount> {
+        self.indices
+            .iter()
+            .zip(self.fractions.iter())
+            .map(|(i, f)| {
+                ResourceAmount::new(
+                    i.len() as ResourceUnits,
+                    f.values().max().copied().unwrap_or(0),
+                )
+            })
+    }
+}
+
 #[derive(Debug)]
 pub(crate) struct SumResourcePool {
     full_size: ResourceAmount,
@@ -40,6 +54,11 @@ pub(crate) enum ResourcePool {
     Groups(GroupsResourcePool),
     Sum(SumResourcePool),
 }
+
+/// This is a constant used to determine the maximal reasonable number of groups
+/// It is used size for SmallVecs in the allocation process. Therefore, the whole
+/// system will work even if this number is higher, but then it will allocate memory.
+const FAST_MAX_GROUPS: usize = 8;
 
 impl ResourcePool {
     pub fn new(
@@ -106,6 +125,13 @@ impl ResourcePool {
                 full_size: *size,
                 free: *size,
             }),
+        }
+    }
+
+    pub fn is_coupled(&self) -> bool {
+        match self {
+            ResourcePool::Groups(pool) => pool.is_coupled,
+            ResourcePool::Empty | ResourcePool::Indices(_) | ResourcePool::Sum(_) => false,
         }
     }
 
@@ -232,18 +258,8 @@ impl ResourcePool {
         let mut remaining = amount;
         let mut fraction_idx: Option<usize> = None;
 
-        let mut amounts: Vec<_> = pool
-            .indices
-            .iter()
-            .zip(pool.fractions.iter())
-            .map(|(i, f)| {
-                ResourceAmount::new(
-                    i.len() as ResourceUnits,
-                    f.values().max().copied().unwrap_or(0),
-                )
-            })
-            .collect();
-
+        let mut amounts: SmallVec<[ResourceAmount; FAST_MAX_GROUPS]> =
+            pool.group_amounts().collect();
         loop {
             if let Some((group_idx, _a)) = amounts
                 .iter()
@@ -321,6 +337,106 @@ impl ResourcePool {
         }
 
         indices
+    }
+
+    fn claim_compact_from_coupled_groups(
+        amounts: &[ResourceAmount],
+        pools: &[GroupsResourcePool],
+    ) -> SmallVec<[AllocationIndex; 1]> {
+        let mut indices = Default::default();
+        let mut remaining = amount;
+        let mut fraction_idx: Option<usize> = None;
+
+        let n_resources = pools.len();
+        let n_groups = amounts.len();
+        /// Matrix n_groups * pools.len()
+        /// Layout is:
+        ///
+        /// amount_r1_g1 amount_r2_g1 ..
+        /// amount_r1_g2 amount_r2_g2 ..
+        /// amount_r1_g3 amount_r2_g3 ..
+        let mut group_amounts: SmallVec<[ResourceAmount; 3 * FAST_MAX_GROUPS]> = SmallVec::new();
+        amounts.resize(n_groups * pools.len(), ResourceAmount::ZERO);
+        for (i, pool) in pools.iter().enumerate() {
+            for (j, a) in pool.group_amounts().enumerate() {
+                group_amounts[j * n_resources + i] = a;
+            }
+        }
+
+        loop {
+            if let Some(group_idx) = (0..n_groups)
+                .filter(|group_idx| {
+                    let idx = group_idx * n_resources;
+                    group_amounts[idx..idx + n_resources].zip(amounts).all(|(a, b)| a >= b)
+                })
+                .min_by_key(|group_idx| {
+                    let idx = group_idx * n_resources;
+                    group_amounts[idx..idx + n_resources].sum()
+                })
+            {
+            //     let (units, fractions) = remaining.split();
+            //     Self::take_indices(
+            //         &mut pool.indices[group_idx],
+            //         group_idx as u32,
+            //         units,
+            //         &mut indices,
+            //     );
+            //     if fractions > 0 {
+            //         indices.push(
+            //             if let Some((index, f)) =
+            //                 Self::best_fraction_match(&mut pool.fractions[group_idx], fractions)
+            //             {
+            //                 *f -= fractions;
+            //                 AllocationIndex {
+            //                     index: *index,
+            //                     group_idx: group_idx as u32,
+            //                     fractions,
+            //                 }
+            //             } else {
+            //                 let index = pool.indices[group_idx].pop().unwrap();
+            //                 pool.fractions[group_idx].insert(index, FRACTIONS_PER_UNIT - fractions);
+            //                 AllocationIndex {
+            //                     index,
+            //                     group_idx: group_idx as u32,
+            //                     fractions,
+            //                 }
+            //             },
+            //         )
+            //     }
+            //     break;
+             } else {
+                todo!()
+                // let (group_idx, amount) = amounts
+                //     .iter_mut()
+                //     .enumerate()
+                //     .max_by_key(|(_i, a)| **a)
+                //     .unwrap();
+                // *amount = ResourceAmount::ZERO;
+                // let (mut units, mut fractions) = remaining.split();
+                // let size = pool.indices[group_idx].len() as ResourceUnits;
+                // units -= size;
+                // Self::take_indices(
+                //     &mut pool.indices[group_idx],
+                //     group_idx as u32,
+                //     size,
+                //     &mut indices,
+                // );
+                // if fractions > 0 {
+                //     if let Some((index, f)) =
+                //         Self::best_fraction_match(&mut pool.fractions[group_idx], fractions)
+                //     {
+                //         *f -= fractions;
+                //         fraction_idx = Some(indices.len());
+                //         indices.push(AllocationIndex {
+                //             index: *index,
+                //             group_idx: group_idx as u32,
+                //             fractions,
+                //         });
+                //         fractions = 0;
+                //     }
+                // }
+                // remaining = ResourceAmount::new(units, fractions)
+            }
     }
 
     pub fn take_indices(

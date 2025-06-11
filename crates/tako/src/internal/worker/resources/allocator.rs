@@ -269,6 +269,34 @@ impl ResourceAllocator {
             .find_map(|(i, r)| self.try_allocate_variant(r).map(|c| (c, i)))
     }
 
+    fn claim_resources(&mut self, request: &ResourceRequest) -> Allocation {
+        let mut allocation = Allocation::new();
+        let mut coupling: SmallVec<[&ResourceRequestEntry; 4]> = SmallVec::new();
+        for entry in request.entries() {
+            let pool = self.pools.get_mut(entry.resource_id.as_usize()).unwrap();
+            if pool.is_coupled() {
+                coupling.push(entry);
+            } else {
+                allocation.add_resource_allocation(
+                    pool.claim_resources(entry.resource_id, &entry.request),
+                )
+            }
+        }
+        if coupling.is_empty() {
+            return allocation;
+        }
+        if coupling.len() == 1 {
+            let entry = coupling.pop().unwrap();
+            let pool = self.pools.get_mut(entry.resource_id.as_usize()).unwrap();
+            allocation
+                .add_resource_allocation(pool.claim_resources(entry.resource_id, &entry.request));
+            allocation.normalize_allocation();
+            return allocation;
+        }
+
+        allocation
+    }
+
     fn try_allocate_variant(&mut self, request: &ResourceRequest) -> Option<Rc<Allocation>> {
         if let Some(remaining_time) = self.remaining_time {
             if remaining_time < request.min_time() {
@@ -285,12 +313,8 @@ impl ResourceAllocator {
             return None;
         }
 
-        let mut allocation = Allocation::new();
-        for entry in request.entries() {
-            let pool = self.pools.get_mut(entry.resource_id.as_usize()).unwrap();
-            allocation
-                .add_resource_allocation(pool.claim_resources(entry.resource_id, &entry.request))
-        }
+        let allocation = self.claim_resources(request);
+
         if !self.check_blocked_request(&allocation) {
             self.release_allocation_helper(&allocation);
             return None;

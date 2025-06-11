@@ -52,6 +52,10 @@ impl Allocation {
     pub fn resource_allocation(&self, id: ResourceId) -> Option<&ResourceAllocation> {
         self.resources.iter().find(|r| r.resource_id == id)
     }
+
+    pub fn normalize_allocation(&mut self) {
+        self.resources.sort_unstable_by_key(|r| r.resource_id);
+    }
 }
 
 #[cfg(test)]
