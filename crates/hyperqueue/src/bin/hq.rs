@@ -331,7 +331,7 @@ fn make_global_settings(opts: CommonOpts) -> GlobalSettings {
     let color_policy = match opts.colors {
         ColorPolicy::Always => ColorChoice::AlwaysAnsi,
         ColorPolicy::Auto => {
-            if atty::is(atty::Stream::Stdout) {
+            if io::stdout().is_terminal() {
                 ColorChoice::Auto
             } else {
                 ColorChoice::Never
