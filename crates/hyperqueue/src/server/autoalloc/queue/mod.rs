@@ -24,6 +24,7 @@ pub struct QueueInfo {
     idle_timeout: Option<Duration>,
     worker_start_cmd: Option<String>,
     worker_stop_cmd: Option<String>,
+    min_utilization: Option<f32>,
 }
 
 impl QueueInfo {
@@ -39,6 +40,7 @@ impl QueueInfo {
         idle_timeout: Option<Duration>,
         worker_start_cmd: Option<String>,
         worker_stop_cmd: Option<String>,
+        min_utilization: Option<f32>,
     ) -> Self {
         Self {
             manager,
@@ -51,6 +53,7 @@ impl QueueInfo {
             idle_timeout,
             worker_start_cmd,
             worker_stop_cmd,
+            min_utilization,
         }
     }
 
@@ -80,6 +83,10 @@ impl QueueInfo {
 
     pub fn worker_args(&self) -> &[String] {
         &self.worker_args
+    }
+
+    pub fn min_utilization(&self) -> Option<f32> {
+        self.min_utilization
     }
 }
 

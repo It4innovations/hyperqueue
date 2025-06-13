@@ -14,7 +14,10 @@ The automatic allocator has been finally reimplemented, and is now much better:
 * It now uses information from the scheduler to determine how many allocations to spawn, and thus it can react to the
   current computational load much more accurately. It should also be less "eager".
 * It properly supports multi-node tasks.
-* It considers computational load across all allocation queues (before, each queue was treated separately, which led to creating too many submissions).
+* It considers computational load across all allocation queues (before, each queue was treated separately, which led to
+  creating too many submissions).
+* It now exposes a `min-utilization` parameter, which can be used to avoid spawning an allocation that couldn't be utilized
+  enough.
 
 As this is a large behavioral change, we would be happy to hear your feedback!
 

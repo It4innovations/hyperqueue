@@ -107,6 +107,15 @@ Maximum number of workers that can be queued or running in the allocation queue.
 limited by the manager (PBS/Slurm), but you can use this parameter to make the limit smaller, for example if you also want
 to manage allocations outside HyperQueue.
 
+#### Minimal utilization
+Format: `--min-utilization <ratio>`
+
+Minimal utilization determines how could the scheduler utilize workers from submitted allocations. If the schedules thinks that it can make use of `N%` of worker resources in a single allocation of this queue, `min-utilization` has to be at least `N`, otherwise the allocation will not be created.
+
+It has to be a floating point number between 0.0 and 1.0.
+
+The default minimal utilization is `0`, which means that an allocation will be created if the scheduler thinks that it can use any (non-zero) amount of resources of worker(s) in the allocation.
+
 #### Worker resources
 You can specify [CPU](../jobs/cresources.md) and [generic](../jobs/resources.md) resources of workers spawned by the
 allocation queue. The name and syntax of these parameters is the same as when you create a

@@ -311,6 +311,7 @@ pub struct AllocationQueueParams {
     pub timelimit: Duration,
     pub name: Option<String>,
     pub max_worker_count: Option<u32>,
+    pub min_utilization: Option<f32>,
     pub additional_args: Vec<String>,
 
     pub worker_start_cmd: Option<String>,
