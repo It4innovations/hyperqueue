@@ -39,7 +39,6 @@ bitflags = { workspace = true }
 humantime = "2"
 num_cpus = "1"
 cli-table = { version = "0.5", default-features = false }
-atty = "0.2"
 dirs = "6"
 nom = "7"
 nom-supreme = { version = "0.8" }
