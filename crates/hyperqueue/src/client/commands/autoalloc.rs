@@ -96,9 +96,7 @@ struct SharedQueueOpts {
     #[arg(long, short, default_value_t = 1)]
     max_workers_per_alloc: u32,
 
-    /// Maximum number of concurrent workers in any state
-    ///
-    /// It counts workers that can be queued or running.
+    /// The maximum number of workers that can be queued/running at any given time in this queue
     #[arg(long)]
     max_worker_count: Option<u32>,
 

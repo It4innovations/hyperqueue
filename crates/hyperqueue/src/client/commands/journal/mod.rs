@@ -26,7 +26,7 @@ enum JournalCommand {
     /// Events are exported as NDJSON on `stdout`.
     Export(ExportOpts),
 
-    /// Replays all old events, then streams new events
+    /// Replays all events from the start of the server, then streams new events
     ///
     /// The command blocks and waits for new live events until
     /// the server is not stopped.
@@ -34,7 +34,7 @@ enum JournalCommand {
     /// Events are exported as NDJSON on `stdout`.
     Stream,
 
-    /// Replays old events, then terminate
+    /// Replays all events from the start of the server, then terminate
     ///
     /// Events are exported as NDJSON on `stdout`.
     Replay,
@@ -44,7 +44,7 @@ enum JournalCommand {
     /// Connects to a server and removes completed tasks and non-active workers from the journal.
     Prune,
 
-    /// Forces to flush its journal of a running server
+    /// Forces a running server to flush its journal to the disk
     Flush,
 }
 
