@@ -198,8 +198,11 @@ pub enum WorkerRuntimeInfo {
 
 #[derive(Debug)]
 pub struct MultiNodeAllocationResponse {
+    /// Queue/query index into the query input vec
     pub worker_type: usize,
+    /// Number of workers that should be spawned in each allocation
     pub worker_per_allocation: u32,
+    /// Number of allocations to create
     pub max_allocations: u32,
 }
 
