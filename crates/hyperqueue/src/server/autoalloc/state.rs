@@ -509,6 +509,7 @@ mod tests {
                     None,
                     None,
                     None,
+                    None,
                 ),
                 None,
                 Box::new(NullHandler),

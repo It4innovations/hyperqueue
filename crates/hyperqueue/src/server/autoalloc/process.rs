@@ -174,6 +174,7 @@ pub fn create_queue_info(params: AllocationQueueParams) -> QueueInfo {
         max_workers_per_alloc,
         backlog,
         timelimit,
+        min_utilization,
         additional_args,
         max_worker_count,
         worker_start_cmd,
@@ -192,6 +193,7 @@ pub fn create_queue_info(params: AllocationQueueParams) -> QueueInfo {
         idle_timeout,
         worker_start_cmd,
         worker_stop_cmd,
+        min_utilization,
     )
 }
 
@@ -430,8 +432,7 @@ fn create_queue_worker_query(queue: &AllocationQueue) -> WorkerTypeQuery {
         // How many workers can we provide at the moment
         max_sn_workers: info.backlog() * info.max_workers_per_alloc(),
         max_workers_per_allocation: info.max_workers_per_alloc(),
-        // TODO: expose this through the CLI
-        min_utilization: 0.0,
+        min_utilization: info.min_utilization().unwrap_or(0.0),
     }
 }
 
@@ -2010,6 +2011,7 @@ mod tests {
                         timelimit: queue_info.timelimit(),
                         name: Some("Queue".to_string()),
                         max_worker_count: queue_info.max_worker_count(),
+                        min_utilization: None,
                         additional_args: vec![],
                         worker_start_cmd: None,
                         worker_stop_cmd: None,
@@ -2424,6 +2426,8 @@ mod tests {
         limiter_max_submit_fails: u64,
         #[builder(default = "vec![Duration::ZERO]")]
         limiter_delays: Vec<Duration>,
+        #[builder(default)]
+        min_utilization: Option<f32>,
     }
 
     impl QueueBuilder {
@@ -2437,6 +2441,7 @@ mod tests {
                 limiter_max_alloc_fails,
                 limiter_max_submit_fails,
                 limiter_delays,
+                min_utilization,
             } = self.finish().unwrap();
             (
                 QueueInfo::new(
@@ -2450,6 +2455,7 @@ mod tests {
                     None,
                     None,
                     None,
+                    min_utilization,
                 ),
                 RateLimiter::new(
                     limiter_delays,
