@@ -18,7 +18,7 @@ def test_autoalloc_queue_list(hq_env: HqEnv, flavor: ManagerFlavor):
         (
             "ID",
             "Backlog size",
-            "Workers per alloc",
+            "Max workers per alloc",
             "Timelimit",
             "Manager",
             "Name",
@@ -32,12 +32,12 @@ def test_autoalloc_queue_list(hq_env: HqEnv, flavor: ManagerFlavor):
         manager=flavor.manager_type(),
         name="bar",
         backlog=1,
-        workers_per_alloc=2,
+        max_workers_per_alloc=2,
         time_limit="1h",
     )
     table = hq_env.command(["alloc", "list"], as_table=True)
     table.check_columns_value(
-        ("ID", "Backlog size", "Workers per alloc", "Timelimit", "Name", "Manager"),
+        ("ID", "Backlog size", "Max workers per alloc", "Timelimit", "Name", "Manager"),
         1,
         ("2", "1", "2", "1h", "bar", flavor.manager_type().upper()),
     )
@@ -117,7 +117,7 @@ def test_add_queue(hq_env: HqEnv, flavor: ManagerFlavor):
         manager=flavor.manager_type(),
         name="foo",
         backlog=5,
-        workers_per_alloc=2,
+        max_workers_per_alloc=2,
     )
     assert "Allocation queue 1 successfully created" in output
 

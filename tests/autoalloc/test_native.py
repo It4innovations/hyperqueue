@@ -40,7 +40,7 @@ def test_external_pbs_submit_multiple_workers(cluster_hq_env: HqEnv, pbs_credent
         additional_args=pbs_credentials,
         time_limit="5m",
         dry_run=True,
-        workers_per_alloc=2,
+        max_workers_per_alloc=2,
     )
     wait_for_worker_state(cluster_hq_env, [1, 2], "RUNNING", timeout_s=PBS_TIMEOUT)
     wait_for_job_state(cluster_hq_env, 1, "FINISHED")
@@ -73,7 +73,7 @@ def test_external_slurm_submit_multiple_workers(cluster_hq_env: HqEnv, slurm_cre
         additional_args=slurm_credentials,
         time_limit="5m",
         dry_run=True,
-        workers_per_alloc=2,
+        max_workers_per_alloc=2,
     )
     wait_for_worker_state(cluster_hq_env, [1, 2], "RUNNING", timeout_s=SLURM_TIMEOUT)
     wait_for_job_state(cluster_hq_env, 1, "FINISHED")
