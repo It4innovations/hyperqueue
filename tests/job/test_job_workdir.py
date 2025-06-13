@@ -112,7 +112,7 @@ def test_job_workdir_error_handling(hq_env: HqEnv):
     hq_env.start_server()
 
     # Test with no jobs - should succeed but return empty output
-    output = hq_env.command(["job", "workdir", "1"])
+    hq_env.command(["job", "workdir", "1"])
     # Should handle gracefully (no crash, empty or minimal output)
     
     # Test with invalid selector - check manually for now since clap error handling varies
