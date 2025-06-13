@@ -41,7 +41,7 @@ enum JournalCommand {
 
     /// Prune a journal of a running server
     ///
-    /// Connects to a server and remove completed tasks and non-active workers from the journal.
+    /// Connects to a server and removes completed tasks and non-active workers from the journal.
     Prune,
 
     /// Forces to flush its journal of a running server

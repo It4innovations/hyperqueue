@@ -259,7 +259,7 @@ pub enum WorkerCommand {
     /// Perform hardware detection
     ///
     /// This serves to test how a worker sees the hardware
-    /// on a machine where command is invoked.
+    /// on a machine where the command is invoked.
     #[command(name = "hwdetect")]
     HwDetect(HwDetectOpts),
     /// Display information about a worker
@@ -277,7 +277,7 @@ pub enum WorkerCommand {
 
 #[derive(Parser)]
 pub struct WorkerStopOpts {
-    /// Selectes worker(s) to stop
+    /// Selects worker(s) to stop
     #[arg(value_parser = parse_last_all_range)]
     pub selector_arg: IdSelector,
 }
@@ -361,7 +361,7 @@ pub enum JobCommand {
     Info(JobInfoOpts),
     /// Cancel a job
     ///
-    /// This will cancel all job's tasks, stopping them from being computation.
+    /// This will cancel all job's tasks, stopping them from being computed.
     Cancel(JobCancelOpts),
     /// Forget a job
     ///
@@ -393,7 +393,7 @@ pub enum JobCommand {
 
 #[derive(Parser)]
 pub struct JobWaitOpts {
-    /// Jobs to wait for
+    /// Job(s) to wait for
     #[arg(value_parser = parse_last_all_range)]
     pub selector: IdSelector,
 
