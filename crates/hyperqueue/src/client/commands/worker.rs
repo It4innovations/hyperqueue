@@ -75,11 +75,11 @@ impl From<ArgServerLostPolicy> for ServerLostPolicy {
 // These options are shared by worker start and autoalloc.
 #[derive(Parser, Debug)]
 pub struct SharedWorkerStartOpts {
-    /// How many cores should be allocated for the worker
+    /// The cores assigned to the worker
     #[arg(long, value_parser = passthrough_parser(parse_cpu_definition))]
     pub cpus: Option<PassThroughArgument<ResourceDescriptorKind>>,
 
-    /// Resources provided by the worker.
+    /// Resources provided by the worker
     ///
     /// Examples:{n}
     /// - `--resource gpus=[0,1,2,3]`{n}
@@ -88,31 +88,40 @@ pub struct SharedWorkerStartOpts {
     )]
     pub resource: Vec<PassThroughArgument<ResourceDescriptorItem>>,
 
-    /// Manual configuration of worker's group
-    /// Workers from the same group are used for multi-node tasks
+    /// Sets worker's group
+    ///
+    /// Workers from the same group are used for multi-node tasks.
+    ///
+    /// By default, the worker tries to detect allocation name from SLURM/PBS,
+    /// if running outside a manager, then the group is empty.
     #[arg(long)]
     pub group: Option<String>,
 
     #[clap(long)]
-    /// Disable auto-detection of resources
+    /// Disables auto-detection of resources
     #[arg(long = "no-detect-resources")]
     pub no_detect_resources: bool,
 
     #[clap(long)]
-    /// Ignore hyper-threading while detecting CPU cores
+    /// Ignores hyper-threading while detecting CPU cores
     #[arg(long = "no-hyper-threading")]
     pub no_hyper_threading: bool,
 
     #[arg(
         long,
         value_parser = parse_hms_or_human_time,
-        help = duration_doc!("Duration after which will an idle worker automatically stop.")
+        help = duration_doc!("Duration after which will an idle worker automatically stop")
     )]
     pub idle_timeout: Option<Duration>,
 
-    /// How often should the worker send its overview status (e.g. HW usage, task status)
-    /// to the server for monitoring. Set to "0s" to disable overview updates.
-    /// By default, overview updates are disabled, to reduce network bandwidth and event journal
+    /// The period of reporting the overview to the server
+    ///
+    /// The overview contains information about HW usage.
+    /// It serves only for the user's informing the user (e.g., in dashboard),
+    /// the server scheduler is independent on worker's overviews.
+    ///
+    /// Set to "0s" to disable overview updates.
+    /// By default, overview updates are disabled to reduce network bandwidth and event journal
     /// size.
     #[arg(long, value_parser = passthrough_parser(parse_human_time))]
     pub overview_interval: Option<PassThroughArgument<Duration>>,
@@ -127,46 +136,57 @@ pub struct WorkerStartOpts {
         long,
         default_value = "8s",
         value_parser = parse_hms_or_human_time,
-        help = duration_doc!("How often should the worker announce its existence to the server.")
+        help = duration_doc!("How often heartbeats are sent\n\nHeartbeats are used to detect worker's liveness. If the worker does not send a heartbeat for given time, then the worker is considered as lost.")
     )]
     pub heartbeat: Duration,
 
     #[arg(
         long,
         value_parser = parse_hms_or_human_time,
-        help = duration_doc!("Worker time limit. Worker exits after given time.")
+        help = duration_doc!("Worker time limit\n\nWorker exits after given time.")
     )]
     pub time_limit: Option<Duration>,
 
-    /// What HPC job manager should be used by the worker.
+    /// Sets HPC job manager for the worker
+    ///
+    /// It modifies what variables are read from the environment
     #[arg(long, default_value_t = ManagerOpts::Detect, value_enum)]
     pub manager: ManagerOpts,
 
-    /// Overwrite worker hostname
+    /// Overwrites worker hostname
     #[arg(long)]
     pub hostname: Option<String>,
 
-    /// Behavior when a connection to a server is lost
+    /// The policy when a connection to a server is lost
     #[arg(long, default_value_t = ArgServerLostPolicy::Stop, value_enum)]
     pub on_server_lost: ArgServerLostPolicy,
 
-    /// Working directory of a worker. Temp directory by default.
+    /// Sets the working directory for the worker
+    ///
+    /// It is a directory for internal usage of the worker
+    /// and where temporal task directories are created.
+    ///
+    /// By default, it is placed in /tmp.
     /// It should *NOT* be placed on a network filesystem.
     #[arg(long)]
     pub work_dir: Option<PathBuf>,
 
-    /// The maximal number of data objects are downloaded simultaneously
+    /// The maximal parallel downloads for data objects
     #[arg(long, default_value = "4")]
     pub max_parallel_downloads: u32,
 
-    /// How many times the worker tries to download a data object from remote side
-    /// when download is failing.
+    /// The maximal data object download tries
+    ///
+    /// Specifies how many times the worker tries to download a data object
+    /// from the remote side before download is considered as failed.
     #[arg(long, default_value = "8")]
     pub max_download_tries: u32,
 
     #[arg(long,
           default_value = "1s", value_parser = parse_hms_or_human_time,
-          help = duration_doc!("When data object download failed, how long to wait to try it again. This time is multiplied by the number of previous retries. Therefore between 4th and 5th retry it waits 4 * the given duration"))]
+          help = duration_doc!("The delay between download attempts\n\nSets how long to wait between failed downloads of data object. This time is multiplied by the number of previous retries. Therefore between 4th and 5th retry it waits 4 * the given duration"),
+          value_name = "TIME")
+    ]
     pub wait_between_download_tries: Duration,
 }
 
