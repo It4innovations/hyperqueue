@@ -154,6 +154,43 @@ impl Output for JsonOutput {
         self.print(Value::Array(job_details));
     }
 
+    fn print_job_workdir(&self, jobs: Vec<JobDetail>, server_uid: &str) {
+        let job_workdirs: Vec<_> = jobs
+            .into_iter()
+            .map(|job| {
+                let task_paths = resolve_task_paths(&job, server_uid);
+
+                // Collect unique working directories
+                let mut workdirs: std::collections::BTreeSet<String> =
+                    std::collections::BTreeSet::new();
+
+                // Add submission directory(s)
+                for submit_desc in &job.submit_descs {
+                    workdirs.insert(
+                        submit_desc
+                            .description()
+                            .submit_dir
+                            .to_string_lossy()
+                            .to_string(),
+                    );
+                }
+
+                // Add task working directories
+                for (_, resolved_paths) in task_paths.iter() {
+                    if let Some(paths) = resolved_paths {
+                        workdirs.insert(paths.cwd.to_string_lossy().to_string());
+                    }
+                }
+
+                json!({
+                    "job_id": job.info.id,
+                    "workdirs": workdirs.into_iter().collect::<Vec<_>>()
+                })
+            })
+            .collect();
+        self.print(Value::Array(job_workdirs));
+    }
+
     fn print_job_wait(
         &self,
         duration: Duration,
@@ -219,6 +256,29 @@ impl Output for JsonOutput {
             .map(|(key, value)| (key, value.iter().collect()))
             .collect();
         self.print(json!(map));
+    }
+
+    fn print_task_workdir(&self, jobs: Vec<(JobId, JobDetail)>, server_uid: &str) {
+        let task_workdirs: Vec<_> = jobs
+            .into_iter()
+            .map(|(job_id, job)| {
+                let task_paths = resolve_task_paths(&job, server_uid);
+                let tasks: HashMap<u32, String> = task_paths
+                    .iter()
+                    .filter_map(|(task_id, resolved_paths)| {
+                        resolved_paths.as_ref().map(|paths| {
+                            (task_id.as_num(), paths.cwd.to_string_lossy().to_string())
+                        })
+                    })
+                    .collect();
+
+                json!({
+                    "job_id": job_id,
+                    "tasks": tasks
+                })
+            })
+            .collect();
+        self.print(Value::Array(task_workdirs));
     }
 
     fn print_summary(&self, filename: &Path, summary: Summary) {

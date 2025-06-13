@@ -8,8 +8,8 @@ use hyperqueue::client::commands::data::command_task_data;
 use hyperqueue::client::commands::doc::command_doc;
 use hyperqueue::client::commands::job::{
     JobCancelOpts, JobCatOpts, JobCloseOpts, JobForgetOpts, JobInfoOpts, JobListOpts,
-    JobTaskIdsOpts, cancel_job, close_job, forget_job, output_job_cat, output_job_detail,
-    output_job_list, output_job_summary,
+    JobTaskIdsOpts, JobWorkdirOpts, cancel_job, close_job, forget_job, output_job_cat,
+    output_job_detail, output_job_list, output_job_summary, output_job_workdir,
 };
 use hyperqueue::client::commands::journal::command_journal;
 use hyperqueue::client::commands::outputlog::command_reader;
@@ -31,8 +31,9 @@ use hyperqueue::client::output::outputs::{Output, Outputs};
 use hyperqueue::client::output::quiet::Quiet;
 use hyperqueue::client::status::Status;
 use hyperqueue::client::task::{
-    TaskCommand, TaskExplainOpts, TaskInfoOpts, TaskListOpts, output_job_task_explain,
-    output_job_task_ids, output_job_task_info, output_job_task_list,
+    TaskCommand, TaskExplainOpts, TaskInfoOpts, TaskListOpts, TaskWorkdirOpts,
+    output_job_task_explain, output_job_task_ids, output_job_task_info, output_job_task_list,
+    output_job_task_workdir,
 };
 use hyperqueue::common::cli::{
     ColorPolicy, CommonOpts, DeploySshOpts, GenerateCompletionOpts, HwDetectOpts, JobCommand,
@@ -140,6 +141,14 @@ async fn command_job_close(gsettings: &GlobalSettings, opts: JobCloseOpts) -> an
     close_job(gsettings, &mut connection, opts.selector).await
 }
 
+async fn command_job_workdir(
+    gsettings: &GlobalSettings,
+    opts: JobWorkdirOpts,
+) -> anyhow::Result<()> {
+    let mut connection = get_client_session(gsettings.server_directory()).await?;
+    output_job_workdir(gsettings, &mut connection, opts.selector).await
+}
+
 async fn command_job_delete(gsettings: &GlobalSettings, opts: JobForgetOpts) -> anyhow::Result<()> {
     let mut connection = get_client_session(gsettings.server_directory()).await?;
     forget_job(gsettings, &mut connection, opts).await
@@ -210,6 +219,14 @@ async fn command_task_explain(
 ) -> anyhow::Result<()> {
     let mut session = get_client_session(gsettings.server_directory()).await?;
     output_job_task_explain(gsettings, &mut session, opts).await
+}
+
+async fn command_task_workdir(
+    gsettings: &GlobalSettings,
+    opts: TaskWorkdirOpts,
+) -> anyhow::Result<()> {
+    let mut session = get_client_session(gsettings.server_directory()).await?;
+    output_job_task_workdir(gsettings, &mut session, opts).await
 }
 
 async fn command_worker_start(
@@ -496,6 +513,7 @@ async fn main() -> hyperqueue::Result<()> {
             JobCommand::TaskIds(opts) => command_job_task_ids(&gsettings, opts).await,
             JobCommand::Open(opts) => command_job_open(&gsettings, opts).await,
             JobCommand::Close(opts) => command_job_close(&gsettings, opts).await,
+            JobCommand::Workdir(opts) => command_job_workdir(&gsettings, opts).await,
         },
         SubCommand::Submit(opts) => {
             command_job_submit(&gsettings, OptsWithMatches::new(opts, matches)).await
@@ -504,6 +522,7 @@ async fn main() -> hyperqueue::Result<()> {
             TaskCommand::List(opts) => command_task_list(&gsettings, opts).await,
             TaskCommand::Info(opts) => command_task_info(&gsettings, opts).await,
             TaskCommand::Explain(opts) => command_task_explain(&gsettings, opts).await,
+            TaskCommand::Workdir(opts) => command_task_workdir(&gsettings, opts).await,
         },
         SubCommand::Data(opts) => command_task_data(&gsettings, opts).await,
         #[cfg(feature = "dashboard")]

@@ -472,6 +472,19 @@ impl Output for CliOutput {
         }
     }
 
+    fn print_task_workdir(&self, jobs: Vec<(JobId, JobDetail)>, server_uid: &str) {
+        for (job_id, job) in jobs {
+            let task_paths = resolve_task_paths(&job, server_uid);
+
+            println!("Job {}:", job_id);
+            for (task_id, resolved_paths) in task_paths.iter() {
+                if let Some(paths) = resolved_paths {
+                    println!("  Task {}: {}", task_id.as_num(), paths.cwd.display());
+                }
+            }
+        }
+    }
+
     fn print_job_list(&self, jobs: Vec<JobInfo>, total_jobs: usize) {
         let job_count = jobs.len();
         let mut has_opened = false;
@@ -629,6 +642,40 @@ impl Output for CliOutput {
 
             tasks.sort_unstable_by_key(|t| t.0);
             self.print_task_summary(&tasks, &info, &worker_map);
+        }
+    }
+
+    fn print_job_workdir(&self, jobs: Vec<JobDetail>, server_uid: &str) {
+        for job in jobs {
+            let task_paths = resolve_task_paths(&job, server_uid);
+
+            // Collect unique working directories
+            let mut workdirs: std::collections::BTreeSet<String> =
+                std::collections::BTreeSet::new();
+
+            // Add submission directory(s)
+            for submit_desc in &job.submit_descs {
+                workdirs.insert(
+                    submit_desc
+                        .description()
+                        .submit_dir
+                        .to_string_lossy()
+                        .to_string(),
+                );
+            }
+
+            // Add task working directories
+            for (_, resolved_paths) in task_paths.iter() {
+                if let Some(paths) = resolved_paths {
+                    workdirs.insert(paths.cwd.to_string_lossy().to_string());
+                }
+            }
+
+            // Print job header and working directories
+            println!("Job {}:", job.info.id);
+            for workdir in workdirs {
+                println!("  {}", workdir);
+            }
         }
     }
 

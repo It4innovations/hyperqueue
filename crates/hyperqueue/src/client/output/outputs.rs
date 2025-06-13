@@ -48,6 +48,7 @@ pub trait Output {
     fn print_job_list(&self, jobs: Vec<JobInfo>, total_jobs: usize);
     fn print_job_summary(&self, jobs: Vec<JobInfo>);
     fn print_job_detail(&self, jobs: Vec<JobDetail>, worker_map: WorkerMap, server_uid: &str);
+    fn print_job_workdir(&self, jobs: Vec<JobDetail>, server_uid: &str);
     fn print_job_wait(
         &self,
         duration: Duration,
@@ -80,6 +81,7 @@ pub trait Output {
         verbosity: Verbosity,
     );
     fn print_task_ids(&self, jobs_task_id: Vec<(JobId, IntArray)>);
+    fn print_task_workdir(&self, jobs: Vec<(JobId, JobDetail)>, server_uid: &str);
 
     // Stream
     fn print_summary(&self, path: &Path, summary: Summary);

@@ -99,6 +99,8 @@ impl Output for Quiet {
     }
     fn print_job_detail(&self, _jobs: Vec<JobDetail>, _worker_map: WorkerMap, _server_uid: &str) {}
 
+    fn print_job_workdir(&self, _jobs: Vec<JobDetail>, _server_uid: &str) {}
+
     fn print_job_wait(
         &self,
         _duration: Duration,
@@ -138,6 +140,8 @@ impl Output for Quiet {
     }
 
     fn print_task_ids(&self, _job_task_ids: Vec<(JobId, IntArray)>) {}
+
+    fn print_task_workdir(&self, _jobs: Vec<(JobId, JobDetail)>, _server_uid: &str) {}
 
     // Stream
     fn print_summary(&self, _filename: &Path, _summary: Summary) {}
