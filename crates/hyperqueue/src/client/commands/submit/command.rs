@@ -210,7 +210,7 @@ pub struct SubmitJobTaskConfOpts {
     /// The number of nodes
     ///
     /// If a positive integer is set; a multinode task is submitted.
-    /// The zero means a subnode task.
+    /// Zero represents a single node task.
     #[arg(
         long,
         conflicts_with("pin"),
@@ -284,9 +284,9 @@ pub struct SubmitJobTaskConfOpts {
     /// Create a task for each integer in the specified number range.
     /// Each task will be passed an environment variable `HQ_TASK_ID`.
     ///
-    /// `--array=3-5` - create a task array with three jobs with task IDs 3, 4, 5
+    /// `--array=3-5` - create a task array with three tasks with IDs 3, 4, 5
     ///
-    /// `--array=5` - create a task array with one job with task ID 5
+    /// `--array=5` - create a task array with one task with ID 5
     #[arg(long)]
     array: Option<IntArray>,
 
@@ -442,7 +442,7 @@ pub struct JobSubmitOpts {
 
     /// Shows a progressbar
     ///
-    /// It is the same as call `hq progress` immediately called after the submit
+    /// It is the same as calling `hq progress` immediately after the submit
     #[arg(long, conflicts_with("wait"))]
     progress: bool,
 

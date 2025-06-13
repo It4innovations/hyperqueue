@@ -113,7 +113,7 @@ struct SharedQueueOpts {
     #[arg(long, default_value_t = ArgServerLostPolicy::FinishRunning, value_enum)]
     on_server_lost: ArgServerLostPolicy,
 
-    /// Disables veryfing the parameter correctness via dry-run
+    /// Disables verifying the parameter correctness via dry-run
     ///
     /// If dry run is enabled, the server tries to submit a probing allocation to verify
     /// whether the parameters are correct. The allocation is immediately canceled.
@@ -122,7 +122,7 @@ struct SharedQueueOpts {
     #[arg(long, global = true)]
     no_dry_run: bool,
 
-    /// A command executed before the start of the worker
+    /// A command executed before the start of each worker
     ///
     /// It is executed as a shell command.
     #[arg(long)]
