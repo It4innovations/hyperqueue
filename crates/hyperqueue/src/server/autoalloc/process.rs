@@ -345,7 +345,7 @@ async fn handle_message(
 struct QueryResponse {
     single_node_workers: u32,
     multinode_allocations: u32,
-    multinode_worker_per_alloc: u32,
+    multinode_workers_per_alloc: u32,
 }
 
 impl QueryResponse {
@@ -385,7 +385,7 @@ async fn perform_submits(
         .map(|single_node_workers| QueryResponse {
             single_node_workers: single_node_workers as u32,
             multinode_allocations: 0,
-            multinode_worker_per_alloc: 0,
+            multinode_workers_per_alloc: 0,
         })
         .collect();
     for mn_response in response.multi_node_allocations {
@@ -397,7 +397,7 @@ async fn perform_submits(
             );
         };
         response.multinode_allocations = mn_response.max_allocations;
-        response.multinode_worker_per_alloc = mn_response.worker_per_allocation;
+        response.multinode_workers_per_alloc = mn_response.worker_per_allocation;
     }
 
     assert_eq!(responses.len(), queues.len());
@@ -468,7 +468,7 @@ fn compute_submission_permit(
         .active_allocations()
         .map(|allocation| allocation.target_worker_count as u32)
         .sum::<u32>();
-    let queued_allocs = queue.queued_allocations().count() as u32;
+    let queued_allocs = queue.queued_allocations().collect::<Vec<_>>();
 
     let mut max_remaining_workers_to_spawn = match info.max_worker_count() {
         Some(max) => max.saturating_sub(active_workers),
@@ -477,35 +477,57 @@ fn compute_submission_permit(
 
     log::debug!(
         r"Counting possible allocations: query response {query_response:?}.
-Backlog: {}, currently queued: {queued_allocs}, max workers to spawn: {max_remaining_workers_to_spawn}
+Backlog: {}, currently queued: {}, max workers to spawn: {max_remaining_workers_to_spawn}
 ",
         info.backlog(),
+        queued_allocs.len()
     );
 
     if max_remaining_workers_to_spawn == 0 {
         return SubmissionPermit::empty();
     }
 
-    // TODO
-    let required_workers = query_response.single_node_workers;
+    // Step 1: filter out queued allocations that can fulfill the mn alloc request, and at the
+    // same time filter our workers that satisfy the sn alloc request.
+    let mut mn_alloc_count = query_response.multinode_allocations;
+    let mut sn_worker_count = query_response.single_node_workers;
 
-    // Start with backlog
-    let allocs_to_submit = info.backlog();
-    // Subtract already queued allocations
-    let allocs_to_submit = allocs_to_submit.saturating_sub(queued_allocs);
-    // Only create enough allocations to serve `required_workers`.
-    // Allocations that are already queued will be subtracted from this.
-    let missing_workers =
-        required_workers.saturating_sub(queued_allocs * info.max_workers_per_alloc());
-    let missing_allocations =
-        ((missing_workers as f32) / (info.max_workers_per_alloc() as f32)).ceil() as u32;
-    let allocs_to_submit = allocs_to_submit.min(missing_allocations);
+    for alloc in &queued_allocs {
+        let mut worker_count = alloc.target_worker_count as u32;
+
+        // This allocation already satisfies the mn request
+        if mn_alloc_count > 0 && query_response.multinode_workers_per_alloc <= worker_count {
+            mn_alloc_count -= 1;
+            // Do not consider the mn workers to participate in the queued sn worker count
+            worker_count -= query_response.multinode_workers_per_alloc;
+        }
+        // Subtract the number of sn workers that we need
+        sn_worker_count = sn_worker_count.saturating_sub(worker_count);
+    }
+
+    // Step 2: create iterator of allocations to submit
+    // Try to create as many workers per allocation as possible to satisfy sn workers
+    let full_sn_alloc_count =
+        ((sn_worker_count as f32) / (info.max_workers_per_alloc() as f32)).floor() as u32;
+    let remainder = sn_worker_count % info.max_workers_per_alloc();
+    let sn_allocs = (0..full_sn_alloc_count)
+        .map(|_| info.max_workers_per_alloc())
+        // Add the remainder to the iterator if it isn't empty
+        .chain((remainder != 0).then_some(remainder));
+
+    // Multi-node allocations have priority before single-node allocations
+    // TODO: can mn allocations request a (needlessly) smaller number of workers per alloc here
+    // if the mn tasks require less workers than `info.max_workers_per_alloc()`?
+    let max_allocs_to_submit = info.backlog().saturating_sub(queued_allocs.len() as u32);
+    let allocs_to_submit = (0..mn_alloc_count)
+        .map(|_| query_response.multinode_workers_per_alloc)
+        .chain(sn_allocs)
+        .take(max_allocs_to_submit as usize);
 
     let mut allocations = vec![];
-    for _ in 0..allocs_to_submit {
-        let to_spawn = info
-            .max_workers_per_alloc()
-            .min(max_remaining_workers_to_spawn);
+    for target_worker_count in allocs_to_submit {
+        assert!(target_worker_count <= info.max_workers_per_alloc());
+        let to_spawn = target_worker_count.min(max_remaining_workers_to_spawn);
         if to_spawn == 0 {
             break;
         }
@@ -1211,42 +1233,30 @@ mod tests {
     use tako::{Map, Set, WrappedRcRefCell};
     use tempfile::TempDir;
 
-    impl From<QueueBuilder> for AllocationQueue {
-        fn from(builder: QueueBuilder) -> Self {
-            let (info, limiter) = builder.build();
-            Self::new(info, None, always_queued_handler(), limiter)
-        }
-    }
-
-    fn add_alloc(queue: &mut AllocationQueue, id: u64, worker_count: u64) {
-        queue.add_allocation(Allocation::new(
-            id.to_string(),
-            worker_count,
-            PathBuf::new(),
-        ));
-    }
-
-    fn response_sn(count: u32) -> QueryResponse {
-        QueryResponse {
-            single_node_workers: count,
-            multinode_allocations: 0,
-            multinode_worker_per_alloc: 0,
-        }
-    }
-
     #[test]
-    fn permit_simple() {
+    fn permit_respect_backlog() {
         let queue = QueueBuilder::default().backlog(2);
         insta::assert_debug_snapshot!(compute_submission_permit(
             &queue.into(),
-            response_sn(3),
-        ), @r"
-        SubmissionPermit {
-            allocs_to_submit: [
-                1,
-                1,
-            ],
-        }
+            query_response_sn(3),
+        ).allocs_to_submit, @r"
+        [
+            1,
+            1,
+        ]
+        ");
+    }
+
+    #[test]
+    fn permit_less_than_max_worker_count_per_alloc() {
+        let queue = QueueBuilder::default().backlog(4).max_workers_per_alloc(2);
+        insta::assert_debug_snapshot!(compute_submission_permit(
+            &queue.into(),
+            query_response_sn(1),
+        ).allocs_to_submit, @r"
+        [
+            1,
+        ]
         ");
     }
 
@@ -1255,15 +1265,13 @@ mod tests {
         let queue = QueueBuilder::default().backlog(4).max_worker_count(Some(3));
         insta::assert_debug_snapshot!(compute_submission_permit(
             &queue.into(),
-            response_sn(4),
-        ), @r"
-        SubmissionPermit {
-            allocs_to_submit: [
-                1,
-                1,
-                1,
-            ],
-        }
+            query_response_sn(4),
+        ).allocs_to_submit, @r"
+        [
+            1,
+            1,
+            1,
+        ]
         ");
     }
 
@@ -1271,18 +1279,16 @@ mod tests {
     fn permit_respect_max_workers_with_more_workers_per_node() {
         let queue = QueueBuilder::default()
             .backlog(4)
-            .workers_per_alloc(2)
+            .max_workers_per_alloc(2)
             .max_worker_count(Some(3));
         insta::assert_debug_snapshot!(compute_submission_permit(
             &queue.into(),
-            response_sn(4),
-        ), @r"
-        SubmissionPermit {
-            allocs_to_submit: [
-                2,
-                1,
-            ],
-        }
+            query_response_sn(4),
+        ).allocs_to_submit, @r"
+        [
+            2,
+            1,
+        ]
         ");
     }
 
@@ -1293,33 +1299,138 @@ mod tests {
         add_alloc(&mut queue, 1, 1);
         insta::assert_debug_snapshot!(compute_submission_permit(
             &queue,
-            response_sn(2),
-        ), @r"
-        SubmissionPermit {
-            allocs_to_submit: [],
-        }
+            query_response_sn(2),
+        ).allocs_to_submit, @"[]");
+    }
+
+    #[test]
+    fn permit_respect_queued_mn_allocations_1() {
+        let mut queue = QueueBuilder::default()
+            .backlog(4)
+            .max_workers_per_alloc(3)
+            .into();
+        // This alloc has enough workers
+        add_alloc(&mut queue, 0, 3);
+        // This one doesn't, so an additional alloc should be created
+        add_alloc(&mut queue, 1, 1);
+        insta::assert_debug_snapshot!(compute_submission_permit(
+            &queue,
+            QueryResponse {
+                single_node_workers: 0,
+                multinode_allocations: 2,
+                multinode_workers_per_alloc: 2,
+            },
+        ).allocs_to_submit, @r"
+        [
+            2,
+        ]
         ");
     }
 
     #[test]
-    fn permit_respect_queued_allocations_weird_worker_count() {
-        // Assume that each spawned allocation has the target worker count, rather than
-        // examining the actual worker count, to avoid seeing inconsistencies when an allocation
-        // is started, but all workers haven't connected yet.
+    fn permit_respect_queued_mn_allocations_2() {
         let mut queue = QueueBuilder::default().backlog(4).into();
-        // The allocation has two workers, even though the queue only expects one worker per
-        // allocation.
-        add_alloc(&mut queue, 0, 2);
+        // Both allocs have enough workers, do not submit anything else
+        add_alloc(&mut queue, 0, 3);
+        add_alloc(&mut queue, 1, 2);
         insta::assert_debug_snapshot!(compute_submission_permit(
             &queue,
-            response_sn(2),
-        ), @r"
-        SubmissionPermit {
-            allocs_to_submit: [
-                1,
-            ],
-        }
+            QueryResponse {
+                single_node_workers: 0,
+                multinode_allocations: 2,
+                multinode_workers_per_alloc: 2,
+            },
+        ).allocs_to_submit, @r"
+        []
         ");
+    }
+
+    #[test]
+    fn permit_mn_allocation_simple() {
+        let queue = QueueBuilder::default()
+            .backlog(4)
+            .max_workers_per_alloc(2)
+            .into();
+        insta::assert_debug_snapshot!(compute_submission_permit(
+            &queue,
+            QueryResponse {
+                single_node_workers: 0,
+                multinode_allocations: 2,
+                multinode_workers_per_alloc: 2,
+            },
+        ).allocs_to_submit, @r"
+        [
+            2,
+            2,
+        ]
+        ");
+    }
+
+    #[test]
+    fn permit_mn_and_sn_allocation() {
+        let queue = QueueBuilder::default()
+            .backlog(4)
+            .max_workers_per_alloc(2)
+            .into();
+        insta::assert_debug_snapshot!(compute_submission_permit(
+            &queue,
+            QueryResponse {
+                single_node_workers: 3,
+                multinode_allocations: 2,
+                multinode_workers_per_alloc: 2,
+            },
+        ).allocs_to_submit, @r"
+        [
+            2,
+            2,
+            2,
+            1,
+        ]
+        ");
+    }
+
+    #[test]
+    fn permit_allocation_satisfies_both_mn_and_sn_1() {
+        let mut queue = QueueBuilder::default()
+            .backlog(5)
+            .max_workers_per_alloc(2)
+            .into();
+        // This allocation satisfies one mn allocation and one sn worker
+        add_alloc(&mut queue, 0, 3);
+        insta::assert_debug_snapshot!(compute_submission_permit(
+            &queue,
+            QueryResponse {
+                single_node_workers: 4,
+                multinode_allocations: 2,
+                multinode_workers_per_alloc: 2,
+            },
+        ).allocs_to_submit, @r"
+        [
+            2,
+            2,
+            1,
+        ]
+        ");
+    }
+
+    #[test]
+    fn permit_allocation_satisfies_both_mn_and_sn_2() {
+        let mut queue = QueueBuilder::default()
+            .backlog(4)
+            .max_workers_per_alloc(3)
+            .into();
+        // This allocation satisfies one mn allocation and one sn worker
+        add_alloc(&mut queue, 0, 3);
+        // This allocation satisfies three sn workers
+        add_alloc(&mut queue, 1, 3);
+        insta::assert_debug_snapshot!(compute_submission_permit(
+            &queue,
+            QueryResponse {
+                single_node_workers: 4,
+                multinode_allocations: 1,
+                multinode_workers_per_alloc: 2,
+            },
+        ).allocs_to_submit, @"[]");
     }
 
     #[tokio::test]
@@ -1328,7 +1439,7 @@ mod tests {
             let queue_id = ctx
                 .add_queue(
                     always_queued_handler(),
-                    QueueBuilder::default().backlog(4).workers_per_alloc(2),
+                    QueueBuilder::default().backlog(4).max_workers_per_alloc(2),
                 )
                 .await;
 
@@ -1352,7 +1463,7 @@ mod tests {
             let queue_id = ctx
                 .add_queue(
                     always_queued_handler(),
-                    QueueBuilder::default().backlog(4).workers_per_alloc(1),
+                    QueueBuilder::default().backlog(4).max_workers_per_alloc(1),
                 )
                 .await;
 
@@ -1373,7 +1484,7 @@ mod tests {
             let queue_id = ctx
                 .add_queue(
                     always_queued_handler(),
-                    QueueBuilder::default().backlog(1).workers_per_alloc(1),
+                    QueueBuilder::default().backlog(1).max_workers_per_alloc(1),
                 )
                 .await;
 
@@ -1398,7 +1509,7 @@ mod tests {
             let queue_id = ctx
                 .add_queue(
                     always_queued_handler(),
-                    QueueBuilder::default().backlog(1).workers_per_alloc(1),
+                    QueueBuilder::default().backlog(1).max_workers_per_alloc(1),
                 )
                 .await;
 
@@ -1421,7 +1532,7 @@ mod tests {
             let queue_id = ctx
                 .add_queue(
                     always_queued_handler(),
-                    QueueBuilder::default().backlog(1).workers_per_alloc(2),
+                    QueueBuilder::default().backlog(1).max_workers_per_alloc(2),
                 )
                 .await;
 
@@ -1447,7 +1558,7 @@ mod tests {
             let queue_id = ctx
                 .add_queue(
                     always_queued_handler(),
-                    QueueBuilder::default().backlog(1).workers_per_alloc(1),
+                    QueueBuilder::default().backlog(1).max_workers_per_alloc(1),
                 )
                 .await;
 
@@ -1476,7 +1587,7 @@ mod tests {
             let queue_id = ctx
                 .add_queue(
                     always_queued_handler(),
-                    QueueBuilder::default().backlog(1).workers_per_alloc(2),
+                    QueueBuilder::default().backlog(1).max_workers_per_alloc(2),
                 )
                 .await;
 
@@ -1514,7 +1625,7 @@ mod tests {
             let queue_id = ctx
                 .add_queue(
                     always_queued_handler(),
-                    QueueBuilder::default().backlog(4).workers_per_alloc(2),
+                    QueueBuilder::default().backlog(4).max_workers_per_alloc(2),
                 )
                 .await;
             ctx.try_submit().await;
@@ -1529,7 +1640,7 @@ mod tests {
             let queue_id = ctx
                 .add_queue(
                     always_queued_handler(),
-                    QueueBuilder::default().backlog(5).workers_per_alloc(2),
+                    QueueBuilder::default().backlog(5).max_workers_per_alloc(2),
                 )
                 .await;
 
@@ -1548,7 +1659,7 @@ mod tests {
             let handler_state = WrappedRcRefCell::wrap(HandlerState::default());
             ctx.add_queue(
                 stateful_handler(handler_state.clone()),
-                QueueBuilder::default().backlog(5).workers_per_alloc(1),
+                QueueBuilder::default().backlog(5).max_workers_per_alloc(1),
             )
             .await;
             ctx.create_simple_tasks(5).await;
@@ -1645,7 +1756,7 @@ mod tests {
                     always_queued_handler(),
                     QueueBuilder::default()
                         .backlog(2)
-                        .workers_per_alloc(4)
+                        .max_workers_per_alloc(4)
                         .max_worker_count(Some(6)),
                 )
                 .await;
@@ -1819,7 +1930,7 @@ mod tests {
             let queue_id = ctx
                 .add_queue(
                     always_queued_handler(),
-                    QueueBuilder::default().backlog(1).workers_per_alloc(1),
+                    QueueBuilder::default().backlog(1).max_workers_per_alloc(1),
                 )
                 .await;
             ctx.create_simple_tasks(1000).await;
@@ -1846,7 +1957,7 @@ mod tests {
             let queue_id = ctx
                 .add_queue(
                     always_queued_handler(),
-                    QueueBuilder::default().backlog(1).workers_per_alloc(1),
+                    QueueBuilder::default().backlog(1).max_workers_per_alloc(1),
                 )
                 .await;
             ctx.create_simple_tasks(1000).await;
@@ -2097,6 +2208,29 @@ mod tests {
         }
     }
 
+    impl From<QueueBuilder> for AllocationQueue {
+        fn from(builder: QueueBuilder) -> Self {
+            let (info, limiter) = builder.build();
+            Self::new(info, None, always_queued_handler(), limiter)
+        }
+    }
+
+    fn add_alloc(queue: &mut AllocationQueue, id: u64, worker_count: u64) {
+        queue.add_allocation(Allocation::new(
+            id.to_string(),
+            worker_count,
+            PathBuf::new(),
+        ));
+    }
+
+    fn query_response_sn(single_node_workers: u32) -> QueryResponse {
+        QueryResponse {
+            single_node_workers,
+            multinode_allocations: 0,
+            multinode_workers_per_alloc: 0,
+        }
+    }
+
     struct Handler<ScheduleFn, StatusFn, RemoveFn, State> {
         schedule_fn: WrappedRcRefCell<ScheduleFn>,
         status_fn: WrappedRcRefCell<StatusFn>,
@@ -2279,7 +2413,7 @@ mod tests {
         #[builder(default = "1")]
         backlog: u32,
         #[builder(default = "1")]
-        workers_per_alloc: u32,
+        max_workers_per_alloc: u32,
         #[builder(default = "Duration::from_secs(60 * 60)")]
         timelimit: Duration,
         #[builder(default)]
@@ -2297,7 +2431,7 @@ mod tests {
             let Queue {
                 manager,
                 backlog,
-                workers_per_alloc,
+                max_workers_per_alloc,
                 timelimit,
                 max_worker_count,
                 limiter_max_alloc_fails,
@@ -2308,7 +2442,7 @@ mod tests {
                 QueueInfo::new(
                     manager,
                     backlog,
-                    workers_per_alloc,
+                    max_workers_per_alloc,
                     timelimit,
                     vec![],
                     max_worker_count,
