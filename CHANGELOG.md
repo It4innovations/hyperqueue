@@ -8,12 +8,18 @@
   allocator to (almost) always spawn the determined number of workers per allocation, regardless of actual
   computational load.
 
+### Changes
+
+The automatic allocator has been finally reimplemented, and is now much better:
+* It now uses information from the scheduler to determine how many allocations to spawn, and thus it can react to the
+  current computational load much more accurately. It should also be less "eager".
+* It properly supports multi-node tasks.
+* It considers computational load across all allocation queues (before, each queue was treated separately, which led to creating too many submissions).
+
+As this is a large behavioral change, we would be happy to hear your feedback!
+
 ### New features
 
-* The automatic allocator has been reimplemented and is now much smarter. It now uses information from the
-  scheduler to determine how many allocations to spawn, and thus it can react to the current computational load
-  much more accurately. This should also lead to the allocator becoming less "eager". As this is a large behavioral
-  change, we would be happy to hear your feedback!
 * New command `hq task explain <job_id> <task_id>` explains why a task cannot be run on a given worker.
 * The server scheduler now slightly prioritizes tasks from older jobs and finishing partially-computed task graphs
 * New values for `--crash-limit`:
