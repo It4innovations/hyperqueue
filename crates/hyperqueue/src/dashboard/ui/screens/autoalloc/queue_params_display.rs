@@ -41,8 +41,8 @@ impl QueueParamsTable {
 fn create_rows(params: &AllocationQueueParams) -> Vec<QueueParamsDataRow> {
     vec![
         QueueParamsDataRow {
-            label: "Workers Per Alloc: ",
-            data: params.workers_per_alloc.to_string(),
+            label: "Maximum Workers Per Alloc: ",
+            data: params.max_workers_per_alloc.to_string(),
         },
         QueueParamsDataRow {
             label: "Backlog: ",

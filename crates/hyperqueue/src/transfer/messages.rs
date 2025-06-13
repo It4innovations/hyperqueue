@@ -306,7 +306,7 @@ pub enum AutoAllocRequest {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AllocationQueueParams {
     pub manager: ManagerType,
-    pub workers_per_alloc: u32,
+    pub max_workers_per_alloc: u32,
     pub backlog: u32,
     pub timelimit: Duration,
     pub name: Option<String>,

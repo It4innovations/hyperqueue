@@ -86,18 +86,26 @@ Format: `--backlog <count>`
 
 How many allocations should be queued (waiting to be started) in PBS/Slurm at any given time. Has to be a positive integer.
 
-#### Workers per allocation
-Format: `--workers-per-alloc <count>`
+#### Maximum number of workers per allocation
+Format: `--max-workers-per-alloc <count>`
 
-How many workers should be requested in each allocation. This corresponds to the number of requested nodes, as the allocator
-will always create a single worker per node in a single allocation request.
+The maximum number of workers that will be requested in each allocation. Note that if there is not enough computational demand,
+the automatic allocator can create allocations with a smaller number of workers.
 
-#### Max worker count
+!!! notice
+
+    If you use [multi-node](../jobs/multinode.md) tasks, you will probably want to use this parameter to set the maximum
+    number of workers in a queue to the size of your [groups](../jobs/multinode.md#groups).
+
+Note that the number of workers always corresponds to the number of requested nodes, as the allocator
+always creates a single worker per node in a single allocation request.
+
+#### Maximum worker count
 Format: `--max-worker-count <count>`
 
 Maximum number of workers that can be queued or running in the allocation queue. The total amount of workers will be usually
 limited by the manager (PBS/Slurm), but you can use this parameter to make the limit smaller, for example if you also want
-to create manager allocations outside HyperQueue.
+to manage allocations outside HyperQueue.
 
 #### Worker resources
 You can specify [CPU](../jobs/cresources.md) and [generic](../jobs/resources.md) resources of workers spawned by the
