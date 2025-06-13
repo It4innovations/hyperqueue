@@ -125,7 +125,9 @@ pub async fn try_submit_allocation(params: AllocationQueueParams) -> anyhow::Res
         params.name.clone(),
         tmpdir.as_ref().to_path_buf(),
     )?;
-    let worker_count = params.workers_per_alloc;
+
+    // Try the highest possible worker count, to ensure that it works
+    let worker_count = params.max_workers_per_alloc;
     let queue_info = create_queue_info(params);
 
     let allocation = handler
@@ -169,7 +171,7 @@ pub fn create_queue_info(params: AllocationQueueParams) -> QueueInfo {
     let AllocationQueueParams {
         manager,
         name: _name,
-        workers_per_alloc,
+        max_workers_per_alloc,
         backlog,
         timelimit,
         additional_args,
@@ -182,7 +184,7 @@ pub fn create_queue_info(params: AllocationQueueParams) -> QueueInfo {
     QueueInfo::new(
         manager,
         backlog,
-        workers_per_alloc,
+        max_workers_per_alloc,
         timelimit,
         additional_args,
         max_worker_count,
@@ -426,8 +428,8 @@ fn create_queue_worker_query(queue: &AllocationQueue) -> WorkerTypeQuery {
         }]),
         time_limit: Some(info.timelimit()),
         // How many workers can we provide at the moment
-        max_sn_workers: info.backlog() * info.workers_per_alloc(),
-        max_workers_per_allocation: info.workers_per_alloc(),
+        max_sn_workers: info.backlog() * info.max_workers_per_alloc(),
+        max_workers_per_allocation: info.max_workers_per_alloc(),
         // TODO: expose this through the CLI
         min_utilization: 0.0,
     }
@@ -493,14 +495,17 @@ Backlog: {}, currently queued: {queued_allocs}, max workers to spawn: {max_remai
     let allocs_to_submit = allocs_to_submit.saturating_sub(queued_allocs);
     // Only create enough allocations to serve `required_workers`.
     // Allocations that are already queued will be subtracted from this.
-    let missing_workers = required_workers.saturating_sub(queued_allocs * info.workers_per_alloc());
+    let missing_workers =
+        required_workers.saturating_sub(queued_allocs * info.max_workers_per_alloc());
     let missing_allocations =
-        ((missing_workers as f32) / (info.workers_per_alloc() as f32)).ceil() as u32;
+        ((missing_workers as f32) / (info.max_workers_per_alloc() as f32)).ceil() as u32;
     let allocs_to_submit = allocs_to_submit.min(missing_allocations);
 
     let mut allocations = vec![];
     for _ in 0..allocs_to_submit {
-        let to_spawn = info.workers_per_alloc().min(max_remaining_workers_to_spawn);
+        let to_spawn = info
+            .max_workers_per_alloc()
+            .min(max_remaining_workers_to_spawn);
         if to_spawn == 0 {
             break;
         }
@@ -1889,7 +1894,7 @@ mod tests {
                     server_directory: PathBuf::from("test"),
                     params: AllocationQueueParams {
                         manager: queue_info.manager().clone(),
-                        workers_per_alloc: queue_info.workers_per_alloc(),
+                        max_workers_per_alloc: queue_info.max_workers_per_alloc(),
                         backlog: queue_info.backlog(),
                         timelimit: queue_info.timelimit(),
                         name: Some("Queue".to_string()),

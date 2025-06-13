@@ -3,9 +3,17 @@
 ### Breaking change
 
 * In `--crash-limit` value 0 is no longer allowed, use `--crash-limit=unlimited`.
+* The `--workers-per-alloc` flag of the `hq alloc add` command has been **replaced** with `--max-workers-per-alloc`,
+  which determines the maximum number of workers to spawn in each allocation. Previously the flag caused the
+  allocator to (almost) always spawn the determined number of workers per allocation, regardless of actual
+  computational load.
 
 ### New features
 
+* The automatic allocator has been reimplemented and is now much smarter. It now uses information from the
+  scheduler to determine how many allocations to spawn, and thus it can react to the current computational load
+  much more accurately. This should also lead to the allocator becoming less "eager". As this is a large behavioral
+  change, we would be happy to hear your feedback!
 * New command `hq task explain <job_id> <task_id>` explains why a task cannot be run on a given worker.
 * The server scheduler now slightly prioritizes tasks from older jobs and finishing partially-computed task graphs
 * New values for `--crash-limit`:

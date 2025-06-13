@@ -5,8 +5,6 @@
     Multi-node support is now in the experimental stage.
     The core functionality is working, but some features
     may be limited and quality of scheduling may vary.
-    Also auto allocation feature is not yet fully prepared for 
-    multi-node tasks.
 
 
 Multi-node tasks are tasks that spreads across multiple nodes.
@@ -71,3 +69,8 @@ srun --nodefile=$HQ_NODE_FILE --nodes=$HQ_NUM_NODES mpirun ...
 ```
 
 Note: It is important to set `--nodes` otherwise the node file will not be respected.
+
+## Automatic allocation
+
+If you combine multi-node tasks with [automatic allocation](../deployment/allocation.md), you should
+configure the maximum [number of tasks per allocation](../deployment/allocation.md#maximum-number-of-workers-per-allocation).

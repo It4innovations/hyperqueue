@@ -972,7 +972,7 @@ impl Output for CliOutput {
                     }
                     .cell(),
                     info.backlog().cell(),
-                    info.workers_per_alloc().cell(),
+                    info.max_workers_per_alloc().cell(),
                     info.max_worker_count().unwrap_or_default().cell(),
                     format_duration(info.timelimit()).to_string().cell(),
                     manager_type.cell(),
@@ -986,7 +986,7 @@ impl Output for CliOutput {
             "ID".cell().bold(true),
             "State".cell().bold(true),
             "Backlog size".cell().bold(true),
-            "Workers per alloc".cell().bold(true),
+            "Max workers per alloc".cell().bold(true),
             "Max worker count".cell().bold(true),
             "Timelimit".cell().bold(true),
             "Manager".cell().bold(true),

@@ -462,7 +462,7 @@ fn format_autoalloc_queue(id: QueueId, descriptor: QueueData) -> serde_json::Val
         "manager": manager,
         "additional_args": info.additional_args(),
         "backlog": info.backlog(),
-        "workers_per_alloc": info.workers_per_alloc(),
+        "max_workers_per_alloc": info.max_workers_per_alloc(),
         "timelimit": format_duration(info.timelimit()),
         "max_worker_count": info.max_worker_count(),
         "worker_args": info.worker_args(),

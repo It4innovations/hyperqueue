@@ -16,7 +16,7 @@ use tako::Map;
 pub struct QueueInfo {
     manager: ManagerType,
     backlog: u32,
-    workers_per_alloc: u32,
+    max_workers_per_alloc: u32,
     timelimit: Duration,
     additional_args: Vec<String>,
     max_worker_count: Option<u32>,
@@ -31,7 +31,7 @@ impl QueueInfo {
     pub fn new(
         manager: ManagerType,
         backlog: u32,
-        workers_per_alloc: u32,
+        max_workers_per_alloc: u32,
         timelimit: Duration,
         additional_args: Vec<String>,
         max_worker_count: Option<u32>,
@@ -43,7 +43,7 @@ impl QueueInfo {
         Self {
             manager,
             backlog,
-            workers_per_alloc,
+            max_workers_per_alloc,
             timelimit,
             additional_args,
             max_worker_count,
@@ -62,8 +62,8 @@ impl QueueInfo {
         self.backlog
     }
 
-    pub fn workers_per_alloc(&self) -> u32 {
-        self.workers_per_alloc
+    pub fn max_workers_per_alloc(&self) -> u32 {
+        self.max_workers_per_alloc
     }
 
     pub fn timelimit(&self) -> Duration {

@@ -90,9 +90,9 @@ struct SharedQueueOpts {
     )]
     time_limit: Duration,
 
-    /// How many workers (nodes) should be spawned in each allocation
+    /// Maximum number of workers (=nodes) that should be spawned in a single allocation.
     #[arg(long, short, default_value_t = 1)]
-    workers_per_alloc: u32,
+    max_workers_per_alloc: u32,
 
     /// Maximum number of workers that can be queued or running at any given time in this queue
     #[arg(long)]
@@ -234,7 +234,7 @@ fn args_to_params(
     let SharedQueueOpts {
         backlog,
         time_limit,
-        workers_per_alloc,
+        max_workers_per_alloc,
         max_worker_count,
         name,
         worker_args,
@@ -314,7 +314,7 @@ wasted allocation duration."
 
     Ok(AllocationQueueParams {
         manager,
-        workers_per_alloc,
+        max_workers_per_alloc,
         backlog,
         timelimit: time_limit,
         name,
