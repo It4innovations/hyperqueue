@@ -113,6 +113,13 @@ pub struct JobCatOpts {
     pub stream: OutputStream,
 }
 
+#[derive(Parser)]
+pub struct JobWorkdirOpts {
+    /// Single ID, ID range or `last` to display the most recently submitted job
+    #[arg(value_parser = parse_last_all_range)]
+    pub selector: IdSelector,
+}
+
 pub async fn output_job_list(
     gsettings: &GlobalSettings,
     session: &mut ClientSession,
@@ -338,5 +345,39 @@ pub async fn forget_job(
     }
     log::info!("{message}");
 
+    Ok(())
+}
+
+pub async fn output_job_workdir(
+    gsettings: &GlobalSettings,
+    session: &mut ClientSession,
+    selector: IdSelector,
+) -> anyhow::Result<()> {
+    let message = FromClientMessage::JobDetail(JobDetailRequest {
+        job_id_selector: selector,
+        task_selector: Some(TaskSelector {
+            id_selector: TaskIdSelector::All,
+            status_selector: TaskStatusSelector::All,
+        }),
+    });
+    let response =
+        rpc_call!(session.connection(), message, ToClientMessage::JobDetailResponse(r) => r)
+            .await?;
+
+    let jobs: Vec<JobDetail> = response
+        .details
+        .into_iter()
+        .filter_map(|(id, job)| match job {
+            Some(job) => Some(job),
+            None => {
+                log::error!("Job {id} not found");
+                None
+            }
+        })
+        .collect();
+
+    gsettings
+        .printer()
+        .print_job_workdir(jobs, &response.server_uid);
     Ok(())
 }

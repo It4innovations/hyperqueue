@@ -11,7 +11,7 @@ use crate::client::commands::data::DataOpts;
 use crate::client::commands::doc::DocOpts;
 use crate::client::commands::job::{
     JobCancelOpts, JobCatOpts, JobCloseOpts, JobForgetOpts, JobInfoOpts, JobListOpts,
-    JobTaskIdsOpts,
+    JobTaskIdsOpts, JobWorkdirOpts,
 };
 use crate::client::commands::journal::JournalOpts;
 use crate::client::commands::outputlog::OutputLogOpts;
@@ -374,6 +374,8 @@ pub enum JobCommand {
     Open(SubmitJobConfOpts),
     /// Close an open job
     Close(JobCloseOpts),
+    /// Display working directory of selected job(s)
+    Workdir(JobWorkdirOpts),
 }
 
 #[derive(Parser)]
