@@ -3,7 +3,6 @@
 import json
 import os
 import tempfile
-from pathlib import Path
 
 from ..conftest import HqEnv
 from ..utils import wait_for_job_state
@@ -118,7 +117,7 @@ def test_job_workdir_error_handling(hq_env: HqEnv):
     
     # Test with invalid selector - check manually for now since clap error handling varies
     try:
-        output = hq_env.command(["job", "workdir", "invalid"])
+        hq_env.command(["job", "workdir", "invalid"])
         # If it doesn't fail, that's also acceptable
     except Exception:
         # Expected to fail with invalid selector

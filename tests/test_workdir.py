@@ -3,13 +3,9 @@
 import json
 import os
 import tempfile
-from pathlib import Path
-
-import pytest
 
 from .conftest import HqEnv
 from .utils import wait_for_job_state
-from .utils.cmd import bash
 
 
 def test_job_workdir_single_job(hq_env: HqEnv):
@@ -150,7 +146,7 @@ def test_job_workdir_nonexistent_job(hq_env: HqEnv):
     hq_env.start_server()
 
     # Try to get workdir for nonexistent job - should succeed but with empty output
-    result = hq_env.command(["job", "workdir", "999"])
+    hq_env.command(["job", "workdir", "999"])
     # Should succeed but show no jobs (empty output or only error logs)
 
 
