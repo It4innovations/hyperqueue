@@ -191,7 +191,7 @@ pub enum SubCommand {
     Job(JobOpts),
     /// Commands for tasks
     Task(TaskOpts),
-    /// Submit a new job
+    /// Submits a new job
     Submit(JobSubmitOpts),
     /// Commands for workers
     Worker(WorkerOpts),
@@ -207,9 +207,9 @@ pub enum SubCommand {
     /// Starts CLI dashboard
     #[cfg(feature = "dashboard")]
     Dashboard(DashboardOpts),
-    /// Show documentation.
+    /// Shows documentation.
     Doc(DocOpts),
-    /// Generate shell completion script
+    /// Generates shell completion script
     GenerateCompletion(GenerateCompletionOpts),
 }
 
@@ -222,13 +222,13 @@ pub struct DashboardOpts {
 
 #[derive(Parser, Default)]
 pub enum DashboardCommand {
-    /// Stream events from a server
+    /// Streams events from a server
     ///
     /// Note: It will replay all events from the currently active
     /// journal file before new events are streamed.
     #[default]
     Stream,
-    /// Replay events from a journal file
+    /// Replays events from a journal file
     Replay {
         /// Path to a journal file
         ///
@@ -248,27 +248,27 @@ pub struct WorkerOpts {
 #[allow(clippy::large_enum_variant)]
 #[derive(Parser)]
 pub enum WorkerCommand {
-    /// Start a worker
+    /// Starts a worker
     Start(WorkerStartOpts),
-    /// Stop a worker
+    /// Stops a worker
     Stop(WorkerStopOpts),
-    /// Display information about workers
+    /// Displays information about workers
     ///
     /// By default, only running workers will be displayed.
     List(WorkerListOpts),
-    /// Perform hardware detection
+    /// Performs hardware detection
     ///
     /// This serves to test how a worker sees the hardware
     /// on a machine where the command is invoked.
     #[command(name = "hwdetect")]
     HwDetect(HwDetectOpts),
-    /// Display information about a worker
+    /// Displays information about a worker
     Info(WorkerInfoOpts),
-    /// Display worker's hostname
+    /// Displays worker's hostname
     Address(WorkerAddressOpts),
     /// Waits on the connection of worker(s)
     Wait(WorkerWaitOpts),
-    /// Deploy a set of workers using SSH.
+    /// Deploys a set of workers using SSH.
     ///
     /// Note that to use this command, an OpenSSH-compatible `ssh` binary
     /// has to be available on the local node.
@@ -351,15 +351,15 @@ pub struct JobOpts {
 #[allow(clippy::large_enum_variant)]
 #[derive(Parser)]
 pub enum JobCommand {
-    /// Display information about jobs
+    /// Displays information about jobs
     ///
     /// By default, only queued or running jobs will be displayed.
     List(JobListOpts),
-    /// Display a summary with the number of jobs.
+    /// Displays a summary with the number of jobs.
     Summary,
-    /// Display detailed information of a job
+    /// Displays detailed information of a job
     Info(JobInfoOpts),
-    /// Cancel a job
+    /// Cancels a job
     ///
     /// This will cancel all job's tasks, stopping them from being computed.
     Cancel(JobCancelOpts),
@@ -377,7 +377,7 @@ pub enum JobCommand {
     ///
     /// This is the same as `hq submit`
     Submit(JobSubmitOpts),
-    /// Submit a job by a job definition file
+    /// Submits a job by a job definition file
     SubmitFile(JobSubmitFileOpts),
     /// Waits until a job is finished
     Wait(JobWaitOpts),
@@ -385,9 +385,9 @@ pub enum JobCommand {
     Progress(JobProgressOpts),
     /// Prints task ids for a job
     TaskIds(JobTaskIdsOpts),
-    /// Open a new job (without attaching any tasks yet)
+    /// Opens a new job (without attaching any tasks yet)
     Open(SubmitJobConfOpts),
-    /// Close an open job
+    /// Closes an open job
     Close(JobCloseOpts),
 }
 
@@ -411,7 +411,7 @@ pub struct JobProgressOpts {
 
 #[derive(Parser)]
 pub struct GenerateCompletionOpts {
-    /// Shell flavour for which the completion script should be generated
+    /// Shell's flavor for which the completion script should be generated
     #[arg(value_enum)]
     pub shell: Shell,
 }

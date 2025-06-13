@@ -92,13 +92,14 @@ struct SharedQueueOpts {
     )]
     time_limit: Duration,
 
-    /// The number of workers (nodes) in each allocation
+    /// The number of workers (nodes) is spawned in each allocation
+    ///
+    /// Note that a smaller allocation may be allocated when
+    /// `max_worker_count` is reached.
     #[arg(long, short, default_value_t = 1)]
     workers_per_alloc: u32,
 
-    /// Maximum number of concurrent workers in any state
-    ///
-    /// It counts workers that can be queued or running.
+    /// The maximum number of workers that can be queued/running at any given time in this queue
     #[arg(long)]
     max_worker_count: Option<u32>,
 
