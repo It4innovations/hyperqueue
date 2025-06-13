@@ -19,8 +19,8 @@ def test_job_workdir_single_job(hq_env: HqEnv):
 
     # Test CLI output
     output = hq_env.command(["job", "workdir", "1"])
-    lines = output.strip().split('\n')
-    
+    lines = output.strip().split("\n")
+
     assert len(lines) >= 2  # Should have job header and at least one workdir
     assert lines[0] == "Job 1:"
     assert os.getcwd() in lines[1]  # Current directory should be shown
@@ -38,8 +38,8 @@ def test_job_workdir_multiple_jobs(hq_env: HqEnv):
 
     # Test with job range
     output = hq_env.command(["job", "workdir", "1-2"])
-    lines = output.strip().split('\n')
-    
+    lines = output.strip().split("\n")
+
     # Should have headers and workdirs for both jobs
     assert "Job 1:" in lines
     assert "Job 2:" in lines
@@ -52,13 +52,13 @@ def test_job_workdir_last_selector(hq_env: HqEnv):
 
     # Submit multiple jobs
     hq_env.command(["submit", "--", "echo", "job1"])
-    hq_env.command(["submit", "--", "echo", "job2"]) 
+    hq_env.command(["submit", "--", "echo", "job2"])
     wait_for_job_state(hq_env, [1, 2], "FINISHED")
 
     # Test with 'last' selector - should show only job 2
     output = hq_env.command(["job", "workdir", "last"])
-    lines = output.strip().split('\n')
-    
+    lines = output.strip().split("\n")
+
     assert "Job 2:" in lines
     assert "Job 1:" not in lines
 
@@ -71,17 +71,13 @@ def test_job_workdir_with_custom_cwd(hq_env: HqEnv):
     # Create a temporary directory
     with tempfile.TemporaryDirectory() as tmpdir:
         # Submit job with custom working directory
-        hq_env.command([
-            "submit", 
-            "--cwd", tmpdir,
-            "--", "echo", "hello"
-        ])
+        hq_env.command(["submit", "--cwd", tmpdir, "--", "echo", "hello"])
         wait_for_job_state(hq_env, 1, "FINISHED")
 
         # Check workdir output
         output = hq_env.command(["job", "workdir", "1"])
-        lines = output.strip().split('\n')
-        
+        lines = output.strip().split("\n")
+
         assert len(lines) >= 2
         assert lines[0] == "Job 1:"
         # Should show the custom directory
@@ -99,8 +95,8 @@ def test_job_workdir_array_job(hq_env: HqEnv):
 
     # Test workdir output
     output = hq_env.command(["job", "workdir", "1"])
-    lines = output.strip().split('\n')
-    
+    lines = output.strip().split("\n")
+
     assert len(lines) >= 2
     assert lines[0] == "Job 1:"
     assert os.getcwd() in lines[1]
@@ -118,7 +114,7 @@ def test_job_workdir_json_output(hq_env: HqEnv):
     # Test JSON output
     output = hq_env.command(["job", "workdir", "1", "--output-mode", "json"])
     data = json.loads(output)
-    
+
     assert isinstance(data, list)
     assert len(data) == 1
     assert data[0]["job_id"] == 1
@@ -161,8 +157,8 @@ def test_task_workdir_single_task(hq_env: HqEnv):
 
     # Test task workdir for single task
     output = hq_env.command(["task", "workdir", "1", "2"])
-    lines = output.strip().split('\n')
-    
+    lines = output.strip().split("\n")
+
     assert len(lines) >= 2
     assert lines[0] == "Job 1:"
     assert "Task 2:" in lines[1]
@@ -180,8 +176,8 @@ def test_task_workdir_multiple_tasks(hq_env: HqEnv):
 
     # Test task workdir for multiple tasks
     output = hq_env.command(["task", "workdir", "1", "2-3"])
-    lines = output.strip().split('\n')
-    
+    lines = output.strip().split("\n")
+
     assert "Job 1:" in lines
     assert any("Task 2:" in line for line in lines)
     assert any("Task 3:" in line for line in lines)
@@ -195,17 +191,12 @@ def test_task_workdir_with_custom_cwd(hq_env: HqEnv):
     # Create a temporary directory
     with tempfile.TemporaryDirectory() as tmpdir:
         # Submit array job with custom working directory
-        hq_env.command([
-            "submit", 
-            "--array", "1-2",
-            "--cwd", tmpdir,
-            "--", "echo", "$HQ_TASK_ID"
-        ])
+        hq_env.command(["submit", "--array", "1-2", "--cwd", tmpdir, "--", "echo", "$HQ_TASK_ID"])
         wait_for_job_state(hq_env, 1, "FINISHED")
 
         # Check task workdir output
         output = hq_env.command(["task", "workdir", "1", "1"])
-        
+
         assert "Job 1:" in output
         assert "Task 1:" in output
         assert tmpdir in output
@@ -223,7 +214,7 @@ def test_task_workdir_json_output(hq_env: HqEnv):
     # Test JSON output
     output = hq_env.command(["task", "workdir", "1", "1-2", "--output-mode", "json"])
     data = json.loads(output)
-    
+
     assert isinstance(data, list)
     assert len(data) == 1  # One job
     assert data[0]["job_id"] == 1
@@ -259,7 +250,7 @@ def test_task_workdir_last_job_selector(hq_env: HqEnv):
 
     # Test with 'last' selector - should show tasks from job 2
     output = hq_env.command(["task", "workdir", "last", "1"])
-    
+
     assert "Job 2:" in output
     assert "Task 1:" in output
     assert "Job 1:" not in output
@@ -276,7 +267,7 @@ def test_task_workdir_nonexistent_task(hq_env: HqEnv):
 
     # Try to get workdir for nonexistent task
     output = hq_env.command(["task", "workdir", "1", "999"])
-    
+
     # Should show job header but no tasks (since task doesn't exist)
     assert "Job 1:" in output
     # Should not crash, just show no tasks
@@ -289,19 +280,15 @@ def test_task_workdir_with_task_dir_placeholder(hq_env: HqEnv):
 
     # Create a temporary directory and use it as working directory instead of placeholder
     import tempfile
+
     with tempfile.TemporaryDirectory() as tmpdir:
         # Submit job with custom working directory (avoid complex placeholders)
-        hq_env.command([
-            "submit", 
-            "--array", "1-2",
-            "--cwd", tmpdir,
-            "--", "echo", "$HQ_TASK_ID"
-        ])
+        hq_env.command(["submit", "--array", "1-2", "--cwd", tmpdir, "--", "echo", "$HQ_TASK_ID"])
         wait_for_job_state(hq_env, 1, "FINISHED")
 
         # Check task workdir output - should show the working directory
         output = hq_env.command(["task", "workdir", "1", "1"])
-        
+
         assert "Job 1:" in output
         assert "Task 1:" in output
         # Should contain the temp directory path
@@ -311,7 +298,7 @@ def test_task_workdir_with_task_dir_placeholder(hq_env: HqEnv):
 def test_job_workdir_help(hq_env: HqEnv):
     """Test that job workdir help works."""
     hq_env.start_server()
-    
+
     # Test help output
     output = hq_env.command(["job", "workdir", "--help"])
     assert "Display working directory of selected job(s)" in output
@@ -321,7 +308,7 @@ def test_job_workdir_help(hq_env: HqEnv):
 def test_task_workdir_help(hq_env: HqEnv):
     """Test that task workdir help works."""
     hq_env.start_server()
-    
+
     # Test help output
     output = hq_env.command(["task", "workdir", "--help"])
     assert "Display working directory of selected task(s)" in output

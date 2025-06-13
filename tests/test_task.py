@@ -110,8 +110,9 @@ def test_task_workdir_json_output(hq_env: HqEnv):
 
     output = hq_env.command(["task", "workdir", "1", "1-2", "--output-mode", "json"])
     import json
+
     data = json.loads(output)
-    
+
     assert isinstance(data, list)
     assert len(data) == 1
     assert data[0]["job_id"] == 1
@@ -130,12 +131,13 @@ def test_task_workdir_integration_with_task_info(hq_env: HqEnv):
 
     # Get workdir for task
     workdir_output = hq_env.command(["task", "workdir", "1", "1"])
-    
+
     # Get task info
     info_output = hq_env.command(["task", "info", "1", "1"])
-    
+
     # Both should reference working directories
     import os
+
     current_dir = os.getcwd()
     assert current_dir in workdir_output
     assert current_dir in info_output
