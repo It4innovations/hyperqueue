@@ -1162,231 +1162,6 @@ mod tests {
     use tako::{Map, Set, WrappedRcRefCell};
     use tempfile::TempDir;
 
-    struct TestCtx {
-        state: AutoAllocState,
-        senders: AutoallocSenders,
-        handle: ServerHandle,
-        workers: Map<WorkerId, WorkerConfiguration>,
-    }
-
-    impl TestCtx {
-        async fn add_queue(
-            &mut self,
-            handler: Box<dyn QueueHandler>,
-            queue_builder: QueueBuilder,
-        ) -> QueueId {
-            let (queue_info, rate_limiter) = queue_builder.build();
-            let (token, rx) = ResponseToken::new();
-            handle_message(
-                &mut self.state,
-                &self.senders.events,
-                AutoAllocMessage::AddQueue {
-                    server_directory: PathBuf::from("test"),
-                    params: AllocationQueueParams {
-                        manager: queue_info.manager().clone(),
-                        workers_per_alloc: queue_info.workers_per_alloc(),
-                        backlog: queue_info.backlog(),
-                        timelimit: queue_info.timelimit(),
-                        name: Some("Queue".to_string()),
-                        max_worker_count: queue_info.max_worker_count(),
-                        additional_args: vec![],
-                        worker_start_cmd: None,
-                        worker_stop_cmd: None,
-                        worker_args: queue_info.worker_args().to_vec(),
-                        idle_timeout: None,
-                    },
-                    queue_id: None,
-                    response: token,
-                },
-            )
-            .await;
-            let queue_id = rx.await.unwrap().unwrap();
-
-            // A bit hacky, but easier than creating a mock for an external service, as we do in
-            // Python.
-            let queue = self.state.get_queue_mut(queue_id).unwrap();
-            queue.set_handler(handler);
-            *queue.limiter_mut() = rate_limiter;
-
-            queue_id
-        }
-
-        async fn try_submit(&mut self) {
-            perform_submits(&mut self.state, &self.senders)
-                .await
-                .unwrap();
-        }
-
-        async fn create_simple_tasks(&mut self, count: u64) {
-            self.handle
-                .submit(
-                    GraphBuilder::default()
-                        .task_copied(
-                            TaskConfigBuilder::default().args(simple_args(&["ls"])),
-                            count,
-                        )
-                        .build(),
-                )
-                .await;
-        }
-
-        async fn start_worker<Info: Into<ManagerInfo>>(
-            &mut self,
-            worker: WorkerConfigBuilder,
-            info: Info,
-        ) -> WorkerId {
-            let info = info.into();
-            let handle = self
-                .handle
-                .start_worker(worker.with_manager_info(info.clone()))
-                .await
-                .expect("cannot start worker");
-            let config = wait_for_worker_connected(&mut self.handle, handle.id).await;
-            assert_eq!(
-                info,
-                config.get_manager_info().expect("missing manager info")
-            );
-            assert!(
-                handle_message(
-                    &mut self.state,
-                    &self.senders.events,
-                    AutoAllocMessage::WorkerConnected(handle.id, info)
-                )
-                .await
-            );
-
-            assert!(self.workers.insert(handle.id, config).is_none());
-
-            handle.id
-        }
-
-        async fn stop_worker(&mut self, id: WorkerId, details: LostWorkerDetails) {
-            self.handle.stop_worker(id).await;
-            let config = self.workers.get(&id).unwrap();
-            let info = config.get_manager_info().unwrap();
-            assert!(
-                handle_message(
-                    &mut self.state,
-                    &self.senders.events,
-                    AutoAllocMessage::WorkerLost(id, info, details)
-                )
-                .await
-            );
-        }
-
-        async fn periodic_update(&mut self) {
-            do_periodic_update(&self.senders, &mut self.state).await;
-        }
-
-        async fn fail_allocation_quick(&mut self, allocation: &Allocation) {
-            let w0 = self
-                .start_worker(WorkerConfigBuilder::default(), allocation.id.as_str())
-                .await;
-            self.stop_worker(w0, lost_worker_quick(LostWorkerReason::ConnectionLost))
-                .await;
-        }
-
-        fn get_allocations(&self, id: QueueId) -> Vec<Allocation> {
-            let mut allocations: Vec<_> = self
-                .state
-                .get_queue(id)
-                .unwrap()
-                .all_allocations()
-                .cloned()
-                .collect();
-            allocations.sort_by(|a, b| a.id.cmp(&b.id));
-            allocations
-        }
-
-        fn check_running_workers(&self, allocation: &Allocation, workers: Vec<WorkerId>) {
-            match &allocation.status {
-                AllocationState::Running {
-                    connected_workers, ..
-                } => {
-                    let mut connected: Vec<WorkerId> = connected_workers.iter().cloned().collect();
-                    connected.sort_unstable();
-                    assert_eq!(connected, workers);
-                }
-                _ => panic!("Allocation {allocation:?} should be in running status"),
-            }
-        }
-
-        fn check_finished_workers(
-            &self,
-            allocation: &Allocation,
-            workers: Vec<(WorkerId, LostWorkerReason)>,
-        ) {
-            match &allocation.status {
-                AllocationState::Finished {
-                    disconnected_workers,
-                    ..
-                } => {
-                    let mut disconnected: Vec<_> = disconnected_workers
-                        .clone()
-                        .into_iter()
-                        .map(|(id, details)| (id, details.reason))
-                        .collect();
-                    disconnected.sort_unstable_by_key(|(id, _)| *id);
-                    assert_eq!(disconnected, workers);
-                }
-                _ => panic!("Allocation should be in finished status"),
-            }
-        }
-
-        fn check_queue_status(&self, id: QueueId, state: AllocationQueueState) {
-            assert_eq!(*self.state.get_queue(id).unwrap().state(), state);
-        }
-    }
-
-    async fn run_test<F: AsyncFnOnce(TestCtx)>(f: F) {
-        let _ = env_logger::Builder::default()
-            .filter(Some("hyperqueue::server::autoalloc"), LevelFilter::Debug)
-            .try_init();
-
-        let state = AutoAllocState::new(1);
-        run_server_test(ServerConfigBuilder::default(), |handle| async move {
-            let server_ref = handle.server_ref.clone();
-            let ctx = TestCtx {
-                state,
-                senders: AutoallocSenders {
-                    server: server_ref,
-                    events: EventStreamer::new(None),
-                },
-                handle,
-                workers: Default::default(),
-            };
-            f(ctx).await;
-        })
-        .await;
-    }
-
-    trait WorkerConfigBuilderExt {
-        fn with_manager_info(self, info: ManagerInfo) -> Self;
-    }
-
-    impl WorkerConfigBuilderExt for WorkerConfigBuilder {
-        fn with_manager_info(self, info: ManagerInfo) -> Self {
-            self.extra({
-                let mut map = Map::default();
-                map.insert(
-                    WORKER_EXTRA_MANAGER_KEY.to_string(),
-                    serde_json::to_string(&info).unwrap(),
-                );
-                map
-            })
-        }
-    }
-
-    impl From<&str> for ManagerInfo {
-        fn from(value: &str) -> Self {
-            Self {
-                manager: ManagerType::Slurm,
-                allocation_id: value.to_string(),
-                time_limit: None,
-            }
-        }
-    }
-
     #[tokio::test]
     async fn fill_backlog() {
         run_test(async |mut ctx: TestCtx| {
@@ -1937,6 +1712,231 @@ mod tests {
     }
 
     // Utilities
+    struct TestCtx {
+        state: AutoAllocState,
+        senders: AutoallocSenders,
+        handle: ServerHandle,
+        workers: Map<WorkerId, WorkerConfiguration>,
+    }
+
+    impl TestCtx {
+        async fn add_queue(
+            &mut self,
+            handler: Box<dyn QueueHandler>,
+            queue_builder: QueueBuilder,
+        ) -> QueueId {
+            let (queue_info, rate_limiter) = queue_builder.build();
+            let (token, rx) = ResponseToken::new();
+            handle_message(
+                &mut self.state,
+                &self.senders.events,
+                AutoAllocMessage::AddQueue {
+                    server_directory: PathBuf::from("test"),
+                    params: AllocationQueueParams {
+                        manager: queue_info.manager().clone(),
+                        workers_per_alloc: queue_info.workers_per_alloc(),
+                        backlog: queue_info.backlog(),
+                        timelimit: queue_info.timelimit(),
+                        name: Some("Queue".to_string()),
+                        max_worker_count: queue_info.max_worker_count(),
+                        additional_args: vec![],
+                        worker_start_cmd: None,
+                        worker_stop_cmd: None,
+                        worker_args: queue_info.worker_args().to_vec(),
+                        idle_timeout: None,
+                    },
+                    queue_id: None,
+                    response: token,
+                },
+            )
+            .await;
+            let queue_id = rx.await.unwrap().unwrap();
+
+            // A bit hacky, but easier than creating a mock for an external service, as we do in
+            // Python.
+            let queue = self.state.get_queue_mut(queue_id).unwrap();
+            queue.set_handler(handler);
+            *queue.limiter_mut() = rate_limiter;
+
+            queue_id
+        }
+
+        async fn try_submit(&mut self) {
+            perform_submits(&mut self.state, &self.senders)
+                .await
+                .unwrap();
+        }
+
+        async fn create_simple_tasks(&mut self, count: u64) {
+            self.handle
+                .submit(
+                    GraphBuilder::default()
+                        .task_copied(
+                            TaskConfigBuilder::default().args(simple_args(&["ls"])),
+                            count,
+                        )
+                        .build(),
+                )
+                .await;
+        }
+
+        async fn start_worker<Info: Into<ManagerInfo>>(
+            &mut self,
+            worker: WorkerConfigBuilder,
+            info: Info,
+        ) -> WorkerId {
+            let info = info.into();
+            let handle = self
+                .handle
+                .start_worker(worker.with_manager_info(info.clone()))
+                .await
+                .expect("cannot start worker");
+            let config = wait_for_worker_connected(&mut self.handle, handle.id).await;
+            assert_eq!(
+                info,
+                config.get_manager_info().expect("missing manager info")
+            );
+            assert!(
+                handle_message(
+                    &mut self.state,
+                    &self.senders.events,
+                    AutoAllocMessage::WorkerConnected(handle.id, info)
+                )
+                .await
+            );
+
+            assert!(self.workers.insert(handle.id, config).is_none());
+
+            handle.id
+        }
+
+        async fn stop_worker(&mut self, id: WorkerId, details: LostWorkerDetails) {
+            self.handle.stop_worker(id).await;
+            let config = self.workers.get(&id).unwrap();
+            let info = config.get_manager_info().unwrap();
+            assert!(
+                handle_message(
+                    &mut self.state,
+                    &self.senders.events,
+                    AutoAllocMessage::WorkerLost(id, info, details)
+                )
+                .await
+            );
+        }
+
+        async fn periodic_update(&mut self) {
+            do_periodic_update(&self.senders, &mut self.state).await;
+        }
+
+        async fn fail_allocation_quick(&mut self, allocation: &Allocation) {
+            let w0 = self
+                .start_worker(WorkerConfigBuilder::default(), allocation.id.as_str())
+                .await;
+            self.stop_worker(w0, lost_worker_quick(LostWorkerReason::ConnectionLost))
+                .await;
+        }
+
+        fn get_allocations(&self, id: QueueId) -> Vec<Allocation> {
+            let mut allocations: Vec<_> = self
+                .state
+                .get_queue(id)
+                .unwrap()
+                .all_allocations()
+                .cloned()
+                .collect();
+            allocations.sort_by(|a, b| a.id.cmp(&b.id));
+            allocations
+        }
+
+        fn check_running_workers(&self, allocation: &Allocation, workers: Vec<WorkerId>) {
+            match &allocation.status {
+                AllocationState::Running {
+                    connected_workers, ..
+                } => {
+                    let mut connected: Vec<WorkerId> = connected_workers.iter().cloned().collect();
+                    connected.sort_unstable();
+                    assert_eq!(connected, workers);
+                }
+                _ => panic!("Allocation {allocation:?} should be in running status"),
+            }
+        }
+
+        fn check_finished_workers(
+            &self,
+            allocation: &Allocation,
+            workers: Vec<(WorkerId, LostWorkerReason)>,
+        ) {
+            match &allocation.status {
+                AllocationState::Finished {
+                    disconnected_workers,
+                    ..
+                } => {
+                    let mut disconnected: Vec<_> = disconnected_workers
+                        .clone()
+                        .into_iter()
+                        .map(|(id, details)| (id, details.reason))
+                        .collect();
+                    disconnected.sort_unstable_by_key(|(id, _)| *id);
+                    assert_eq!(disconnected, workers);
+                }
+                _ => panic!("Allocation should be in finished status"),
+            }
+        }
+
+        fn check_queue_status(&self, id: QueueId, state: AllocationQueueState) {
+            assert_eq!(*self.state.get_queue(id).unwrap().state(), state);
+        }
+    }
+
+    async fn run_test<F: AsyncFnOnce(TestCtx)>(f: F) {
+        let _ = env_logger::Builder::default()
+            .filter(Some("hyperqueue::server::autoalloc"), LevelFilter::Debug)
+            .try_init();
+
+        let state = AutoAllocState::new(1);
+        run_server_test(ServerConfigBuilder::default(), |handle| async move {
+            let server_ref = handle.server_ref.clone();
+            let ctx = TestCtx {
+                state,
+                senders: AutoallocSenders {
+                    server: server_ref,
+                    events: EventStreamer::new(None),
+                },
+                handle,
+                workers: Default::default(),
+            };
+            f(ctx).await;
+        })
+        .await;
+    }
+
+    trait WorkerConfigBuilderExt {
+        fn with_manager_info(self, info: ManagerInfo) -> Self;
+    }
+
+    impl WorkerConfigBuilderExt for WorkerConfigBuilder {
+        fn with_manager_info(self, info: ManagerInfo) -> Self {
+            self.extra({
+                let mut map = Map::default();
+                map.insert(
+                    WORKER_EXTRA_MANAGER_KEY.to_string(),
+                    serde_json::to_string(&info).unwrap(),
+                );
+                map
+            })
+        }
+    }
+
+    impl From<&str> for ManagerInfo {
+        fn from(value: &str) -> Self {
+            Self {
+                manager: ManagerType::Slurm,
+                allocation_id: value.to_string(),
+                time_limit: None,
+            }
+        }
+    }
+
     struct Handler<ScheduleFn, StatusFn, RemoveFn, State> {
         schedule_fn: WrappedRcRefCell<ScheduleFn>,
         status_fn: WrappedRcRefCell<StatusFn>,
