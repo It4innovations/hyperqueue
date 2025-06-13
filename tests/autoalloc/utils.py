@@ -29,7 +29,7 @@ def add_queue(
     manager: ManagerType,
     name: Optional[str] = None,
     backlog=1,
-    workers_per_alloc=1,
+    max_workers_per_alloc=1,
     additional_worker_args: List[str] = None,
     additional_args=None,
     time_limit="1h",
@@ -48,8 +48,8 @@ def add_queue(
         [
             "--backlog",
             str(backlog),
-            "--workers-per-alloc",
-            str(workers_per_alloc),
+            "--max-workers-per-alloc",
+            str(max_workers_per_alloc),
         ]
     )
     if time_limit is not None:

@@ -154,7 +154,7 @@ def test_pbs_multinode_allocation(hq_env: HqEnv):
         start_server_with_quick_refresh(hq_env)
         prepare_tasks(hq_env)
 
-        add_queue(hq_env, manager="pbs", workers_per_alloc=2)
+        add_queue(hq_env, manager="pbs", max_workers_per_alloc=2)
         qsub_script_path = manager.get_script_path()
 
         with open(qsub_script_path) as f:
@@ -173,7 +173,7 @@ def test_slurm_multinode_allocation(hq_env: HqEnv):
         start_server_with_quick_refresh(hq_env)
         prepare_tasks(hq_env)
 
-        add_queue(hq_env, manager="slurm", workers_per_alloc=2)
+        add_queue(hq_env, manager="slurm", max_workers_per_alloc=2)
         sbatch_script_path = manager.get_script_path()
         with open(sbatch_script_path) as f:
             commands = normalize_output(hq_env, "slurm", extract_script_commands(f.read()))
@@ -239,7 +239,7 @@ def test_cancel_jobs_on_server_stop(hq_env: HqEnv, flavor: ManagerFlavor):
             manager=flavor.manager_type(),
             name="foo",
             backlog=2,
-            workers_per_alloc=1,
+            max_workers_per_alloc=1,
         )
         w1 = mock.handler.add_worker(hq_env, default_job_id(0))
         w2 = mock.handler.add_worker(hq_env, default_job_id(1))
@@ -275,7 +275,7 @@ def test_fail_on_remove_queue_with_running_jobs(hq_env: HqEnv, flavor: ManagerFl
             manager=flavor.manager_type(),
             name="foo",
             backlog=2,
-            workers_per_alloc=1,
+            max_workers_per_alloc=1,
         )
         job_id = default_job_id(0)
 
@@ -305,7 +305,7 @@ def test_cancel_active_jobs_on_forced_remove_queue(hq_env: HqEnv, flavor: Manage
             manager=flavor.manager_type(),
             name="foo",
             backlog=2,
-            workers_per_alloc=1,
+            max_workers_per_alloc=1,
         )
 
         mock.handler.add_worker(hq_env, default_job_id(0))
