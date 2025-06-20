@@ -8,7 +8,7 @@ use tokio::net::TcpListener;
 use tokio::sync::Notify;
 
 use crate::events::EventProcessor;
-use crate::gateway::{MultiNodeAllocationResponse, TaskSubmit, WorkerRuntimeInfo};
+use crate::gateway::{MultiNodeAllocationResponse, ResourceRequest, TaskSubmit, WorkerRuntimeInfo};
 use crate::internal::common::error::DsError;
 use crate::internal::messages::worker::ToWorkerMessage;
 use crate::internal::scheduler::query::compute_new_worker_query;
@@ -21,7 +21,7 @@ use crate::internal::server::explain::{
 };
 use crate::internal::server::reactor::on_cancel_tasks;
 use crate::internal::server::worker::DEFAULT_WORKER_OVERVIEW_INTERVAL;
-use crate::resources::{NumOfNodes, ResourceDescriptor};
+use crate::resources::ResourceDescriptor;
 use crate::{TaskId, WorkerId};
 
 #[derive(Debug)]
@@ -40,25 +40,16 @@ pub struct WorkerTypeQuery {
 }
 
 #[derive(Debug)]
-pub struct SingleNodeLeftOvers {
-    pub min_time: Duration,
-}
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub struct MultiNodeLeftOvers {
-    pub n_nodes: NumOfNodes,
-    pub min_time: Duration,
-}
-
-#[derive(Debug)]
 pub struct NewWorkerAllocationResponse {
     /// Array of the same size as the number of queries, it returns the number of workers that should
     /// be spawned for the given query
     pub single_node_workers_per_query: Vec<usize>,
-    /// True iff not all tasks could be executed on resources provided in the query
-    pub single_node_leftovers: Option<SingleNodeLeftOvers>,
     pub multi_node_allocations: Vec<MultiNodeAllocationResponse>,
-    pub multi_node_leftovers: crate::Set<MultiNodeLeftOvers>,
+    /// Resource requests of tasks that left after resolving the query and could not be assigned to
+    /// any running worker or worker in query response.
+    /// Even there are more tasks with a given request, it is placed into the Vec only once,
+    /// i.e. there are no duplicates.
+    pub leftovers: Vec<ResourceRequest>,
 }
 
 #[derive(Clone)]
@@ -126,6 +117,7 @@ impl ServerRef {
     pub fn new_worker_query(
         &self,
         queries: Vec<WorkerTypeQuery>,
+        collect_leftovers: bool,
     ) -> crate::Result<NewWorkerAllocationResponse> {
         for query in &queries {
             query.descriptor.validate()?;
@@ -135,7 +127,11 @@ impl ServerRef {
         if comm.get_scheduling_flag() {
             run_scheduling_now(&mut core, &mut comm, Instant::now())
         }
-        Ok(compute_new_worker_query(&mut core, &queries))
+        Ok(compute_new_worker_query(
+            &mut core,
+            &queries,
+            collect_leftovers,
+        ))
     }
 
     pub fn try_release_memory(&self) {

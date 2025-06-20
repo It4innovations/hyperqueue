@@ -21,10 +21,11 @@ fn test_query_no_tasks() {
             max_workers_per_allocation: 1,
             min_utilization: 0.0,
         }],
+        true,
     );
     assert_eq!(r.single_node_workers_per_query, vec![0]);
     assert!(r.multi_node_allocations.is_empty());
-    assert!(r.single_node_leftovers.is_none());
+    assert!(r.leftovers.is_empty());
 }
 
 #[test]
@@ -51,10 +52,11 @@ fn test_query_enough_workers() {
             max_workers_per_allocation: 1,
             min_utilization: 0.0,
         }],
+        false,
     );
     assert_eq!(r.single_node_workers_per_query, vec![0]);
     assert!(r.multi_node_allocations.is_empty());
-    assert!(r.single_node_leftovers.is_none());
+    assert!(r.leftovers.is_empty());
 }
 
 #[test]
@@ -90,10 +92,11 @@ fn test_query_no_enough_workers1() {
                 min_utilization: 0.0,
             },
         ],
+        true,
     );
     assert_eq!(r.single_node_workers_per_query, vec![0, 1]);
     assert!(r.multi_node_allocations.is_empty());
-    assert!(r.single_node_leftovers.is_some());
+    assert!(r.leftovers.is_empty());
 }
 
 #[test]
@@ -124,10 +127,10 @@ fn test_query_enough_workers2() {
                 min_utilization: 0.0,
             },
         ],
+        false,
     );
     assert_eq!(r.single_node_workers_per_query, vec![0, 0]);
     assert!(r.multi_node_allocations.is_empty());
-    assert!(r.single_node_leftovers.is_none());
 }
 
 #[test]
@@ -159,10 +162,10 @@ fn test_query_not_enough_workers3() {
                 min_utilization: 0.0,
             },
         ],
+        false,
     );
     assert_eq!(r.single_node_workers_per_query, vec![1, 0]);
     assert!(r.multi_node_allocations.is_empty());
-    assert!(r.single_node_leftovers.is_some());
 }
 
 #[test]
@@ -201,10 +204,10 @@ fn test_query_many_workers_needed() {
                 min_utilization: 0.0,
             },
         ],
+        false,
     );
     assert_eq!(r.single_node_workers_per_query, vec![5, 1, 26]);
     assert!(r.multi_node_allocations.is_empty());
-    assert!(r.single_node_leftovers.is_none());
 }
 
 #[test]
@@ -247,6 +250,7 @@ fn test_query_multi_node_tasks() {
                 min_utilization: 0.0,
             },
         ],
+        false,
     );
     assert_eq!(r.single_node_workers_per_query, vec![0, 0]);
     assert_eq!(r.multi_node_allocations.len(), 3);
@@ -261,7 +265,6 @@ fn test_query_multi_node_tasks() {
     assert_eq!(r.multi_node_allocations[2].worker_type, 1);
     assert_eq!(r.multi_node_allocations[2].worker_per_allocation, 6);
     assert_eq!(r.multi_node_allocations[2].max_allocations, 10);
-    assert!(r.single_node_leftovers.is_none());
 }
 
 #[test]
@@ -281,9 +284,9 @@ fn test_query_multi_node_time_limit() {
                 max_workers_per_allocation: 4,
                 min_utilization: 0.0,
             }],
+            false,
         );
         assert_eq!(r.multi_node_allocations.len(), allocs);
-        assert!(r.single_node_leftovers.is_none());
     }
 }
 
@@ -317,6 +320,7 @@ fn test_query_min_utilization1() {
                 max_workers_per_allocation: 1,
                 min_utilization: *min_utilization,
             }],
+            false,
         );
         assert_eq!(r.single_node_workers_per_query, vec![*alloc_value]);
         assert!(r.multi_node_allocations.is_empty());
@@ -366,6 +370,7 @@ fn test_query_min_utilization2() {
                 max_workers_per_allocation: 1,
                 min_utilization: *min_utilization,
             }],
+            true,
         );
         assert_eq!(r.single_node_workers_per_query, vec![*alloc_value]);
         assert!(r.multi_node_allocations.is_empty());
@@ -403,6 +408,7 @@ fn test_query_min_time2() {
                 max_workers_per_allocation: 1,
                 min_utilization: 0.0f32,
             }],
+            false,
         );
         assert_eq!(r.single_node_workers_per_query, vec![alloc]);
         assert!(r.multi_node_allocations.is_empty());
@@ -440,6 +446,7 @@ fn test_query_min_time1() {
             max_workers_per_allocation: 1,
             min_utilization: 0.0f32,
         }],
+        false,
     );
     assert_eq!(r.single_node_workers_per_query, vec![0]);
     assert!(r.multi_node_allocations.is_empty());
@@ -453,6 +460,7 @@ fn test_query_min_time1() {
             max_workers_per_allocation: 1,
             min_utilization: 0.0f32,
         }],
+        false,
     );
     assert_eq!(r.single_node_workers_per_query, vec![2]);
     assert!(r.multi_node_allocations.is_empty());
@@ -470,6 +478,7 @@ fn test_query_min_time1() {
             max_workers_per_allocation: 1,
             min_utilization: 0.0f32,
         }],
+        false,
     );
     assert_eq!(r.single_node_workers_per_query, vec![1]);
     assert!(r.multi_node_allocations.is_empty());
@@ -495,11 +504,13 @@ fn test_query_sn_leftovers1() {
                 max_workers_per_allocation: 1,
                 min_utilization: 0.0,
             }],
+            true,
         );
         if leftovers {
-            assert_eq!(r.single_node_leftovers.unwrap().min_time.as_secs(), 5_000);
+            assert_eq!(r.leftovers.len(), 1);
+            assert_eq!(r.leftovers[0].min_time.as_secs(), 5_000);
         } else {
-            assert!(r.single_node_leftovers.is_none());
+            assert!(r.leftovers.is_empty());
         }
     }
 }
@@ -526,8 +537,9 @@ fn test_query_sn_leftovers2() {
             max_workers_per_allocation: 1,
             min_utilization: 0.0,
         }],
+        true,
     );
-    assert_eq!(r.single_node_leftovers.unwrap().min_time.as_secs(), 10_000);
+    assert_eq!(r.leftovers.len(), 2);
 }
 
 #[test]
@@ -547,10 +559,10 @@ fn test_query_mn_leftovers() {
             max_workers_per_allocation: 3,
             min_utilization: 0.0,
         }],
+        true,
     );
-    assert!(r.single_node_leftovers.is_none());
-    assert_eq!(r.multi_node_leftovers.len(), 1);
-    let lo = r.multi_node_leftovers.into_iter().next().unwrap();
+    assert_eq!(r.leftovers.len(), 1);
+    let lo = &r.leftovers[0];
     assert_eq!(lo.min_time, Duration::from_secs(750));
     assert_eq!(lo.n_nodes, 4);
 }
