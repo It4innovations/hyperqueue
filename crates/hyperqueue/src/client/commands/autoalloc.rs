@@ -291,7 +291,7 @@ wasted allocation duration."
     }
 
     // Try to guess how would the resource descriptor look like for the worker
-    let cli_resource_descriptor = construct_resources_from_cli(&worker_args).ok();
+    let cli_resource_descriptor = construct_resources_from_cli(&worker_args);
 
     let SharedWorkerStartOpts {
         cpus,
@@ -309,7 +309,12 @@ wasted allocation duration."
             "--cpus".to_string(),
             format!("\"{}\"", cpus.into_original_input()),
         ]);
+    } else {
+        log::warn!(
+            "Creating an autoalloc queue without specifying worker core count. Consider specifying the core count of workers in this queue to improve the efficiency of automatic allocation."
+        )
     }
+
     for arg in resource {
         worker_args.extend([
             "--resource".to_string(),
@@ -359,10 +364,12 @@ wasted allocation duration."
     })
 }
 
-fn construct_resources_from_cli(
-    args: &SharedWorkerStartOpts,
-) -> anyhow::Result<ResourceDescriptor> {
+fn construct_resources_from_cli(args: &SharedWorkerStartOpts) -> Option<ResourceDescriptor> {
     let SharedWorkerStartOpts { resource, cpus, .. } = args;
+
+    if resource.is_empty() && cpus.is_none() {
+        return None;
+    }
 
     let mut resources: Vec<ResourceDescriptorItem> = resource
         .into_iter()
@@ -379,8 +386,8 @@ fn construct_resources_from_cli(
     };
 
     let resources = ResourceDescriptor::new(resources);
-    resources.validate()?;
-    Ok(resources)
+    resources.validate().ok()?;
+    Some(resources)
 }
 
 async fn dry_run_command(mut session: ClientSession, opts: DryRunOpts) -> anyhow::Result<()> {
