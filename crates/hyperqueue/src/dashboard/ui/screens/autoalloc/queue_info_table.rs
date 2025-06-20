@@ -32,6 +32,10 @@ impl AllocationQueueInfoTable {
         selection.map(|row| row.queue_id)
     }
 
+    pub fn clear_selection(&mut self) {
+        self.table.clear_selection();
+    }
+
     pub fn draw(&mut self, rect: Rect, frame: &mut DashboardFrame, table_style: Style) {
         self.table.draw(
             rect,
@@ -67,7 +71,6 @@ impl AllocationQueueInfoTable {
         match key.code {
             KeyCode::Down => self.select_next_queue(),
             KeyCode::Up => self.select_previous_queue(),
-            KeyCode::Esc => self.table.clear_selection(),
             _ => {}
         }
     }
