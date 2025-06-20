@@ -21,26 +21,36 @@ pub struct AllocationInfo {
     pub finish_time: Option<SystemTime>,
 }
 
+/// Status of an allocation at a given point in time.
 #[derive(Copy, Clone)]
 pub enum AllocationStatus {
+    /// The allocation did not exist at this time.
+    Missing,
+    /// The allocation was queued.
     Queued,
+    /// The allocation was running.
     Running,
+    /// The allocation was finished.
     Finished,
 }
 
-pub fn get_allocation_status(info: &AllocationInfo, query_time: SystemTime) -> AllocationStatus {
-    let has_started = info.start_time.is_some() && info.start_time.unwrap() < query_time;
-    let has_finished = match info.finish_time {
-        None => false,
-        Some(finish_time) => finish_time < query_time,
-    };
-    match has_started && !has_finished {
-        true => AllocationStatus::Running,
-        false => match has_finished {
-            true => AllocationStatus::Finished,
-            false => AllocationStatus::Queued,
-        },
+pub fn get_allocation_status(info: &AllocationInfo, time: SystemTime) -> AllocationStatus {
+    if time < info.queued_time {
+        return AllocationStatus::Missing;
     }
+
+    if let Some(finish_time) = info.finish_time {
+        if finish_time < time {
+            return AllocationStatus::Finished;
+        }
+    }
+
+    if let Some(start_time) = info.start_time {
+        if start_time < time {
+            return AllocationStatus::Running;
+        }
+    }
+    AllocationStatus::Queued
 }
 /// Stores the state of different allocation queues and their allocations
 #[derive(Default)]
