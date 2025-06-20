@@ -84,6 +84,7 @@ impl Screen for AutoAllocScreen {
             self.queue_info_table
                 .get_selected_queue()
                 .and_then(|selected| data.query_allocations_info_at(selected, data.current_time())),
+            data.current_time(),
         );
     }
 
