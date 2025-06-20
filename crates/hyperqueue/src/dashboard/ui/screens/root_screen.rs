@@ -106,7 +106,11 @@ impl RootScreen {
                 data.set_time_range(data.current_time_range().sooner(offset_duration(data)))
             }
             KeyCode::Char(KEY_TIMELINE_LATER) => {
-                data.set_time_range(data.current_time_range().later(offset_duration(data)))
+                // Do not allow going forward with live time mode to avoid making the duration too
+                // small unnecessarily.
+                if !data.is_live_time_mode() {
+                    data.set_time_range(data.current_time_range().later(offset_duration(data)))
+                }
             }
             KeyCode::Char(KEY_TIMELINE_ZOOM_IN) => {
                 data.set_time_range(zoom_in(data.current_time_range()))
