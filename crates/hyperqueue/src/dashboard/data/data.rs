@@ -12,7 +12,7 @@ use std::time::{Duration, SystemTime};
 use tako::WorkerId;
 use tako::{JobId, JobTaskId};
 
-const MIN_TIME_RANGE_DURATION: Duration = Duration::from_secs(60);
+pub const MIN_TIME_RANGE_DURATION: Duration = Duration::from_secs(60);
 
 pub struct DashboardData {
     /// Tracks worker connection and loss events
@@ -108,12 +108,7 @@ impl DashboardData {
 
     pub fn set_time_range(&mut self, range: TimeRange) {
         // Make sure that the range doesn't go into the future, and that it is not too small
-        let end_cutoff = match self.time_mode {
-            TimeMode::Live(_) => SystemTime::now(),
-            TimeMode::Fixed(range) => range.end(),
-        };
-        let end = range.end().min(end_cutoff);
-
+        let end = range.end().min(SystemTime::now());
         let start = match end.duration_since(range.start()) {
             Ok(duration) if duration < MIN_TIME_RANGE_DURATION => end - MIN_TIME_RANGE_DURATION,
             Err(_) => end - MIN_TIME_RANGE_DURATION,
