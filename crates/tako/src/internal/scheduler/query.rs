@@ -1,4 +1,6 @@
-use crate::control::{NewWorkerAllocationResponse, WorkerTypeQuery};
+use crate::control::{
+    MultiNodeLeftOvers, NewWorkerAllocationResponse, SingleNodeLeftOvers, WorkerTypeQuery,
+};
 use crate::gateway::MultiNodeAllocationResponse;
 use crate::internal::server::core::Core;
 use crate::internal::server::task::Task;
@@ -22,7 +24,9 @@ pub(crate) fn compute_new_worker_query(
     // Scheduler has to be performed before the query, so there should be no ready_to_assign tasks
     assert!(core.sn_ready_to_assign().is_empty() || !core.has_workers());
 
-    let add_task = |new_loads: &mut [WorkerTypeState], task: &Task| -> bool {
+    let add_task = |new_loads: &mut [WorkerTypeState],
+                    task: &Task,
+                    leftover: &mut Option<SingleNodeLeftOvers>| {
         let request = &task.configuration.resources;
         for ws in new_loads.iter_mut() {
             if let Some(time_limit) = ws.time_limit {
@@ -38,17 +42,23 @@ pub(crate) fn compute_new_worker_query(
             for load in ws.loads.iter_mut() {
                 if load.have_immediate_resources_for_rqv(request, &ws.w_resources) {
                     load.add_request(task.id, request, &ws.w_resources);
-                    return false;
+                    return;
                 }
             }
             if ws.loads.len() < ws.max as usize {
                 let mut load = WorkerLoad::new(&ws.w_resources);
                 load.add_request(task.id, request, &ws.w_resources);
                 ws.loads.push(load);
-                return false;
+                return;
             }
         }
-        true
+        if let Some(lo) = leftover {
+            lo.min_time = lo.min_time.min(request.min_time());
+        } else {
+            *leftover = Some(SingleNodeLeftOvers {
+                min_time: request.min_time(),
+            });
+        }
     };
 
     /* Make sure that all named resources provided has an Id */
@@ -69,7 +79,7 @@ pub(crate) fn compute_new_worker_query(
         })
         .collect();
 
-    let mut leftover = false;
+    let mut sn_leftovers = None;
     for worker in core.get_workers() {
         let mut load = WorkerLoad::new(&worker.resources);
         for task_id in worker.sn_tasks() {
@@ -81,12 +91,12 @@ pub(crate) fn compute_new_worker_query(
                 load.add_request(task.id, request, &worker.resources);
                 continue;
             }
-            leftover |= add_task(&mut new_loads, task);
+            add_task(&mut new_loads, task, &mut sn_leftovers);
         }
     }
     for task_id in core.sleeping_sn_tasks() {
         let task = core.get_task(*task_id);
-        leftover |= add_task(&mut new_loads, task);
+        add_task(&mut new_loads, task, &mut sn_leftovers);
     }
 
     // `compute_new_worker_query` should be called immediately after scheduling was performed,
@@ -95,7 +105,7 @@ pub(crate) fn compute_new_worker_query(
     // postponing ready_to_assign. So we have to look also into this array
     for task_id in core.sn_ready_to_assign() {
         let task = core.get_task(*task_id);
-        leftover |= add_task(&mut new_loads, task);
+        add_task(&mut new_loads, task, &mut sn_leftovers);
     }
 
     let single_node_allocations = new_loads
@@ -115,12 +125,13 @@ pub(crate) fn compute_new_worker_query(
         })
         .collect();
 
+    let mut mn_leftovers = crate::Set::new();
     let (queue, _map, _ws) = core.multi_node_queue_split();
     let mut multi_node_allocations: Vec<_> = queue
         .get_profiles()
         .filter_map(|(rq, count)| {
             let n_nodes = rq.n_nodes();
-            queries.iter().enumerate().find_map(|(i, worker_type)| {
+            let result = queries.iter().enumerate().find_map(|(i, worker_type)| {
                 if let Some(time_limit) = worker_type.time_limit {
                     if rq.min_time() > time_limit {
                         return None;
@@ -135,14 +146,22 @@ pub(crate) fn compute_new_worker_query(
                 } else {
                     None
                 }
-            })
+            });
+            if result.is_none() {
+                mn_leftovers.insert(MultiNodeLeftOvers {
+                    n_nodes,
+                    min_time: rq.min_time(),
+                });
+            }
+            result
         })
         .collect();
     multi_node_allocations.sort_unstable_by_key(|x| (x.worker_type, x.worker_per_allocation));
 
     NewWorkerAllocationResponse {
         single_node_workers_per_query: single_node_allocations,
-        single_node_leftovers: leftover,
+        single_node_leftovers: sn_leftovers,
         multi_node_allocations,
+        multi_node_leftovers: mn_leftovers,
     }
 }

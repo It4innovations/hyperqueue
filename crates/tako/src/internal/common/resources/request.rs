@@ -244,6 +244,10 @@ impl ResourceRequestVariants {
         assert!(!variants.is_empty()); // Valid variants are non empty
         ResourceRequestVariants { variants }
     }
+
+    pub fn min_time(&self) -> TimeRequest {
+        self.variants.iter().map(|v| v.min_time).min().unwrap()
+    }
 }
 
 #[cfg(test)]

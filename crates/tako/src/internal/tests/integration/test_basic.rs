@@ -139,7 +139,7 @@ async fn test_query_no_output_immediate_call() {
         );
         assert_eq!(msg.single_node_workers_per_query, vec![0]);
         assert!(msg.multi_node_allocations.is_empty());
-        assert!(!msg.single_node_leftovers);
+        assert!(msg.single_node_leftovers.is_none());
         handler.wait(&ids).await;
     })
     .await;
@@ -165,7 +165,7 @@ async fn test_query_no_output_delayed_call() {
         );
         assert_eq!(msg.single_node_workers_per_query, vec![0]);
         assert!(msg.multi_node_allocations.is_empty());
-        assert!(!msg.single_node_leftovers);
+        assert!(msg.single_node_leftovers.is_none());
         handler.wait(&ids).await;
     })
     .await;
@@ -194,7 +194,7 @@ async fn test_query_new_workers_delayed_call() {
         );
         assert_eq!(msg.single_node_workers_per_query, vec![1]);
         assert!(msg.multi_node_allocations.is_empty());
-        assert!(!msg.single_node_leftovers);
+        assert!(msg.single_node_leftovers.is_none());
     })
     .await;
 }
@@ -221,7 +221,7 @@ async fn test_query_new_workers_immediate() {
         );
         assert_eq!(msg.single_node_workers_per_query, vec![1]);
         assert!(msg.multi_node_allocations.is_empty());
-        assert!(!msg.single_node_leftovers);
+        assert!(msg.single_node_leftovers.is_none());
     })
     .await;
 }
