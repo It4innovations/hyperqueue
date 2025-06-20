@@ -52,7 +52,12 @@ pub fn y_axis_steps(min: f64, max: f64, step_count: u32) -> Axis<'static> {
         .labels_alignment(Alignment::Right)
 }
 
-pub fn create_chart<'a>(datasets: Vec<Dataset<'a>>, title: &'a str, range: TimeRange) -> Chart<'a> {
+/// Creates a line chart that shows time on the X axis and the count of something on the Y axis.
+pub fn create_count_chart<'a>(
+    datasets: Vec<Dataset<'a>>,
+    title: &'a str,
+    range: TimeRange,
+) -> Chart<'a> {
     Chart::new(datasets)
         .style(chart_style_deselected())
         .legend_position(Some(LegendPosition::TopLeft))

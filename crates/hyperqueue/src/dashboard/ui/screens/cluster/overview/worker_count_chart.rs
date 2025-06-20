@@ -4,7 +4,7 @@ use ratatui::style::Color;
 use crate::dashboard::data::{DashboardData, TimeRange};
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::chart::{
-    RangeSteps, create_chart, create_dataset, get_time_as_secs, y_axis_steps,
+    RangeSteps, create_count_chart, create_dataset, get_time_as_secs, y_axis_steps,
 };
 
 #[derive(Default)]
@@ -44,7 +44,7 @@ impl WorkerCountChart {
             Color::White,
         )];
 
-        let chart = create_chart(datasets, "Running Worker Count", self.range)
+        let chart = create_count_chart(datasets, "Running Worker Count", self.range)
             .legend_position(None)
             .y_axis(y_axis_steps(0.0, max_workers_in_view, 4));
         frame.render_widget(chart, rect);

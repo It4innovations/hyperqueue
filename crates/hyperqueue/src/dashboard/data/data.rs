@@ -99,13 +99,11 @@ impl DashboardData {
     }
 
     /// The Queued and Running allocations at `time` for a queue.
-    pub fn query_allocations_info_at(
+    pub fn query_allocations_info(
         &self,
         queue_id: QueueId,
-        time: SystemTime,
     ) -> Option<impl Iterator<Item = (&AllocationId, &AllocationInfo)> + '_> {
-        self.alloc_timeline
-            .get_allocations_for_queue(queue_id, time)
+        self.alloc_timeline.get_allocations_for_queue(queue_id)
     }
 
     pub fn set_time_range(&mut self, range: TimeRange) {

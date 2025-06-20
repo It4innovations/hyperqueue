@@ -2,7 +2,7 @@ use crate::dashboard::data::timelines::job_timeline::DashboardTaskState;
 use crate::dashboard::data::{DashboardData, ItemWithTime, TimeRange};
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::chart::{
-    RangeSteps, create_chart, create_dataset, generate_dataset_entries, generate_time_data,
+    RangeSteps, create_count_chart, create_dataset, generate_dataset_entries, generate_time_data,
 };
 use ratatui::layout::Rect;
 use ratatui::style::Color;
@@ -62,11 +62,11 @@ impl JobTaskChart {
                     create_dataset(&finished, "Finished", Color::Green),
                     create_dataset(&failed, "Failed", Color::Red),
                 ];
-                let chart = create_chart(datasets, &title, self.range);
+                let chart = create_count_chart(datasets, &title, self.range);
                 frame.render_widget(chart, rect);
             }
             None => {
-                let chart = create_chart(
+                let chart = create_count_chart(
                     vec![],
                     "Please select a Job to show Task counts",
                     self.range,

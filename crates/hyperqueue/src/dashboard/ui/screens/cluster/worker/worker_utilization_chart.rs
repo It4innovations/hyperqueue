@@ -9,7 +9,7 @@ use crate::dashboard::data::{ItemWithTime, TimeRange};
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::chart::y_axis_steps;
 use crate::dashboard::ui::widgets::chart::{
-    create_chart, create_dataset, generate_dataset_entries,
+    create_count_chart, create_dataset, generate_dataset_entries,
 };
 use crate::dashboard::utils::{get_average_cpu_usage_for_worker, get_memory_usage_pct};
 
@@ -64,7 +64,7 @@ impl WorkerUtilizationChart {
             datasets.push(create_dataset(&gpu_usage, "GPU (avg) (%)", Color::Red));
         }
 
-        let chart = create_chart(datasets, "Utilization History", self.range)
+        let chart = create_count_chart(datasets, "Utilization History", self.range)
             .y_axis(y_axis_steps(0.0, 100.0, 5));
         frame.render_widget(chart, rect);
     }

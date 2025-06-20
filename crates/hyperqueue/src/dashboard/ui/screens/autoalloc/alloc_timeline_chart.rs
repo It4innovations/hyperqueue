@@ -1,191 +1,101 @@
-use std::time::{Duration, SystemTime};
+use std::collections::BTreeMap;
 
 use ratatui::layout::Rect;
-use ratatui::widgets::canvas::{Canvas, Context, Painter, Shape};
-use tako::Map;
+use ratatui::widgets::canvas::Canvas;
 
-use crate::dashboard::data::DashboardData;
-use crate::dashboard::data::timelines::alloc_timeline::{AllocationStatus, get_allocation_status};
+use crate::dashboard::data::timelines::alloc_timeline::{
+    AllocationInfo, AllocationStatus, get_allocation_status,
+};
+use crate::dashboard::data::{DashboardData, TimeRange};
 use crate::dashboard::ui::terminal::DashboardFrame;
+use crate::dashboard::ui::widgets::FilledRectangle;
+use crate::dashboard::ui::widgets::chart::get_time_as_secs;
 use crate::server::autoalloc::{AllocationId, QueueId};
-use chrono::{DateTime, Local};
-use ratatui::style::{Color, Style};
+use ratatui::style::Color;
 use ratatui::symbols;
-use ratatui::text::Span;
 use ratatui::widgets::{Block, Borders};
 use std::default::Default;
 
-/// Margin for the chart time labels.
-const LABEL_Y_MARGIN: f64 = 1.00;
-/// Margin between the alloc timeline and its `allocation_id` label.
-const LINE_Y_MARGIN: f64 = 0.10;
-/// Space taken by string = `num_chars` * `CHAR_SPACE_FACTOR`.
-const CHAR_SPACE_FACTOR: f64 = 2.30;
-/// Space taken by time labels in chart `HH:MM`.
-const TIME_CHAR_COUNT: f64 = 5.00 * CHAR_SPACE_FACTOR;
+/// Into how many parts do we split the available horizontal time X axis.
+const HORIZONTAL_SPLIT: u64 = 100;
 
-/// Stores the allocation status at a point in time.
-struct AllocationInfoPoint {
-    state: AllocationStatus,
-    time: SystemTime,
-}
-
-struct AllocationsChartData {
-    /// The status of an allocation at different points in time.
-    allocation_records: Map<AllocationId, Vec<AllocationInfoPoint>>,
-    /// Max time that is being shown currently.
-    end_time: SystemTime,
-    /// The size of the viewing window.
-    view_size: Duration,
-}
-
+/// Draws horizontal lines (one line per allocation), where the color of the line shows the
+/// status of the allocation.
 #[derive(Default)]
 pub struct AllocationsChart {
-    chart_data: AllocationsChartData,
+    allocation_records: BTreeMap<(QueueId, AllocationId), AllocationInfo>,
+    range: TimeRange,
 }
 
 impl AllocationsChart {
-    pub fn update(&mut self, data: &DashboardData, queue_id: QueueId) {
-        self.chart_data.end_time = SystemTime::now();
+    pub fn update(&mut self, data: &DashboardData, selected_queue: Option<QueueId>) {
+        self.range = data.current_time_range();
 
-        let mut query_time = self.chart_data.end_time - self.chart_data.view_size;
-        let mut query_times = vec![];
-        while query_time <= self.chart_data.end_time {
-            query_times.push(query_time);
-            query_time += Duration::from_secs(1);
-        }
+        let queues = match selected_queue {
+            Some(queue) => vec![queue],
+            None => data
+                .query_allocation_queues_at(self.range.end())
+                .map(|(id, _)| *id)
+                .collect(),
+        };
 
-        let mut allocation_history: Vec<(AllocationId, AllocationInfoPoint)> = vec![];
-        query_times.iter().for_each(|query_time| {
-            if let Some(alloc_map) = data.query_allocations_info_at(queue_id, *query_time) {
-                let points = alloc_map
-                    .filter(|(_, alloc_info)| {
-                        let finished_before_query = alloc_info
-                            .finish_time
-                            .map(|finish_time| finish_time < *query_time)
-                            .unwrap_or(false);
-
-                        !finished_before_query
-                    })
-                    .map(|(alloc_id, alloc_info)| {
-                        (
-                            alloc_id.clone(),
-                            AllocationInfoPoint {
-                                state: get_allocation_status(alloc_info, *query_time),
-                                time: *query_time,
-                            },
-                        )
-                    });
-                allocation_history.extend(points);
-            }
-        });
-
-        self.chart_data.allocation_records.clear();
-        allocation_history.into_iter().for_each(|(id, point)| {
-            if let Some(points) = self.chart_data.allocation_records.get_mut(&id) {
-                points.push(point);
-            } else {
-                self.chart_data.allocation_records.insert(id, vec![point]);
-            }
-        });
+        let allocations = queues
+            .iter()
+            .filter_map(|queue_id| {
+                data.query_allocations_info(*queue_id).map(|allocations| {
+                    allocations.map(|(id, info)| ((*queue_id, id.clone()), *info))
+                })
+            })
+            .flatten()
+            .collect::<BTreeMap<(QueueId, AllocationId), AllocationInfo>>();
+        self.allocation_records = allocations;
     }
 
     pub fn draw(&mut self, rect: Rect, frame: &mut DashboardFrame) {
+        let start = get_time_as_secs(self.range.start());
+        let end = get_time_as_secs(self.range.end());
+        let width = end - start;
+
+        let height = 10;
+
         let canvas = Canvas::default()
             .marker(symbols::Marker::Block)
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .title("Alloc Timeline"),
+                    .title("Allocation Timeline"),
             )
             .paint(|ctx| {
-                ctx.draw(&self.chart_data);
-                self.draw_labels(ctx);
-            })
-            .x_bounds([0.0, self.chart_data.view_size.as_secs_f64()])
-            .y_bounds([
-                0.0,
-                self.chart_data.allocation_records.len() as f64 + LABEL_Y_MARGIN,
-            ]);
-        frame.render_widget(canvas, rect);
-    }
-}
+                let mut y_pos: f64 = 0.0;
 
-impl Shape for AllocationsChartData {
-    /// Draws the allocation_queue_timelines
-    fn draw(&self, painter: &mut Painter) {
-        let mut y_pos: f64 = LABEL_Y_MARGIN;
-        for (_, alloc_info_pt) in &self.allocation_records {
-            alloc_info_pt.iter().for_each(|point| {
-                let x_pos = self.view_size.as_secs_f64()
-                    - self
-                        .end_time
-                        .duration_since(point.time)
-                        .unwrap_or_default()
-                        .as_secs_f64();
-                if let Some((x, y)) = painter.get_point(x_pos, y_pos) {
-                    painter.paint(
-                        x,
-                        y,
-                        match point.state {
+                let rect_height = 0.9; // padding
+                let rect_width = width / HORIZONTAL_SPLIT as f64;
+
+                for ((queue_id, alloc_id), info) in self.allocation_records.iter().take(height) {
+                    ctx.print(0.0, y_pos, format!("{queue_id}/{alloc_id}"));
+                    for time in self.range.generate_steps(HORIZONTAL_SPLIT) {
+                        let status = get_allocation_status(info, time);
+                        let color = match status {
+                            AllocationStatus::Missing => continue,
                             AllocationStatus::Queued => Color::Yellow,
                             AllocationStatus::Running => Color::Green,
-                            _ => unreachable!(),
-                        },
-                    );
+                            AllocationStatus::Finished => Color::Blue,
+                        };
+                        // Normalize time
+                        let time = get_time_as_secs(time) - start;
+                        ctx.draw(&FilledRectangle {
+                            x: time,
+                            y: y_pos,
+                            width: rect_width,
+                            height: rect_height,
+                            color,
+                        });
+                    }
+                    y_pos += 1.0;
                 }
-            });
-            y_pos += LABEL_Y_MARGIN;
-        }
-    }
-}
-
-impl AllocationsChart {
-    /// Adds the x_axis labels for time and `allocation_id` label to each timeline.
-    fn draw_labels(&self, ctx: &mut Context) {
-        let begin_time: DateTime<Local> =
-            (self.chart_data.end_time - self.chart_data.view_size).into();
-        let end_time: DateTime<Local> = self.chart_data.end_time.into();
-
-        ctx.print(
-            0.0,
-            0.0,
-            Span::styled(
-                begin_time.format("%H:%M").to_string(),
-                Style::default().fg(Color::Yellow),
-            ),
-        );
-        ctx.print(
-            self.chart_data.view_size.as_secs_f64() - TIME_CHAR_COUNT,
-            0.0,
-            Span::styled(
-                end_time.format("%H:%M").to_string(),
-                Style::default().fg(Color::Yellow),
-            ),
-        );
-        // Margin to prevent overlap with time labels and timeline plots.
-        let mut y_pos: f64 = LABEL_Y_MARGIN + LINE_Y_MARGIN;
-        // Inserts the allocation_id labels for each of the allocation timelines.
-        self.chart_data
-            .allocation_records
-            .iter()
-            .for_each(|(alloc_id, _)| {
-                ctx.print(
-                    0.00,
-                    y_pos,
-                    Span::styled(alloc_id.clone(), Style::default().fg(Color::Yellow)),
-                );
-                y_pos += LABEL_Y_MARGIN;
-            });
-    }
-}
-
-impl Default for AllocationsChartData {
-    fn default() -> Self {
-        Self {
-            allocation_records: Default::default(),
-            end_time: SystemTime::now(),
-            view_size: Duration::from_secs(600),
-        }
+            })
+            .x_bounds([0.0, end - start])
+            .y_bounds([0.0, height as f64]);
+        frame.render_widget(canvas, rect);
     }
 }

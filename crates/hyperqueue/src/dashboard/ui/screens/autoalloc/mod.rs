@@ -1,5 +1,7 @@
 use crate::dashboard::data::DashboardData;
-use crate::dashboard::data::timelines::alloc_timeline::AllocationQueueInfo;
+use crate::dashboard::data::timelines::alloc_timeline::{
+    AllocationQueueInfo, AllocationStatus, get_allocation_status,
+};
 use crate::dashboard::ui::screen::Screen;
 use crate::dashboard::ui::screens::autoalloc::alloc_timeline_chart::AllocationsChart;
 use crate::dashboard::ui::screens::autoalloc::allocations_info_table::AllocationInfoTable;
@@ -70,9 +72,8 @@ impl Screen for AutoAllocScreen {
             .collect();
         self.queue_info_table.update(queue_infos);
 
-        if let Some(selected) = self.queue_info_table.get_selected_queue() {
-            self.allocations_chart.update(data, selected);
-        }
+        self.allocations_chart
+            .update(data, self.queue_info_table.get_selected_queue());
 
         self.queue_params_table.update(
             self.queue_info_table
@@ -83,7 +84,20 @@ impl Screen for AutoAllocScreen {
         self.allocations_info_table.update(
             self.queue_info_table
                 .get_selected_queue()
-                .and_then(|selected| data.query_allocations_info_at(selected, data.current_time())),
+                .and_then(|selected| {
+                    let allocations = data.query_allocations_info(selected);
+                    allocations.map(|allocations| {
+                        allocations.filter(|(_, info)| {
+                            let status = get_allocation_status(info, data.current_time());
+                            match status {
+                                AllocationStatus::Missing => false,
+                                AllocationStatus::Queued
+                                | AllocationStatus::Running
+                                | AllocationStatus::Finished => true,
+                            }
+                        })
+                    })
+                }),
             data.current_time(),
         );
     }

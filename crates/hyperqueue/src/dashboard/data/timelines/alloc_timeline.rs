@@ -13,7 +13,7 @@ pub struct AllocationQueueInfo {
     pub allocations: Map<AllocationId, AllocationInfo>,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct AllocationInfo {
     pub worker_count: u64,
     pub queued_time: SystemTime,
@@ -173,14 +173,9 @@ impl AllocationTimeline {
     pub fn get_allocations_for_queue(
         &self,
         queue_id: QueueId,
-        time: SystemTime,
     ) -> Option<impl Iterator<Item = (&AllocationId, &AllocationInfo)> + '_> {
-        self.get_queue_infos_at(time)
-            .find(|(id, _)| **id == queue_id)
-            .map(move |(_, info)| {
-                info.allocations
-                    .iter()
-                    .filter(move |(_, info)| info.queued_time <= time)
-            })
+        self.queue_timelines
+            .get(&queue_id)
+            .map(move |info| info.allocations.iter())
     }
 }
