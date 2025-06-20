@@ -30,6 +30,10 @@ impl<Arg> PassThroughArgument<Arg> {
         self.0
     }
 
+    pub fn as_parsed_arg(&self) -> &Arg {
+        &self.1
+    }
+
     pub fn into_parsed_arg(self) -> Arg {
         self.1
     }

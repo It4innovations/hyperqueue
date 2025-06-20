@@ -181,6 +181,7 @@ pub fn create_queue_info(params: AllocationQueueParams) -> QueueInfo {
         worker_stop_cmd,
         worker_args,
         idle_timeout,
+        cli_resource_descriptor,
     } = params;
     QueueInfo::new(
         manager,
@@ -194,6 +195,7 @@ pub fn create_queue_info(params: AllocationQueueParams) -> QueueInfo {
         worker_start_cmd,
         worker_stop_cmd,
         min_utilization,
+        cli_resource_descriptor,
     )
 }
 
@@ -2016,6 +2018,7 @@ mod tests {
                         additional_args: vec![],
                         worker_start_cmd: None,
                         worker_stop_cmd: None,
+                        cli_resource_descriptor: None,
                         worker_args: queue_info.worker_args().to_vec(),
                         idle_timeout: None,
                     },
@@ -2457,6 +2460,7 @@ mod tests {
                     None,
                     None,
                     min_utilization,
+                    None,
                 ),
                 RateLimiter::new(
                     limiter_delays,
