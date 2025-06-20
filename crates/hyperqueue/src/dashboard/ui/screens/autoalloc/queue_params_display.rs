@@ -6,9 +6,16 @@ use crate::transfer::messages::AllocationQueueParams;
 use ratatui::layout::{Constraint, Rect};
 use ratatui::widgets::{Cell, Row};
 
-#[derive(Default)]
 pub struct QueueParamsTable {
     table: StatefulTable<QueueParamsDataRow>,
+}
+
+impl Default for QueueParamsTable {
+    fn default() -> Self {
+        let mut table = StatefulTable::default();
+        table.set_missing_data_label("No allocation queue selected.");
+        Self { table }
+    }
 }
 
 #[derive(Default, Debug)]

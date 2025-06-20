@@ -17,6 +17,7 @@ pub struct TableColumnHeaders {
 pub struct StatefulTable<T> {
     state: TableState,
     items: Vec<T>,
+    missing_data_label: &'static str,
 }
 
 impl<T> Default for StatefulTable<T> {
@@ -24,11 +25,16 @@ impl<T> Default for StatefulTable<T> {
         Self {
             state: Default::default(),
             items: Default::default(),
+            missing_data_label: "No data",
         }
     }
 }
 
 impl<T> StatefulTable<T> {
+    pub fn set_missing_data_label(&mut self, label: &'static str) {
+        self.missing_data_label = label;
+    }
+
     /// Sets new items for the table.
     ///
     /// Invariant: if there are no items in the table, no item is selected.
@@ -116,7 +122,7 @@ impl<T> StatefulTable<T> {
 
             frame.render_stateful_widget(table, rect, &mut self.state);
         } else {
-            let header_text = Line::from(vec![Span::from("No data")]);
+            let header_text = Line::from(vec![Span::from(self.missing_data_label)]);
             let paragraph = Paragraph::new(header_text)
                 .block(body_block)
                 .style(styles::style_no_data())
