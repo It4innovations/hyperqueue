@@ -30,7 +30,7 @@ pub struct AutoAllocScreen {
 #[derive(Default)]
 enum FocusedComponent {
     #[default]
-    QueueParamsTable,
+    QueueInfoTable,
     AllocationInfoTable,
 }
 
@@ -39,9 +39,7 @@ impl Screen for AutoAllocScreen {
         let layout = AutoAllocFragmentLayout::new(&in_area);
 
         let (queues_table_style, allocations_table_style) = match self.component_in_focus {
-            FocusedComponent::QueueParamsTable => {
-                (table_style_selected(), table_style_deselected())
-            }
+            FocusedComponent::QueueInfoTable => (table_style_selected(), table_style_deselected()),
             FocusedComponent::AllocationInfoTable => {
                 (table_style_deselected(), table_style_selected())
             }
@@ -59,7 +57,7 @@ impl Screen for AutoAllocScreen {
             .draw(layout.allocation_queue_params_chunk, frame);
 
         draw_text(
-            "<1>: Allocation Queues, <2>: Allocations",
+            "<1>: Allocation Queues, <2>: Allocations, <ESC>: Clear selected allocation",
             layout.footer_chunk,
             frame,
             style_footer(),
@@ -91,15 +89,16 @@ impl Screen for AutoAllocScreen {
 
     fn handle_key(&mut self, key: KeyEvent) {
         match self.component_in_focus {
-            FocusedComponent::QueueParamsTable => self.queue_info_table.handle_key(key),
+            FocusedComponent::QueueInfoTable => self.queue_info_table.handle_key(key),
             FocusedComponent::AllocationInfoTable => self.allocations_info_table.handle_key(key),
         };
 
         match key.code {
             KeyCode::Char('1') => {
-                self.component_in_focus = FocusedComponent::QueueParamsTable;
+                self.component_in_focus = FocusedComponent::QueueInfoTable;
             }
             KeyCode::Char('2') => self.component_in_focus = FocusedComponent::AllocationInfoTable,
+            KeyCode::Esc => self.queue_info_table.clear_selection(),
             _ => {}
         }
     }
