@@ -16,6 +16,9 @@ use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
     AllocationQueueParams, AutoAllocRequest, AutoAllocResponse, FromClientMessage, ToClientMessage,
 };
+use clap::Parser;
+use humantime::format_duration;
+use tako::resources::{CPU_RESOURCE_NAME, ResourceDescriptor, ResourceDescriptorItem};
 
 #[derive(Parser)]
 pub struct AutoAllocOpts {
@@ -290,6 +293,9 @@ wasted allocation duration."
         }
     }
 
+    // Try to guess how would the resource descriptor look like for the worker
+    let cli_resource_descriptor = construct_resources_from_cli(&worker_args).ok();
+
     let SharedWorkerStartOpts {
         cpus,
         resource,
@@ -352,7 +358,32 @@ wasted allocation duration."
         max_worker_count,
         worker_args,
         idle_timeout,
+        cli_resource_descriptor,
     })
+}
+
+fn construct_resources_from_cli(
+    args: &SharedWorkerStartOpts,
+) -> anyhow::Result<ResourceDescriptor> {
+    let SharedWorkerStartOpts { resource, cpus, .. } = args;
+
+    let mut resources: Vec<ResourceDescriptorItem> = resource
+        .into_iter()
+        .map(|x| x.as_parsed_arg().clone())
+        .collect();
+    let cpu_resources = resources.iter().find(|x| x.name == CPU_RESOURCE_NAME);
+    if cpu_resources.is_none() {
+        if let Some(cpus) = cpus {
+            resources.push(ResourceDescriptorItem {
+                name: CPU_RESOURCE_NAME.to_string(),
+                kind: cpus.as_parsed_arg().clone(),
+            });
+        }
+    };
+
+    let resources = ResourceDescriptor::new(resources);
+    resources.validate()?;
+    Ok(resources)
 }
 
 async fn dry_run_command(mut session: ClientSession, opts: DryRunOpts) -> anyhow::Result<()> {
