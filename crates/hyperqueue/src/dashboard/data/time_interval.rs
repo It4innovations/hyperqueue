@@ -35,6 +35,22 @@ impl TimeRange {
     pub fn duration(&self) -> Duration {
         self.end.duration_since(self.start).unwrap()
     }
+
+    pub fn generate_steps(&self, count: u64) -> impl Iterator<Item = Time> {
+        assert!(count > 0);
+
+        let mut time = self.start;
+        let duration = self.duration() / count as u32;
+        std::iter::from_fn(move || {
+            if time > self.end {
+                None
+            } else {
+                let next = time;
+                time += duration;
+                Some(next)
+            }
+        })
+    }
 }
 
 impl Display for TimeRange {
