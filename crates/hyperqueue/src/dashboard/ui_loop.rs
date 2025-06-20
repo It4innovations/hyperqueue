@@ -42,7 +42,7 @@ pub async fn start_ui_loop(preloaded: PreloadedEvents) -> anyhow::Result<()> {
                 None
             } else {
                 Some(
-                    "The server does not use a journal, historical data was reconstructred from the current server state. Consider passing `--journal <path>` to `hq server start` when using the dashboard.",
+                    "The server does not use a journal, historical data was reconstructed from the current server state. Consider passing `--journal <path>` to `hq server start` when using the dashboard.",
                 )
             };
             (events, Some(connection), warning)
