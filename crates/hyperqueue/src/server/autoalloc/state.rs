@@ -15,6 +15,7 @@ use crate::server::autoalloc::config::MAX_KEPT_DIRECTORIES;
 use crate::server::autoalloc::queue::QueueHandler;
 use crate::server::autoalloc::{LostWorkerDetails, QueueInfo};
 use tako::Map;
+use tako::worker::WorkerConfiguration;
 
 // Main state holder
 pub struct AutoAllocState {
@@ -137,6 +138,9 @@ pub struct AllocationQueue {
     name: Option<String>,
     handler: Box<dyn QueueHandler>,
     rate_limiter: RateLimiter,
+    /// A worker configuration from a worker that connected from an allocation
+    /// attached to this queue.
+    worker_config: Option<WorkerConfiguration>,
 }
 
 impl AllocationQueue {
@@ -153,6 +157,7 @@ impl AllocationQueue {
             handler,
             allocations: Default::default(),
             rate_limiter,
+            worker_config: None,
         }
     }
 
@@ -229,6 +234,15 @@ impl AllocationQueue {
         self.allocations
             .values_mut()
             .filter(|alloc| alloc.is_active())
+    }
+
+    pub fn register_worker_config(&mut self, config: WorkerConfiguration) {
+        // Always overwrite the config with the latest one that we have seen
+        self.worker_config = Some(config);
+    }
+
+    pub fn get_worker_config(&self) -> Option<&WorkerConfiguration> {
+        self.worker_config.as_ref()
     }
 }
 
@@ -506,6 +520,7 @@ mod tests {
                     vec![],
                     None,
                     vec![],
+                    None,
                     None,
                     None,
                     None,

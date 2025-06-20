@@ -1,7 +1,3 @@
-use std::future::Future;
-use std::path::PathBuf;
-use std::time::{Instant, SystemTime};
-
 use crate::common::manager::info::{ManagerInfo, ManagerType};
 use crate::common::rpc::RpcReceiver;
 use crate::get_or_return;
@@ -22,6 +18,9 @@ use crate::server::autoalloc::{Allocation, AllocationId, AutoAllocResult, QueueI
 use crate::server::event::streamer::EventStreamer;
 use crate::transfer::messages::{AllocationQueueParams, QueueData, QueueState};
 use futures::future::join_all;
+use std::future::Future;
+use std::path::PathBuf;
+use std::time::{Instant, SystemTime};
 use tako::WorkerId;
 use tako::control::{ServerRef, WorkerTypeQuery};
 use tako::resources::{
@@ -208,7 +207,11 @@ async fn handle_message(
 ) -> bool {
     log::debug!("Handling message {message:?}");
     match message {
-        AutoAllocMessage::WorkerConnected(id, manager_info) => {
+        AutoAllocMessage::WorkerConnected {
+            id,
+            config,
+            manager_info,
+        } => {
             log::debug!(
                 "Registering worker {id} for allocation {}",
                 manager_info.allocation_id
@@ -216,6 +219,7 @@ async fn handle_message(
             if let Some((queue, queue_id, allocation_id)) =
                 get_data_from_worker(autoalloc, &manager_info)
             {
+                queue.register_worker_config(config);
                 log::info!(
                     "Worker {id} connected from allocation {}",
                     manager_info.allocation_id
@@ -424,19 +428,32 @@ fn create_queue_worker_query(queue: &AllocationQueue) -> WorkerTypeQuery {
     let info = queue.info();
 
     WorkerTypeQuery {
-        // The maximum number of workers that we can provide in this queue
-        // TODO: estimate the resources of the queue in a better way
+        descriptor: estimate_queue_resources(queue),
         partial: false,
-        descriptor: ResourceDescriptor::new(vec![ResourceDescriptorItem {
-            name: CPU_RESOURCE_NAME.to_string(),
-            kind: ResourceDescriptorKind::regular_sockets(1, 1),
-        }]),
         time_limit: Some(info.timelimit()),
         // How many workers can we provide at the moment
         max_sn_workers: info.backlog() * info.max_workers_per_alloc(),
         max_workers_per_allocation: info.max_workers_per_alloc(),
         min_utilization: info.min_utilization().unwrap_or(0.0),
     }
+}
+
+fn estimate_queue_resources(queue: &AllocationQueue) -> ResourceDescriptor {
+    // If we have a known worker config, we estimate resources based on it
+    if let Some(worker_config) = queue.get_worker_config() {
+        return worker_config.resources.clone();
+    }
+
+    // If not, try to at least figure something out from the CLI arguments
+    if let Some(resources) = queue.info().cli_resource_descriptor() {
+        return resources.clone();
+    }
+
+    // If that doesn't work, just conservatively default to a single CPU core
+    ResourceDescriptor::new(vec![ResourceDescriptorItem {
+        name: CPU_RESOURCE_NAME.to_string(),
+        kind: ResourceDescriptorKind::regular_sockets(1, 1),
+    }])
 }
 
 /// Permits the autoallocator to submit a given number of allocations with the given number of
@@ -520,8 +537,6 @@ Backlog: {}, currently queued: {}, max workers to spawn: {max_remaining_workers_
         .chain((remainder != 0).then_some(remainder));
 
     // Multi-node allocations have priority before single-node allocations
-    // TODO: can mn allocations request a (needlessly) smaller number of workers per alloc here
-    // if the mn tasks require less workers than `info.max_workers_per_alloc()`?
     let max_allocs_to_submit = info.backlog().saturating_sub(queued_allocs.len() as u32);
     let allocs_to_submit = (0..mn_alloc_count)
         .map(|_| query_response.multinode_workers_per_alloc)
@@ -2077,7 +2092,11 @@ mod tests {
                 handle_message(
                     &mut self.state,
                     &self.senders.events,
-                    AutoAllocMessage::WorkerConnected(handle.id, info)
+                    AutoAllocMessage::WorkerConnected {
+                        id: handle.id,
+                        config: config.clone(),
+                        manager_info: info
+                    }
                 )
                 .await
             );

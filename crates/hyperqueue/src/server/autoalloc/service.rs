@@ -20,7 +20,11 @@ use tako::JobId;
 #[derive(Debug)]
 pub enum AutoAllocMessage {
     // Events
-    WorkerConnected(WorkerId, ManagerInfo),
+    WorkerConnected {
+        id: WorkerId,
+        config: WorkerConfiguration,
+        manager_info: ManagerInfo,
+    },
     WorkerLost(WorkerId, ManagerInfo, LostWorkerDetails),
     // Some tasks were submitted to a job
     JobSubmitted(JobId),
@@ -67,7 +71,11 @@ impl AutoAllocService {
 
     pub fn on_worker_connected(&self, worker_id: WorkerId, configuration: &WorkerConfiguration) {
         if let Some(manager_info) = configuration.get_manager_info() {
-            self.send(AutoAllocMessage::WorkerConnected(worker_id, manager_info));
+            self.send(AutoAllocMessage::WorkerConnected {
+                id: worker_id,
+                config: configuration.clone(),
+                manager_info,
+            });
         }
     }
     pub fn on_worker_lost(
