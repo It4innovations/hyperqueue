@@ -19,22 +19,21 @@ pub struct AllocationInfoTable {
 impl AllocationInfoTable {
     pub fn update<'a>(
         &'a mut self,
-        allocation_info: impl Iterator<Item = (&'a AllocationId, &'a AllocationInfo)>,
+        allocations: Option<impl Iterator<Item = (&'a AllocationId, &'a AllocationInfo)>>,
     ) {
-        let rows = create_rows(allocation_info);
+        let rows = match allocations {
+            Some(allocations) => create_rows(allocations),
+            None => vec![],
+        };
         self.table.set_items(rows);
     }
 
-    pub fn select_next_allocation(&mut self) {
+    fn select_next_allocation(&mut self) {
         self.table.select_next_wrap();
     }
 
-    pub fn select_previous_allocation(&mut self) {
+    fn select_previous_allocation(&mut self) {
         self.table.select_previous_wrap();
-    }
-
-    pub fn clear_selection(&mut self) {
-        self.table.clear_selection();
     }
 
     pub fn draw(&mut self, rect: Rect, frame: &mut DashboardFrame, table_style: Style) {

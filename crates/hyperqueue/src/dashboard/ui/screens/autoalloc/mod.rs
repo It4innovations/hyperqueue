@@ -11,7 +11,6 @@ use crate::dashboard::ui::widgets::text::draw_text;
 use crate::server::autoalloc::QueueId;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use std::time::SystemTime;
 
 mod alloc_timeline_chart;
 mod allocations_info_table;
@@ -68,29 +67,26 @@ impl Screen for AutoAllocScreen {
     }
 
     fn update(&mut self, data: &DashboardData) {
-        let queue_infos: Vec<(&QueueId, &AllocationQueueInfo)> =
-            data.query_allocation_queues_at(SystemTime::now()).collect();
+        let queue_infos: Vec<(&QueueId, &AllocationQueueInfo)> = data
+            .query_allocation_queues_at(data.current_time())
+            .collect();
         self.queue_info_table.update(queue_infos);
 
-        if let Some(descriptor) = self.queue_info_table.get_selected_queue_descriptor() {
-            self.allocations_chart.update(data, descriptor);
+        if let Some(selected) = self.queue_info_table.get_selected_queue() {
+            self.allocations_chart.update(data, selected);
         }
 
-        if let Some(queue_params) = self
-            .queue_info_table
-            .get_selected_queue_descriptor()
-            .and_then(|queue_id| data.query_allocation_params(queue_id))
-        {
-            self.queue_params_table.update(queue_params)
-        }
+        self.queue_params_table.update(
+            self.queue_info_table
+                .get_selected_queue()
+                .and_then(|selected| data.query_allocation_params(selected)),
+        );
 
-        if let Some(allocations_map) = self
-            .queue_info_table
-            .get_selected_queue_descriptor()
-            .and_then(|queue_id| data.query_allocations_info_at(queue_id, SystemTime::now()))
-        {
-            self.allocations_info_table.update(allocations_map);
-        }
+        self.allocations_info_table.update(
+            self.queue_info_table
+                .get_selected_queue()
+                .and_then(|selected| data.query_allocations_info_at(selected, data.current_time())),
+        );
     }
 
     fn handle_key(&mut self, key: KeyEvent) {
@@ -102,7 +98,6 @@ impl Screen for AutoAllocScreen {
         match key.code {
             KeyCode::Char('1') => {
                 self.component_in_focus = FocusedComponent::QueueParamsTable;
-                self.allocations_info_table.clear_selection();
             }
             KeyCode::Char('2') => self.component_in_focus = FocusedComponent::AllocationInfoTable,
             _ => {}
