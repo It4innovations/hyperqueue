@@ -87,23 +87,19 @@ impl AllocationQueueInfo {
     fn update_allocation_state(
         &mut self,
         allocation_id: &AllocationId,
-        new_state: AllocationStatus,
+        state: AllocationStatus,
         at_time: SystemTime,
     ) {
-        let state = self
-            .allocations
-            .iter_mut()
-            .find(|(id, _)| id == &allocation_id)
-            .map(|(_, state)| state)
-            .unwrap();
-        match new_state {
-            AllocationStatus::Running => {
-                state.start_time = Some(at_time);
+        if let Some(info) = self.allocations.get_mut(allocation_id) {
+            match state {
+                AllocationStatus::Running => {
+                    info.start_time = Some(at_time);
+                }
+                AllocationStatus::Finished => {
+                    info.finish_time = Some(at_time);
+                }
+                _ => {}
             }
-            AllocationStatus::Finished => {
-                state.finish_time = Some(at_time);
-            }
-            _ => {}
         }
     }
 }
@@ -125,36 +121,40 @@ impl AllocationTimeline {
                     );
                 }
                 EventPayload::AllocationQueueRemoved(queue_id) => {
-                    let queue_state = self.queue_timelines.get_mut(queue_id).unwrap();
-                    queue_state.removal_time = Some(event.time.into());
+                    if let Some(queue_state) = self.queue_timelines.get_mut(queue_id) {
+                        queue_state.removal_time = Some(event.time.into());
+                    }
                 }
                 EventPayload::AllocationQueued {
                     queue_id,
                     allocation_id,
                     worker_count,
                 } => {
-                    let queue_state = self.queue_timelines.get_mut(queue_id).unwrap();
-                    queue_state.add_queued_allocation(
-                        allocation_id.clone(),
-                        *worker_count,
-                        event.time.into(),
-                    );
+                    if let Some(queue_state) = self.queue_timelines.get_mut(queue_id) {
+                        queue_state.add_queued_allocation(
+                            allocation_id.clone(),
+                            *worker_count,
+                            event.time.into(),
+                        );
+                    }
                 }
                 EventPayload::AllocationStarted(queue_id, allocation_id) => {
-                    let queue_state = self.queue_timelines.get_mut(queue_id).unwrap();
-                    queue_state.update_allocation_state(
-                        allocation_id,
-                        AllocationStatus::Running,
-                        event.time.into(),
-                    );
+                    if let Some(queue_state) = self.queue_timelines.get_mut(queue_id) {
+                        queue_state.update_allocation_state(
+                            allocation_id,
+                            AllocationStatus::Running,
+                            event.time.into(),
+                        );
+                    }
                 }
                 EventPayload::AllocationFinished(queue_id, allocation_id) => {
-                    let queue_state = self.queue_timelines.get_mut(queue_id).unwrap();
-                    queue_state.update_allocation_state(
-                        allocation_id,
-                        AllocationStatus::Finished,
-                        event.time.into(),
-                    );
+                    if let Some(queue_state) = self.queue_timelines.get_mut(queue_id) {
+                        queue_state.update_allocation_state(
+                            allocation_id,
+                            AllocationStatus::Finished,
+                            event.time.into(),
+                        );
+                    }
                 }
                 _ => {}
             }
