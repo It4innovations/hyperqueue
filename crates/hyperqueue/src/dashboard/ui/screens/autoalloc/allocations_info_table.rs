@@ -11,9 +11,16 @@ use ratatui::style::Style;
 use ratatui::widgets::{Cell, Row};
 use std::time::SystemTime;
 
-#[derive(Default)]
 pub struct AllocationInfoTable {
     table: StatefulTable<(AllocationId, AllocationInfo)>,
+}
+
+impl Default for AllocationInfoTable {
+    fn default() -> Self {
+        let mut table = StatefulTable::default();
+        table.set_missing_data_label("No allocation queue selected.");
+        Self { table }
+    }
 }
 
 impl AllocationInfoTable {
