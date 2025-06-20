@@ -1,5 +1,5 @@
 use crate::dashboard::DEFAULT_LIVE_DURATION;
-use crate::dashboard::data::{DashboardData, TimeRange};
+use crate::dashboard::data::{DashboardData, MIN_TIME_RANGE_DURATION, TimeRange};
 use crate::dashboard::ui::screen::Screen;
 use crate::dashboard::ui::screens::autoalloc::AutoAllocScreen;
 use crate::dashboard::ui::screens::cluster::WorkerOverviewScreen;
@@ -139,7 +139,7 @@ impl RootScreen {
 
 fn zoom_in(range: TimeRange) -> TimeRange {
     let duration = range.duration();
-    if duration.as_secs() <= 10 {
+    if duration <= MIN_TIME_RANGE_DURATION {
         return range;
     }
     let start = range.start() + duration / 4;
