@@ -35,8 +35,8 @@ impl TasksTable {
         }
     }
 
-    pub fn update(&mut self, tasks_info: Vec<(JobTaskId, &TaskInfo)>) {
-        let rows = create_rows(tasks_info);
+    pub fn update(&mut self, tasks_info: Vec<(JobTaskId, &TaskInfo)>, current_time: SystemTime) {
+        let rows = create_rows(tasks_info, current_time);
         self.table.set_items(rows);
     }
 
@@ -119,9 +119,9 @@ struct TaskRow {
     run_time: String,
 }
 
-fn create_rows(mut rows: Vec<(JobTaskId, &TaskInfo)>) -> Vec<TaskRow> {
+fn create_rows(mut rows: Vec<(JobTaskId, &TaskInfo)>, current_time: SystemTime) -> Vec<TaskRow> {
     rows.sort_by_key(|(_, task_info)| {
-        let status_index = match task_info.get_task_state_at(SystemTime::now()).unwrap() {
+        let status_index = match task_info.get_task_state_at(current_time).unwrap() {
             DashboardTaskState::Running => 0,
             DashboardTaskState::Finished => 1,
             DashboardTaskState::Failed => 2,
@@ -145,7 +145,7 @@ fn create_rows(mut rows: Vec<(JobTaskId, &TaskInfo)>) -> Vec<TaskRow> {
                 .unwrap_or_else(|| "".to_string());
 
             let run_time = match task_info.end_time {
-                None => SystemTime::now().duration_since(task_info.start_time),
+                None => current_time.duration_since(task_info.start_time),
                 Some(end_time) => end_time.duration_since(task_info.start_time),
             }
             .unwrap_or_default();
@@ -153,7 +153,7 @@ fn create_rows(mut rows: Vec<(JobTaskId, &TaskInfo)>) -> Vec<TaskRow> {
             TaskRow {
                 task_id: *task_id,
                 worker_id: task_info.worker_id,
-                task_state: match task_info.get_task_state_at(SystemTime::now()).unwrap() {
+                task_state: match task_info.get_task_state_at(current_time).unwrap() {
                     DashboardTaskState::Running => RUNNING.to_string(),
                     DashboardTaskState::Finished => FINISHED.to_string(),
                     DashboardTaskState::Failed => FAILED.to_string(),

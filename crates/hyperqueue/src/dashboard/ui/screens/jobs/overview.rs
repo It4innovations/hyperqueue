@@ -3,7 +3,6 @@ use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::text::draw_text;
 use crossterm::event::{KeyCode, KeyEvent};
 use std::default::Default;
-use std::time::SystemTime;
 
 use crate::dashboard::data::DashboardData;
 use crate::dashboard::data::timelines::job_timeline::TaskInfo;
@@ -80,9 +79,9 @@ impl JobOverview {
 
         if let Some(job_id) = self.job_list.get_selected_item() {
             let task_infos: Vec<(JobTaskId, &TaskInfo)> = data
-                .query_task_history_for_job(job_id, SystemTime::now())
+                .query_task_history_for_job(job_id, data.current_time())
                 .collect();
-            self.job_tasks_table.update(task_infos);
+            self.job_tasks_table.update(task_infos, data.current_time());
             self.job_task_chart.set_job_id(job_id);
         } else {
             self.job_task_chart.unset_job_id();

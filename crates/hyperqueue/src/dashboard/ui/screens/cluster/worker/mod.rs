@@ -114,7 +114,8 @@ impl WorkerDetail {
 
             let tasks_info: Vec<(JobTaskId, &TaskInfo)> =
                 data.query_task_history_for_worker(worker_id).collect();
-            self.worker_tasks_table.update(tasks_info);
+            self.worker_tasks_table
+                .update(tasks_info, data.current_time());
 
             if let Some(configuration) = data.workers().query_worker_config_for(worker_id) {
                 self.worker_config_table.update(configuration);

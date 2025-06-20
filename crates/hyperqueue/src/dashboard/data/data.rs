@@ -82,7 +82,7 @@ impl DashboardData {
         worker_id: WorkerId,
     ) -> impl Iterator<Item = (JobTaskId, &TaskInfo)> + '_ {
         self.job_timeline
-            .get_worker_task_history(worker_id, SystemTime::now())
+            .get_worker_task_history(worker_id, self.current_time())
     }
 
     /// Gets an iterator over the list of different allocation queues created before `time`.
