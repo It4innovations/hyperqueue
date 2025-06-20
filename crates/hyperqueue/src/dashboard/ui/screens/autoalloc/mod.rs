@@ -1,6 +1,6 @@
 use crate::dashboard::data::DashboardData;
 use crate::dashboard::data::timelines::alloc_timeline::{
-    AllocationQueueInfo, AllocationStatus, get_allocation_status,
+    AllocationQueueInfo, get_allocation_status,
 };
 use crate::dashboard::ui::screen::Screen;
 use crate::dashboard::ui::screens::autoalloc::alloc_timeline_chart::AllocationsChart;
@@ -88,13 +88,7 @@ impl Screen for AutoAllocScreen {
                     let allocations = data.query_allocations_info(selected);
                     allocations.map(|allocations| {
                         allocations.filter(|(_, info)| {
-                            let status = get_allocation_status(info, data.current_time());
-                            match status {
-                                AllocationStatus::Missing => false,
-                                AllocationStatus::Queued
-                                | AllocationStatus::Running
-                                | AllocationStatus::Finished => true,
-                            }
+                            !get_allocation_status(info, data.current_time()).is_missing()
                         })
                     })
                 }),
