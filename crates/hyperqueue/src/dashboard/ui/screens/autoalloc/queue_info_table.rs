@@ -42,12 +42,7 @@ impl AllocationQueueInfoTable {
             frame,
             TableColumnHeaders {
                 title: "Allocation Queues <1>",
-                table_headers: Some(vec![
-                    "Descriptor ID",
-                    "#Allocations",
-                    "Creation Time",
-                    "Removal Time",
-                ]),
+                table_headers: Some(vec!["ID", "#Allocations", "Creation Time", "Removal Time"]),
                 column_widths: vec![
                     Constraint::Percentage(25),
                     Constraint::Percentage(25),
