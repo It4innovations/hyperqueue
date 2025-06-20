@@ -377,7 +377,7 @@ async fn perform_submits(
         .iter()
         .map(|(_, queue)| create_queue_worker_query(queue))
         .collect();
-    let response = senders.server.new_worker_query(queries)?;
+    let response = senders.server.new_worker_query(queries, false)?;
     log::debug!("Scheduler query response: {response:?}");
 
     // Merge responses back into a single array

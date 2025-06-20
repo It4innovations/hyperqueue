@@ -6,6 +6,7 @@ use crate::internal::common::resources::{NumOfNodes, ResourceAmount, ResourceId}
 
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::resources::allocator::ResourceAllocator;
+use crate::resources::ResourceMap;
 use smallvec::SmallVec;
 use std::time::Duration;
 
@@ -147,6 +148,21 @@ impl ResourceRequest {
             }
         }
         Ok(())
+    }
+
+    pub fn to_gateway(&self, resource_map: &ResourceMap) -> crate::gateway::ResourceRequest {
+        crate::gateway::ResourceRequest {
+            n_nodes: self.n_nodes,
+            resources: self
+                .resources
+                .iter()
+                .map(|r| crate::gateway::ResourceRequestEntry {
+                    resource: resource_map.get_name(r.resource_id).unwrap().to_string(),
+                    policy: r.request.clone(),
+                })
+                .collect(),
+            min_time: self.min_time,
+        }
     }
 }
 
