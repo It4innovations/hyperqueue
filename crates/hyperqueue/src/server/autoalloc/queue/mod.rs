@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::time::{Duration, SystemTime};
 use tako::Map;
+use tako::resources::ResourceDescriptor;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QueueInfo {
@@ -25,6 +26,7 @@ pub struct QueueInfo {
     worker_start_cmd: Option<String>,
     worker_stop_cmd: Option<String>,
     min_utilization: Option<f32>,
+    cli_resource_descriptor: Option<ResourceDescriptor>,
 }
 
 impl QueueInfo {
@@ -41,6 +43,7 @@ impl QueueInfo {
         worker_start_cmd: Option<String>,
         worker_stop_cmd: Option<String>,
         min_utilization: Option<f32>,
+        cli_resource_descriptor: Option<ResourceDescriptor>,
     ) -> Self {
         Self {
             manager,
@@ -54,6 +57,7 @@ impl QueueInfo {
             worker_start_cmd,
             worker_stop_cmd,
             min_utilization,
+            cli_resource_descriptor,
         }
     }
 
@@ -87,6 +91,10 @@ impl QueueInfo {
 
     pub fn min_utilization(&self) -> Option<f32> {
         self.min_utilization
+    }
+
+    pub fn cli_resource_descriptor(&self) -> Option<&ResourceDescriptor> {
+        self.cli_resource_descriptor.as_ref()
     }
 }
 

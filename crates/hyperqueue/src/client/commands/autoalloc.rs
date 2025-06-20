@@ -1,9 +1,6 @@
 use crate::client::commands::duration_doc;
 use std::time::Duration;
 
-use clap::Parser;
-use humantime::format_duration;
-
 use crate::client::commands::worker::{ArgServerLostPolicy, SharedWorkerStartOpts};
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::format::server_lost_policy_to_str;
@@ -16,6 +13,9 @@ use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
     AllocationQueueParams, AutoAllocRequest, AutoAllocResponse, FromClientMessage, ToClientMessage,
 };
+use clap::Parser;
+use humantime::format_duration;
+use tako::resources::{CPU_RESOURCE_NAME, ResourceDescriptor, ResourceDescriptorItem};
 
 #[derive(Parser)]
 pub struct AutoAllocOpts {
@@ -290,6 +290,9 @@ wasted allocation duration."
         }
     }
 
+    // Try to guess how would the resource descriptor look like for the worker
+    let cli_resource_descriptor = construct_resources_from_cli(&worker_args);
+
     let SharedWorkerStartOpts {
         cpus,
         resource,
@@ -306,7 +309,12 @@ wasted allocation duration."
             "--cpus".to_string(),
             format!("\"{}\"", cpus.into_original_input()),
         ]);
+    } else {
+        log::warn!(
+            "Creating an autoalloc queue without specifying worker core count. Consider specifying the core count of workers in this queue to improve the efficiency of automatic allocation."
+        )
     }
+
     for arg in resource {
         worker_args.extend([
             "--resource".to_string(),
@@ -352,7 +360,34 @@ wasted allocation duration."
         max_worker_count,
         worker_args,
         idle_timeout,
+        cli_resource_descriptor,
     })
+}
+
+fn construct_resources_from_cli(args: &SharedWorkerStartOpts) -> Option<ResourceDescriptor> {
+    let SharedWorkerStartOpts { resource, cpus, .. } = args;
+
+    if resource.is_empty() && cpus.is_none() {
+        return None;
+    }
+
+    let mut resources: Vec<ResourceDescriptorItem> = resource
+        .into_iter()
+        .map(|x| x.as_parsed_arg().clone())
+        .collect();
+    let cpu_resources = resources.iter().find(|x| x.name == CPU_RESOURCE_NAME);
+    if cpu_resources.is_none() {
+        if let Some(cpus) = cpus {
+            resources.push(ResourceDescriptorItem {
+                name: CPU_RESOURCE_NAME.to_string(),
+                kind: cpus.as_parsed_arg().clone(),
+            });
+        }
+    };
+
+    let resources = ResourceDescriptor::new(resources);
+    resources.validate().ok()?;
+    Some(resources)
 }
 
 async fn dry_run_command(mut session: ClientSession, opts: DryRunOpts) -> anyhow::Result<()> {
