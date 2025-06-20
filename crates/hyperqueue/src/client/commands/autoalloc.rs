@@ -1,9 +1,6 @@
 use crate::client::commands::duration_doc;
 use std::time::Duration;
 
-use clap::Parser;
-use humantime::format_duration;
-
 use crate::client::commands::worker::{ArgServerLostPolicy, SharedWorkerStartOpts};
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::format::server_lost_policy_to_str;
