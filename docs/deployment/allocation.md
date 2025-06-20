@@ -58,8 +58,10 @@ create multiple allocation queues, and you can even combine PBS queues with Slur
     as we could try to make that easier in HyperQueue if there was enough interest in it.
 
 ### Parameters
-In addition to arguments that are passed to `qsub`/`sbatch`, you can also use several other command line options when
-creating a new allocation queue:
+In addition to arguments that are passed to `qsub`/`sbatch`, you can also use several other command line options when creating a new allocation queue.
+
+!!! tip
+    We recommend you to specify the worker resources that will be available on workers spawned in the given allocation queue using the `--cpus` and `--resource` flags as precisely as possible. It will help the automatic allocator create the first allocation more accurately.
 
 #### Time limit
 Format[^1]: **`--time-limit <duration>`**
@@ -85,6 +87,14 @@ Workers in this allocation queue will be by default created with a time limit eq
 Format: `--backlog <count>`
 
 How many allocations should be queued (waiting to be started) in PBS/Slurm at any given time. Has to be a positive integer.
+
+!!! note
+
+    The **backlog** value does not limit the number of running allocations, only the number of queued allocations.
+
+!!! warning
+
+    Do not set the `backlog` to a large number to avoid potentially overloading the job manager.
 
 #### Maximum number of workers per allocation
 Format: `--max-workers-per-alloc <count>`
@@ -181,23 +191,8 @@ only.
 [^1]: You can use various [shortcuts](../cli/shortcuts.md#duration) for the duration value.
 
 ## Behavior
-The automatic allocator will submit allocations to make sure that there are is a specific number
-of allocations waiting to be started by the job manager. This number is called **backlog** and you
-can [set it](#parameters) when creating the queue.
-
-For example, if **backlog** was set to `4` and there is currently only one allocation queued into the job manager,
-the allocator would queue three more allocations.
-
-The backlog serves to pre-queue allocations, because it can take some time before the job manager
-starts them, and also as a load balancing factor, since it will allocate as many resources as the job manager allows.
-
-!!! note
-
-    The **backlog** value does not limit the number of running allocations, only the number of queued allocations.
-
-!!! warning
-
-    Do not set the `backlog` to a large number to avoid overloading the job manager.
+The automatic allocator coordinates with the scheduler to figure out how many workers are needed in order
+to compute currently submitted tasks that are waiting for resources.
 
 When an allocation starts, a HyperQueue [worker](worker.md) will start and connect to the HyperQueue
 server that queued the allocation. The worker has the [idle timeout](worker.md#idle-timeout) set to
