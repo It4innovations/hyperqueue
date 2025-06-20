@@ -21,7 +21,7 @@ use crate::internal::server::explain::{
 };
 use crate::internal::server::reactor::on_cancel_tasks;
 use crate::internal::server::worker::DEFAULT_WORKER_OVERVIEW_INTERVAL;
-use crate::resources::ResourceDescriptor;
+use crate::resources::{NumOfNodes, ResourceDescriptor};
 use crate::{TaskId, WorkerId};
 
 #[derive(Debug)]
@@ -40,13 +40,25 @@ pub struct WorkerTypeQuery {
 }
 
 #[derive(Debug)]
+pub struct SingleNodeLeftOvers {
+    pub min_time: Duration,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub struct MultiNodeLeftOvers {
+    pub n_nodes: NumOfNodes,
+    pub min_time: Duration,
+}
+
+#[derive(Debug)]
 pub struct NewWorkerAllocationResponse {
     /// Array of the same size as the number of queries, it returns the number of workers that should
     /// be spawned for the given query
     pub single_node_workers_per_query: Vec<usize>,
     /// True iff not all tasks could be executed on resources provided in the query
-    pub single_node_leftovers: bool,
+    pub single_node_leftovers: Option<SingleNodeLeftOvers>,
     pub multi_node_allocations: Vec<MultiNodeAllocationResponse>,
+    pub multi_node_leftovers: crate::Set<MultiNodeLeftOvers>,
 }
 
 #[derive(Clone)]
