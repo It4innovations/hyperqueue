@@ -17,6 +17,7 @@ use tako::gateway::{
     WorkerRuntimeInfo,
 };
 use tako::program::ProgramDefinition;
+use tako::resources::ResourceDescriptor;
 use tako::server::TaskExplanation;
 use tako::worker::WorkerConfiguration;
 use tako::{JobId, JobTaskCount, JobTaskId, Map, TaskId, WorkerId};
@@ -314,6 +315,9 @@ pub struct AllocationQueueParams {
 
     pub worker_start_cmd: Option<String>,
     pub worker_stop_cmd: Option<String>,
+
+    /// Resources descriptor constructed from worker CLI options
+    pub cli_resource_descriptor: Option<ResourceDescriptor>,
 
     // Black-box worker args that will be passed to `worker start`
     pub worker_args: Vec<String>,
