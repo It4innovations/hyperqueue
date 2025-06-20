@@ -18,8 +18,11 @@ struct QueueParamsDataRow {
 }
 
 impl QueueParamsTable {
-    pub fn update(&mut self, queue_params: &AllocationQueueParams) {
-        let rows = create_rows(queue_params);
+    pub fn update(&mut self, queue_params: Option<&AllocationQueueParams>) {
+        let rows = match queue_params {
+            Some(params) => create_rows(params),
+            None => vec![],
+        };
         self.table.set_items(rows);
     }
 

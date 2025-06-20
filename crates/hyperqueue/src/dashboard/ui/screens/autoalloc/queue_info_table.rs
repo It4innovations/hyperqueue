@@ -27,7 +27,7 @@ impl AllocationQueueInfoTable {
         self.table.select_previous_wrap();
     }
 
-    pub fn get_selected_queue_descriptor(&self) -> Option<QueueId> {
+    pub fn get_selected_queue(&self) -> Option<QueueId> {
         let selection = self.table.current_selection();
         selection.map(|row| row.queue_id)
     }
@@ -67,6 +67,7 @@ impl AllocationQueueInfoTable {
         match key.code {
             KeyCode::Down => self.select_next_queue(),
             KeyCode::Up => self.select_previous_queue(),
+            KeyCode::Esc => self.table.clear_selection(),
             _ => {}
         }
     }
