@@ -22,7 +22,7 @@ pub(crate) fn compute_new_worker_query(
     // Scheduler has to be performed before the query, so there should be no ready_to_assign tasks
     assert!(core.sn_ready_to_assign().is_empty() || !core.has_workers());
 
-    let add_task = |new_loads: &mut [WorkerTypeState], task: &Task| {
+    let add_task = |new_loads: &mut [WorkerTypeState], task: &Task| -> bool {
         let request = &task.configuration.resources;
         for ws in new_loads.iter_mut() {
             if let Some(time_limit) = ws.time_limit {
@@ -38,16 +38,17 @@ pub(crate) fn compute_new_worker_query(
             for load in ws.loads.iter_mut() {
                 if load.have_immediate_resources_for_rqv(request, &ws.w_resources) {
                     load.add_request(task.id, request, &ws.w_resources);
-                    return;
+                    return false;
                 }
             }
             if ws.loads.len() < ws.max as usize {
                 let mut load = WorkerLoad::new(&ws.w_resources);
                 load.add_request(task.id, request, &ws.w_resources);
                 ws.loads.push(load);
-                return;
+                return false;
             }
         }
+        true
     };
 
     /* Make sure that all named resources provided has an Id */
@@ -68,6 +69,7 @@ pub(crate) fn compute_new_worker_query(
         })
         .collect();
 
+    let mut leftover = false;
     for worker in core.get_workers() {
         let mut load = WorkerLoad::new(&worker.resources);
         for task_id in worker.sn_tasks() {
@@ -79,12 +81,12 @@ pub(crate) fn compute_new_worker_query(
                 load.add_request(task.id, request, &worker.resources);
                 continue;
             }
-            add_task(&mut new_loads, task);
+            leftover |= add_task(&mut new_loads, task);
         }
     }
     for task_id in core.sleeping_sn_tasks() {
         let task = core.get_task(*task_id);
-        add_task(&mut new_loads, task);
+        leftover |= add_task(&mut new_loads, task);
     }
 
     // `compute_new_worker_query` should be called immediately after scheduling was performed,
@@ -93,7 +95,7 @@ pub(crate) fn compute_new_worker_query(
     // postponing ready_to_assign. So we have to look also into this array
     for task_id in core.sn_ready_to_assign() {
         let task = core.get_task(*task_id);
-        add_task(&mut new_loads, task);
+        leftover |= add_task(&mut new_loads, task);
     }
 
     let single_node_allocations = new_loads
@@ -140,6 +142,7 @@ pub(crate) fn compute_new_worker_query(
 
     NewWorkerAllocationResponse {
         single_node_workers_per_query: single_node_allocations,
+        single_node_leftovers: leftover,
         multi_node_allocations,
     }
 }

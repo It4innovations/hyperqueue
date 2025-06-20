@@ -41,9 +41,11 @@ pub struct WorkerTypeQuery {
 
 #[derive(Debug)]
 pub struct NewWorkerAllocationResponse {
-    /// Array of the same size as number of queries, it returns the number of workers that should
+    /// Array of the same size as the number of queries, it returns the number of workers that should
     /// be spawned for the given query
     pub single_node_workers_per_query: Vec<usize>,
+    /// True iff not all tasks could be executed on resources provided in the query
+    pub single_node_leftovers: bool,
     pub multi_node_allocations: Vec<MultiNodeAllocationResponse>,
 }
 
