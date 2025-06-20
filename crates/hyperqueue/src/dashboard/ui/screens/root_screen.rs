@@ -228,11 +228,14 @@ fn render_timeline(data: &DashboardData, rect: Rect, frame: &mut Frame) {
         "%d.%m. %H:%M:%S"
     };
 
+    // Round the duration to avoid milliseconds etc.
+    let duration = range.duration() - Duration::from_nanos(range.duration().subsec_nanos() as u64);
+
     let range = format!(
         "{} - {} ({})",
         start.format(date_format),
         end.format(date_format),
-        humantime::format_duration(range.duration())
+        humantime::format_duration(duration)
     );
     let range_paragraph = Paragraph::new(Text::from(range))
         .alignment(Alignment::Right)
@@ -244,9 +247,16 @@ fn render_timeline(data: &DashboardData, rect: Rect, frame: &mut Frame) {
         true => "[stream]",
         false => "[replay]",
     };
+
+    let offset = offset_duration(data).as_secs();
+    let offset = if offset < 60 {
+        format!("{}s", offset)
+    } else {
+        format!("{}m", offset / 60)
+    };
+
     let mut text = format!(
-        "{mode}\n<{KEY_TIMELINE_SOONER}> -{offset}m, <{KEY_TIMELINE_LATER}> +{offset}m, <{KEY_TIMELINE_ZOOM_IN}> zoom in, <{KEY_TIMELINE_ZOOM_OUT}> zoom out",
-        offset = offset_duration(data).as_secs() / 60
+        "{mode}\n<{KEY_TIMELINE_SOONER}> -{offset}, <{KEY_TIMELINE_LATER}> +{offset}, <{KEY_TIMELINE_ZOOM_IN}> zoom in, <{KEY_TIMELINE_ZOOM_OUT}> zoom out",
     );
     if !data.is_live_time_mode() && data.stream_enabled() {
         write!(text, "\n<{KEY_TIMELINE_LIVE}> live view").unwrap();
@@ -259,7 +269,8 @@ fn render_timeline(data: &DashboardData, rect: Rect, frame: &mut Frame) {
 }
 
 fn offset_duration(data: &DashboardData) -> Duration {
-    data.current_time_range().duration() / 4
+    let duration = data.current_time_range().duration();
+    (duration / 4).max(Duration::from_secs(1))
 }
 
 /// Helper function to create a centered rect using up certain percentage of the available rect
