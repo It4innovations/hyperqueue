@@ -34,6 +34,12 @@ pub enum AllocationStatus {
     Finished,
 }
 
+impl AllocationStatus {
+    pub fn is_missing(&self) -> bool {
+        matches!(self, Self::Missing)
+    }
+}
+
 pub fn get_allocation_status(info: &AllocationInfo, time: SystemTime) -> AllocationStatus {
     if time < info.queued_time {
         return AllocationStatus::Missing;
