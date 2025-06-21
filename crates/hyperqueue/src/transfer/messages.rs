@@ -50,7 +50,7 @@ pub enum FromClientMessage {
     FlushJournal,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
 pub enum PinMode {
     #[serde(rename = "none")]
     None,

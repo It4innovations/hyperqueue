@@ -69,6 +69,7 @@ fn create_worker_task(id: u32) -> Task {
             data_deps: vec![],
             data_flags: TaskDataFlags::empty(),
             body: Default::default(),
+            entry: None,
         },
         TaskState::Waiting(0),
     )
