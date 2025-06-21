@@ -19,13 +19,14 @@ pub fn create_task(id: TaskId) -> Task {
         time_limit: None,
         crash_limit: CrashLimit::default(),
         data_flags: TaskDataFlags::empty(),
+        body: Box::new([]),
     };
     Task::new(
         id,
         Default::default(),
         Default::default(),
+        None,
         Rc::new(conf),
-        Default::default(),
     )
 }
 pub fn create_worker(id: u64) -> Worker {

@@ -1,13 +1,11 @@
 use std::borrow::Cow;
 use std::path::PathBuf;
-use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use tako::gateway::{
-    EntryType, ResourceRequestVariants, SharedTaskConfiguration, TaskConfiguration, TaskDataFlags,
-    TaskSubmit,
+    EntryType, SharedTaskConfiguration, TaskConfiguration, TaskDataFlags, TaskSubmit,
 };
-use tako::{Map, Set, TaskId};
+use tako::{Set, TaskId};
 use thin_vec::ThinVec;
 
 use crate::common::arraydef::IntArray;
@@ -23,7 +21,7 @@ use crate::transfer::messages::{
     TaskExplainResponse, TaskIdSelector, TaskKind, TaskKindProgram, TaskSelector,
     TaskStatusSelector, TaskWithDependencies, ToClientMessage,
 };
-use tako::{JobId, JobTaskCount, JobTaskId, Priority};
+use tako::{JobId, JobTaskCount, JobTaskId};
 
 fn create_task_submit(job_id: JobId, submit_desc: &mut JobSubmitDescription) -> TaskSubmit {
     match &mut submit_desc.task_desc {
@@ -296,36 +294,17 @@ fn build_tasks_graph(
     stream_path: Option<&PathBuf>,
 ) -> TaskSubmit {
     let mut shared_data = vec![];
-    let mut shared_data_map =
-        Map::<(Cow<ResourceRequestVariants>, Option<Duration>, Priority), usize>::new();
     let mut allocate_shared_data = |task: &TaskDescription, data_flags: TaskDataFlags| -> u32 {
-        shared_data_map
-            .get(&(
-                Cow::Borrowed(&task.resources),
-                task.time_limit,
-                task.priority,
-            ))
-            .copied()
-            .unwrap_or_else(|| {
-                let index = shared_data.len();
-                shared_data_map.insert(
-                    (
-                        Cow::Owned(task.resources.clone()),
-                        task.time_limit,
-                        task.priority,
-                    ),
-                    index,
-                );
-                shared_data.push(SharedTaskConfiguration {
-                    resources: task.resources.clone(),
-                    time_limit: task.time_limit,
-                    priority: task.priority,
-                    crash_limit: task.crash_limit,
-                    data_flags,
-                    body: serialize_task_body(task, submit_dir, stream_path),
-                });
-                index
-            }) as u32
+        let index = shared_data.len();
+        shared_data.push(SharedTaskConfiguration {
+            resources: task.resources.clone(),
+            time_limit: task.time_limit,
+            priority: task.priority,
+            crash_limit: task.crash_limit,
+            data_flags,
+            body: serialize_task_body(task, submit_dir, stream_path),
+        });
+        index as u32
     };
 
     let mut task_configs = Vec::with_capacity(tasks.len());
@@ -434,32 +413,6 @@ mod tests {
     use tako::program::ProgramDefinition;
     use tako::resources::{AllocationRequest, CPU_RESOURCE_NAME, ResourceAmount};
     use tako::{Priority, TaskId};
-
-    #[test]
-    fn test_build_graph_deduplicate_shared_confs() {
-        let desc_a = || task_desc(None, 0, 1);
-        let desc_b = || task_desc(Some(Duration::default()), 0, 1);
-        let desc_c = || task_desc(None, 0, 3);
-
-        let tasks = vec![
-            task(0, desc_a(), vec![]),
-            task(1, desc_c(), vec![]),
-            task(2, desc_a(), vec![]),
-            task(3, desc_b(), vec![]),
-            task(4, desc_a(), vec![]),
-        ];
-
-        let msg = build_tasks_graph(1.into(), &tasks, &PathBuf::from("foo"), None);
-
-        check_shared_data(&msg.shared_data, vec![desc_a(), desc_c(), desc_b()]);
-        assert_eq!(
-            msg.tasks
-                .into_iter()
-                .map(|t| t.shared_data_index)
-                .collect::<Vec<_>>(),
-            vec![0, 1, 0, 2, 0]
-        );
-    }
 
     #[test]
     fn test_validate_submit() {
