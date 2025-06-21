@@ -486,31 +486,33 @@ fn test_query_min_time1() {
 
 #[test]
 fn test_query_sn_leftovers1() {
-    for (n, leftovers) in [(1, false), (4, false), (8, false), (9, true), (12, true)] {
-        let mut rt = TestEnv::new();
+    for collect_leftovers in [true, false] {
+        for (n, leftovers) in [(1, false), (4, false), (8, false), (9, true), (12, true)] {
+            let mut rt = TestEnv::new();
 
-        rt.new_workers(&[4]);
-        for i in 1..=n {
-            rt.new_task(TaskBuilder::new(i).cpus_compact(1).time_request(5_000));
-        }
-        rt.schedule();
+            rt.new_workers(&[4]);
+            for i in 1..=n {
+                rt.new_task(TaskBuilder::new(i).cpus_compact(1).time_request(5_000));
+            }
+            rt.schedule();
 
-        let r = compute_new_worker_query(
-            rt.core(),
-            &[WorkerTypeQuery {
-                descriptor: ResourceDescriptor::simple(2),
-                time_limit: None,
-                max_sn_workers: 2,
-                max_workers_per_allocation: 1,
-                min_utilization: 0.0,
-            }],
-            true,
-        );
-        if leftovers {
-            assert_eq!(r.leftovers.len(), 1);
-            assert_eq!(r.leftovers[0].min_time.as_secs(), 5_000);
-        } else {
-            assert!(r.leftovers.is_empty());
+            let r = compute_new_worker_query(
+                rt.core(),
+                &[WorkerTypeQuery {
+                    descriptor: ResourceDescriptor::simple(2),
+                    time_limit: None,
+                    max_sn_workers: 2,
+                    max_workers_per_allocation: 1,
+                    min_utilization: 0.0,
+                }],
+                collect_leftovers,
+            );
+            if leftovers && collect_leftovers {
+                assert_eq!(r.leftovers.len(), 1);
+                assert_eq!(r.leftovers[0].min_time.as_secs(), 5_000);
+            } else {
+                assert!(r.leftovers.is_empty());
+            }
         }
     }
 }
@@ -550,19 +552,25 @@ fn test_query_mn_leftovers() {
     rt.new_task(TaskBuilder::new(2).n_nodes(2).time_request(1750));
     rt.schedule();
 
-    let r = compute_new_worker_query(
-        rt.core(),
-        &[WorkerTypeQuery {
-            descriptor: ResourceDescriptor::simple(1),
-            time_limit: None,
-            max_sn_workers: 3,
-            max_workers_per_allocation: 3,
-            min_utilization: 0.0,
-        }],
-        true,
-    );
-    assert_eq!(r.leftovers.len(), 1);
-    let lo = &r.leftovers[0];
-    assert_eq!(lo.min_time, Duration::from_secs(750));
-    assert_eq!(lo.n_nodes, 4);
+    for collect_leftovers in [true, false] {
+        let r = compute_new_worker_query(
+            rt.core(),
+            &[WorkerTypeQuery {
+                descriptor: ResourceDescriptor::simple(1),
+                time_limit: None,
+                max_sn_workers: 3,
+                max_workers_per_allocation: 3,
+                min_utilization: 0.0,
+            }],
+            collect_leftovers,
+        );
+        if collect_leftovers {
+            assert_eq!(r.leftovers.len(), 1);
+            let lo = &r.leftovers[0];
+            assert_eq!(lo.min_time, Duration::from_secs(750));
+            assert_eq!(lo.n_nodes, 4);
+        } else {
+            r.leftovers.is_empty();
+        }
+    }
 }
