@@ -36,7 +36,7 @@ use chumsky::text::TextParser;
 use clap::{ArgMatches, Parser};
 use smallvec::smallvec;
 use tako::gateway::{
-    CrashLimit, ResourceRequest, ResourceRequestEntries, ResourceRequestEntry,
+    CrashLimit, EntryType, ResourceRequest, ResourceRequestEntries, ResourceRequestEntry,
     ResourceRequestVariants,
 };
 use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
@@ -784,7 +784,7 @@ pub(crate) async fn send_submit_request(
     Ok(())
 }
 
-fn get_ids_and_entries(opts: &JobSubmitOpts) -> anyhow::Result<(IntArray, Option<Vec<BString>>)> {
+fn get_ids_and_entries(opts: &JobSubmitOpts) -> anyhow::Result<(IntArray, Option<Vec<EntryType>>)> {
     let mut entries = if let Some(ref filename) = opts.conf.each_line {
         Some(read_lines(filename)?)
     } else if let Some(ref filename) = opts.conf.from_json {
@@ -953,20 +953,20 @@ fn validate_name(name: String) -> anyhow::Result<String> {
 }
 
 // We need to read it as bytes, because not all our users use UTF-8
-fn read_lines(filename: &Path) -> anyhow::Result<Vec<BString>> {
+fn read_lines(filename: &Path) -> anyhow::Result<Vec<EntryType>> {
     log::info!("Reading file: {}", filename.display());
     if fs::metadata(filename)?.len() > 100 << 20 {
         log::warn!("Reading file bigger than 100MB");
     };
     let file = std::fs::File::open(filename)?;
-    let results: Result<Vec<BString>, std::io::Error> = io::BufReader::new(file)
+    let results: Result<Vec<EntryType>, std::io::Error> = io::BufReader::new(file)
         .split(b'\n')
-        .map(|x| x.map(BString::from))
+        .map(|x| x.map(EntryType::from))
         .collect();
     Ok(results?)
 }
 
-fn make_entries_from_json(filename: &Path) -> anyhow::Result<Vec<BString>> {
+fn make_entries_from_json(filename: &Path) -> anyhow::Result<Vec<EntryType>> {
     log::info!("Reading json file: {}", filename.display());
     if fs::metadata(filename)?.len() > 100 << 20 {
         log::warn!("Reading file bigger then 100MB");
@@ -979,7 +979,7 @@ fn make_entries_from_json(filename: &Path) -> anyhow::Result<Vec<BString>> {
             .iter()
             .map(|element| {
                 serde_json::to_string(element)
-                    .map(BString::from)
+                    .map(|x| EntryType::from(x.as_bytes()))
                     .map_err(|e| e.into())
             })
             .collect()

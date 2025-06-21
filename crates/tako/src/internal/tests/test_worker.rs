@@ -89,6 +89,7 @@ fn create_dummy_compute_msg(task_id: TaskId) -> ComputeTaskMsg {
         data_deps: vec![],
         data_flags: TaskDataFlags::empty(),
         body: Default::default(),
+        entry: None,
     }
 }
 
