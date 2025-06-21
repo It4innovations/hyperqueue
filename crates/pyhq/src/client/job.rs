@@ -78,6 +78,7 @@ pub fn submit_job_impl(py: Python, ctx: ClientContextPtr, job: PyJobDescription)
     run_future(async move {
         let submit_dir = get_current_dir();
         let tasks = build_tasks(job.tasks, &submit_dir)?;
+        dbg!(&tasks);
         let task_desc = HqJobDescription::Graph { tasks };
 
         let message = FromClientMessage::Submit(SubmitRequest {

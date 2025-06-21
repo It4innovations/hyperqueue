@@ -296,36 +296,17 @@ fn build_tasks_graph(
     stream_path: Option<&PathBuf>,
 ) -> TaskSubmit {
     let mut shared_data = vec![];
-    let mut shared_data_map =
-        Map::<(Cow<ResourceRequestVariants>, Option<Duration>, Priority), usize>::new();
     let mut allocate_shared_data = |task: &TaskDescription, data_flags: TaskDataFlags| -> u32 {
-        shared_data_map
-            .get(&(
-                Cow::Borrowed(&task.resources),
-                task.time_limit,
-                task.priority,
-            ))
-            .copied()
-            .unwrap_or_else(|| {
-                let index = shared_data.len();
-                shared_data_map.insert(
-                    (
-                        Cow::Owned(task.resources.clone()),
-                        task.time_limit,
-                        task.priority,
-                    ),
-                    index,
-                );
-                shared_data.push(SharedTaskConfiguration {
-                    resources: task.resources.clone(),
-                    time_limit: task.time_limit,
-                    priority: task.priority,
-                    crash_limit: task.crash_limit,
-                    data_flags,
-                    body: serialize_task_body(task, submit_dir, stream_path),
-                });
-                index
-            }) as u32
+        let index = shared_data.len();
+        shared_data.push(SharedTaskConfiguration {
+            resources: task.resources.clone(),
+            time_limit: task.time_limit,
+            priority: task.priority,
+            crash_limit: task.crash_limit,
+            data_flags,
+            body: serialize_task_body(task, submit_dir, stream_path),
+        });
+        index as u32
     };
 
     let mut task_configs = Vec::with_capacity(tasks.len());
