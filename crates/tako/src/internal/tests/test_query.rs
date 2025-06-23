@@ -378,6 +378,33 @@ fn test_query_min_utilization2() {
 }
 
 #[test]
+fn test_query_min_utilization3() {
+    let mut core = Core::default();
+
+    let t1 = TaskBuilder::new(1).cpus_compact(2).build();
+    let t2 = TaskBuilder::new(2).cpus_compact(2).build();
+    submit_test_tasks(&mut core, vec![t1, t2]);
+
+    let descriptor = ResourceDescriptor::new(vec![ResourceDescriptorItem {
+        name: "cpus".into(),
+        kind: ResourceDescriptorKind::simple_indices(4),
+    }]);
+    let r = compute_new_worker_query(
+        &mut core,
+        &[WorkerTypeQuery {
+            descriptor,
+            time_limit: None,
+            max_sn_workers: 2,
+            max_workers_per_allocation: 1,
+            min_utilization: 1.0,
+        }],
+        false,
+    );
+    assert_eq!(r.single_node_workers_per_query, vec![1]);
+    assert!(r.multi_node_allocations.is_empty());
+}
+
+#[test]
 fn test_query_min_time2() {
     let mut core = Core::default();
 
