@@ -91,16 +91,19 @@ fn test_worker_add() {
     assert_eq!(core.get_workers().count(), 1);
 
     let wcfg2 = WorkerConfiguration {
-        resources: ResourceDescriptor::new(vec![
-            ResourceDescriptorItem {
-                name: "cpus".to_string(),
-                kind: res_kind_groups(&[vec!["2", "3", "4"], vec!["100", "150"]]),
-            },
-            ResourceDescriptorItem {
-                name: "mem".to_string(),
-                kind: res_kind_sum(100_000_000),
-            },
-        ]),
+        resources: ResourceDescriptor::new(
+            vec![
+                ResourceDescriptorItem {
+                    name: "cpus".to_string(),
+                    kind: res_kind_groups(&[vec!["2", "3", "4"], vec!["100", "150"]]),
+                },
+                ResourceDescriptorItem {
+                    name: "mem".to_string(),
+                    kind: res_kind_sum(100_000_000),
+                },
+            ],
+            None,
+        ),
         listen_address: "test2:123".into(),
         hostname: "test2".to_string(),
         group: "default".to_string(),

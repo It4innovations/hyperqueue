@@ -14,4 +14,6 @@ pub(crate) mod data;
 pub(crate) mod localcomm;
 
 #[cfg(test)]
+mod test_rqueue;
+#[cfg(test)]
 mod test_util;

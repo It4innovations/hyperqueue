@@ -357,16 +357,19 @@ fn test_query_min_utilization2() {
         (0.55, 0, 4, 200),
         (0.45, 1, 4, 200),
     ] {
-        let descriptor = ResourceDescriptor::new(vec![
-            ResourceDescriptorItem {
-                name: "cpus".into(),
-                kind: ResourceDescriptorKind::simple_indices(*cpus),
-            },
-            ResourceDescriptorItem {
-                name: "gpus".into(),
-                kind: ResourceDescriptorKind::simple_indices(*gpus),
-            },
-        ]);
+        let descriptor = ResourceDescriptor::new(
+            vec![
+                ResourceDescriptorItem {
+                    name: "cpus".into(),
+                    kind: ResourceDescriptorKind::simple_indices(*cpus),
+                },
+                ResourceDescriptorItem {
+                    name: "gpus".into(),
+                    kind: ResourceDescriptorKind::simple_indices(*gpus),
+                },
+            ],
+            None,
+        );
         let r = compute_new_worker_query(
             &mut core,
             &[WorkerTypeQuery {
@@ -482,10 +485,13 @@ fn test_query_min_time2() {
     scheduler.run_scheduling(&mut core, &mut comm);
 
     for (cpus, secs, alloc) in [(2, 75, 0), (1, 100, 1), (4, 50, 1)] {
-        let descriptor = ResourceDescriptor::new(vec![ResourceDescriptorItem {
-            name: "cpus".into(),
-            kind: ResourceDescriptorKind::simple_indices(cpus),
-        }]);
+        let descriptor = ResourceDescriptor::new(
+            vec![ResourceDescriptorItem {
+                name: "cpus".into(),
+                kind: ResourceDescriptorKind::simple_indices(cpus),
+            }],
+            None,
+        );
         let r = compute_new_worker_query(
             &mut core,
             &[WorkerTypeQuery {
@@ -520,10 +526,13 @@ fn test_query_min_time1() {
     let mut comm = create_test_comm();
     scheduler.run_scheduling(&mut core, &mut comm);
 
-    let descriptor = ResourceDescriptor::new(vec![ResourceDescriptorItem {
-        name: "cpus".into(),
-        kind: ResourceDescriptorKind::simple_indices(10),
-    }]);
+    let descriptor = ResourceDescriptor::new(
+        vec![ResourceDescriptorItem {
+            name: "cpus".into(),
+            kind: ResourceDescriptorKind::simple_indices(10),
+        }],
+        None,
+    );
     let r = compute_new_worker_query(
         &mut core,
         &[WorkerTypeQuery {
@@ -552,10 +561,13 @@ fn test_query_min_time1() {
     assert_eq!(r.single_node_workers_per_query, vec![2]);
     assert!(r.multi_node_allocations.is_empty());
 
-    let descriptor = ResourceDescriptor::new(vec![ResourceDescriptorItem {
-        name: "cpus".into(),
-        kind: ResourceDescriptorKind::simple_indices(1),
-    }]);
+    let descriptor = ResourceDescriptor::new(
+        vec![ResourceDescriptorItem {
+            name: "cpus".into(),
+            kind: ResourceDescriptorKind::simple_indices(1),
+        }],
+        None,
+    );
     let r = compute_new_worker_query(
         &mut core,
         &[WorkerTypeQuery {
