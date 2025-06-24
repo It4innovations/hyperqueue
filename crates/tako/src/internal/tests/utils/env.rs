@@ -108,7 +108,7 @@ impl TestEnv {
                     kind: ResourceDescriptorKind::simple_indices(*c),
                 },
             );
-            let rd = ResourceDescriptor::new(rs);
+            let rd = ResourceDescriptor::new(rs, None);
 
             let wcfg = WorkerConfiguration {
                 resources: rd,
