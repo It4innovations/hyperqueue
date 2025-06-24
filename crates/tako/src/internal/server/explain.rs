@@ -169,7 +169,7 @@ mod tests {
                     ResourceDescriptorItem::range("cpus", 1, 10),
                     ResourceDescriptorItem::range("gpus", 1, 4),
                 ],
-                Vec::new(),
+                None,
             ),
         );
         wcfg.time_limit = Some(Duration::from_secs(40_000));
