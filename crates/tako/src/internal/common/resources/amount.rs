@@ -69,6 +69,11 @@ impl ResourceAmount {
     pub fn as_f32(&self) -> f32 {
         self.0 as f32 / FRACTIONS_PER_UNIT as f32
     }
+
+    #[inline]
+    pub fn saturating_sub(&self, rhs: ResourceAmount) -> ResourceAmount {
+        ResourceAmount(self.0.saturating_sub(rhs.0))
+    }
 }
 
 impl From<u32> for ResourceAmount {

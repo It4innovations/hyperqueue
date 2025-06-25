@@ -1,12 +1,15 @@
 use crate::internal::common::resources::descriptor::{ResourceDescriptor, ResourceDescriptorKind};
 use crate::internal::common::resources::{Allocation, ResourceId, ResourceRequestVariants};
-use crate::internal::tests::utils::resources::{ResBuilder, cpus_compact};
+use crate::internal::tests::utils::resources::{cpus_compact, ResBuilder};
 use crate::internal::tests::utils::shared::res_allocator_from_descriptor;
 use crate::internal::tests::utils::sorted_vec;
 use crate::internal::worker::resources::allocator::ResourceAllocator;
 use crate::internal::worker::resources::concise::{ConciseFreeResources, ConciseResourceState};
 use crate::internal::worker::resources::pool::ResourcePool;
-use crate::resources::{ResourceAmount, ResourceDescriptorItem, ResourceIndex, ResourceUnits};
+use crate::resources::{
+    ResourceAmount, ResourceDescriptiorCoupling, ResourceDescriptorItem, ResourceIndex,
+    ResourceUnits,
+};
 
 use std::rc::Rc;
 use std::time::Duration;
@@ -116,15 +119,13 @@ fn test_compute_blocking_level() {
     let rq = ResBuilder::default().add(0, 3).add(1, 1).finish();
 
     assert!(ResourceAllocator::compute_witness(&pools, &free, &rq, [].iter()).is_none());
-    assert!(
-        ResourceAllocator::compute_witness(
-            &pools,
-            &free,
-            &rq,
-            [Rc::new(Allocation::new_simple(&[1]))].iter()
-        )
-        .is_none()
-    );
+    assert!(ResourceAllocator::compute_witness(
+        &pools,
+        &free,
+        &rq,
+        [Rc::new(Allocation::new_simple(&[1]))].iter()
+    )
+    .is_none());
     assert_eq!(
         ResourceAllocator::compute_witness(
             &pools,
@@ -1040,4 +1041,112 @@ fn test_allocator_sum_fractions() {
         allocator.pools[0.into()].concise_state().amount_sum(),
         ResourceAmount::new_units(2)
     )
+}
+
+#[test]
+fn test_coupling1() {
+    for i in [0, 1, 2] {
+        let descriptor = ResourceDescriptor::new(
+            vec![
+                ResourceDescriptorItem {
+                    name: "cpus".to_string(),
+                    kind: ResourceDescriptorKind::regular_sockets(4, 3),
+                },
+                ResourceDescriptorItem {
+                    name: "foo".to_string(),
+                    kind: ResourceDescriptorKind::regular_sockets(4, 1),
+                },
+                ResourceDescriptorItem {
+                    name: "gpus".to_string(),
+                    kind: ResourceDescriptorKind::regular_sockets(4, 4),
+                },
+            ],
+            Some(ResourceDescriptiorCoupling {
+                names: vec!["cpus".to_string(), "gpus".to_string()],
+            }),
+        );
+
+        let mut allocator = test_allocator(&descriptor);
+        let rq1 = cpus_compact(2).finish_v();
+        for _ in 0..i {
+            allocator.try_allocate(&rq1).unwrap();
+        }
+        let rq2 = cpus_compact(2).add(2, 2).finish_v();
+        let (al3, _) = allocator.try_allocate(&rq2).unwrap();
+        let s1 = allocator.get_sockets(&al3, 0);
+        let s2 = allocator.get_sockets(&al3, 2);
+        assert_eq!(s1.len(), 1);
+        assert_eq!(s1, s2);
+        assert_eq!(al3.get_indices(0).len(), 2);
+        assert_eq!(al3.get_indices(2).len(), 2);
+        allocator.validate();
+    }
+}
+
+#[test]
+fn test_coupling2() {
+    let descriptor = ResourceDescriptor::new(
+        vec![
+            ResourceDescriptorItem {
+                name: "cpus".to_string(),
+                kind: ResourceDescriptorKind::regular_sockets(4, 4),
+            },
+            ResourceDescriptorItem {
+                name: "gpus".to_string(),
+                kind: ResourceDescriptorKind::regular_sockets(4, 2),
+            },
+        ],
+        Some(ResourceDescriptiorCoupling {
+            names: vec!["cpus".to_string(), "gpus".to_string()],
+        }),
+    );
+    let mut allocator = test_allocator(&descriptor);
+    let rq1 = cpus_compact(4).add(1, 3).finish_v();
+    let (al1, _) = allocator.try_allocate(&rq1).unwrap();
+    let s1 = allocator.get_sockets(&al1, 0);
+    let s2 = allocator.get_sockets(&al1, 1);
+    assert_eq!(s1.len(), 2);
+    assert_eq!(s1, s2);
+    let g0 = al1.get_groups(0);
+    assert_eq!(g0.len(), 2);
+    assert!(g0.values().all(|x| *x == 2));
+    let g1 = al1.get_groups(1);
+    dbg!(&g1);
+    let v: Vec<_> = g1.values().copied().collect();
+    assert_eq!(sorted_vec(v), vec![1, 2]);
+    allocator.validate();
+}
+
+#[test]
+fn test_coupling3() {
+    let descriptor = ResourceDescriptor::new(
+        vec![
+            ResourceDescriptorItem {
+                name: "cpus".to_string(),
+                kind: ResourceDescriptorKind::regular_sockets(4, 4),
+            },
+            ResourceDescriptorItem {
+                name: "gpus".to_string(),
+                kind: ResourceDescriptorKind::regular_sockets(4, 2),
+            },
+        ],
+        Some(ResourceDescriptiorCoupling {
+            names: vec!["cpus".to_string(), "gpus".to_string()],
+        }),
+    );
+    let mut allocator = test_allocator(&descriptor);
+    let rq1 = ResBuilder::default()
+        .add(0, ResourceAmount::new(0, 1000))
+        .add(1, ResourceAmount::new(0, 5000))
+        .finish_v();
+    let (al1, _) = allocator.try_allocate(&rq1).unwrap();
+    let s1 = allocator.get_sockets(&al1, 0);
+    let s2 = allocator.get_sockets(&al1, 1);
+    assert_eq!(s1.len(), 1);
+    assert_eq!(s1, s2);
+    let g0 = al1.get_groups(0);
+    let g1 = al1.get_groups(1);
+    assert_eq!(g0, g1);
+    let v: Vec<_> = g1.values().copied().collect();
+    assert_eq!(v, vec![1]);
 }

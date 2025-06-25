@@ -63,6 +63,13 @@ impl AllocationRequest {
             AllocationRequest::All => all,
         }
     }
+
+    pub fn is_relevant_for_coupling(&self) -> bool {
+        match self {
+            AllocationRequest::Compact(_) | AllocationRequest::ForceCompact(_) => true,
+            AllocationRequest::Scatter(_) | AllocationRequest::All => false,
+        }
+    }
 }
 
 impl fmt::Display for AllocationRequest {

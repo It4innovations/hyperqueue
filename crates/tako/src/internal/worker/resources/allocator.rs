@@ -5,9 +5,9 @@ use crate::internal::common::resources::{ResourceId, ResourceVec};
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::resources::concise::{ConciseFreeResources, ConciseResourceState};
 use crate::internal::worker::resources::map::ResourceLabelMap;
-use crate::internal::worker::resources::pool::ResourcePool;
+use crate::internal::worker::resources::pool::{GroupsResourcePool, ResourcePool};
 use crate::resources::{
-    Allocation, ResourceAmount, ResourceDescriptor, ResourceMap, ResourceUnits,
+    Allocation, ResourceAllocation, ResourceAmount, ResourceDescriptor, ResourceMap, ResourceUnits,
 };
 use smallvec::SmallVec;
 use std::rc::Rc;
@@ -274,26 +274,37 @@ impl ResourceAllocator {
         let mut coupling: SmallVec<[&ResourceRequestEntry; 4]> = SmallVec::new();
         for entry in request.entries() {
             let pool = self.pools.get_mut(entry.resource_id.as_usize()).unwrap();
-            if pool.is_coupled() {
-                coupling.push(entry);
-            } else {
-                allocation.add_resource_allocation(
-                    pool.claim_resources(entry.resource_id, &entry.request),
-                )
+            if let ResourcePool::Groups(g) = pool {
+                if g.is_coupled() && entry.request.is_relevant_for_coupling() {
+                    coupling.push(entry);
+                    continue;
+                }
             }
+            allocation
+                .add_resource_allocation(pool.claim_resources(entry.resource_id, &entry.request))
         }
         if coupling.is_empty() {
             return allocation;
         }
         if coupling.len() == 1 {
-            let entry = coupling.pop().unwrap();
-            let pool = self.pools.get_mut(entry.resource_id.as_usize()).unwrap();
+            let entry = coupling[0];
+            let pool = &mut self.pools[entry.resource_id];
             allocation
                 .add_resource_allocation(pool.claim_resources(entry.resource_id, &entry.request));
             allocation.normalize_allocation();
             return allocation;
         }
-
+        let group_set = ResourcePool::find_coupled_groups(&mut self.pools, &coupling).unwrap();
+        for entry in coupling {
+            allocation.add_resource_allocation(
+                self.pools[entry.resource_id].claim_resources_with_group_mask(
+                    entry.resource_id,
+                    &entry.request,
+                    &group_set,
+                ),
+            )
+        }
+        allocation.normalize_allocation();
         allocation
     }
 
