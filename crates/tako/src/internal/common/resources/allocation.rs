@@ -60,8 +60,8 @@ impl Allocation {
 
 #[cfg(test)]
 mod tests {
-    use crate::internal::common::resources::ResourceId;
     use crate::internal::common::resources::allocation::AllocationIndex;
+    use crate::internal::common::resources::ResourceId;
     use crate::resources::{
         Allocation, ResourceAllocation, ResourceAmount, ResourceIndex, ResourceUnits,
     };
@@ -95,6 +95,18 @@ mod tests {
                 .find(|r| r.resource_id == idx.into())
                 .unwrap();
             a.indices.iter().map(|a| a.index).collect()
+        }
+        pub fn get_groups(&self, idx: u32) -> crate::Map<u32, usize> {
+            let a = self
+                .resources
+                .iter()
+                .find(|r| r.resource_id == idx.into())
+                .unwrap();
+            let mut r = crate::Map::new();
+            a.indices
+                .iter()
+                .for_each(|a| *r.entry(a.group_idx).or_default() += 1);
+            r
         }
     }
 }
