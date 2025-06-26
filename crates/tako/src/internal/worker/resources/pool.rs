@@ -1,17 +1,18 @@
+use crate::Set;
+use crate::internal::common::Map;
 use crate::internal::common::resources::allocation::AllocationIndex;
 use crate::internal::common::resources::amount::FRACTIONS_PER_UNIT;
 use crate::internal::common::resources::descriptor::ResourceDescriptorKind;
 use crate::internal::common::resources::{ResourceAmount, ResourceId, ResourceIndex, ResourceVec};
-use crate::internal::common::Map;
 use crate::internal::worker::resources::concise::ConciseResourceState;
 use crate::internal::worker::resources::map::ResourceLabelMap;
 use crate::resources::{
     Allocation, AllocationRequest, ResourceAllocation, ResourceFractions, ResourceUnits,
 };
-use crate::Set;
+use std::cmp::Reverse;
 
 use crate::gateway::ResourceRequestEntry;
-use smallvec::{smallvec, SmallVec};
+use smallvec::{SmallVec, smallvec};
 
 #[derive(Debug)]
 pub(crate) struct IndicesResourcePool {
@@ -71,7 +72,8 @@ pub(crate) enum ResourcePool {
 /// This is a constant used to determine the maximal reasonable number of groups
 /// It is used size for SmallVecs in the allocation process. Therefore, the whole
 /// system will work even if this number is higher, but then it will allocate memory.
-const FAST_MAX_GROUPS: usize = 8;
+pub const FAST_MAX_GROUPS: usize = 8;
+pub const FAST_MAX_COUPLED_RESOURCES: usize = 3;
 
 impl ResourcePool {
     pub fn new(
@@ -141,7 +143,14 @@ impl ResourcePool {
         }
     }
 
-    pub fn as_groups(&mut self) -> &mut GroupsResourcePool {
+    pub fn as_groups(&self) -> &GroupsResourcePool {
+        match self {
+            ResourcePool::Groups(g) => g,
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn as_groups_mut(&mut self) -> &mut GroupsResourcePool {
         match self {
             ResourcePool::Groups(g) => g,
             _ => unreachable!(),
@@ -346,28 +355,25 @@ impl ResourcePool {
     }
 
     pub fn find_coupled_groups(
-        pools: &mut ResourceVec<ResourcePool>,
+        pools: &[ResourcePool],
         entries: &[&crate::resources::ResourceRequestEntry],
     ) -> Option<GroupSet> {
         struct State {
             remaining: ResourceAmount,
             group_amounts: SmallVec<[ResourceAmount; FAST_MAX_GROUPS]>,
-            resource_id: ResourceId,
         }
         let mut result: GroupSet = SmallVec::new();
-        let n_groups = pools[entries[0].resource_id].n_groups();
-        let mut states: SmallVec<[State; 3]> = entries
+        let n_groups = pools[entries[0].resource_id.as_usize()].n_groups();
+        let mut states: SmallVec<[State; FAST_MAX_COUPLED_RESOURCES]> = entries
             .iter()
             .map(|e| {
-                let pool = &pools[e.resource_id].as_groups();
+                let pool = pools[e.resource_id.as_usize()].as_groups();
                 State {
-                    resource_id: e.resource_id,
                     remaining: e.request.amount(pool.full_size()),
                     group_amounts: pool.group_amounts().collect(),
                 }
             })
             .collect();
-
         loop {
             if let Some(group_idx) = (0..n_groups)
                 .filter(|group_idx| {
@@ -396,12 +402,18 @@ impl ResourcePool {
             } else {
                 let Some(group_idx) = (0..n_groups)
                     .filter(|group_idx| {
-                        states.iter().any(|s| {
-                            !s.remaining.is_zero() && s.group_amounts[*group_idx] >= s.remaining
-                        })
+                        states
+                            .iter()
+                            .any(|s| !s.group_amounts[*group_idx].is_zero())
                     })
                     .min_by_key(|group_idx| {
                         (
+                            Reverse(
+                                states
+                                    .iter()
+                                    .map(|s| s.group_amounts[*group_idx].min(s.remaining))
+                                    .sum::<ResourceAmount>(),
+                            ),
                             states
                                 .iter()
                                 .map(|s| s.group_amounts[*group_idx].saturating_sub(s.remaining))
@@ -416,7 +428,6 @@ impl ResourcePool {
                 else {
                     return None;
                 };
-
                 for state in states.iter_mut() {
                     let (r_units, r_fractions) = state.remaining.split();
                     let amount = &mut state.group_amounts[group_idx];
@@ -434,8 +445,8 @@ impl ResourcePool {
 
                     *amount -= target;
                     state.remaining -= target;
-                    result.push(group_idx);
                 }
+                result.push(group_idx);
             }
         }
         Some(result)
@@ -524,7 +535,7 @@ impl ResourcePool {
         policy: &AllocationRequest,
         group_set: &[usize],
     ) -> ResourceAllocation {
-        let pool = self.as_groups();
+        let pool = self.as_groups_mut();
         let (amount, indices) = match policy {
             AllocationRequest::Compact(amount) | AllocationRequest::ForceCompact(amount) => (
                 *amount,
