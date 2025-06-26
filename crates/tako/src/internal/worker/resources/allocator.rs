@@ -5,7 +5,9 @@ use crate::internal::common::resources::{ResourceId, ResourceVec};
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::resources::concise::{ConciseFreeResources, ConciseResourceState};
 use crate::internal::worker::resources::map::ResourceLabelMap;
-use crate::internal::worker::resources::pool::{GroupsResourcePool, ResourcePool};
+use crate::internal::worker::resources::pool::{
+    GroupsResourcePool, ResourcePool, FAST_MAX_COUPLED_RESOURCES,
+};
 use crate::resources::{
     Allocation, ResourceAllocation, ResourceAmount, ResourceDescriptor, ResourceMap, ResourceUnits,
 };
@@ -191,14 +193,27 @@ impl ResourceAllocator {
         free: &ConciseFreeResources,
         request: &ResourceRequest,
     ) -> bool {
-        request.entries().iter().all(|entry| {
-            pools
-                .get(entry.resource_id.as_num() as usize)
-                .map(|pool| {
-                    Self::has_resources_for_entry(pool, free.get(entry.resource_id), &entry.request)
-                })
-                .unwrap_or(false)
-        })
+        let mut coupling: SmallVec<[&ResourceRequestEntry; FAST_MAX_COUPLED_RESOURCES]> =
+            SmallVec::new();
+        if !request.entries().iter().all(|entry| {
+            let pool = &pools[entry.resource_id.as_usize()];
+            if let ResourcePool::Groups(g) = pool {
+                if g.is_coupled() && entry.request.is_relevant_for_coupling() {
+                    coupling.push(entry);
+                    return true;
+                }
+            }
+            Self::has_resources_for_entry(pool, free.get(entry.resource_id), &entry.request)
+        }) {
+            return false;
+        }
+        if coupling.is_empty() {
+            return true;
+        }
+        if coupling.len() == 1 {
+            todo!()
+        }
+        todo!()
     }
 
     fn compute_witnesses(
@@ -271,7 +286,8 @@ impl ResourceAllocator {
 
     fn claim_resources(&mut self, request: &ResourceRequest) -> Allocation {
         let mut allocation = Allocation::new();
-        let mut coupling: SmallVec<[&ResourceRequestEntry; 4]> = SmallVec::new();
+        let mut coupling: SmallVec<[&ResourceRequestEntry; FAST_MAX_COUPLED_RESOURCES]> =
+            SmallVec::new();
         for entry in request.entries() {
             let pool = self.pools.get_mut(entry.resource_id.as_usize()).unwrap();
             if let ResourcePool::Groups(g) = pool {

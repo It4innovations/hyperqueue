@@ -71,7 +71,8 @@ pub(crate) enum ResourcePool {
 /// This is a constant used to determine the maximal reasonable number of groups
 /// It is used size for SmallVecs in the allocation process. Therefore, the whole
 /// system will work even if this number is higher, but then it will allocate memory.
-const FAST_MAX_GROUPS: usize = 8;
+pub const FAST_MAX_GROUPS: usize = 8;
+pub const FAST_MAX_COUPLED_RESOURCES: usize = 3;
 
 impl ResourcePool {
     pub fn new(
@@ -356,7 +357,7 @@ impl ResourcePool {
         }
         let mut result: GroupSet = SmallVec::new();
         let n_groups = pools[entries[0].resource_id].n_groups();
-        let mut states: SmallVec<[State; 3]> = entries
+        let mut states: SmallVec<[State; FAST_MAX_COUPLED_RESOURCES]> = entries
             .iter()
             .map(|e| {
                 let pool = &pools[e.resource_id].as_groups();
