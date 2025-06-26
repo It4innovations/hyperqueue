@@ -70,6 +70,15 @@ impl AllocationRequest {
             AllocationRequest::Scatter(_) | AllocationRequest::All => false,
         }
     }
+
+    pub fn is_forced(&self) -> bool {
+        match self {
+            AllocationRequest::ForceCompact(_) => true,
+            AllocationRequest::Compact(_)
+            | AllocationRequest::Scatter(_)
+            | AllocationRequest::All => false,
+        }
+    }
 }
 
 impl fmt::Display for AllocationRequest {
