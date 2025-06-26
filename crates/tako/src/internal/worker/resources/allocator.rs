@@ -5,7 +5,9 @@ use crate::internal::common::resources::{ResourceId, ResourceVec};
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::resources::concise::{ConciseFreeResources, ConciseResourceState};
 use crate::internal::worker::resources::map::ResourceLabelMap;
-use crate::internal::worker::resources::pool::{GroupsResourcePool, ResourcePool};
+use crate::internal::worker::resources::pool::{
+    FAST_MAX_COUPLED_RESOURCES, FAST_MAX_GROUPS, GroupsResourcePool, ResourcePool,
+};
 use crate::resources::{
     Allocation, ResourceAllocation, ResourceAmount, ResourceDescriptor, ResourceMap, ResourceUnits,
 };
@@ -147,20 +149,15 @@ impl ResourceAllocator {
                 if *amount > max_alloc {
                     return false;
                 }
-                let (units, fractions) = amount.split();
-                if fractions > 0 {
-                    // Fractions and ForceCompact is not supported in the current version
-                    // It is checked in resource request validation, this code should be unreachable
-                    unreachable!()
-                }
+                let units = amount.whole_units();
                 let socket_count = (((units - 1) / pool.min_group_size()) as usize) + 1;
                 if free.n_groups() < socket_count {
                     return false;
                 }
-                let mut groups: Vec<ResourceUnits> = free.groups().to_vec();
+                let mut groups: SmallVec<[ResourceUnits; FAST_MAX_GROUPS]> =
+                    free.groups().iter().copied().collect();
                 groups.sort_unstable();
                 let sum: ResourceUnits = groups.iter().rev().take(socket_count).sum();
-
                 units <= sum
             }
             AllocationRequest::All => max_alloc == pool.full_size(),
@@ -191,13 +188,37 @@ impl ResourceAllocator {
         free: &ConciseFreeResources,
         request: &ResourceRequest,
     ) -> bool {
-        request.entries().iter().all(|entry| {
-            pools
-                .get(entry.resource_id.as_num() as usize)
-                .map(|pool| {
-                    Self::has_resources_for_entry(pool, free.get(entry.resource_id), &entry.request)
-                })
-                .unwrap_or(false)
+        let mut coupling: SmallVec<[&ResourceRequestEntry; FAST_MAX_COUPLED_RESOURCES]> =
+            SmallVec::new();
+        if !request.entries().iter().all(|entry| {
+            let pool = &pools[entry.resource_id.as_usize()];
+            if let ResourcePool::Groups(g) = pool {
+                if g.is_coupled() && entry.request.is_relevant_for_coupling() {
+                    coupling.push(entry);
+                }
+            }
+            Self::has_resources_for_entry(pool, free.get(entry.resource_id), &entry.request)
+        }) {
+            return false;
+        }
+        if coupling.len() <= 1 || coupling.iter().all(|entry| !entry.request.is_forced()) {
+            return true;
+        }
+        let Some(groups) = ResourcePool::find_coupled_groups(pools, &coupling) else {
+            return false;
+        };
+        coupling.iter().all(|entry| {
+            let amount = match entry.request {
+                AllocationRequest::ForceCompact(amount) => amount,
+                AllocationRequest::Compact(_)
+                | AllocationRequest::Scatter(_)
+                | AllocationRequest::All => return true,
+            };
+            let pool = &pools[entry.resource_id.as_usize()];
+            pool.min_group_size();
+            let units = amount.whole_units();
+            let socket_count = (((units - 1) / pool.min_group_size()) as usize) + 1;
+            groups.len() <= socket_count
         })
     }
 
@@ -271,7 +292,8 @@ impl ResourceAllocator {
 
     fn claim_resources(&mut self, request: &ResourceRequest) -> Allocation {
         let mut allocation = Allocation::new();
-        let mut coupling: SmallVec<[&ResourceRequestEntry; 4]> = SmallVec::new();
+        let mut coupling: SmallVec<[&ResourceRequestEntry; FAST_MAX_COUPLED_RESOURCES]> =
+            SmallVec::new();
         for entry in request.entries() {
             let pool = self.pools.get_mut(entry.resource_id.as_usize()).unwrap();
             if let ResourcePool::Groups(g) = pool {
@@ -328,7 +350,6 @@ impl ResourceAllocator {
         }
 
         let allocation = self.claim_resources(request);
-
         if !self.check_blocked_request(&allocation) {
             self.release_allocation_helper(&allocation);
             return None;

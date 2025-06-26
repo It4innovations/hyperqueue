@@ -1,5 +1,5 @@
-use crate::internal::common::resources::{Allocation, ResourceRequestVariants};
 use crate::internal::common::Map;
+use crate::internal::common::resources::{Allocation, ResourceRequestVariants};
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::resources::allocator::ResourceAllocator;
 use crate::internal::worker::state::TaskMap;
@@ -80,11 +80,12 @@ impl ResourceWaitQueue {
     }
 
     pub fn new_worker(&mut self, worker_id: WorkerId, resources: WorkerResources) {
-        assert!(self
-            .worker_resources
-            .entry(resources)
-            .or_default()
-            .insert(worker_id));
+        assert!(
+            self.worker_resources
+                .entry(resources)
+                .or_default()
+                .insert(worker_id)
+        );
         self.recompute_resource_priorities();
     }
 

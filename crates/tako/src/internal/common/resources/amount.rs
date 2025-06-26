@@ -54,6 +54,14 @@ impl ResourceAmount {
         (self.0 / (FRACTIONS_PER_UNIT as u64)) as ResourceUnits
     }
 
+    pub fn whole_units(&self) -> ResourceUnits {
+        let (mut units, fractions) = self.split();
+        if fractions > 0 {
+            units += 1;
+        }
+        units
+    }
+
     pub fn fractions(&self) -> ResourceFractions {
         (self.0 % (FRACTIONS_PER_UNIT as u64)) as ResourceFractions
     }
