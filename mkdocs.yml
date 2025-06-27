@@ -10,6 +10,14 @@ site_author: Ada Böhm, Jakub Beránek
 watch:
   - examples
 
+validation:
+  links:
+    # FIXME: we ignore the warning because of apidoc and cli-reference
+    unrecognized_links: info
+    anchors: warn
+  nav:
+    not_found: ignore
+
 nav:
   - Overview: README.md
   - Installation: installation.md

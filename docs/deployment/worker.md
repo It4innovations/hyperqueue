@@ -156,7 +156,7 @@ Each worker can be in one of the following states:
   in its PBS/Slurm job was [reached](#time-limit).
 * **Heartbeat lost** Communication between server and worker was interrupted. It usually signifies a network problem or
   a hardware crash of the computational node.
-* **Stopped** Worker was [stopped](#stopping-worker).
+* **Stopped** Worker was [stopped](#stopping-workers).
 * **Idle timeout** Worker was terminated due to [Idle timeout](#idle-timeout).
 
 ### Lost connection to the server

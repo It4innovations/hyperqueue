@@ -25,7 +25,7 @@ Run each of the following three commands in separate terminals.
     $ hq submit echo "Hello world"
     ```
 
-    This command will submit a [job](jobs) with a single task that will execute `echo "Hello world"` on a worker. You
+    This command will submit a [job](jobs/jobs.md#identification-numbers) with a single task that will execute `echo "Hello world"` on a worker. You
     can find the output of the task in `job-1/0.stdout`.
 
 That's it! For a more in-depth explanation of how HyperQueue works and what it can do, check
