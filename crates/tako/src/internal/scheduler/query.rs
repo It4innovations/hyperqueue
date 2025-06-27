@@ -130,7 +130,7 @@ pub(crate) fn compute_new_worker_query(
         .get_profiles()
         .filter_map(|(rq, count)| {
             let n_nodes = rq.n_nodes();
-            let result = queries.iter().enumerate().find_map(|(i, worker_type)| {
+            queries.iter().enumerate().find_map(|(i, worker_type)| {
                 if let Some(time_limit) = worker_type.time_limit {
                     if rq.min_time() > time_limit {
                         return None;
@@ -145,8 +145,7 @@ pub(crate) fn compute_new_worker_query(
                 } else {
                     None
                 }
-            });
-            result
+            })
         })
         .collect();
     multi_node_allocations.sort_unstable_by_key(|x| (x.worker_type, x.worker_per_allocation));
