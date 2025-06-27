@@ -109,6 +109,9 @@ plugins:
         - scripts/doc_copy_examples.py
         - scripts/build_cli_reference.py
 
+hooks:
+  - scripts/build_cli_reference.py
+
 extra:
   analytics:
     provider: google
