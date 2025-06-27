@@ -80,6 +80,7 @@ jobs:
       - name: Build docs
         run: |
           python -m pip install -r docs/requirements.txt
+          cargo install --git https://github.com/spirali/cli_doc
           mkdocs build
 
   compatibility_mode:
