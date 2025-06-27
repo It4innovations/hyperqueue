@@ -7,6 +7,9 @@ edit_uri: blob/main/docs/
 site_description: Documentation of HyperQueue.
 site_author: Ada Böhm, Jakub Beránek
 
+watch:
+  - examples
+
 nav:
   - Overview: README.md
   - Installation: installation.md
