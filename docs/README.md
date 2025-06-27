@@ -10,7 +10,7 @@ consider [citing it](https://www.sciencedirect.com/science/article/pii/S23527110
 ## Useful links
 - [Installation](installation.md)
 - [Quick start](quickstart.md)
-- [Python API](python)
+- [Python API](python/index.md)
 - [Command-line interface reference](cli-reference)
 - [Repository](https://github.com/It4innovations/hyperqueue)
 - [Discussion forum](https://github.com/It4innovations/hyperqueue/discussions)
