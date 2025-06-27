@@ -5,6 +5,7 @@ use crate::internal::common::resources::{
 use crate::internal::common::utils::has_unique_elements;
 use serde::{Deserialize, Serialize};
 
+use crate::resources::CPU_RESOURCE_NAME;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -218,6 +219,17 @@ impl ResourceDescriptor {
         ResourceDescriptor { resources }
     }
 
+    pub fn simple_cpus(n_cpus: ResourceUnits) -> Self {
+        Self::sockets(1, n_cpus)
+    }
+
+    pub fn sockets(n_sockets: ResourceUnits, n_cpus_per_socket: ResourceUnits) -> Self {
+        ResourceDescriptor::new(vec![ResourceDescriptorItem {
+            name: CPU_RESOURCE_NAME.to_string(),
+            kind: ResourceDescriptorKind::regular_sockets(n_sockets, n_cpus_per_socket),
+        }])
+    }
+
     pub fn validate(&self) -> crate::Result<()> {
         let mut has_cpus = false;
         for (i, item) in self.resources.iter().enumerate() {
@@ -241,24 +253,5 @@ impl ResourceDescriptor {
             return Err("Resource 'cpus' is missing".into());
         }
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::resources::CPU_RESOURCE_NAME;
-
-    impl ResourceDescriptor {
-        pub fn simple(n_cpus: ResourceUnits) -> Self {
-            Self::sockets(1, n_cpus)
-        }
-
-        pub fn sockets(n_sockets: ResourceUnits, n_cpus_per_socket: ResourceUnits) -> Self {
-            ResourceDescriptor::new(vec![ResourceDescriptorItem {
-                name: CPU_RESOURCE_NAME.to_string(),
-                kind: ResourceDescriptorKind::regular_sockets(n_sockets, n_cpus_per_socket),
-            }])
-        }
     }
 }

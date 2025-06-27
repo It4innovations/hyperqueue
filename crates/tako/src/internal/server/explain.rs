@@ -159,7 +159,7 @@ mod tests {
         let resource_map = ResourceMap::from_vec(vec!["cpus".to_string(), "gpus".to_string()]);
         let now = Instant::now();
 
-        let wcfg = create_test_worker_config(1.into(), ResourceDescriptor::simple(4));
+        let wcfg = create_test_worker_config(1.into(), ResourceDescriptor::simple_cpus(4));
         let worker1 = Worker::new(1.into(), wcfg, &resource_map, now);
 
         let mut wcfg = create_test_worker_config(
@@ -273,7 +273,7 @@ mod tests {
         let resource_map = ResourceMap::from_vec(vec!["cpus".to_string(), "gpus".to_string()]);
         let now = Instant::now();
 
-        let wcfg = create_test_worker_config(1.into(), ResourceDescriptor::simple(4));
+        let wcfg = create_test_worker_config(1.into(), ResourceDescriptor::simple_cpus(4));
         let worker = Worker::new(1.into(), wcfg, &resource_map, now);
         let task = TaskBuilder::new(1).n_nodes(4).build();
         let mut wset = Set::new();

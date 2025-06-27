@@ -64,7 +64,7 @@ async fn test_submit_2_sleeps_on_2() {
             .start_worker(
                 WC::default()
                     .send_overview_interval(Some(Duration::from_millis(100)))
-                    .resources(ResourceDescriptor::simple(2)),
+                    .resources(ResourceDescriptor::simple_cpus(2)),
             )
             .await
             .unwrap();
@@ -145,7 +145,10 @@ async fn test_submit_sleeps_more_cpus1() {
             .await;
 
         let wkr_handles = handler
-            .start_workers(|| WC::default().resources(ResourceDescriptor::simple(4)), 2)
+            .start_workers(
+                || WC::default().resources(ResourceDescriptor::simple_cpus(4)),
+                2,
+            )
             .await
             .unwrap();
 
@@ -177,7 +180,10 @@ async fn test_submit_sleeps_more_cpus2() {
         };
 
         handler
-            .start_workers(|| WC::default().resources(ResourceDescriptor::simple(4)), 2)
+            .start_workers(
+                || WC::default().resources(ResourceDescriptor::simple_cpus(4)),
+                2,
+            )
             .await
             .unwrap();
 
@@ -212,7 +218,10 @@ async fn test_submit_sleeps_more_cpus3() {
         };
 
         handler
-            .start_workers(|| WC::default().resources(ResourceDescriptor::simple(5)), 2)
+            .start_workers(
+                || WC::default().resources(ResourceDescriptor::simple_cpus(5)),
+                2,
+            )
             .await
             .unwrap();
 

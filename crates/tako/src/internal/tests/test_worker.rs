@@ -37,7 +37,7 @@ impl TaskLauncher for TestLauncher {
 
 fn create_test_worker_config() -> WorkerConfiguration {
     WorkerConfiguration {
-        resources: ResourceDescriptor::simple(4),
+        resources: ResourceDescriptor::simple_cpus(4),
         listen_address: "test1:123".into(),
         hostname: "test1".to_string(),
         group: "default".to_string(),

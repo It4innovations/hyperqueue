@@ -16,7 +16,7 @@ fn test_query_no_tasks() {
         &mut core,
         &[WorkerTypeQuery {
             partial: false,
-            descriptor: ResourceDescriptor::simple(4),
+            descriptor: ResourceDescriptor::simple_cpus(4),
             time_limit: None,
             max_sn_workers: 2,
             max_workers_per_allocation: 1,
@@ -46,7 +46,7 @@ fn test_query_enough_workers() {
         &mut core,
         &[WorkerTypeQuery {
             partial: false,
-            descriptor: ResourceDescriptor::simple(4),
+            descriptor: ResourceDescriptor::simple_cpus(4),
             time_limit: None,
             max_sn_workers: 2,
             max_workers_per_allocation: 1,
@@ -77,7 +77,7 @@ fn test_query_no_enough_workers1() {
         &[
             WorkerTypeQuery {
                 partial: false,
-                descriptor: ResourceDescriptor::simple(2),
+                descriptor: ResourceDescriptor::simple_cpus(2),
                 time_limit: None,
                 max_sn_workers: 2,
                 max_workers_per_allocation: 1,
@@ -85,7 +85,7 @@ fn test_query_no_enough_workers1() {
             },
             WorkerTypeQuery {
                 partial: false,
-                descriptor: ResourceDescriptor::simple(3),
+                descriptor: ResourceDescriptor::simple_cpus(3),
                 time_limit: None,
                 max_sn_workers: 2,
                 max_workers_per_allocation: 1,
@@ -112,7 +112,7 @@ fn test_query_enough_workers2() {
         &[
             WorkerTypeQuery {
                 partial: false,
-                descriptor: ResourceDescriptor::simple(2),
+                descriptor: ResourceDescriptor::simple_cpus(2),
                 time_limit: None,
                 max_sn_workers: 2,
                 max_workers_per_allocation: 1,
@@ -120,7 +120,7 @@ fn test_query_enough_workers2() {
             },
             WorkerTypeQuery {
                 partial: false,
-                descriptor: ResourceDescriptor::simple(3),
+                descriptor: ResourceDescriptor::simple_cpus(3),
                 time_limit: None,
                 max_sn_workers: 2,
                 max_workers_per_allocation: 1,
@@ -148,7 +148,7 @@ fn test_query_not_enough_workers3() {
         &[
             WorkerTypeQuery {
                 partial: false,
-                descriptor: ResourceDescriptor::simple(2),
+                descriptor: ResourceDescriptor::simple_cpus(2),
                 time_limit: None,
                 max_sn_workers: 2,
                 max_workers_per_allocation: 1,
@@ -156,7 +156,7 @@ fn test_query_not_enough_workers3() {
             },
             WorkerTypeQuery {
                 partial: false,
-                descriptor: ResourceDescriptor::simple(3),
+                descriptor: ResourceDescriptor::simple_cpus(3),
                 time_limit: None,
                 max_sn_workers: 2,
                 max_workers_per_allocation: 1,
@@ -184,7 +184,7 @@ fn test_query_many_workers_needed() {
         &[
             WorkerTypeQuery {
                 partial: false,
-                descriptor: ResourceDescriptor::simple(2),
+                descriptor: ResourceDescriptor::simple_cpus(2),
                 time_limit: None,
                 max_sn_workers: 5,
                 max_workers_per_allocation: 1,
@@ -192,7 +192,7 @@ fn test_query_many_workers_needed() {
             },
             WorkerTypeQuery {
                 partial: false,
-                descriptor: ResourceDescriptor::simple(1),
+                descriptor: ResourceDescriptor::simple_cpus(1),
                 time_limit: None,
                 max_sn_workers: 1,
                 max_workers_per_allocation: 1,
@@ -200,7 +200,7 @@ fn test_query_many_workers_needed() {
             },
             WorkerTypeQuery {
                 partial: false,
-                descriptor: ResourceDescriptor::simple(3),
+                descriptor: ResourceDescriptor::simple_cpus(3),
                 time_limit: None,
                 max_sn_workers: 200,
                 max_workers_per_allocation: 1,
@@ -239,7 +239,7 @@ fn test_query_multi_node_tasks() {
         &[
             WorkerTypeQuery {
                 partial: false,
-                descriptor: ResourceDescriptor::simple(1),
+                descriptor: ResourceDescriptor::simple_cpus(1),
                 time_limit: None,
                 max_sn_workers: 1,
                 max_workers_per_allocation: 3,
@@ -247,7 +247,7 @@ fn test_query_multi_node_tasks() {
             },
             WorkerTypeQuery {
                 partial: false,
-                descriptor: ResourceDescriptor::simple(1),
+                descriptor: ResourceDescriptor::simple_cpus(1),
                 time_limit: None,
                 max_sn_workers: 1,
                 max_workers_per_allocation: 11,
@@ -282,7 +282,7 @@ fn test_query_multi_node_time_limit() {
             rt.core(),
             &[WorkerTypeQuery {
                 partial: false,
-                descriptor: ResourceDescriptor::simple(1),
+                descriptor: ResourceDescriptor::simple_cpus(1),
                 time_limit: Some(Duration::from_secs(secs)),
                 max_sn_workers: 4,
                 max_workers_per_allocation: 4,
@@ -318,7 +318,7 @@ fn test_query_min_utilization1() {
             &mut core,
             &[WorkerTypeQuery {
                 partial: false,
-                descriptor: ResourceDescriptor::simple(*cpus),
+                descriptor: ResourceDescriptor::simple_cpus(*cpus),
                 time_limit: None,
                 max_sn_workers: 2,
                 max_workers_per_allocation: 1,
@@ -530,7 +530,7 @@ fn test_query_sn_leftovers1() {
             &[
                 WorkerTypeQuery {
                     partial: false,
-                    descriptor: ResourceDescriptor::simple(2),
+                    descriptor: ResourceDescriptor::simple_cpus(2),
                     time_limit: None,
                     max_sn_workers: 2,
                     max_workers_per_allocation: 1,
@@ -567,7 +567,7 @@ fn test_query_sn_leftovers2() {
             rt.core(),
             &[WorkerTypeQuery {
                 partial: true,
-                descriptor: ResourceDescriptor::simple(cpus),
+                descriptor: ResourceDescriptor::simple_cpus(cpus),
                 time_limit: None,
                 max_sn_workers: 2,
                 max_workers_per_allocation: 1,
