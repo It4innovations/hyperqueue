@@ -23,7 +23,6 @@ use tokio::task::LocalSet;
 
 use crate::internal::worker::rpc::run_worker;
 use crate::launcher::{TaskLaunchData, TaskLauncher, command_from_definitions};
-use crate::resources::ResourceDescriptorItem;
 use crate::worker::ServerLostPolicy;
 use crate::{Map, WorkerId};
 
@@ -49,15 +48,19 @@ pub struct WorkerConfig {
     secret_key: WorkerSecretKey,
     #[builder(default = "Duration::from_millis(250)")]
     heartbeat_interval: Duration,
-    #[builder(
-        default = "ResourceDescriptor::new(vec![ResourceDescriptorItem::range(\"cpus\", 0, 0)])"
-    )]
+    #[builder(default = "ResourceDescriptor::simple_cpus(1)")]
     resources: ResourceDescriptor,
     #[builder(default)]
     extra: Map<String, String>,
 }
 
-pub(super) fn create_worker_configuration(
+impl WorkerConfigBuilder {
+    pub fn cpus(self, cpu_count: u32) -> Self {
+        self.resources(ResourceDescriptor::simple_cpus(cpu_count))
+    }
+}
+
+pub fn create_worker_configuration(
     builder: WorkerConfigBuilder,
 ) -> (WorkerConfiguration, WorkerSecretKey) {
     let WorkerConfig {

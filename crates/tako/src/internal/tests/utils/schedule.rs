@@ -54,7 +54,7 @@ pub fn new_test_worker(
 }
 
 pub fn create_test_worker(core: &mut Core, worker_id: WorkerId, cpus: u32) {
-    let wcfg = create_test_worker_config(worker_id, ResourceDescriptor::simple(cpus));
+    let wcfg = create_test_worker_config(worker_id, ResourceDescriptor::simple_cpus(cpus));
     new_test_worker(
         core,
         worker_id,

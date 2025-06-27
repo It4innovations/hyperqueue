@@ -321,7 +321,7 @@ mod tests {
 
     #[test]
     fn test_rqueue2() {
-        let mut rq = RB::new(wait_queue(ResourceDescriptor::simple(4)));
+        let mut rq = RB::new(wait_queue(ResourceDescriptor::simple_cpus(4)));
 
         rq.add_task(worker_task(10, cpus_compact(2).finish(), 1));
         rq.add_task(worker_task(11, cpus_compact(1).finish(), 2));
@@ -336,7 +336,7 @@ mod tests {
 
     #[test]
     fn test_rqueue3() {
-        let mut rq = RB::new(wait_queue(ResourceDescriptor::simple(4)));
+        let mut rq = RB::new(wait_queue(ResourceDescriptor::simple_cpus(4)));
 
         rq.add_task(worker_task(10, cpus_compact(2).finish(), 1));
         rq.add_task(worker_task(11, cpus_compact(1).finish(), 1));
@@ -350,7 +350,7 @@ mod tests {
 
     #[test]
     fn test_rqueue_time_request() {
-        let mut rq = RB::new(wait_queue(ResourceDescriptor::simple(4)));
+        let mut rq = RB::new(wait_queue(ResourceDescriptor::simple_cpus(4)));
         rq.add_task(worker_task(
             10,
             ResBuilder::default().add(0, 1).min_time_secs(10).finish(),
@@ -363,7 +363,7 @@ mod tests {
 
     #[test]
     fn test_rqueue_time_request_priority1() {
-        let mut rq = RB::new(wait_queue(ResourceDescriptor::simple(4)));
+        let mut rq = RB::new(wait_queue(ResourceDescriptor::simple_cpus(4)));
         rq.add_task(worker_task(
             10,
             cpus_compact(2).min_time_secs(10).finish(),
@@ -393,7 +393,7 @@ mod tests {
 
     #[test]
     fn test_rqueue_time_request_priority2() {
-        let mut rq = RB::new(wait_queue(ResourceDescriptor::simple(4)));
+        let mut rq = RB::new(wait_queue(ResourceDescriptor::simple_cpus(4)));
         rq.add_task(worker_task(
             10,
             cpus_compact(2).min_time_secs(10).finish(),
