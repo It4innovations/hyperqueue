@@ -17,6 +17,7 @@ use crate::server::autoalloc::state::{
 use crate::server::autoalloc::{Allocation, AllocationId, AutoAllocResult, QueueId, QueueInfo};
 use crate::server::event::streamer::EventStreamer;
 use crate::transfer::messages::{AllocationQueueParams, QueueData, QueueState};
+use anyhow::Context;
 use futures::future::join_all;
 use std::future::Future;
 use std::path::PathBuf;
@@ -349,7 +350,7 @@ async fn handle_message(
 }
 
 /// Aggregated worker query response for a **single auto-allocation queue**.
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 struct QueryResponse {
     single_node_workers: u32,
     multinode_allocations: u32,
@@ -369,7 +370,11 @@ async fn perform_submits(
     autoalloc: &mut AutoAllocState,
     senders: &AutoallocSenders,
 ) -> anyhow::Result<()> {
-    // Figure out which queues are active
+    for (queue_id, queue) in autoalloc.queues_mut() {
+        try_pause_queue(queue, queue_id);
+    }
+
+    // Keep only active queues
     let queues = autoalloc
         .queues()
         .filter(|(_, queue)| queue.state().is_active())
@@ -378,12 +383,68 @@ async fn perform_submits(
         return Ok(());
     }
 
-    // Ask the scheduler how many workers it needs
+    // TODO: do not run the code below if all queues have full backlog anyway
     let queries: Vec<WorkerTypeQuery> = queues
         .iter()
         .map(|(_, queue)| create_queue_worker_query(queue))
         .collect();
-    let response = senders.server.new_worker_query(&queries)?;
+    let responses = compute_query_responses(senders, queries)?;
+
+    // Now schedule the workers into the individual queues
+    let queue_ids: Vec<QueueId> = queues.into_iter().map(|(id, _)| id).collect();
+    for (response, &queue_id) in responses.into_iter().zip(&queue_ids) {
+        queue_try_submit(autoalloc, queue_id, senders, response).await;
+    }
+
+    for (queue_id, queue) in autoalloc.queues_mut() {
+        try_pause_queue(queue, queue_id);
+    }
+
+    Ok(())
+}
+
+/// Create a worker query that corresponds to the provided resources of the given `queue`.
+fn create_queue_worker_query(queue: &AllocationQueue) -> WorkerTypeQuery {
+    let (descriptor, partial) = {
+        if let Some(worker_config) = queue.get_worker_config() {
+            // If we have a known worker config, we estimate exact resources based on it
+            (worker_config.resources.clone(), false)
+        } else if let Some(resources) = queue.info().cli_resource_descriptor() {
+            // If not, try to at least estimate partial resources based from the CLI arguments
+            (resources.clone(), true)
+        } else {
+            // Otherwise just assume that the worker will have at least a single CPU
+            (
+                ResourceDescriptor::new(vec![ResourceDescriptorItem {
+                    name: CPU_RESOURCE_NAME.to_string(),
+                    kind: ResourceDescriptorKind::regular_sockets(1, 1),
+                }]),
+                true,
+            )
+        }
+    };
+
+    let info = queue.info();
+    WorkerTypeQuery {
+        descriptor,
+        partial,
+        time_limit: Some(info.timelimit()),
+        // How many workers can we provide at the moment
+        max_sn_workers: info.backlog() * info.max_workers_per_alloc(),
+        max_workers_per_allocation: info.max_workers_per_alloc(),
+        min_utilization: info.min_utilization().unwrap_or(0.0),
+    }
+}
+
+/// Computes the given worker queries and returns aggregated responses together with leftovers.
+fn compute_query_responses(
+    senders: &AutoallocSenders,
+    queries: Vec<WorkerTypeQuery>,
+) -> anyhow::Result<Vec<QueryResponse>> {
+    let response = senders
+        .server
+        .new_worker_query(&queries)
+        .context("cannot compute worker query")?;
     log::debug!("Scheduler query response: {response:?}");
 
     // Merge responses back into a single array
@@ -399,8 +460,8 @@ async fn perform_submits(
     for mn_response in response.multi_node_allocations {
         let Some(response) = responses.get_mut(mn_response.worker_type) else {
             panic!(
-                "Invalid queue index returned from worker query, queue size: {}, index: {}",
-                queues.len(),
+                "Invalid queue index returned from worker query, response count: {}, index: {}",
+                responses.len(),
                 mn_response.worker_type
             );
         };
@@ -408,52 +469,7 @@ async fn perform_submits(
         response.multinode_workers_per_alloc = mn_response.worker_per_allocation;
     }
 
-    assert_eq!(responses.len(), queues.len());
-
-    // Now schedule the workers into the individual queues
-    let queue_ids: Vec<QueueId> = queues.into_iter().map(|(id, _)| id).collect();
-    for (response, queue_id) in responses.into_iter().zip(queue_ids) {
-        // Try to pause the queue both before and after submitting
-        if !try_pause_queue(autoalloc, queue_id) {
-            queue_try_submit(autoalloc, queue_id, senders, response).await;
-            try_pause_queue(autoalloc, queue_id);
-        }
-    }
-
-    Ok(())
-}
-
-/// Create a worker query that corresponds to the provided resources of the given `queue`.
-fn create_queue_worker_query(queue: &AllocationQueue) -> WorkerTypeQuery {
-    let info = queue.info();
-
-    WorkerTypeQuery {
-        descriptor: estimate_queue_resources(queue),
-        partial: false,
-        time_limit: Some(info.timelimit()),
-        // How many workers can we provide at the moment
-        max_sn_workers: info.backlog() * info.max_workers_per_alloc(),
-        max_workers_per_allocation: info.max_workers_per_alloc(),
-        min_utilization: info.min_utilization().unwrap_or(0.0),
-    }
-}
-
-fn estimate_queue_resources(queue: &AllocationQueue) -> ResourceDescriptor {
-    // If we have a known worker config, we estimate resources based on it
-    if let Some(worker_config) = queue.get_worker_config() {
-        return worker_config.resources.clone();
-    }
-
-    // If not, try to at least figure something out from the CLI arguments
-    if let Some(resources) = queue.info().cli_resource_descriptor() {
-        return resources.clone();
-    }
-
-    // If that doesn't work, just conservatively default to a single CPU core
-    ResourceDescriptor::new(vec![ResourceDescriptorItem {
-        name: CPU_RESOURCE_NAME.to_string(),
-        kind: ResourceDescriptorKind::regular_sockets(1, 1),
-    }])
+    Ok(responses)
 }
 
 /// Permits the autoallocator to submit a given number of allocations with the given number of
@@ -1166,10 +1182,7 @@ async fn remove_inactive_directories(autoalloc: &mut AutoAllocState) {
 
 /// Try to pause a queue automatically.
 /// Returns true if the queue is paused after this function finishes.
-fn try_pause_queue(autoalloc: &mut AutoAllocState, id: QueueId) -> bool {
-    let Some(queue) = autoalloc.get_queue_mut(id) else {
-        return false;
-    };
+fn try_pause_queue(queue: &mut AllocationQueue, id: QueueId) -> bool {
     if !queue.state().is_active() {
         return true;
     }

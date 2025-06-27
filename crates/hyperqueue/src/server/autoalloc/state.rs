@@ -85,6 +85,10 @@ impl AutoAllocState {
         self.queues.iter().map(|(k, v)| (*k, v))
     }
 
+    pub fn queues_mut(&mut self) -> impl Iterator<Item = (QueueId, &mut AllocationQueue)> {
+        self.queues.iter_mut().map(|(k, v)| (*k, v))
+    }
+
     pub fn add_inactive_directory(&mut self, directory: PathBuf) {
         self.inactive_allocation_directories.push_back(directory);
     }
