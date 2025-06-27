@@ -303,16 +303,18 @@ wasted allocation duration."
         overview_interval,
     } = worker_args;
 
+    if cpus.is_none() && resource.is_empty() {
+        log::warn!(
+            "No worker resources were provided for this queue. Before the first worker connects from an allocation submitted by this queue, the queue will operate in probing mode."
+        )
+    }
+
     let mut worker_args = vec![];
     if let Some(cpus) = cpus {
         worker_args.extend([
             "--cpus".to_string(),
             format!("\"{}\"", cpus.into_original_input()),
         ]);
-    } else {
-        log::warn!(
-            "Creating an autoalloc queue without specifying worker core count. Consider specifying the core count of workers in this queue to improve the efficiency of automatic allocation."
-        )
     }
 
     for arg in resource {
