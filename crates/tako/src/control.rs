@@ -117,7 +117,7 @@ impl ServerRef {
         queries: &[WorkerTypeQuery],
     ) -> crate::Result<NewWorkerAllocationResponse> {
         for query in queries {
-            query.descriptor.validate()?;
+            query.descriptor.validate(!query.partial)?;
         }
         let mut core = self.core_ref.get_mut();
         let mut comm = self.comm_ref.get_mut();
