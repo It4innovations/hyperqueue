@@ -552,14 +552,10 @@ fn test_query_sn_leftovers1() {
 
 #[test]
 fn test_query_sn_leftovers2() {
-    for (cpus, out) in [(1, 0), (2, 1)] {
+    for (cpus, out) in [(1, 0), (2, 3)] {
         let mut rt = TestEnv::new();
         for i in 1..=100 {
-            rt.new_task(
-                TaskBuilder::new(i)
-                    .cpus_compact(2)
-                    .time_request(((i as u64 % 2) + 1) * 10_000),
-            );
+            rt.new_task(TaskBuilder::new(i).cpus_compact(2));
         }
         rt.schedule();
 
@@ -569,7 +565,7 @@ fn test_query_sn_leftovers2() {
                 partial: true,
                 descriptor: ResourceDescriptor::simple_cpus(cpus),
                 time_limit: None,
-                max_sn_workers: 2,
+                max_sn_workers: 3,
                 max_workers_per_allocation: 1,
                 min_utilization: 0.0,
             }],
@@ -616,4 +612,115 @@ fn test_query_sn_leftovers() {
         ],
     );
     assert_eq!(r.single_node_workers_per_query, vec![1, 0, 1]);
+}
+
+#[test]
+fn test_query_partial_query_cpus() {
+    let mut rt = TestEnv::new();
+
+    rt.new_task(TaskBuilder::new(1).cpus_compact(4));
+    for i in 2..=5 {
+        rt.new_task(TaskBuilder::new(i).cpus_compact(8));
+    }
+    rt.schedule();
+
+    let r = compute_new_worker_query(
+        rt.core(),
+        &[
+            WorkerTypeQuery {
+                partial: true,
+                descriptor: ResourceDescriptor::simple_cpus(4),
+                time_limit: None,
+                max_sn_workers: 2,
+                max_workers_per_allocation: 3,
+                min_utilization: 0.0,
+            },
+            WorkerTypeQuery {
+                partial: true,
+                descriptor: ResourceDescriptor::simple_cpus(16),
+                time_limit: Some(Duration::from_secs(50)),
+                max_sn_workers: 5,
+                max_workers_per_allocation: 3,
+                min_utilization: 0.0,
+            },
+            WorkerTypeQuery {
+                partial: true,
+                descriptor: ResourceDescriptor::new(Vec::new()),
+                time_limit: None,
+                max_sn_workers: 3,
+                max_workers_per_allocation: 3,
+                min_utilization: 0.0,
+            },
+        ],
+    );
+    assert_eq!(r.single_node_workers_per_query, vec![1, 2, 0]);
+}
+
+#[test]
+fn test_query_partial_query_gpus1() {
+    for (gpus, has_extra, out) in [
+        (4, false, 3),
+        (4, true, 1),
+        (0, false, 1),
+        (0, true, 1),
+        (100, false, 2),
+        (100, true, 1),
+    ] {
+        let mut rt = TestEnv::new();
+        for i in 1..=10 {
+            let mut builder = TaskBuilder::new(i).cpus_compact(1).add_resource(1, 2);
+            if has_extra {
+                builder = builder.add_resource(2, 1);
+            }
+            rt.new_task(builder);
+        }
+        rt.schedule();
+
+        let mut items = vec![ResourceDescriptorItem {
+            name: "cpus".into(),
+            kind: ResourceDescriptorKind::simple_indices(8),
+        }];
+        if gpus > 0 {
+            items.push(ResourceDescriptorItem {
+                name: "gpus".into(),
+                kind: ResourceDescriptorKind::simple_indices(gpus),
+            });
+        }
+        let descriptor = ResourceDescriptor::new(items);
+
+        let r = compute_new_worker_query(
+            rt.core(),
+            &[WorkerTypeQuery {
+                partial: true,
+                descriptor,
+                time_limit: None,
+                max_sn_workers: 3,
+                max_workers_per_allocation: 3,
+                min_utilization: 0.0,
+            }],
+        );
+        assert_eq!(r.single_node_workers_per_query, vec![out]);
+    }
+}
+
+#[test]
+fn test_query_unknown_do_not_add_extra() {
+    let mut rt = TestEnv::new();
+    rt.new_task(TaskBuilder::new(1).cpus_compact(1));
+    rt.new_task(TaskBuilder::new(2).cpus_compact(1).add_resource(1, 1));
+    rt.new_task(TaskBuilder::new(3).cpus_compact(1));
+    rt.new_task(TaskBuilder::new(4).cpus_compact(1).add_resource(1, 1));
+
+    let r = compute_new_worker_query(
+        rt.core(),
+        &[WorkerTypeQuery {
+            partial: true,
+            descriptor: ResourceDescriptor::simple_cpus(1),
+            time_limit: None,
+            max_sn_workers: 5,
+            max_workers_per_allocation: 3,
+            min_utilization: 0.0,
+        }],
+    );
+    assert_eq!(r.single_node_workers_per_query, vec![2]);
 }

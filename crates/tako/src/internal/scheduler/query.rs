@@ -26,34 +26,33 @@ pub(crate) fn compute_new_worker_query(
     let add_task = |new_loads: &mut [WorkerTypeState], task: &Task| {
         let request = &task.configuration.resources;
         for ws in new_loads.iter_mut() {
-            if !ws.partial {
-                if !ws.w_resources.is_capable_to_run_with(request, |rq| {
-                    ws.time_limit.is_none_or(|t| rq.min_time() <= t)
-                }) {
-                    continue;
-                }
-                for load in ws.loads.iter_mut() {
-                    if load.have_immediate_resources_for_rqv(request, &ws.w_resources) {
-                        load.add_request(task.id, request, &ws.w_resources);
-                        return;
+            if !ws.w_resources.is_capable_to_run_with(request, |rq| {
+                ws.time_limit.is_none_or(|t| rq.min_time() <= t)
+            }) {
+                if ws.partial {
+                    if !ws.w_resources.is_lowerbound_for(request, |rq| {
+                        ws.time_limit.is_none_or(|t| rq.min_time() <= t)
+                    }) {
+                        continue;
+                    }
+                    if ws.loads.is_empty() {
+                        let load = WorkerLoad::new(&ws.w_resources);
+                        ws.loads.push(load);
                     }
                 }
-                if ws.loads.len() < ws.max as usize {
-                    let mut load = WorkerLoad::new(&ws.w_resources);
+                continue;
+            }
+            for load in ws.loads.iter_mut() {
+                if load.have_immediate_resources_for_rqv(request, &ws.w_resources) {
                     load.add_request(task.id, request, &ws.w_resources);
-                    ws.loads.push(load);
                     return;
                 }
-            } else {
-                if !ws.w_resources.is_lowerbound_for(request, |rq| {
-                    ws.time_limit.is_none_or(|t| rq.min_time() <= t)
-                }) {
-                    continue;
-                }
-                if ws.loads.is_empty() {
-                    let load = WorkerLoad::new(&ws.w_resources);
-                    ws.loads.push(load);
-                }
+            }
+            if ws.loads.len() < ws.max as usize {
+                let mut load = WorkerLoad::new(&ws.w_resources);
+                load.add_request(task.id, request, &ws.w_resources);
+                ws.loads.push(load);
+                return;
             }
         }
     };
