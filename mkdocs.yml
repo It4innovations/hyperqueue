@@ -7,9 +7,6 @@ edit_uri: blob/main/docs/
 site_description: Documentation of HyperQueue.
 site_author: Ada Böhm, Jakub Beránek
 
-watch:
-  - examples
-
 validation:
   links:
     # FIXME: we ignore the warning because of apidoc and cli-reference
@@ -108,7 +105,6 @@ plugins:
 
 hooks:
   - scripts/docs/build_cli_reference.py
-  - scripts/docs/copy_examples.py
 
 extra:
   analytics:

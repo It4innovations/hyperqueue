@@ -12,12 +12,13 @@ as a general distributed task execution engine.
 
 [Documentation](https://it4innovations.github.io/hyperqueue/)
 
-If you find a bug or a problem with HyperQueue, please create an [issue](https://github.com/It4innovations/hyperqueue/issues).
-For more general discussion or feature requests, please use our
-[discussion forum](https://github.com/It4innovations/hyperqueue/discussions). If you want to chat
-with the HyperQueue developers, you can use our [Zulip](https://hyperqueue.zulipchat.com/) server.
+- You can check out [examples](docs/examples) to see how to use HyperQueue.
+- If you find a bug or a problem with HyperQueue, please create an [issue](https://github.com/It4innovations/hyperqueue/issues).
+- For more general discussion or feature requests, please use our
+[discussion forum](https://github.com/It4innovations/hyperqueue/discussions).
+- If you want to chat with the HyperQueue developers, you can use our [Zulip](https://hyperqueue.zulipchat.com/) server.
 
-If you use HyperQueue in your research, please consider [citing it](#publications).
+> If you use HyperQueue in your research, please consider [citing it](#publications).
 
 This image shows how HyperQueue can work on a distributed cluster that uses Slurm or PBS:
 
