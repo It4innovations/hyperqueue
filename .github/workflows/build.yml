@@ -49,7 +49,7 @@ jobs:
           toolchain: 1.85.0
           override: true
 
-      - uses: Swatinem/rust-cache@v2.7.0
+      - uses: Swatinem/rust-cache@v2
         with:
           key: x64
 
@@ -97,7 +97,7 @@ jobs:
           toolchain: 1.85.0
           override: true
 
-      - uses: Swatinem/rust-cache@v2.7.0
+      - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.arch }}
 
@@ -128,7 +128,7 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
-      - uses: Swatinem/rust-cache@v2.7.0
+      - uses: Swatinem/rust-cache@v2
         with:
           key: pyhq
       - uses: messense/maturin-action@v1
