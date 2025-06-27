@@ -264,6 +264,19 @@ impl ResourceRequestVariants {
     pub fn min_time(&self) -> TimeRequest {
         self.variants.iter().map(|v| v.min_time).min().unwrap()
     }
+
+    pub fn to_gateway(
+        &self,
+        resource_map: &ResourceMap,
+    ) -> crate::gateway::ResourceRequestVariants {
+        crate::gateway::ResourceRequestVariants {
+            variants: self
+                .variants
+                .iter()
+                .map(|r| r.to_gateway(resource_map))
+                .collect(),
+        }
+    }
 }
 
 #[cfg(test)]
