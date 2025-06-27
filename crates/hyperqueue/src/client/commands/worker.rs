@@ -306,7 +306,7 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
     }
 
     let resources = ResourceDescriptor::new(resources);
-    resources.validate()?;
+    resources.validate(true)?;
 
     let work_dir = {
         let tmpdir = TempDir::with_prefix("hq-worker")?.into_path();
