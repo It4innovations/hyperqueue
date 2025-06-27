@@ -230,7 +230,7 @@ impl ResourceDescriptor {
         }])
     }
 
-    pub fn validate(&self) -> crate::Result<()> {
+    pub fn validate(&self, needs_cpus: bool) -> crate::Result<()> {
         let mut has_cpus = false;
         for (i, item) in self.resources.iter().enumerate() {
             for item2 in &self.resources[i + 1..] {
@@ -249,7 +249,7 @@ impl ResourceDescriptor {
                 has_cpus = true
             }
         }
-        if !has_cpus {
+        if !has_cpus && needs_cpus {
             return Err("Resource 'cpus' is missing".into());
         }
         Ok(())

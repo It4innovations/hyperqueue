@@ -386,7 +386,7 @@ fn construct_resources_from_cli(args: &SharedWorkerStartOpts) -> Option<Resource
     };
 
     let resources = ResourceDescriptor::new(resources);
-    resources.validate().ok()?;
+    resources.validate(true).ok()?;
     Some(resources)
 }
 
