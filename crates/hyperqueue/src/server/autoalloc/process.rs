@@ -87,14 +87,18 @@ pub async fn autoalloc_process(
     loop {
         tokio::select! {
             _ = periodic_update_interval.tick() => {
-                log::debug!("Performing periodic update");
-                do_periodic_update(&senders, &mut autoalloc).await;
+                if autoalloc.has_queues() {
+                    log::debug!("Performing periodic update");
+                    do_periodic_update(&senders, &mut autoalloc).await;
+                }
             }
             _ = scheduling_interval.tick() => {
                 if should_schedule || last_schedule.elapsed() >= max_scheduling_delay {
-                    log::debug!("Performing submits");
-                    if let Err(error) = perform_submits(&mut autoalloc, &senders).await {
-                        log::error!("Autoalloc scheduling failed: {error:?}");
+                    if autoalloc.has_queues() {
+                        log::debug!("Performing submits");
+                        if let Err(error) = perform_submits(&mut autoalloc, &senders).await {
+                            log::error!("Autoalloc scheduling failed: {error:?}");
+                        }
                     }
                     should_schedule = false;
                     last_schedule = Instant::now();

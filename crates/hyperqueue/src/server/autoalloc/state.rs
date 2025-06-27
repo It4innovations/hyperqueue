@@ -103,6 +103,10 @@ impl AutoAllocState {
         to_remove
     }
 
+    pub fn has_queues(&self) -> bool {
+        !self.queues.is_empty()
+    }
+
     #[cfg(test)]
     pub fn set_max_kept_directories(&mut self, count: usize) {
         self.max_kept_directories = count;
