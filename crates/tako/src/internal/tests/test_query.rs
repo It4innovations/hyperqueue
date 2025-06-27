@@ -15,17 +15,16 @@ fn test_query_no_tasks() {
     let r = compute_new_worker_query(
         &mut core,
         &[WorkerTypeQuery {
+            partial: false,
             descriptor: ResourceDescriptor::simple(4),
             time_limit: None,
             max_sn_workers: 2,
             max_workers_per_allocation: 1,
             min_utilization: 0.0,
         }],
-        true,
     );
     assert_eq!(r.single_node_workers_per_query, vec![0]);
     assert!(r.multi_node_allocations.is_empty());
-    assert!(r.leftovers.is_empty());
 }
 
 #[test]
@@ -46,17 +45,16 @@ fn test_query_enough_workers() {
     let r = compute_new_worker_query(
         &mut core,
         &[WorkerTypeQuery {
+            partial: false,
             descriptor: ResourceDescriptor::simple(4),
             time_limit: None,
             max_sn_workers: 2,
             max_workers_per_allocation: 1,
             min_utilization: 0.0,
         }],
-        false,
     );
     assert_eq!(r.single_node_workers_per_query, vec![0]);
     assert!(r.multi_node_allocations.is_empty());
-    assert!(r.leftovers.is_empty());
 }
 
 #[test]
@@ -78,6 +76,7 @@ fn test_query_no_enough_workers1() {
         &mut core,
         &[
             WorkerTypeQuery {
+                partial: false,
                 descriptor: ResourceDescriptor::simple(2),
                 time_limit: None,
                 max_sn_workers: 2,
@@ -85,6 +84,7 @@ fn test_query_no_enough_workers1() {
                 min_utilization: 0.0,
             },
             WorkerTypeQuery {
+                partial: false,
                 descriptor: ResourceDescriptor::simple(3),
                 time_limit: None,
                 max_sn_workers: 2,
@@ -92,11 +92,9 @@ fn test_query_no_enough_workers1() {
                 min_utilization: 0.0,
             },
         ],
-        true,
     );
     assert_eq!(r.single_node_workers_per_query, vec![0, 1]);
     assert!(r.multi_node_allocations.is_empty());
-    assert!(r.leftovers.is_empty());
 }
 
 #[test]
@@ -113,6 +111,7 @@ fn test_query_enough_workers2() {
         rt.core(),
         &[
             WorkerTypeQuery {
+                partial: false,
                 descriptor: ResourceDescriptor::simple(2),
                 time_limit: None,
                 max_sn_workers: 2,
@@ -120,6 +119,7 @@ fn test_query_enough_workers2() {
                 min_utilization: 0.0,
             },
             WorkerTypeQuery {
+                partial: false,
                 descriptor: ResourceDescriptor::simple(3),
                 time_limit: None,
                 max_sn_workers: 2,
@@ -127,7 +127,6 @@ fn test_query_enough_workers2() {
                 min_utilization: 0.0,
             },
         ],
-        false,
     );
     assert_eq!(r.single_node_workers_per_query, vec![0, 0]);
     assert!(r.multi_node_allocations.is_empty());
@@ -148,6 +147,7 @@ fn test_query_not_enough_workers3() {
         rt.core(),
         &[
             WorkerTypeQuery {
+                partial: false,
                 descriptor: ResourceDescriptor::simple(2),
                 time_limit: None,
                 max_sn_workers: 2,
@@ -155,6 +155,7 @@ fn test_query_not_enough_workers3() {
                 min_utilization: 0.0,
             },
             WorkerTypeQuery {
+                partial: false,
                 descriptor: ResourceDescriptor::simple(3),
                 time_limit: None,
                 max_sn_workers: 2,
@@ -162,7 +163,6 @@ fn test_query_not_enough_workers3() {
                 min_utilization: 0.0,
             },
         ],
-        false,
     );
     assert_eq!(r.single_node_workers_per_query, vec![1, 0]);
     assert!(r.multi_node_allocations.is_empty());
@@ -183,6 +183,7 @@ fn test_query_many_workers_needed() {
         rt.core(),
         &[
             WorkerTypeQuery {
+                partial: false,
                 descriptor: ResourceDescriptor::simple(2),
                 time_limit: None,
                 max_sn_workers: 5,
@@ -190,6 +191,7 @@ fn test_query_many_workers_needed() {
                 min_utilization: 0.0,
             },
             WorkerTypeQuery {
+                partial: false,
                 descriptor: ResourceDescriptor::simple(1),
                 time_limit: None,
                 max_sn_workers: 1,
@@ -197,6 +199,7 @@ fn test_query_many_workers_needed() {
                 min_utilization: 0.0,
             },
             WorkerTypeQuery {
+                partial: false,
                 descriptor: ResourceDescriptor::simple(3),
                 time_limit: None,
                 max_sn_workers: 200,
@@ -204,7 +207,6 @@ fn test_query_many_workers_needed() {
                 min_utilization: 0.0,
             },
         ],
-        false,
     );
     assert_eq!(r.single_node_workers_per_query, vec![5, 1, 26]);
     assert!(r.multi_node_allocations.is_empty());
@@ -236,6 +238,7 @@ fn test_query_multi_node_tasks() {
         rt.core(),
         &[
             WorkerTypeQuery {
+                partial: false,
                 descriptor: ResourceDescriptor::simple(1),
                 time_limit: None,
                 max_sn_workers: 1,
@@ -243,6 +246,7 @@ fn test_query_multi_node_tasks() {
                 min_utilization: 0.0,
             },
             WorkerTypeQuery {
+                partial: false,
                 descriptor: ResourceDescriptor::simple(1),
                 time_limit: None,
                 max_sn_workers: 1,
@@ -250,7 +254,6 @@ fn test_query_multi_node_tasks() {
                 min_utilization: 0.0,
             },
         ],
-        false,
     );
     assert_eq!(r.single_node_workers_per_query, vec![0, 0]);
     assert_eq!(r.multi_node_allocations.len(), 3);
@@ -278,13 +281,13 @@ fn test_query_multi_node_time_limit() {
         let r = compute_new_worker_query(
             rt.core(),
             &[WorkerTypeQuery {
+                partial: false,
                 descriptor: ResourceDescriptor::simple(1),
                 time_limit: Some(Duration::from_secs(secs)),
                 max_sn_workers: 4,
                 max_workers_per_allocation: 4,
                 min_utilization: 0.0,
             }],
-            false,
         );
         assert_eq!(r.multi_node_allocations.len(), allocs);
     }
@@ -314,13 +317,13 @@ fn test_query_min_utilization1() {
         let r = compute_new_worker_query(
             &mut core,
             &[WorkerTypeQuery {
+                partial: false,
                 descriptor: ResourceDescriptor::simple(*cpus),
                 time_limit: None,
                 max_sn_workers: 2,
                 max_workers_per_allocation: 1,
                 min_utilization: *min_utilization,
             }],
-            false,
         );
         assert_eq!(r.single_node_workers_per_query, vec![*alloc_value]);
         assert!(r.multi_node_allocations.is_empty());
@@ -364,13 +367,13 @@ fn test_query_min_utilization2() {
         let r = compute_new_worker_query(
             &mut core,
             &[WorkerTypeQuery {
+                partial: false,
                 descriptor,
                 time_limit: None,
                 max_sn_workers: 2,
                 max_workers_per_allocation: 1,
                 min_utilization: *min_utilization,
             }],
-            true,
         );
         assert_eq!(r.single_node_workers_per_query, vec![*alloc_value]);
         assert!(r.multi_node_allocations.is_empty());
@@ -392,13 +395,13 @@ fn test_query_min_utilization3() {
     let r = compute_new_worker_query(
         &mut core,
         &[WorkerTypeQuery {
+            partial: false,
             descriptor,
             time_limit: None,
             max_sn_workers: 2,
             max_workers_per_allocation: 1,
             min_utilization: 1.0,
         }],
-        false,
     );
     assert_eq!(r.single_node_workers_per_query, vec![1]);
     assert!(r.multi_node_allocations.is_empty());
@@ -429,13 +432,13 @@ fn test_query_min_time2() {
         let r = compute_new_worker_query(
             &mut core,
             &[WorkerTypeQuery {
+                partial: false,
                 descriptor: descriptor.clone(),
                 time_limit: Some(Duration::from_secs(secs)),
                 max_sn_workers: 2,
                 max_workers_per_allocation: 1,
                 min_utilization: 0.0f32,
             }],
-            false,
         );
         assert_eq!(r.single_node_workers_per_query, vec![alloc]);
         assert!(r.multi_node_allocations.is_empty());
@@ -467,13 +470,13 @@ fn test_query_min_time1() {
     let r = compute_new_worker_query(
         &mut core,
         &[WorkerTypeQuery {
+            partial: false,
             descriptor: descriptor.clone(),
             time_limit: Some(Duration::from_secs(99)),
             max_sn_workers: 2,
             max_workers_per_allocation: 1,
             min_utilization: 0.0f32,
         }],
-        false,
     );
     assert_eq!(r.single_node_workers_per_query, vec![0]);
     assert!(r.multi_node_allocations.is_empty());
@@ -481,13 +484,13 @@ fn test_query_min_time1() {
     let r = compute_new_worker_query(
         &mut core,
         &[WorkerTypeQuery {
+            partial: false,
             descriptor: descriptor.clone(),
             time_limit: Some(Duration::from_secs(101)),
             max_sn_workers: 2,
             max_workers_per_allocation: 1,
             min_utilization: 0.0f32,
         }],
-        false,
     );
     assert_eq!(r.single_node_workers_per_query, vec![2]);
     assert!(r.multi_node_allocations.is_empty());
@@ -499,13 +502,13 @@ fn test_query_min_time1() {
     let r = compute_new_worker_query(
         &mut core,
         &[WorkerTypeQuery {
+            partial: false,
             descriptor,
             time_limit: Some(Duration::from_secs(101)),
             max_sn_workers: 2,
             max_workers_per_allocation: 1,
             min_utilization: 0.0f32,
         }],
-        false,
     );
     assert_eq!(r.single_node_workers_per_query, vec![1]);
     assert!(r.multi_node_allocations.is_empty());
@@ -513,91 +516,104 @@ fn test_query_min_time1() {
 
 #[test]
 fn test_query_sn_leftovers1() {
-    for collect_leftovers in [true, false] {
-        for (n, leftovers) in [(1, false), (4, false), (8, false), (9, true), (12, true)] {
-            let mut rt = TestEnv::new();
+    for (n, m) in [(1, 0), (4, 0), (8, 0), (9, 1), (12, 1)] {
+        let mut rt = TestEnv::new();
 
-            rt.new_workers(&[4]);
-            for i in 1..=n {
-                rt.new_task(TaskBuilder::new(i).cpus_compact(1).time_request(5_000));
-            }
-            rt.schedule();
+        rt.new_workers(&[4]);
+        for i in 1..=n {
+            rt.new_task(TaskBuilder::new(i).cpus_compact(1).time_request(5_000));
+        }
+        rt.schedule();
 
-            let r = compute_new_worker_query(
-                rt.core(),
-                &[WorkerTypeQuery {
+        let r = compute_new_worker_query(
+            rt.core(),
+            &[
+                WorkerTypeQuery {
+                    partial: false,
                     descriptor: ResourceDescriptor::simple(2),
                     time_limit: None,
                     max_sn_workers: 2,
                     max_workers_per_allocation: 1,
                     min_utilization: 0.0,
-                }],
-                collect_leftovers,
-            );
-            if leftovers && collect_leftovers {
-                assert_eq!(r.leftovers.len(), 1);
-                assert_eq!(r.leftovers[0].0.variants[0].min_time.as_secs(), 5_000);
-            } else {
-                assert!(r.leftovers.is_empty());
-            }
-        }
+                },
+                WorkerTypeQuery {
+                    partial: true,
+                    descriptor: ResourceDescriptor::new(Vec::new()),
+                    time_limit: None,
+                    max_sn_workers: 2,
+                    max_workers_per_allocation: 1,
+                    min_utilization: 0.0,
+                },
+            ],
+        );
+        assert_eq!(r.single_node_workers_per_query[1], m);
     }
 }
 
 #[test]
 fn test_query_sn_leftovers2() {
+    for (cpus, out) in [(1, 0), (2, 1)] {
+        let mut rt = TestEnv::new();
+        for i in 1..=100 {
+            rt.new_task(
+                TaskBuilder::new(i)
+                    .cpus_compact(2)
+                    .time_request(((i as u64 % 2) + 1) * 10_000),
+            );
+        }
+        rt.schedule();
+
+        let r = compute_new_worker_query(
+            rt.core(),
+            &[WorkerTypeQuery {
+                partial: true,
+                descriptor: ResourceDescriptor::simple(cpus),
+                time_limit: None,
+                max_sn_workers: 2,
+                max_workers_per_allocation: 1,
+                min_utilization: 0.0,
+            }],
+        );
+        assert_eq!(r.single_node_workers_per_query, vec![out]);
+    }
+}
+
+#[test]
+fn test_query_sn_leftovers() {
     let mut rt = TestEnv::new();
 
-    for i in 1..=100 {
-        rt.new_task(
-            TaskBuilder::new(i)
-                .cpus_compact(2)
-                .time_request(((i as u64 % 2) + 1) * 10_000),
-        );
-    }
+    rt.new_task(TaskBuilder::new(1).cpus_compact(4).time_request(750));
+    rt.new_task(TaskBuilder::new(2).cpus_compact(8).time_request(1750));
     rt.schedule();
 
     let r = compute_new_worker_query(
         rt.core(),
-        &[WorkerTypeQuery {
-            descriptor: ResourceDescriptor::simple(1),
-            time_limit: None,
-            max_sn_workers: 2,
-            max_workers_per_allocation: 1,
-            min_utilization: 0.0,
-        }],
-        true,
-    );
-    assert_eq!(r.leftovers.len(), 2);
-}
-
-#[test]
-fn test_query_mn_leftovers() {
-    let mut rt = TestEnv::new();
-
-    rt.new_task(TaskBuilder::new(1).n_nodes(4).time_request(750));
-    rt.new_task(TaskBuilder::new(2).n_nodes(2).time_request(1750));
-    rt.schedule();
-
-    for collect_leftovers in [true, false] {
-        let r = compute_new_worker_query(
-            rt.core(),
-            &[WorkerTypeQuery {
-                descriptor: ResourceDescriptor::simple(1),
+        &[
+            WorkerTypeQuery {
+                partial: true,
+                descriptor: ResourceDescriptor::new(Vec::new()),
+                time_limit: Some(Duration::from_secs(1000)),
+                max_sn_workers: 3,
+                max_workers_per_allocation: 3,
+                min_utilization: 0.0,
+            },
+            WorkerTypeQuery {
+                partial: true,
+                descriptor: ResourceDescriptor::new(Vec::new()),
+                time_limit: Some(Duration::from_secs(50)),
+                max_sn_workers: 3,
+                max_workers_per_allocation: 3,
+                min_utilization: 0.0,
+            },
+            WorkerTypeQuery {
+                partial: true,
+                descriptor: ResourceDescriptor::new(Vec::new()),
                 time_limit: None,
                 max_sn_workers: 3,
                 max_workers_per_allocation: 3,
                 min_utilization: 0.0,
-            }],
-            collect_leftovers,
-        );
-        if collect_leftovers {
-            assert_eq!(r.leftovers.len(), 1);
-            let lo = &r.leftovers[0].0.variants[0];
-            assert_eq!(lo.min_time, Duration::from_secs(750));
-            assert_eq!(lo.n_nodes, 4);
-        } else {
-            r.leftovers.is_empty();
-        }
-    }
+            },
+        ],
+    );
+    assert_eq!(r.single_node_workers_per_query, vec![1, 0, 1]);
 }

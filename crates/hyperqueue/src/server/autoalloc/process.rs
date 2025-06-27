@@ -377,7 +377,7 @@ async fn perform_submits(
         .iter()
         .map(|(_, queue)| create_queue_worker_query(queue))
         .collect();
-    let response = senders.server.new_worker_query(queries, false)?;
+    let response = senders.server.new_worker_query(&queries)?;
     log::debug!("Scheduler query response: {response:?}");
 
     // Merge responses back into a single array
@@ -424,6 +424,7 @@ fn create_queue_worker_query(queue: &AllocationQueue) -> WorkerTypeQuery {
     WorkerTypeQuery {
         // The maximum number of workers that we can provide in this queue
         // TODO: estimate the resources of the queue in a better way
+        partial: false,
         descriptor: ResourceDescriptor::new(vec![ResourceDescriptorItem {
             name: CPU_RESOURCE_NAME.to_string(),
             kind: ResourceDescriptorKind::regular_sockets(1, 1),

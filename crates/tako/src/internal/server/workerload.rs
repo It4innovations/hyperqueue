@@ -31,6 +31,10 @@ impl WorkerResources {
             .unwrap_or(ResourceAmount::ZERO)
     }
 
+    pub(crate) fn get_or_none(&self, resource_id: ResourceId) -> Option<ResourceAmount> {
+        self.n_resources.get(resource_id).copied()
+    }
+
     pub(crate) fn from_description(
         resource_desc: &ResourceDescriptor,
         resource_map: &ResourceMap,
@@ -64,10 +68,31 @@ impl WorkerResources {
         })
     }
 
+    pub(crate) fn is_lowerbound_for_request(&self, request: &ResourceRequest) -> bool {
+        request.entries().iter().all(|r| {
+            if let Some(has) = self.get_or_none(r.resource_id) {
+                let ask = r.request.min_amount();
+                ask <= has
+            } else {
+                true
+            }
+        })
+    }
+
     pub(crate) fn is_capable_to_run(&self, rqv: &ResourceRequestVariants) -> bool {
         rqv.requests()
             .iter()
             .any(|rq| self.is_capable_to_run_request(rq))
+    }
+
+    pub(crate) fn is_lowerbound_for(
+        &self,
+        rqv: &ResourceRequestVariants,
+        filter_fn: impl Fn(&ResourceRequest) -> bool,
+    ) -> bool {
+        rqv.requests()
+            .iter()
+            .any(|rq| filter_fn(rq) && self.is_lowerbound_for_request(rq))
     }
 
     pub(crate) fn is_capable_to_run_with(
