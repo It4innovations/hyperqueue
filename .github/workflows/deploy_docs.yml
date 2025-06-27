@@ -1,7 +1,6 @@
 name: Deploy documentation
 
 on:
-  pull_request:
   push:
     branches:
       - main
@@ -50,9 +49,9 @@ jobs:
           python3 scripts/get_docs_version.py > version.json
           cat version.json
           echo "VERSION=$(cat version.json)" >> $GITHUB_ENV
-#      - name: Deploy latest docs
-#        if: fromJson(env.VERSION).type == 'latest'
-#        run: mike deploy --push latest
-#      - name: Deploy stable docs
-#        if: fromJson(env.VERSION).type == 'stable'
-#        run: mike deploy --push -u --no-redirect ${{ fromJson(env.VERSION).version }} stable
+      - name: Deploy latest docs
+        if: fromJson(env.VERSION).type == 'latest'
+        run: mike deploy --push latest
+      - name: Deploy stable docs
+        if: fromJson(env.VERSION).type == 'stable'
+        run: mike deploy --push -u --no-redirect ${{ fromJson(env.VERSION).version }} stable
