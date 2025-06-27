@@ -548,15 +548,6 @@ mod tests {
         );
     }
 
-    fn check_shared_data(shared_data: &[SharedTaskConfiguration], expected: Vec<TaskDescription>) {
-        assert_eq!(shared_data.len(), expected.len());
-        for (shared, expected) in shared_data.iter().zip(expected) {
-            assert_eq!(shared.resources, expected.resources);
-            assert_eq!(shared.time_limit, expected.time_limit);
-            assert_eq!(shared.priority, expected.priority);
-        }
-    }
-
     fn task_desc(
         time_limit: Option<Duration>,
         priority: Priority,
