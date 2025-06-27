@@ -8,9 +8,7 @@ use tokio::net::TcpListener;
 use tokio::sync::Notify;
 
 use crate::events::EventProcessor;
-use crate::gateway::{
-    MultiNodeAllocationResponse, ResourceRequestVariants, TaskSubmit, WorkerRuntimeInfo,
-};
+use crate::gateway::{MultiNodeAllocationResponse, TaskSubmit, WorkerRuntimeInfo};
 use crate::internal::common::error::DsError;
 use crate::internal::messages::worker::ToWorkerMessage;
 use crate::internal::scheduler::query::compute_new_worker_query;
@@ -28,6 +26,9 @@ use crate::{TaskId, WorkerId};
 
 #[derive(Debug)]
 pub struct WorkerTypeQuery {
+    /// If True indicates that we do not have all information about this worker
+    pub partial: bool,
+    /// Worker resource descriptor
     pub descriptor: ResourceDescriptor,
     /// Worker time limit
     pub time_limit: Option<Duration>,
@@ -47,11 +48,6 @@ pub struct NewWorkerAllocationResponse {
     /// be spawned for the given query
     pub single_node_workers_per_query: Vec<usize>,
     pub multi_node_allocations: Vec<MultiNodeAllocationResponse>,
-    /// Resource requests of tasks that left after resolving the query and could not be assigned to
-    /// any running worker or worker in query response.
-    /// The second value is number of such tasks
-    /// Note: It contains both single node and multi node leftovers
-    pub leftovers: Vec<(ResourceRequestVariants, u32)>,
 }
 
 #[derive(Clone)]
@@ -118,10 +114,9 @@ impl ServerRef {
     */
     pub fn new_worker_query(
         &self,
-        queries: Vec<WorkerTypeQuery>,
-        collect_leftovers: bool,
+        queries: &[WorkerTypeQuery],
     ) -> crate::Result<NewWorkerAllocationResponse> {
-        for query in &queries {
+        for query in queries {
             query.descriptor.validate()?;
         }
         let mut core = self.core_ref.get_mut();
@@ -129,11 +124,7 @@ impl ServerRef {
         if comm.get_scheduling_flag() {
             run_scheduling_now(&mut core, &mut comm, Instant::now())
         }
-        Ok(compute_new_worker_query(
-            &mut core,
-            &queries,
-            collect_leftovers,
-        ))
+        Ok(compute_new_worker_query(&mut core, queries))
     }
 
     pub fn try_release_memory(&self) {

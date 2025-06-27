@@ -115,12 +115,9 @@ async fn test_task_time_limit_pass() {
 
 fn query_helper(
     handler: &mut ServerHandle,
-    worker_queries: Vec<WorkerTypeQuery>,
+    worker_queries: &[WorkerTypeQuery],
 ) -> NewWorkerAllocationResponse {
-    handler
-        .server_ref
-        .new_worker_query(worker_queries, true)
-        .unwrap()
+    handler.server_ref.new_worker_query(worker_queries).unwrap()
 }
 
 #[tokio::test]
@@ -132,7 +129,8 @@ async fn test_query_no_output_immediate_call() {
             .await;
         let msg = query_helper(
             &mut handler,
-            vec![WorkerTypeQuery {
+            &[WorkerTypeQuery {
+                partial: false,
                 descriptor: ResourceDescriptor::simple(12),
                 time_limit: None,
                 max_sn_workers: 2,
@@ -142,7 +140,6 @@ async fn test_query_no_output_immediate_call() {
         );
         assert_eq!(msg.single_node_workers_per_query, vec![0]);
         assert!(msg.multi_node_allocations.is_empty());
-        assert!(msg.leftovers.is_empty());
         handler.wait(&ids).await;
     })
     .await;
@@ -158,7 +155,8 @@ async fn test_query_no_output_delayed_call() {
         sleep(Duration::from_secs(1)).await;
         let msg = query_helper(
             &mut handler,
-            vec![WorkerTypeQuery {
+            &[WorkerTypeQuery {
+                partial: false,
                 descriptor: ResourceDescriptor::simple(12),
                 time_limit: None,
                 max_sn_workers: 2,
@@ -168,7 +166,6 @@ async fn test_query_no_output_delayed_call() {
         );
         assert_eq!(msg.single_node_workers_per_query, vec![0]);
         assert!(msg.multi_node_allocations.is_empty());
-        assert!(msg.leftovers.is_empty());
         handler.wait(&ids).await;
     })
     .await;
@@ -187,7 +184,8 @@ async fn test_query_new_workers_delayed_call() {
         sleep(Duration::from_secs(1)).await;
         let msg = query_helper(
             &mut handler,
-            vec![WorkerTypeQuery {
+            &[WorkerTypeQuery {
+                partial: false,
                 descriptor: ResourceDescriptor::simple(12),
                 time_limit: None,
                 max_sn_workers: 2,
@@ -213,7 +211,8 @@ async fn test_query_new_workers_immediate() {
             .await;
         let msg = query_helper(
             &mut handler,
-            vec![WorkerTypeQuery {
+            &[WorkerTypeQuery {
+                partial: false,
                 descriptor: ResourceDescriptor::simple(12),
                 time_limit: None,
                 max_sn_workers: 2,
