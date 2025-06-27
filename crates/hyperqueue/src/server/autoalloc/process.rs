@@ -26,9 +26,7 @@ use std::path::PathBuf;
 use std::time::{Instant, SystemTime};
 use tako::WorkerId;
 use tako::control::{ServerRef, WorkerTypeQuery};
-use tako::resources::{
-    CPU_RESOURCE_NAME, ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind,
-};
+use tako::resources::ResourceDescriptor;
 use tako::{Map, Set};
 use tempfile::TempDir;
 
@@ -360,7 +358,11 @@ async fn perform_submits(
     // TODO: do not run the code below if all queues have full backlog anyway
     let queries: Vec<WorkerTypeQuery> = queues
         .iter()
-        .map(|(_, queue)| create_queue_worker_query(queue))
+        .map(|(id, queue)| {
+            let query = create_queue_worker_query(queue);
+            log::debug!("Creating worker query {query:?} for queue {id}");
+            query
+        })
         .collect();
     let responses = compute_query_responses(senders, queries)?;
 
@@ -387,14 +389,8 @@ fn create_queue_worker_query(queue: &AllocationQueue) -> WorkerTypeQuery {
             // If not, try to at least estimate partial resources based from the CLI arguments
             (resources.clone(), true)
         } else {
-            // Otherwise just assume that the worker will have at least a single CPU
-            (
-                ResourceDescriptor::new(vec![ResourceDescriptorItem {
-                    name: CPU_RESOURCE_NAME.to_string(),
-                    kind: ResourceDescriptorKind::regular_sockets(1, 1),
-                }]),
-                true,
-            )
+            // Otherwise we cannot assume anything about the worker
+            (ResourceDescriptor::new(vec![]), true)
         }
     };
 
@@ -1531,7 +1527,7 @@ mod tests {
                 )
                 .await;
 
-            // Create 4 CPU cores
+            // Create 4 CPU core tasks
             ctx.handle
                 .submit(
                     GraphBuilder::default()
@@ -2107,32 +2103,6 @@ mod tests {
                     .allocation_fail_count(),
                 0
             );
-        })
-        .await;
-    }
-
-    #[tokio::test]
-    async fn resource_estimation_worker_config() {
-        run_test(async |mut ctx: TestCtx| {
-            let queue_id = ctx
-                .add_queue(always_queued_handler(), QueueBuilder::default().backlog(1))
-                .await;
-            // Submit 2 CPU tasks
-            ctx.handle
-                .submit(
-                    GraphBuilder::default()
-                        .task(
-                            TaskConfigBuilder::default()
-                                .args(simple_args(&["ls"]))
-                                .resources(ResourceRequestConfigBuilder::default().cpus(2)),
-                        )
-                        .build(),
-                )
-                .await;
-
-            ctx.try_submit().await;
-            let allocations = ctx.get_allocations(queue_id);
-            assert_eq!(allocations.len(), 0);
         })
         .await;
     }
