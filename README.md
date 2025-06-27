@@ -40,8 +40,8 @@ This image shows how HyperQueue can work on a distributed cluster that uses Slur
     - Allows streaming of stdout/stderr from tasks to avoid creating many small files on distributed filesystems
 
 - **Simple user interface**
-  - Task graphs can be defined via a CLI, TOML workflow files or a Python API
-  - Cluster utilization can be monitored with a real-time dashboard
+    - Task graphs can be defined via a CLI, TOML workflow files or a Python API
+    - Cluster utilization can be monitored with a real-time dashboard
 
 - **Easy deployment**
     - Provided as a single, statically linked binary without any runtime dependencies (apart from `libc`)

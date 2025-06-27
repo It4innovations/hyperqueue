@@ -21,7 +21,11 @@ consider [citing it](https://www.sciencedirect.com/science/article/pii/S23527110
 
 - Batch jobs are submitted and managed [automatically](deployment/allocation.md)
 - Computation is distributed amongst all allocated nodes and cores
-- Tasks can specify [resource requirements](jobs/cresources.md) (# of cores, GPUs, memory, ...)
+- Tasks can specify complex [resource requirements](jobs/cresources.md)
+    - Non-fungible resources (tasks are assigned specific resources, e.g. a GPU with ID `1`)
+    - Fractional resources (tasks can require e.g. `0.5` of a GPU)
+    - Resource variants (tasks can require e.g. `1 GPU and 4 CPU cores` OR `16 CPU cores`)
+    - Related resources (tasks can require e.g. `4 CPU cores in the same NUMA node`)
 
 **Performance**
 
@@ -29,7 +33,12 @@ consider [citing it](https://www.sciencedirect.com/science/article/pii/S23527110
 - Overhead per task is around 0.1 ms
 - Task output can be [streamed](jobs/streaming.md) to a single file to avoid overloading distributed filesystems
 
-**Simple deployment**
+**Simple user interface**
 
-- *HQ* is provided as a single, statically linked [binary](installation.md) without any dependencies
-- No admin access to a cluster is needed
+- Task graphs can be defined via a CLI, TOML workflow files or a Python API
+- Cluster utilization can be monitored with a real-time dashboard
+
+**Easy deployment**
+
+- Provided as a single, statically linked [binary](installation.md) without any runtime dependencies
+- No admin access to a cluster is needed for its usage
