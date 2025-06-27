@@ -102,6 +102,7 @@ plugins:
       enable_creation_date: true
   - mike:
       canonical_version: stable
+      alias_type: copy
   - nedoc:
       path: python/apidoc
 
