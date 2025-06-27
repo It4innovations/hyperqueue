@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+use anyhow::{Context, anyhow};
 use nom::Parser;
 use nom::character::complete::{newline, satisfy, space0};
 use nom::combinator::{map, map_res, opt};
@@ -43,11 +43,8 @@ pub fn detect_cpus() -> anyhow::Result<ResourceDescriptorKind> {
         })
         .or_else(|e| {
             log::debug!("Detecting linux failed: {e}");
-            let n_cpus = num_cpus::get() as u32;
-            if n_cpus < 1 {
-                anyhow::bail!("Cpu detection failed");
-            };
-            Ok(ResourceDescriptorKind::simple_indices(n_cpus))
+            let n_cpus = std::thread::available_parallelism().context("CPU detection failed")?;
+            Ok(ResourceDescriptorKind::simple_indices(n_cpus.get() as u32))
         })
 }
 
@@ -306,6 +303,9 @@ mod tests {
     #[test]
     fn test_read_linux_numa() {
         let cpus = read_linux_numa().unwrap();
-        assert_eq!(cpus.iter().map(|x| x.len()).sum::<usize>(), num_cpus::get());
+        assert_eq!(
+            cpus.iter().map(|x| x.len()).sum::<usize>(),
+            std::thread::available_parallelism().unwrap().get()
+        );
     }
 }

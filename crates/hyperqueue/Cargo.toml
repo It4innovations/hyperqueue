@@ -13,13 +13,10 @@ log = { workspace = true }
 env_logger = { workspace = true }
 futures = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
-tokio-util = { workspace = true, features = ["codec"] }
 clap = { workspace = true, features = ["derive", "env"] }
-clap_complete = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 serde_bytes = { workspace = true }
-bytes = { workspace = true }
 thiserror = { workspace = true }
 gethostname = { workspace = true }
 chrono = { workspace = true, features = ["serde"] }
@@ -34,10 +31,9 @@ nix = { workspace = true }
 bstr = { workspace = true }
 psutil = { workspace = true }
 thin-vec = { workspace = true }
-bitflags = { workspace = true }
 
 humantime = "2"
-num_cpus = "1"
+clap_complete = "4"
 cli-table = { version = "0.5", default-features = false }
 dirs = "6"
 nom = "7"
