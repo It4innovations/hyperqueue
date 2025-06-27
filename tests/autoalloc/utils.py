@@ -69,8 +69,12 @@ def add_queue(
     return hq_env.command(args, **kwargs)
 
 
-def prepare_tasks(hq_env: HqEnv, count=1000):
-    hq_env.command(["submit", f"--array=0-{count}", "sleep", "1"])
+def prepare_tasks(hq_env: HqEnv, count=1000, nodes=1):
+    args = ["submit", f"--array=0-{count}"]
+    if nodes > 1:
+        args += ["--nodes", str(nodes)]
+    args += ["sleep", "1"]
+    hq_env.command(args)
 
 
 def remove_queue(hq_env: HqEnv, queue_id: int, force=False, **kwargs):

@@ -1253,6 +1253,7 @@ mod tests {
     use log::LevelFilter;
     use tako::WorkerId;
     use tako::gateway::LostWorkerReason;
+    use tako::resources::ResourceDescriptor;
     use tako::tests::integration::utils::api::wait_for_worker_connected;
     use tako::tests::integration::utils::server::{
         ServerConfigBuilder, ServerHandle, run_server_test,
@@ -1260,7 +1261,9 @@ mod tests {
     use tako::tests::integration::utils::task::{
         GraphBuilder, ResourceRequestConfigBuilder, TaskConfigBuilder, simple_args,
     };
-    use tako::tests::integration::utils::worker::WorkerConfigBuilder;
+    use tako::tests::integration::utils::worker::{
+        WorkerConfigBuilder, create_worker_configuration,
+    };
     use tako::worker::WorkerConfiguration;
     use tako::{Map, Set, WrappedRcRefCell};
     use tempfile::TempDir;
@@ -1476,6 +1479,7 @@ mod tests {
                 .await;
 
             ctx.create_simple_tasks(100).await;
+            ctx.assign_worker_resource(queue_id, WorkerConfigBuilder::default());
             ctx.try_submit().await;
 
             let allocations = ctx.get_allocations(queue_id);
@@ -1485,6 +1489,115 @@ mod tests {
                     .iter()
                     .all(|alloc| alloc.target_worker_count == 2)
             );
+        })
+        .await;
+    }
+
+    // When we don't know worker resources, create only a single conservative "probe" allocation
+    // if there are some tasks waiting for resources
+    #[tokio::test]
+    async fn unknown_worker_resources() {
+        run_test(async |mut ctx: TestCtx| {
+            let queue_id = ctx
+                .add_queue(
+                    always_queued_handler(),
+                    QueueBuilder::default().backlog(4).max_workers_per_alloc(2),
+                )
+                .await;
+
+            ctx.create_simple_tasks(100).await;
+            ctx.try_submit().await;
+
+            let allocations = ctx.get_allocations(queue_id);
+            // Create only a single "probe" conservative allocation
+            assert_eq!(allocations.len(), 1);
+            assert!(
+                allocations
+                    .iter()
+                    .all(|alloc| alloc.target_worker_count == 1)
+            );
+        })
+        .await;
+    }
+
+    // Check that we create a probe allocation for each queue
+    #[tokio::test]
+    async fn unknown_worker_resources_multi_queue() {
+        run_test(async |mut ctx: TestCtx| {
+            let mut queues = vec![];
+            for _ in 0..2 {
+                queues.push(
+                    ctx.add_queue(always_queued_handler(), QueueBuilder::default())
+                        .await,
+                );
+            }
+
+            // Note: we currently create an allocation per queue even if the task count is smaller
+            // than the queue count. Could be improved in the future.
+            ctx.create_simple_tasks(1).await;
+            ctx.try_submit().await;
+
+            for queue_id in queues {
+                assert_eq!(ctx.get_allocations(queue_id).len(), 1);
+            }
+        })
+        .await;
+    }
+
+    // Check that we won't create an allocation if we know that a worker couldn't handle it,
+    // even if no worker has connected yet.
+    #[tokio::test]
+    async fn partial_worker_resources() {
+        run_test(async |mut ctx: TestCtx| {
+            let queue_id = ctx
+                .add_queue(
+                    always_queued_handler(),
+                    // Expect that worker will have 2 CPUs
+                    QueueBuilder::default().cli_resources(Some(ResourceDescriptor::simple_cpus(2))),
+                )
+                .await;
+
+            // Create 4 CPU cores
+            ctx.handle
+                .submit(
+                    GraphBuilder::default()
+                        .task(
+                            TaskConfigBuilder::default()
+                                .resources(ResourceRequestConfigBuilder::default().cpus(4)),
+                        )
+                        .build(),
+                )
+                .await;
+            ctx.try_submit().await;
+
+            assert!(ctx.get_allocations(queue_id).is_empty());
+        })
+        .await;
+    }
+
+    // Check that autoalloc reacts to a worker connecting from an allocation, which should update
+    // the known queue resources and allow more precise allocation submissions.
+    #[tokio::test]
+    async fn react_to_new_resources() {
+        run_test(async |mut ctx: TestCtx| {
+            let queue_id = ctx
+                .add_queue(always_queued_handler(), QueueBuilder::default().backlog(4))
+                .await;
+
+            ctx.create_simple_tasks(1000).await;
+
+            // Create a single allocation
+            ctx.try_submit().await;
+            let allocations = ctx.get_allocations(queue_id);
+            assert_eq!(allocations.len(), 1);
+
+            // Connect worker, which shows autoalloc the available resources
+            ctx.start_worker(WorkerConfigBuilder::default(), allocations[0].id.as_str())
+                .await;
+
+            // Now submit again and check that more allocations were created
+            ctx.try_submit().await;
+            assert_eq!(ctx.get_allocations(queue_id).len(), 5);
         })
         .await;
     }
@@ -1499,6 +1612,7 @@ mod tests {
                 )
                 .await;
 
+            ctx.assign_worker_resource(queue_id, WorkerConfigBuilder::default());
             ctx.create_simple_tasks(100).await;
 
             for _ in 0..5 {
@@ -1623,6 +1737,7 @@ mod tests {
                 )
                 .await;
 
+            ctx.assign_worker_resource(queue_id, WorkerConfigBuilder::default());
             ctx.create_simple_tasks(100).await;
             ctx.try_submit().await;
 
@@ -1676,6 +1791,7 @@ mod tests {
                 )
                 .await;
 
+            ctx.assign_worker_resource(queue_id, WorkerConfigBuilder::default());
             ctx.create_simple_tasks(5).await;
             ctx.try_submit().await;
 
@@ -1689,11 +1805,14 @@ mod tests {
     async fn stop_allocating_on_error() {
         run_test(async |mut ctx: TestCtx| {
             let handler_state = WrappedRcRefCell::wrap(HandlerState::default());
-            ctx.add_queue(
-                stateful_handler(handler_state.clone()),
-                QueueBuilder::default().backlog(5).max_workers_per_alloc(1),
-            )
-            .await;
+            let queue_id = ctx
+                .add_queue(
+                    stateful_handler(handler_state.clone()),
+                    QueueBuilder::default().backlog(5).max_workers_per_alloc(1),
+                )
+                .await;
+
+            ctx.assign_worker_resource(queue_id, WorkerConfigBuilder::default());
             ctx.create_simple_tasks(5).await;
 
             handler_state.get_mut().allocation_will_fail = true;
@@ -1752,6 +1871,7 @@ mod tests {
                 )
                 .await;
 
+            ctx.assign_worker_resource(queue_id, WorkerConfigBuilder::default());
             ctx.create_simple_tasks(100).await;
 
             // Put 4 allocations into the queue.
@@ -1793,6 +1913,7 @@ mod tests {
                 )
                 .await;
 
+            ctx.assign_worker_resource(queue_id, WorkerConfigBuilder::default());
             ctx.create_simple_tasks(100).await;
 
             ctx.try_submit().await;
@@ -1868,6 +1989,8 @@ mod tests {
                         .limiter_max_alloc_fails(2),
                 )
                 .await;
+
+            ctx.assign_worker_resource(queue_id, WorkerConfigBuilder::default());
             ctx.create_simple_tasks(100).await;
             ctx.try_submit().await;
 
@@ -2014,6 +2137,32 @@ mod tests {
         .await;
     }
 
+    #[tokio::test]
+    async fn resource_estimation_worker_config() {
+        run_test(async |mut ctx: TestCtx| {
+            let queue_id = ctx
+                .add_queue(always_queued_handler(), QueueBuilder::default().backlog(1))
+                .await;
+            // Submit 2 CPU tasks
+            ctx.handle
+                .submit(
+                    GraphBuilder::default()
+                        .task(
+                            TaskConfigBuilder::default()
+                                .args(simple_args(&["ls"]))
+                                .resources(ResourceRequestConfigBuilder::default().cpus(2)),
+                        )
+                        .build(),
+                )
+                .await;
+
+            ctx.try_submit().await;
+            let allocations = ctx.get_allocations(queue_id);
+            assert_eq!(allocations.len(), 0);
+        })
+        .await;
+    }
+
     // Utilities
     struct TestCtx {
         state: AutoAllocState,
@@ -2083,6 +2232,14 @@ mod tests {
                         .build(),
                 )
                 .await;
+        }
+
+        fn assign_worker_resource(&mut self, queue: QueueId, worker: WorkerConfigBuilder) {
+            let config = create_worker_configuration(worker).0;
+            self.state
+                .get_queue_mut(queue)
+                .expect("queue not found")
+                .register_worker_config(config);
         }
 
         async fn start_worker<Info: Into<ManagerInfo>>(
@@ -2200,6 +2357,7 @@ mod tests {
     async fn run_test<F: AsyncFnOnce(TestCtx)>(f: F) {
         let _ = env_logger::Builder::default()
             .filter(Some("hyperqueue::server::autoalloc"), LevelFilter::Debug)
+            .is_test(true)
             .try_init();
 
         let state = AutoAllocState::new(1);
@@ -2464,6 +2622,8 @@ mod tests {
         limiter_delays: Vec<Duration>,
         #[builder(default)]
         min_utilization: Option<f32>,
+        #[builder(default)]
+        cli_resources: Option<ResourceDescriptor>,
     }
 
     impl QueueBuilder {
@@ -2478,6 +2638,7 @@ mod tests {
                 limiter_max_submit_fails,
                 limiter_delays,
                 min_utilization,
+                cli_resources,
             } = self.finish().unwrap();
             (
                 QueueInfo::new(
@@ -2492,7 +2653,7 @@ mod tests {
                     None,
                     None,
                     min_utilization,
-                    None,
+                    cli_resources,
                 ),
                 RateLimiter::new(
                     limiter_delays,
