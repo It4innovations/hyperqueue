@@ -14,9 +14,11 @@ use crate::server::autoalloc::state::{
     AllocationQueue, AllocationQueueState, AllocationState, AutoAllocState, RateLimiter,
     RateLimiterStatus,
 };
-use crate::server::autoalloc::{Allocation, AllocationId, AutoAllocResult, QueueId, QueueInfo};
+use crate::server::autoalloc::{
+    Allocation, AllocationId, AutoAllocResult, QueueId, QueueInfo, QueueParameters,
+};
 use crate::server::event::streamer::EventStreamer;
-use crate::transfer::messages::{AllocationQueueParams, QueueData, QueueState};
+use crate::transfer::messages::{QueueData, QueueState};
 use anyhow::Context;
 use futures::future::join_all;
 use std::future::Future;
@@ -122,7 +124,7 @@ pub async fn autoalloc_process(
 
 /// Try to create a temporary allocation to check that the allocation manager can work with the
 /// given allocation parameters.
-pub async fn try_submit_allocation(params: AllocationQueueParams) -> anyhow::Result<()> {
+pub async fn try_submit_allocation(params: QueueParameters) -> anyhow::Result<()> {
     let tmpdir = TempDir::with_prefix("hq")?;
     let mut handler = create_allocation_handler(
         &params.manager,
@@ -132,7 +134,7 @@ pub async fn try_submit_allocation(params: AllocationQueueParams) -> anyhow::Res
 
     // Try the highest possible worker count, to ensure that it works
     let worker_count = params.max_workers_per_alloc;
-    let queue_info = create_queue_info(params);
+    let queue_info = QueueInfo::new(params);
 
     let allocation = handler
         .submit_allocation(0, &queue_info, worker_count as u64, SubmitMode::DryRun)
@@ -169,38 +171,6 @@ pub fn create_allocation_handler(
             handler.map::<Box<dyn QueueHandler>, _>(|handler| Box::new(handler))
         }
     }
-}
-
-pub fn create_queue_info(params: AllocationQueueParams) -> QueueInfo {
-    let AllocationQueueParams {
-        manager,
-        name: _name,
-        max_workers_per_alloc,
-        backlog,
-        timelimit,
-        min_utilization,
-        additional_args,
-        max_worker_count,
-        worker_start_cmd,
-        worker_stop_cmd,
-        worker_args,
-        idle_timeout,
-        cli_resource_descriptor,
-    } = params;
-    QueueInfo::new(
-        manager,
-        backlog,
-        max_workers_per_alloc,
-        timelimit,
-        additional_args,
-        max_worker_count,
-        worker_args,
-        idle_timeout,
-        worker_start_cmd,
-        worker_stop_cmd,
-        min_utilization,
-        cli_resource_descriptor,
-    )
 }
 
 /// Reacts to auto allocation message.
@@ -278,7 +248,7 @@ async fn handle_message(
                     (
                         id,
                         QueueData {
-                            info: queue.info().clone(),
+                            params: queue.info().params().clone(),
                             name: queue.name().map(|name| name.to_string()),
                             manager_type: queue.manager().clone(),
                             state: match queue.state() {
@@ -685,12 +655,12 @@ fn create_queue(
     autoalloc: &mut AutoAllocState,
     events: &EventStreamer,
     server_directory: PathBuf,
-    params: AllocationQueueParams,
+    params: QueueParameters,
     queue_id: Option<QueueId>,
 ) -> anyhow::Result<QueueId> {
     let name = params.name.clone();
     let handler = create_allocation_handler(&params.manager, name.clone(), server_directory);
-    let queue_info = create_queue_info(params.clone());
+    let queue_info = QueueInfo::new(params.clone());
 
     match handler {
         Ok(handler) => {
@@ -1249,9 +1219,9 @@ mod tests {
     };
     use crate::server::autoalloc::{
         Allocation, AllocationId, AutoAllocResult, LostWorkerDetails, QueueId, QueueInfo,
+        QueueParameters,
     };
     use crate::server::event::streamer::EventStreamer;
-    use crate::transfer::messages::AllocationQueueParams;
     use anyhow::anyhow;
     use derive_builder::Builder;
     use log::LevelFilter;
@@ -2181,28 +2151,16 @@ mod tests {
             handler: Box<dyn QueueHandler>,
             queue_builder: QueueBuilder,
         ) -> QueueId {
-            let (queue_info, rate_limiter) = queue_builder.build();
+            let (mut params, rate_limiter) = queue_builder.build();
+            params.name = Some("Queue".to_string());
+
             let (token, rx) = ResponseToken::new();
             handle_message(
                 &mut self.state,
                 &self.senders.events,
                 AutoAllocMessage::AddQueue {
                     server_directory: PathBuf::from("test"),
-                    params: AllocationQueueParams {
-                        manager: queue_info.manager().clone(),
-                        max_workers_per_alloc: queue_info.max_workers_per_alloc(),
-                        backlog: queue_info.backlog(),
-                        timelimit: queue_info.timelimit(),
-                        name: Some("Queue".to_string()),
-                        max_worker_count: queue_info.max_worker_count(),
-                        min_utilization: None,
-                        additional_args: vec![],
-                        worker_start_cmd: None,
-                        worker_stop_cmd: None,
-                        cli_resource_descriptor: None,
-                        worker_args: queue_info.worker_args().to_vec(),
-                        idle_timeout: None,
-                    },
+                    params,
                     queue_id: None,
                     response: token,
                 },
@@ -2410,8 +2368,13 @@ mod tests {
 
     impl From<QueueBuilder> for AllocationQueue {
         fn from(builder: QueueBuilder) -> Self {
-            let (info, limiter) = builder.build();
-            Self::new(info, None, always_queued_handler(), limiter)
+            let (params, limiter) = builder.build();
+            Self::new(
+                QueueInfo::new(params),
+                None,
+                always_queued_handler(),
+                limiter,
+            )
         }
     }
 
@@ -2631,7 +2594,7 @@ mod tests {
     }
 
     impl QueueBuilder {
-        fn build(self) -> (QueueInfo, RateLimiter) {
+        fn build(self) -> (QueueParameters, RateLimiter) {
             let Queue {
                 manager,
                 backlog,
@@ -2644,21 +2607,24 @@ mod tests {
                 min_utilization,
                 cli_resources,
             } = self.finish().unwrap();
+            let params = QueueParameters {
+                manager,
+                max_workers_per_alloc,
+                backlog,
+                timelimit,
+                name: None,
+                max_worker_count,
+                min_utilization,
+                additional_args: vec![],
+                worker_start_cmd: None,
+                worker_stop_cmd: None,
+                cli_resource_descriptor: cli_resources,
+                worker_args: vec![],
+                idle_timeout: None,
+            };
+
             (
-                QueueInfo::new(
-                    manager,
-                    backlog,
-                    max_workers_per_alloc,
-                    timelimit,
-                    vec![],
-                    max_worker_count,
-                    vec![],
-                    None,
-                    None,
-                    None,
-                    min_utilization,
-                    cli_resources,
-                ),
+                params,
                 RateLimiter::new(
                     limiter_delays,
                     limiter_max_submit_fails,

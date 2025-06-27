@@ -13,7 +13,7 @@ mod state;
 pub type AutoAllocResult<T> = anyhow::Result<T>;
 
 pub use process::try_submit_allocation;
-pub use queue::QueueInfo;
+pub use queue::{QueueInfo, QueueParameters};
 pub use service::{AutoAllocService, LostWorkerDetails, create_autoalloc_service};
 pub use state::{Allocation, AllocationId, AllocationState, QueueId};
 

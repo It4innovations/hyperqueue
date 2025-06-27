@@ -1,11 +1,11 @@
 use crate::common::error::HqError;
-use crate::server::autoalloc::QueueId;
+use crate::server::autoalloc::{QueueId, QueueParameters};
 use crate::server::client::{submit_job_desc, validate_submit};
 use crate::server::event::journal::JournalReader;
 use crate::server::event::payload::EventPayload;
 use crate::server::job::{Job, JobTaskState, StartedTaskData, SubmittedJobDescription};
 use crate::server::state::State;
-use crate::transfer::messages::{AllocationQueueParams, JobDescription, SubmitRequest};
+use crate::transfer::messages::{JobDescription, SubmitRequest};
 use crate::worker::start::RunningTaskContext;
 use std::path::Path;
 use tako::gateway::TaskSubmit;
@@ -37,7 +37,7 @@ struct RestorerJob {
 
 pub struct Queue {
     pub queue_id: QueueId,
-    pub params: Box<AllocationQueueParams>,
+    pub params: Box<QueueParameters>,
 }
 
 fn is_task_completed(tasks: &Map<JobTaskId, RestorerTaskInfo>, task_id: JobTaskId) -> bool {
@@ -135,7 +135,7 @@ pub(crate) struct StateRestorer {
     max_job_id: <JobId as ItemId>::IdType,
     max_worker_id: <WorkerId as ItemId>::IdType,
     truncate_size: Option<u64>,
-    queues: Map<QueueId, Box<AllocationQueueParams>>,
+    queues: Map<QueueId, Box<QueueParameters>>,
     max_queue_id: QueueId,
     server_uid: String,
 }

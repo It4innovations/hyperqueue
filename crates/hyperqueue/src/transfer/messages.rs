@@ -7,7 +7,7 @@ use crate::JobDataObjectId;
 use crate::client::status::Status;
 use crate::common::arraydef::IntArray;
 use crate::common::manager::info::ManagerType;
-use crate::server::autoalloc::{Allocation, QueueId, QueueInfo};
+use crate::server::autoalloc::{Allocation, QueueId, QueueParameters};
 use crate::server::event::Event;
 use crate::server::job::{JobTaskCounters, JobTaskInfo, SubmittedJobDescription};
 use std::path::PathBuf;
@@ -17,7 +17,6 @@ use tako::gateway::{
     WorkerRuntimeInfo,
 };
 use tako::program::ProgramDefinition;
-use tako::resources::ResourceDescriptor;
 use tako::server::TaskExplanation;
 use tako::worker::WorkerConfiguration;
 use tako::{JobId, JobTaskCount, JobTaskId, Map, TaskId, WorkerId};
@@ -284,11 +283,11 @@ pub enum AutoAllocRequest {
         queue_id: QueueId,
     },
     AddQueue {
-        parameters: AllocationQueueParams,
+        parameters: QueueParameters,
         dry_run: bool,
     },
     DryRun {
-        parameters: AllocationQueueParams,
+        parameters: QueueParameters,
     },
     RemoveQueue {
         queue_id: QueueId,
@@ -300,28 +299,6 @@ pub enum AutoAllocRequest {
     ResumeQueue {
         queue_id: QueueId,
     },
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct AllocationQueueParams {
-    pub manager: ManagerType,
-    pub max_workers_per_alloc: u32,
-    pub backlog: u32,
-    pub timelimit: Duration,
-    pub name: Option<String>,
-    pub max_worker_count: Option<u32>,
-    pub min_utilization: Option<f32>,
-    pub additional_args: Vec<String>,
-
-    pub worker_start_cmd: Option<String>,
-    pub worker_stop_cmd: Option<String>,
-
-    /// Resources descriptor constructed from worker CLI options
-    pub cli_resource_descriptor: Option<ResourceDescriptor>,
-
-    // Black-box worker args that will be passed to `worker start`
-    pub worker_args: Vec<String>,
-    pub idle_timeout: Option<Duration>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -513,7 +490,7 @@ pub enum QueueState {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct QueueData {
-    pub info: QueueInfo,
+    pub params: QueueParameters,
     pub name: Option<String>,
     pub manager_type: ManagerType,
     pub state: QueueState,

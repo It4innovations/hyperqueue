@@ -1,7 +1,7 @@
 use crate::common::serialization::Serialized;
-use crate::server::autoalloc::AllocationId;
 use crate::server::autoalloc::QueueId;
-use crate::transfer::messages::{AllocationQueueParams, JobDescription, SubmitRequest};
+use crate::server::autoalloc::{AllocationId, QueueParameters};
+use crate::transfer::messages::{JobDescription, SubmitRequest};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use tako::gateway::LostWorkerReason;
@@ -51,7 +51,7 @@ pub enum EventPayload {
         task_ids: Vec<TaskId>,
     },
     /// New allocation queue has been created
-    AllocationQueueCreated(QueueId, Box<AllocationQueueParams>),
+    AllocationQueueCreated(QueueId, Box<QueueParameters>),
     /// Allocation queue has been removed
     AllocationQueueRemoved(QueueId),
     /// Allocation was submitted into PBS/Slurm

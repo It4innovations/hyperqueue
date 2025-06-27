@@ -12,9 +12,9 @@ use crate::common::manager::info::{GetManagerInfo, ManagerInfo};
 use crate::common::rpc::{ResponseToken, RpcSender, initiate_request, make_rpc_queue};
 use crate::server::autoalloc::process::autoalloc_process;
 use crate::server::autoalloc::state::AutoAllocState;
-use crate::server::autoalloc::{Allocation, QueueId};
+use crate::server::autoalloc::{Allocation, QueueId, QueueParameters};
 use crate::server::event::streamer::EventStreamer;
-use crate::transfer::messages::{AllocationQueueParams, QueueData};
+use crate::transfer::messages::QueueData;
 use tako::JobId;
 
 #[derive(Debug)]
@@ -32,7 +32,7 @@ pub enum AutoAllocMessage {
     GetQueues(ResponseToken<Map<QueueId, QueueData>>),
     AddQueue {
         server_directory: PathBuf,
-        params: AllocationQueueParams,
+        params: QueueParameters,
         queue_id: Option<QueueId>,
         response: ResponseToken<anyhow::Result<QueueId>>,
     },
@@ -101,7 +101,7 @@ impl AutoAllocService {
     pub async fn add_queue(
         &self,
         server_dir: &Path,
-        params: AllocationQueueParams,
+        params: QueueParameters,
         queue_id: Option<QueueId>,
     ) -> anyhow::Result<QueueId> {
         let fut = initiate_request(|token| {

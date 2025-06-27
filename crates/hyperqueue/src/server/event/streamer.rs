@@ -1,9 +1,9 @@
 use crate::common::serialization::Serialized;
-use crate::server::autoalloc::{AllocationId, QueueId};
+use crate::server::autoalloc::{AllocationId, QueueId, QueueParameters};
 use crate::server::event::Event;
 use crate::server::event::journal::{EventStreamMessage, EventStreamSender};
 use crate::server::event::payload::EventPayload;
-use crate::transfer::messages::{AllocationQueueParams, JobDescription, SubmitRequest};
+use crate::transfer::messages::{JobDescription, SubmitRequest};
 use chrono::{DateTime, Utc};
 use smallvec::SmallVec;
 use tako::gateway::LostWorkerReason;
@@ -153,7 +153,7 @@ impl EventStreamer {
         );
     }
 
-    pub fn on_allocation_queue_created(&self, id: QueueId, parameters: AllocationQueueParams) {
+    pub fn on_allocation_queue_created(&self, id: QueueId, parameters: QueueParameters) {
         self.send_event(
             EventPayload::AllocationQueueCreated(id, Box::new(parameters)),
             None,

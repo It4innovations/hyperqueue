@@ -448,7 +448,7 @@ impl Serialize for FormattedManagerType {
 
 fn format_autoalloc_queue(id: QueueId, descriptor: QueueData) -> serde_json::Value {
     let QueueData {
-        info,
+        params,
         name,
         manager_type,
         state,
@@ -460,12 +460,12 @@ fn format_autoalloc_queue(id: QueueId, descriptor: QueueData) -> serde_json::Val
         "name": name,
         "state": state,
         "manager": manager,
-        "additional_args": info.additional_args(),
-        "backlog": info.backlog(),
-        "max_workers_per_alloc": info.max_workers_per_alloc(),
-        "timelimit": format_duration(info.timelimit()),
-        "max_worker_count": info.max_worker_count(),
-        "worker_args": info.worker_args(),
+        "additional_args": params.additional_args,
+        "backlog": params.backlog,
+        "max_workers_per_alloc": params.max_workers_per_alloc,
+        "timelimit": format_duration(params.timelimit),
+        "max_worker_count": params.max_worker_count,
+        "worker_args": params.worker_args,
     })
 }
 fn format_allocation(allocation: Allocation) -> serde_json::Value {

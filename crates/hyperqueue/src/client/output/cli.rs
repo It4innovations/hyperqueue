@@ -958,7 +958,7 @@ impl Output for CliOutput {
             .into_iter()
             .map(|(id, data)| {
                 let QueueData {
-                    info,
+                    params,
                     name,
                     manager_type,
                     state,
@@ -971,13 +971,13 @@ impl Output for CliOutput {
                         QueueState::Paused => "PAUSED",
                     }
                     .cell(),
-                    info.backlog().cell(),
-                    info.max_workers_per_alloc().cell(),
-                    info.max_worker_count().unwrap_or_default().cell(),
-                    format_duration(info.timelimit()).to_string().cell(),
+                    params.backlog.cell(),
+                    params.max_workers_per_alloc.cell(),
+                    params.max_worker_count.unwrap_or_default().cell(),
+                    format_duration(params.timelimit).to_string().cell(),
                     manager_type.cell(),
                     name.unwrap_or_default().cell(),
-                    info.additional_args().join(",").cell(),
+                    params.additional_args.join(",").cell(),
                 ]
             })
             .collect();

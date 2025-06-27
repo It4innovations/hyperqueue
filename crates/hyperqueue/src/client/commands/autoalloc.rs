@@ -7,11 +7,11 @@ use crate::common::format::server_lost_policy_to_str;
 use crate::common::manager::info::ManagerType;
 use crate::common::utils::time::parse_hms_or_human_time;
 use crate::rpc_call;
-use crate::server::autoalloc::{Allocation, AllocationState, QueueId};
+use crate::server::autoalloc::{Allocation, AllocationState, QueueId, QueueParameters};
 use crate::server::bootstrap::get_client_session;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
-    AllocationQueueParams, AutoAllocRequest, AutoAllocResponse, FromClientMessage, ToClientMessage,
+    AutoAllocRequest, AutoAllocResponse, FromClientMessage, ToClientMessage,
 };
 use clap::Parser;
 use humantime::format_duration;
@@ -245,10 +245,7 @@ pub async fn command_autoalloc(
     Ok(())
 }
 
-fn args_to_params(
-    manager: ManagerType,
-    args: SharedQueueOpts,
-) -> anyhow::Result<AllocationQueueParams> {
+fn args_to_params(manager: ManagerType, args: SharedQueueOpts) -> anyhow::Result<QueueParameters> {
     let SharedQueueOpts {
         backlog,
         time_limit,
@@ -349,7 +346,7 @@ wasted allocation duration."
         format!("\"{}\"", format_duration(worker_time_limit)),
     ]);
 
-    Ok(AllocationQueueParams {
+    Ok(QueueParameters {
         manager,
         max_workers_per_alloc,
         backlog,

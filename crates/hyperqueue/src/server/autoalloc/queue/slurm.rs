@@ -42,8 +42,8 @@ impl QueueHandler for SlurmHandler {
         worker_count: u64,
         _mode: SubmitMode,
     ) -> Pin<Box<dyn Future<Output = AutoAllocResult<AllocationSubmissionResult>>>> {
-        let queue_info = queue_info.clone();
-        let timelimit = queue_info.timelimit;
+        let params = queue_info.params().clone();
+        let timelimit = params.timelimit;
         let hq_path = self.handler.hq_path.clone();
         let server_directory = self.handler.server_directory.clone();
         let name = self.handler.name.clone();
@@ -58,11 +58,11 @@ impl QueueHandler for SlurmHandler {
             )?;
 
             let worker_args =
-                build_worker_args(&hq_path, ManagerType::Slurm, &server_directory, &queue_info);
+                build_worker_args(&hq_path, ManagerType::Slurm, &server_directory, &params);
             let worker_args = wrap_worker_cmd(
                 worker_args,
-                queue_info.worker_start_cmd.as_deref(),
-                queue_info.worker_stop_cmd.as_deref(),
+                params.worker_start_cmd.as_deref(),
+                params.worker_stop_cmd.as_deref(),
             );
             let script = build_slurm_submit_script(
                 worker_count,
@@ -70,7 +70,7 @@ impl QueueHandler for SlurmHandler {
                 &format_allocation_name(name, queue_id, allocation_num),
                 &working_dir.join("stdout").display().to_string(),
                 &working_dir.join("stderr").display().to_string(),
-                &queue_info.additional_args.join(" "),
+                &params.additional_args.join(" "),
                 &worker_args,
             );
             let id = submit_script(script, "sbatch", &working_dir, |output| {

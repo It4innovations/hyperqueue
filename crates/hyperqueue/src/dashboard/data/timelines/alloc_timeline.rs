@@ -1,12 +1,11 @@
-use crate::server::autoalloc::{AllocationId, QueueId};
+use crate::server::autoalloc::{AllocationId, QueueId, QueueParameters};
 use crate::server::event::Event;
 use crate::server::event::payload::EventPayload;
-use crate::transfer::messages::AllocationQueueParams;
 use std::time::SystemTime;
 use tako::Map;
 
 pub struct AllocationQueueInfo {
-    pub queue_params: AllocationQueueParams,
+    pub queue_params: QueueParameters,
     pub creation_time: SystemTime,
     pub removal_time: Option<SystemTime>,
 
@@ -170,7 +169,7 @@ impl AllocationTimeline {
             .filter(move |(_, info)| info.creation_time <= time)
     }
 
-    pub fn get_queue_params_for(&self, queue_id: &QueueId) -> Option<&AllocationQueueParams> {
+    pub fn get_queue_params_for(&self, queue_id: &QueueId) -> Option<&QueueParameters> {
         self.queue_timelines
             .get(queue_id)
             .map(|queue_info| &queue_info.queue_params)

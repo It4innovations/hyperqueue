@@ -13,88 +13,76 @@ use std::time::{Duration, SystemTime};
 use tako::Map;
 use tako::resources::ResourceDescriptor;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct QueueInfo {
-    manager: ManagerType,
-    backlog: u32,
-    max_workers_per_alloc: u32,
-    timelimit: Duration,
-    additional_args: Vec<String>,
-    max_worker_count: Option<u32>,
-    worker_args: Vec<String>,
-    idle_timeout: Option<Duration>,
-    worker_start_cmd: Option<String>,
-    worker_stop_cmd: Option<String>,
-    min_utilization: Option<f32>,
-    cli_resource_descriptor: Option<ResourceDescriptor>,
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct QueueParameters {
+    pub manager: ManagerType,
+    pub max_workers_per_alloc: u32,
+    pub backlog: u32,
+    pub timelimit: Duration,
+    pub name: Option<String>,
+    pub max_worker_count: Option<u32>,
+    pub min_utilization: Option<f32>,
+    pub additional_args: Vec<String>,
+
+    pub worker_start_cmd: Option<String>,
+    pub worker_stop_cmd: Option<String>,
+
+    /// Resources descriptor constructed from worker CLI options
+    pub cli_resource_descriptor: Option<ResourceDescriptor>,
+
+    // Black-box worker args that will be passed to `worker start`
+    pub worker_args: Vec<String>,
+    pub idle_timeout: Option<Duration>,
 }
 
+// Wrapper that exposes some methods and doesn't allow pub access to the queue parameter
+// fields.
+#[derive(Debug, Clone)]
+pub struct QueueInfo(QueueParameters);
+
 impl QueueInfo {
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        manager: ManagerType,
-        backlog: u32,
-        max_workers_per_alloc: u32,
-        timelimit: Duration,
-        additional_args: Vec<String>,
-        max_worker_count: Option<u32>,
-        worker_args: Vec<String>,
-        idle_timeout: Option<Duration>,
-        worker_start_cmd: Option<String>,
-        worker_stop_cmd: Option<String>,
-        min_utilization: Option<f32>,
-        cli_resource_descriptor: Option<ResourceDescriptor>,
-    ) -> Self {
-        Self {
-            manager,
-            backlog,
-            max_workers_per_alloc,
-            timelimit,
-            additional_args,
-            max_worker_count,
-            worker_args,
-            idle_timeout,
-            worker_start_cmd,
-            worker_stop_cmd,
-            min_utilization,
-            cli_resource_descriptor,
-        }
+    pub fn new(params: QueueParameters) -> Self {
+        Self(params)
+    }
+
+    pub fn params(&self) -> &QueueParameters {
+        &self.0
     }
 
     pub fn manager(&self) -> &ManagerType {
-        &self.manager
+        &self.0.manager
     }
 
     pub fn backlog(&self) -> u32 {
-        self.backlog
+        self.0.backlog
     }
 
     pub fn max_workers_per_alloc(&self) -> u32 {
-        self.max_workers_per_alloc
+        self.0.max_workers_per_alloc
     }
 
     pub fn timelimit(&self) -> Duration {
-        self.timelimit
+        self.0.timelimit
     }
 
     pub fn additional_args(&self) -> &[String] {
-        &self.additional_args
+        &self.0.additional_args
     }
 
     pub fn max_worker_count(&self) -> Option<u32> {
-        self.max_worker_count
+        self.0.max_worker_count
     }
 
     pub fn worker_args(&self) -> &[String] {
-        &self.worker_args
+        &self.0.worker_args
     }
 
     pub fn min_utilization(&self) -> Option<f32> {
-        self.min_utilization
+        self.0.min_utilization
     }
 
     pub fn cli_resource_descriptor(&self) -> Option<&ResourceDescriptor> {
-        self.cli_resource_descriptor.as_ref()
+        self.0.cli_resource_descriptor.as_ref()
     }
 }
 

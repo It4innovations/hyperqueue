@@ -2,7 +2,7 @@ use crate::common::format::human_duration;
 use crate::dashboard::ui::styles::table_style_deselected;
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};
-use crate::transfer::messages::AllocationQueueParams;
+use crate::server::autoalloc::QueueParameters;
 use ratatui::layout::{Constraint, Rect};
 use ratatui::widgets::{Cell, Row};
 
@@ -25,7 +25,7 @@ struct QueueParamsDataRow {
 }
 
 impl QueueParamsTable {
-    pub fn update(&mut self, queue_params: Option<&AllocationQueueParams>) {
+    pub fn update(&mut self, queue_params: Option<&QueueParameters>) {
         let rows = match queue_params {
             Some(params) => create_rows(params),
             None => vec![],
@@ -48,7 +48,7 @@ impl QueueParamsTable {
     }
 }
 
-fn create_rows(params: &AllocationQueueParams) -> Vec<QueueParamsDataRow> {
+fn create_rows(params: &QueueParameters) -> Vec<QueueParamsDataRow> {
     vec![
         QueueParamsDataRow {
             label: "Maximum Workers Per Alloc: ",
