@@ -104,13 +104,10 @@ plugins:
       canonical_version: stable
   - nedoc:
       path: python/apidoc
-  - gen-files:
-      scripts:
-        - scripts/doc_copy_examples.py
-        - scripts/build_cli_reference.py
 
 hooks:
-  - scripts/build_cli_reference.py
+  - scripts/docs/build_cli_reference.py
+  - scripts/docs/copy_examples.py
 
 extra:
   analytics:
