@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Check package versions
         run: python scripts/check_package_versions.py
   set-env:
@@ -29,7 +29,7 @@ jobs:
       prerelease: ${{ env.PRERELEASE }}
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Set env on push
         if: github.event_name == 'push'
         run: |
@@ -59,7 +59,7 @@ jobs:
     needs: [ set-env, build-artifacts ]
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           ref: ${{ needs.set-env.outputs.sha }}
 

@@ -22,7 +22,7 @@ jobs:
       tag: ${{ env.TAG }}
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Set env on push
         if: github.event_name == 'push'
         run: |
