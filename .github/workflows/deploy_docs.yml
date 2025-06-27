@@ -54,4 +54,4 @@ jobs:
         run: mike deploy --push latest
       - name: Deploy stable docs
         if: fromJson(env.VERSION).type == 'stable'
-        run: mike deploy --push -u --no-redirect ${{ fromJson(env.VERSION).version }} stable
+        run: mike deploy --push -u ${{ fromJson(env.VERSION).version }} stable
