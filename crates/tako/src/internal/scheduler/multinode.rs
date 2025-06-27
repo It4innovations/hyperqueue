@@ -207,7 +207,7 @@ impl<'a> MultiNodeAllocator<'a> {
                         TaskFindWorkersResult::NotReady => { /* Do nothing */ }
                         TaskFindWorkersResult::NoWorkers => {
                             qfr.sleeping = true;
-                            log::debug!("Multi-node task {:?} put into sleep", rq,);
+                            log::debug!("Multi-node task {rq:?} put into sleep",);
                             continue 'outer;
                         }
                     }

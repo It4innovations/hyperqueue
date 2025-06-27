@@ -875,11 +875,8 @@ fn warn_missing_task_id(opts: &JobSubmitOpts, task_count: u32) {
             let path_has_cwd = placeholders.contains(&StringPart::Placeholder(CWD_PLACEHOLDER));
             if !path_has_task_id && (!path_has_cwd || !cwd_has_task_id) {
                 log::warn!(
-                    "You have submitted an array job, but the `{}` path does not contain the task ID placeholder.\n\
-        Individual tasks might thus overwrite the file. Consider adding `%{{{}}}` to the `--{}` value.",
-                    stream,
-                    TASK_ID_PLACEHOLDER,
-                    stream
+                    "You have submitted an array job, but the `{stream}` path does not contain the task ID placeholder.\n\
+        Individual tasks might thus overwrite the file. Consider adding `%{{{TASK_ID_PLACEHOLDER}}}` to the `--{stream}` value."
                 );
             }
         }

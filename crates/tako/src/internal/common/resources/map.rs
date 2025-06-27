@@ -28,7 +28,7 @@ impl ResourceIdAllocator {
             Some(&id) => id,
             None => {
                 let id = ResourceId::new(self.resource_names.len() as u32);
-                log::debug!("New generic resource registered '{}' as {}", name, id);
+                log::debug!("New generic resource registered '{name}' as {id}");
                 self.resource_names.insert(name.to_string(), id);
                 id
             }

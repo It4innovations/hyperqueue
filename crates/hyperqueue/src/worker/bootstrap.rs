@@ -101,7 +101,7 @@ pub async fn initialize_worker(
     std::fs::create_dir_all(&configuration.work_dir)?;
 
     let server_address = format!("{}:{}", record.worker.host, record.worker.port);
-    log::info!("Connecting to: {}", server_address);
+    log::info!("Connecting to: {server_address}");
 
     let server_addresses = lookup_host(&server_address)
         .await

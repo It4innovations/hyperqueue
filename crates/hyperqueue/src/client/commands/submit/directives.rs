@@ -121,7 +121,7 @@ pub fn parse_hq_directives(
 
     // clap parses first argument as name of the program
     arguments.insert(0, "".to_string());
-    log::debug!("Applying directive(s): {:?}", arguments);
+    log::debug!("Applying directive(s): {arguments:?}");
 
     let app = SubmitJobTaskConfOpts::command()
         .disable_help_flag(true)

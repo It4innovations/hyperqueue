@@ -96,7 +96,7 @@ impl CliOutput {
     fn print_table(&self, table: TableStruct) {
         let table = table.color_choice(self.color_policy);
         if let Err(e) = print_stdout(table) {
-            log::error!("Cannot print table to stdout: {:?}", e);
+            log::error!("Cannot print table to stdout: {e:?}");
         }
     }
 
@@ -380,9 +380,9 @@ impl Output for CliOutput {
                     assigned_tasks,
                     is_reserved,
                 } => {
-                    write!(s, "assigned tasks: {}", assigned_tasks).unwrap();
+                    write!(s, "assigned tasks: {assigned_tasks}").unwrap();
                     if running_tasks > 0 {
-                        write!(s, "; running tasks: {}", running_tasks).unwrap();
+                        write!(s, "; running tasks: {running_tasks}").unwrap();
                     }
                     if is_reserved {
                         write!(s, "; reserved for a multi-node task").unwrap();
@@ -467,7 +467,7 @@ impl Output for CliOutput {
             println!("{}", job_task_ids[0].1);
         } else {
             for (job_id, array) in &job_task_ids {
-                println!("{}: {}", job_id, array);
+                println!("{job_id}: {array}");
             }
         }
     }
@@ -1367,10 +1367,7 @@ pub fn print_job_output(
                 Err(error) => log::warn!("File `{path}` cannot be opened: {error:?}"),
             };
         } else {
-            log::warn!(
-                "Task {} has no `{stream_name}` stream associated with it",
-                task_id
-            );
+            log::warn!("Task {task_id} has no `{stream_name}` stream associated with it");
         }
     };
 
@@ -1605,9 +1602,9 @@ fn format_descriptor_kind(kind: &ResourceDescriptorKind) -> String {
                 )
             )
         }
-        ResourceDescriptorKind::Range { start, end } if start == end => format!("[{}]", start),
-        ResourceDescriptorKind::Range { start, end } => format!("range({}-{})", start, end),
-        ResourceDescriptorKind::Sum { size } => format!("sum({})", size),
+        ResourceDescriptorKind::Range { start, end } if start == end => format!("[{start}]"),
+        ResourceDescriptorKind::Range { start, end } => format!("range({start}-{end})"),
+        ResourceDescriptorKind::Sum { size } => format!("sum({size})"),
     }
 }
 
@@ -1702,16 +1699,16 @@ fn explanation_item_to_strings(
             worker_amount,
         } => (
             resource.color(colored::Color::Cyan),
-            format!("{}", worker_amount).color(colored::Color::Yellow),
-            format!("{}", request_amount).color(request_color),
+            format!("{worker_amount}").color(colored::Color::Yellow),
+            format!("{request_amount}").color(request_color),
         ),
         TaskExplainItem::WorkerGroup {
             n_nodes,
             group_size,
         } => (
             "nodes".color(colored::Color::Magenta),
-            format!("group size {}", group_size).color(colored::Color::Yellow),
-            format!("{}", n_nodes).color(request_color),
+            format!("group size {group_size}").color(colored::Color::Yellow),
+            format!("{n_nodes}").color(request_color),
         ),
     }
 }

@@ -49,7 +49,7 @@ pub(crate) async fn handle_data_connection<I: UploadInterface>(
         match message? {
             FromDataClientMessage::GetObject { data_id } => {
                 if let Some(data_obj) = interface.get_object(data_id) {
-                    log::debug!("Uploading object {}", data_id);
+                    log::debug!("Uploading object {data_id}");
                     let (mut decomposer, first_data) = DataObjectDecomposer::new(data_obj.clone());
                     connection
                         .send(ToDataClientMessageUp::DataObject {
@@ -72,7 +72,7 @@ pub(crate) async fn handle_data_connection<I: UploadInterface>(
                     log::debug!("Upload of {data_id} is finished");
                     interface.upload_finished(data_obj.size());
                 } else {
-                    log::debug!("Request for invalid object {}", data_id);
+                    log::debug!("Request for invalid object {data_id}");
                     connection.send(ToDataClientMessageUp::NotFound).await?;
                 }
             }

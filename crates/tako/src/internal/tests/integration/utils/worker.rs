@@ -247,8 +247,7 @@ async fn launcher_main(program: ProgramDefinition) -> crate::Result<()> {
     if !status.success() {
         let code = status.code().unwrap_or(-1);
         return crate::Result::Err(DsError::GenericError(format!(
-            "Program terminated with exit code {}",
-            code
+            "Program terminated with exit code {code}"
         )));
     }
     Ok(())

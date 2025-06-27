@@ -50,7 +50,7 @@ impl RestorerJob {
         job_id: JobId,
         state: &mut State,
     ) -> crate::Result<Vec<TaskSubmit>> {
-        log::debug!("Restoring job {}", job_id);
+        log::debug!("Restoring job {job_id}");
         let job = Job::new(job_id, self.job_desc, self.is_open);
         state.add_job(job);
         let mut result: Vec<TaskSubmit> = Vec::new();

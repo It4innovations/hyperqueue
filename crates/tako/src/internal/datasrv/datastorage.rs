@@ -63,9 +63,9 @@ impl DataStorage {
     }
 
     pub fn remove_object(&mut self, data_object_id: DataObjectId) {
-        log::debug!("Removing data object {:?}", data_object_id);
+        log::debug!("Removing data object {data_object_id:?}");
         if self.store.remove(&data_object_id).is_none() {
-            log::debug!("Data object {} not found", data_object_id);
+            log::debug!("Data object {data_object_id} not found");
         }
     }
 

@@ -77,7 +77,7 @@ impl LocalDataClient {
             let bytes_read = file.read(&mut buffer)?;
             let data = &buffer[0..bytes_read];
             written += data.len();
-            log::debug!("Uploading: {}/{}", written, size);
+            log::debug!("Uploading: {written}/{size}");
             if first {
                 self.send_message(FromLocalDataClientMessageUp::PutDataObject {
                     data_id,

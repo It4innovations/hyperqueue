@@ -155,7 +155,7 @@ pub async fn initialize_server(
         Ipv4Addr::UNSPECIFIED.into(),
         server_cfg.worker_port.unwrap_or(0),
     );
-    log::debug!("Waiting for workers on {:?}", worker_listen_address);
+    log::debug!("Waiting for workers on {worker_listen_address:?}");
     let worker_listener = TcpListener::bind(worker_listen_address).await?;
 
     let server_uid = server_cfg

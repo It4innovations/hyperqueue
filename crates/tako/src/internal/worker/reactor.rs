@@ -20,7 +20,7 @@ pub(crate) fn start_task(
     allocation: Rc<Allocation>,
     resource_index: usize,
 ) {
-    log::debug!("Task={} assigned", task_id);
+    log::debug!("Task={task_id} assigned");
 
     let (end_sender, end_receiver) = oneshot::channel();
     let task_comm = RunningTaskComm::new(end_sender);
@@ -69,11 +69,7 @@ pub(crate) fn start_task(
             ));
         }
         Err(error) => {
-            log::debug!(
-                "Task initialization failed id={}, error={:?}",
-                task_id,
-                error
-            );
+            log::debug!("Task initialization failed id={task_id}, error={error:?}");
             if let Some(token) = token {
                 state.lc_state.borrow_mut().unregister_token(&token);
             }
@@ -131,22 +127,22 @@ async fn handle_task_future(
     }
     match result {
         Ok(TaskResult::Finished) => {
-            log::debug!("Inner task finished id={}", task_id);
+            log::debug!("Inner task finished id={task_id}");
             state.finish_task(task_id);
         }
         Ok(TaskResult::Canceled) => {
-            log::debug!("Inner task canceled id={}", task_id);
+            log::debug!("Inner task canceled id={task_id}");
             state.finish_task_cancel(task_id);
         }
         Ok(TaskResult::Timeouted) => {
-            log::debug!("Inner task timeouted id={}", task_id);
+            log::debug!("Inner task timeouted id={task_id}");
             state.finish_task_failed(
                 task_id,
                 TaskFailInfo::from_string("Time limit reached".to_string()),
             );
         }
         Err(e) => {
-            log::debug!("Inner task failed id={}, error={:?}", task_id, e);
+            log::debug!("Inner task failed id={task_id}, error={e:?}");
             state.finish_task_failed(task_id, TaskFailInfo::from_string(e.to_string()));
         }
     }

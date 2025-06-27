@@ -705,8 +705,8 @@ not be removed. Use `--force` if you want to remove the queue anyway"
 
     for (result, allocation_id) in futures::future::join_all(remove_alloc_fut).await {
         match result {
-            Ok(_) => log::info!("Allocation {} was removed", allocation_id),
-            Err(e) => log::error!("Failed to remove allocation {}: {:?}", allocation_id, e),
+            Ok(_) => log::info!("Allocation {allocation_id} was removed"),
+            Err(e) => log::error!("Failed to remove allocation {allocation_id}: {e:?}"),
         }
     }
 
