@@ -113,6 +113,8 @@ pub(crate) fn handle_submit(
     senders: &Senders,
     mut message: SubmitRequest,
 ) -> ToClientMessage {
+    log::debug!("Received submit request {message:?}");
+
     let mut state = state_ref.get_mut();
     if let Some(err) = validate_submit(
         message.job_id.and_then(|job_id| state.get_job(job_id)),
