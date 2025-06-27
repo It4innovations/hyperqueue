@@ -536,7 +536,7 @@ fn test_query_sn_leftovers1() {
             );
             if leftovers && collect_leftovers {
                 assert_eq!(r.leftovers.len(), 1);
-                assert_eq!(r.leftovers[0].min_time.as_secs(), 5_000);
+                assert_eq!(r.leftovers[0].0.variants[0].min_time.as_secs(), 5_000);
             } else {
                 assert!(r.leftovers.is_empty());
             }
@@ -593,7 +593,7 @@ fn test_query_mn_leftovers() {
         );
         if collect_leftovers {
             assert_eq!(r.leftovers.len(), 1);
-            let lo = &r.leftovers[0];
+            let lo = &r.leftovers[0].0.variants[0];
             assert_eq!(lo.min_time, Duration::from_secs(750));
             assert_eq!(lo.n_nodes, 4);
         } else {

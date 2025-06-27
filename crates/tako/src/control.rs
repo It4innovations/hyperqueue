@@ -8,7 +8,9 @@ use tokio::net::TcpListener;
 use tokio::sync::Notify;
 
 use crate::events::EventProcessor;
-use crate::gateway::{MultiNodeAllocationResponse, ResourceRequest, TaskSubmit, WorkerRuntimeInfo};
+use crate::gateway::{
+    MultiNodeAllocationResponse, ResourceRequestVariants, TaskSubmit, WorkerRuntimeInfo,
+};
 use crate::internal::common::error::DsError;
 use crate::internal::messages::worker::ToWorkerMessage;
 use crate::internal::scheduler::query::compute_new_worker_query;
@@ -47,9 +49,9 @@ pub struct NewWorkerAllocationResponse {
     pub multi_node_allocations: Vec<MultiNodeAllocationResponse>,
     /// Resource requests of tasks that left after resolving the query and could not be assigned to
     /// any running worker or worker in query response.
-    /// Even there are more tasks with a given request, it is placed into the Vec only once,
-    /// i.e. there are no duplicates.
-    pub leftovers: Vec<ResourceRequest>,
+    /// The second value is number of such tasks
+    /// Note: It contains both single node and multi node leftovers
+    pub leftovers: Vec<(ResourceRequestVariants, u32)>,
 }
 
 #[derive(Clone)]
