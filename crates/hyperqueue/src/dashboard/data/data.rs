@@ -5,9 +5,8 @@ use crate::dashboard::data::timelines::alloc_timeline::{
 use crate::dashboard::data::timelines::job_timeline::{DashboardJobInfo, JobTimeline, TaskInfo};
 use crate::dashboard::data::timelines::worker_timeline::WorkerTimeline;
 use crate::dashboard::data::{Time, TimeRange};
-use crate::server::autoalloc::{AllocationId, QueueId};
+use crate::server::autoalloc::{AllocationId, QueueId, QueueParameters};
 use crate::server::event::Event;
-use crate::transfer::messages::AllocationQueueParams;
 use std::time::{Duration, SystemTime};
 use tako::WorkerId;
 use tako::{JobId, JobTaskId};
@@ -94,7 +93,7 @@ impl DashboardData {
     }
 
     /// Gets the information about a given allocation queue.
-    pub fn query_allocation_params(&self, queue_id: QueueId) -> Option<&AllocationQueueParams> {
+    pub fn query_allocation_params(&self, queue_id: QueueId) -> Option<&QueueParameters> {
         self.alloc_timeline.get_queue_params_for(&queue_id)
     }
 

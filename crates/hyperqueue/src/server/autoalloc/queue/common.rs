@@ -1,7 +1,7 @@
 use crate::common::manager::info::ManagerType;
 use crate::common::utils::fs;
 use crate::server::autoalloc::state::AllocationId;
-use crate::server::autoalloc::{AutoAllocResult, QueueId, QueueInfo};
+use crate::server::autoalloc::{AutoAllocResult, QueueId, QueueParameters};
 use anyhow::Context;
 use bstr::ByteSlice;
 use std::fmt::Write;
@@ -140,14 +140,14 @@ pub fn build_worker_args(
     hq_path: &Path,
     manager: ManagerType,
     server_dir: &Path,
-    queue_info: &QueueInfo,
+    params: &QueueParameters,
 ) -> String {
     let manager = match manager {
         ManagerType::Pbs => "pbs",
         ManagerType::Slurm => "slurm",
     };
 
-    let idle_timeout = queue_info
+    let idle_timeout = params
         .idle_timeout
         .unwrap_or_else(get_default_worker_idle_time);
     let idle_timeout = humantime::format_duration(idle_timeout);
@@ -163,8 +163,8 @@ pub fn build_worker_args(
         server_dir = server_dir.display()
     );
 
-    if !queue_info.worker_args.is_empty() {
-        args.push_str(&format!(" {}", queue_info.worker_args.join(" ")));
+    if !params.worker_args.is_empty() {
+        args.push_str(&format!(" {}", params.worker_args.join(" ")));
     }
 
     args

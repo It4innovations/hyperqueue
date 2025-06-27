@@ -482,7 +482,9 @@ mod tests {
         AllocationStatusMap, AllocationSubmissionResult, QueueHandler, SubmitMode,
     };
     use crate::server::autoalloc::state::{AllocationQueue, AutoAllocState, RateLimiter};
-    use crate::server::autoalloc::{Allocation, AutoAllocResult, QueueId, QueueInfo};
+    use crate::server::autoalloc::{
+        Allocation, AutoAllocResult, QueueId, QueueInfo, QueueParameters,
+    };
     use std::future::Future;
     use std::pin::Pin;
     use std::time::Duration;
@@ -520,20 +522,21 @@ mod tests {
         let _id = state.create_id();
         let id = state.add_queue(
             AllocationQueue::new(
-                QueueInfo::new(
-                    ManagerType::Pbs,
-                    1,
-                    1,
-                    Duration::from_secs(1),
-                    vec![],
-                    None,
-                    vec![],
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                ),
+                QueueInfo::new(QueueParameters {
+                    manager: ManagerType::Pbs,
+                    max_workers_per_alloc: 1,
+                    backlog: 1,
+                    timelimit: Duration::from_secs(1),
+                    name: None,
+                    max_worker_count: None,
+                    min_utilization: None,
+                    additional_args: vec![],
+                    worker_start_cmd: None,
+                    worker_stop_cmd: None,
+                    cli_resource_descriptor: None,
+                    worker_args: vec![],
+                    idle_timeout: None,
+                }),
                 None,
                 Box::new(NullHandler),
                 RateLimiter::new(vec![Duration::from_secs(1)], 1, 1),
