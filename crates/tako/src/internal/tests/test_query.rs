@@ -391,10 +391,13 @@ fn test_query_min_utilization3() {
     let t2 = TaskBuilder::new(2).cpus_compact(2).build();
     submit_test_tasks(&mut core, vec![t1, t2]);
 
-    let descriptor = ResourceDescriptor::new(vec![ResourceDescriptorItem {
-        name: "cpus".into(),
-        kind: ResourceDescriptorKind::simple_indices(4),
-    }]);
+    let descriptor = ResourceDescriptor::new(
+        vec![ResourceDescriptorItem {
+            name: "cpus".into(),
+            kind: ResourceDescriptorKind::simple_indices(4),
+        }],
+        None,
+    );
     let r = compute_new_worker_query(
         &mut core,
         &[WorkerTypeQuery {
@@ -550,7 +553,7 @@ fn test_query_sn_leftovers1() {
                 },
                 WorkerTypeQuery {
                     partial: true,
-                    descriptor: ResourceDescriptor::new(Vec::new()),
+                    descriptor: ResourceDescriptor::new(Vec::new(), None),
                     time_limit: None,
                     max_sn_workers: 2,
                     max_workers_per_allocation: 1,
@@ -603,7 +606,7 @@ fn test_query_sn_leftovers() {
         &[
             WorkerTypeQuery {
                 partial: true,
-                descriptor: ResourceDescriptor::new(Vec::new()),
+                descriptor: ResourceDescriptor::new(Vec::new(), None),
                 time_limit: Some(Duration::from_secs(1000)),
                 max_sn_workers: 3,
                 max_workers_per_allocation: 3,
@@ -611,7 +614,7 @@ fn test_query_sn_leftovers() {
             },
             WorkerTypeQuery {
                 partial: true,
-                descriptor: ResourceDescriptor::new(Vec::new()),
+                descriptor: ResourceDescriptor::new(Vec::new(), None),
                 time_limit: Some(Duration::from_secs(50)),
                 max_sn_workers: 3,
                 max_workers_per_allocation: 3,
@@ -619,7 +622,7 @@ fn test_query_sn_leftovers() {
             },
             WorkerTypeQuery {
                 partial: true,
-                descriptor: ResourceDescriptor::new(Vec::new()),
+                descriptor: ResourceDescriptor::new(Vec::new(), None),
                 time_limit: None,
                 max_sn_workers: 3,
                 max_workers_per_allocation: 3,

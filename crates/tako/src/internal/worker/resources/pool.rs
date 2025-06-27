@@ -1,17 +1,17 @@
+use crate::Set;
+use crate::internal::common::Map;
 use crate::internal::common::resources::allocation::AllocationIndex;
 use crate::internal::common::resources::amount::FRACTIONS_PER_UNIT;
 use crate::internal::common::resources::descriptor::ResourceDescriptorKind;
 use crate::internal::common::resources::{ResourceAmount, ResourceId, ResourceIndex, ResourceVec};
-use crate::internal::common::Map;
 use crate::internal::worker::resources::concise::ConciseResourceState;
 use crate::internal::worker::resources::map::ResourceLabelMap;
 use crate::resources::{
     Allocation, AllocationRequest, ResourceAllocation, ResourceFractions, ResourceUnits,
 };
-use crate::Set;
 
 use crate::gateway::ResourceRequestEntry;
-use smallvec::{smallvec, SmallVec};
+use smallvec::{SmallVec, smallvec};
 
 #[derive(Debug)]
 pub(crate) struct IndicesResourcePool {

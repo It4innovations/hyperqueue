@@ -6,7 +6,7 @@ use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::resources::concise::{ConciseFreeResources, ConciseResourceState};
 use crate::internal::worker::resources::map::ResourceLabelMap;
 use crate::internal::worker::resources::pool::{
-    GroupsResourcePool, ResourcePool, FAST_MAX_COUPLED_RESOURCES,
+    FAST_MAX_COUPLED_RESOURCES, GroupsResourcePool, ResourcePool,
 };
 use crate::resources::{
     Allocation, ResourceAllocation, ResourceAmount, ResourceDescriptor, ResourceMap, ResourceUnits,

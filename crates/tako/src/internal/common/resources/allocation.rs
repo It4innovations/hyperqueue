@@ -60,8 +60,8 @@ impl Allocation {
 
 #[cfg(test)]
 mod tests {
-    use crate::internal::common::resources::allocation::AllocationIndex;
     use crate::internal::common::resources::ResourceId;
+    use crate::internal::common::resources::allocation::AllocationIndex;
     use crate::resources::{
         Allocation, ResourceAllocation, ResourceAmount, ResourceIndex, ResourceUnits,
     };
