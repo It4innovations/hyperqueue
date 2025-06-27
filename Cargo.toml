@@ -20,7 +20,6 @@ tokio = "1"
 log = "0.4"
 env_logger = { version = "0.11", features = ["color"] }
 clap = "4"
-clap_complete = "4"
 criterion = { version = "0.5", features = ["html_reports"] }
 derive_builder = "0.20"
 serde = { version = "1", features = ["rc"] }
