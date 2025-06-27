@@ -38,6 +38,7 @@ nav:
       - Shortcuts: cli/shortcuts.md
       - Dashboard: cli/dashboard.md
       - Output mode: cli/output-mode.md
+      - CLI reference: cli-reference/
   - Python API:
       - Getting started: python/index.md
       - Client: python/client.md
@@ -92,6 +93,7 @@ plugins:
   - gen-files:
       scripts:
         - scripts/doc_copy_examples.py
+        - scripts/build_cli_reference.py
 
 extra:
   analytics:

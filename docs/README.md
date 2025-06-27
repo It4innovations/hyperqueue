@@ -11,6 +11,7 @@ consider [citing it](https://www.sciencedirect.com/science/article/pii/S23527110
 - [Installation](installation.md)
 - [Quick start](quickstart.md)
 - [Python API](python)
+- [Command-line interface reference](cli-reference)
 - [Repository](https://github.com/It4innovations/hyperqueue)
 - [Discussion forum](https://github.com/It4innovations/hyperqueue/discussions)
 - [Zulip (chat platform)](https://hyperqueue.zulipchat.com/)
