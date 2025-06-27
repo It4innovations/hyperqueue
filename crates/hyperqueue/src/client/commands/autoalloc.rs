@@ -371,10 +371,8 @@ fn construct_resources_from_cli(args: &SharedWorkerStartOpts) -> Option<Resource
         return None;
     }
 
-    let mut resources: Vec<ResourceDescriptorItem> = resource
-        .into_iter()
-        .map(|x| x.as_parsed_arg().clone())
-        .collect();
+    let mut resources: Vec<ResourceDescriptorItem> =
+        resource.iter().map(|x| x.as_parsed_arg().clone()).collect();
     let cpu_resources = resources.iter().find(|x| x.name == CPU_RESOURCE_NAME);
     if cpu_resources.is_none() {
         if let Some(cpus) = cpus {
