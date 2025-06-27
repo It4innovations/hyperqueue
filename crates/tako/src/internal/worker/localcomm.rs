@@ -160,7 +160,7 @@ pub async fn handle_local_comm(
         if let Ok((socket, _)) = socket {
             spawn_local(async move {
                 if let Err(e) = handle_connection(state_ref, socket).await {
-                    log::error!("lc connection error: {}", e);
+                    log::error!("lc connection error: {e}");
                 }
             });
         } else if let Err(e) = socket {

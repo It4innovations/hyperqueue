@@ -384,7 +384,7 @@ fn test_resources_no_workers1() {
 #[test]
 fn test_resources_no_workers2() {
     fn check(task_cpu_counts: &[ResourceUnits]) {
-        println!("Checking order {:?}", task_cpu_counts);
+        println!("Checking order {task_cpu_counts:?}");
 
         let mut rt = TestEnv::new();
 

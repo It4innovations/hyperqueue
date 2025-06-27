@@ -30,7 +30,7 @@ impl HwSampler {
         match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH) {
             Ok(time) => timestamp = time.as_secs(),
             Err(err) => {
-                log::warn!("unable to read time on worker: {:?}", err)
+                log::warn!("unable to read time on worker: {err:?}")
             }
         }
 

@@ -20,7 +20,7 @@ pub(crate) fn compute_new_worker_query(
     queries: &[WorkerTypeQuery],
     collect_leftovers: bool,
 ) -> NewWorkerAllocationResponse {
-    log::debug!("Compute new worker query: query = {:?}", queries);
+    log::debug!("Compute new worker query: query = {queries:?}");
 
     // Scheduler has to be performed before the query, so there should be no ready_to_assign tasks
     assert!(core.sn_ready_to_assign().is_empty() || !core.has_workers());

@@ -42,7 +42,7 @@ pub fn detect_cpus() -> anyhow::Result<ResourceDescriptorKind> {
                 .map_err(|_| anyhow!("Inconsistent CPU naming got from detection"))
         })
         .or_else(|e| {
-            log::debug!("Detecting linux failed: {}", e);
+            log::debug!("Detecting linux failed: {e}");
             let n_cpus = num_cpus::get() as u32;
             if n_cpus < 1 {
                 anyhow::bail!("Cpu detection failed");
@@ -107,7 +107,7 @@ pub fn detect_additional_resources(
         if let Ok(count) = read_nvidia_linux_gpu_count() {
             if count > 0 {
                 gpu_families.insert(GpuFamily::Nvidia);
-                log::info!("Detected {} GPUs from procs", count);
+                log::info!("Detected {count} GPUs from procs");
                 items.push(ResourceDescriptorItem {
                     name: NVIDIA_GPU_RESOURCE_NAME.to_string(),
                     kind: ResourceDescriptorKind::simple_indices(count as u32),
@@ -238,11 +238,8 @@ fn read_linux_numa() -> anyhow::Result<Vec<Vec<ResourceIndex>>> {
 }
 
 fn read_linux_thread_siblings(cpu_id: &ResourceLabel) -> anyhow::Result<Vec<ResourceLabel>> {
-    let filename = format!(
-        "/sys/devices/system/cpu/cpu{}/topology/thread_siblings_list",
-        cpu_id
-    );
-    log::debug!("Reading {}", filename);
+    let filename = format!("/sys/devices/system/cpu/cpu{cpu_id}/topology/thread_siblings_list");
+    log::debug!("Reading {filename}");
     parse_range(&std::fs::read_to_string(filename)?)
         .map(|indices| indices.into_iter().map(|i| i.to_string()).collect())
 }

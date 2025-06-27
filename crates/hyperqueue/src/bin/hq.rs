@@ -376,12 +376,11 @@ fn hq_panic_hook(_info: &PanicHookInfo) {
 If you would be so kind, please report this issue at the HQ issue tracker: https://github.com/It4innovations/hyperqueue/issues/new?title=HQ%20crashes
 Please include the above error (starting from "thread ... panicked ...") and the stack backtrace in the issue contents, along with the following information:
 
-HyperQueue version: {version}
+HyperQueue version: {HQ_VERSION}
 
 You can also re-run HyperQueue server (and its workers) with the `RUST_LOG=hq=debug,tako=debug`
 environment variable, and attach the logs to the issue, to provide us more information.
-"#,
-        version = HQ_VERSION
+"#
     );
 
     if io::stdout().is_terminal() {

@@ -74,7 +74,7 @@ impl ServerRef {
     }
 
     pub fn cancel_tasks(&self, tasks: &[TaskId]) {
-        log::debug!("Client asked for canceling tasks: {:?}", tasks);
+        log::debug!("Client asked for canceling tasks: {tasks:?}");
         let mut core = self.core_ref.get_mut();
         let mut comm = self.comm_ref.get_mut();
         on_cancel_tasks(&mut core, &mut *comm, tasks);
@@ -88,7 +88,7 @@ impl ServerRef {
             comm.send_worker_message(worker_id, &ToWorkerMessage::Stop);
             Ok(())
         } else {
-            Err(format!("Worker with id {} not found", worker_id).into())
+            Err(format!("Worker with id {worker_id} not found").into())
         }
     }
 

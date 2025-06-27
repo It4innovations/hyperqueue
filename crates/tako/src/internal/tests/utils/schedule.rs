@@ -24,8 +24,8 @@ pub fn create_test_worker_config(
 ) -> WorkerConfiguration {
     WorkerConfiguration {
         resources,
-        listen_address: format!("1.1.1.{}:123", worker_id),
-        hostname: format!("test{}", worker_id),
+        listen_address: format!("1.1.1.{worker_id}:123"),
+        hostname: format!("test{worker_id}"),
         group: "default".to_string(),
         work_dir: Default::default(),
         heartbeat_interval: Duration::from_millis(1000),

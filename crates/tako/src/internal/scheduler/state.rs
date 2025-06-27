@@ -451,7 +451,7 @@ impl SchedulerState {
             return;
         }
 
-        log::debug!("Min resources {:?}", min_resource);
+        log::debug!("Min resources {min_resource:?}");
 
         let mut underload_workers = Vec::new();
         let task_map = core.task_map();

@@ -428,16 +428,16 @@ pub async fn stop_worker(session: &mut ClientSession, selector: IdSelector) -> c
     for (id, response) in responses {
         match response {
             StopWorkerResponse::Failed(e) => {
-                log::error!("Stopping worker {} failed; {}", id, e);
+                log::error!("Stopping worker {id} failed; {e}");
             }
             StopWorkerResponse::InvalidWorker => {
-                log::error!("Stopping worker {} failed; worker not found", id);
+                log::error!("Stopping worker {id} failed; worker not found");
             }
             StopWorkerResponse::AlreadyStopped => {
-                log::warn!("Stopping worker {} failed; worker is already stopped", id);
+                log::warn!("Stopping worker {id} failed; worker is already stopped");
             }
             StopWorkerResponse::Stopped => {
-                log::info!("Worker {} stopped", id)
+                log::info!("Worker {id} stopped")
             }
         }
     }

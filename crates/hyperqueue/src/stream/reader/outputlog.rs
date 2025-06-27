@@ -349,7 +349,7 @@ impl OutputLog {
     pub fn jobs(&mut self) -> anyhow::Result<()> {
         let stdout = std::io::stdout();
         for job_id in self.index.keys() {
-            writeln!(&stdout, "{}", job_id)?;
+            writeln!(&stdout, "{job_id}")?;
         }
         Ok(())
     }

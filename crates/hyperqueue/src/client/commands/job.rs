@@ -267,16 +267,13 @@ pub async fn cancel_job(
                 )
             }
             CancelJobResponse::Canceled(_, _) => {
-                log::error!(
-                    "Canceling job {} failed; all tasks are already finished",
-                    job_id
-                )
+                log::error!("Canceling job {job_id} failed; all tasks are already finished")
             }
             CancelJobResponse::InvalidJob => {
-                log::error!("Canceling job {} failed; job not found", job_id)
+                log::error!("Canceling job {job_id} failed; job not found")
             }
             CancelJobResponse::Failed(msg) => {
-                log::error!("Canceling job {} failed; {}", job_id, msg)
+                log::error!("Canceling job {job_id} failed; {msg}")
             }
         }
     }
@@ -302,13 +299,13 @@ pub async fn close_job(
     for (job_id, response) in responses {
         match response {
             CloseJobResponse::Closed => {
-                log::info!("Job {} closed", job_id)
+                log::info!("Job {job_id} closed")
             }
             CloseJobResponse::InvalidJob => {
-                log::error!("Closing job {} failed; job not found", job_id)
+                log::error!("Closing job {job_id} failed; job not found")
             }
             CloseJobResponse::AlreadyClosed => {
-                log::error!("Closing job {} failed; job is already closed", job_id)
+                log::error!("Closing job {job_id} failed; job is already closed")
             }
         }
     }

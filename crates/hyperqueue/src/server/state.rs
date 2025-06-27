@@ -118,7 +118,7 @@ impl State {
         cancelled_tasks: Vec<TaskId>,
         info: TaskFailInfo,
     ) -> Vec<TaskId> {
-        log::debug!("Task id={} failed: {:?}", task_id, info);
+        log::debug!("Task id={task_id} failed: {info:?}");
 
         let job_id = task_id.job_id();
         let job = self.get_job_mut(job_id).unwrap();
@@ -214,7 +214,7 @@ impl State {
         worker_id: WorkerId,
         configuration: &WorkerConfiguration,
     ) {
-        log::debug!("New worker id={}", worker_id);
+        log::debug!("New worker id={worker_id}");
         self.add_worker(Worker::new(worker_id, configuration.clone()));
         // TODO: use observer in event storage instead of sending these messages directly
         senders
@@ -232,7 +232,7 @@ impl State {
         running_tasks: &[TaskId],
         reason: LostWorkerReason,
     ) {
-        log::debug!("Worker lost id={}", worker_id);
+        log::debug!("Worker lost id={worker_id}");
         for tako_id in running_tasks {
             let job = self.get_job_mut(tako_id.job_id()).unwrap();
             job.set_waiting_state(tako_id.job_task_id());

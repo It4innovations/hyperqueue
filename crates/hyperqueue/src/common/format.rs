@@ -30,7 +30,7 @@ pub fn human_size(size: u64) -> String {
 pub fn human_mem_amount(amount: ResourceAmount) -> String {
     let f = amount.as_f32();
     if f < 512f32 {
-        format!("{:.2} MiB", f)
+        format!("{f:.2} MiB")
     } else {
         format!("{:.2} GiB", f / 1024.0)
     }

@@ -456,7 +456,7 @@ Try making it executable or add a shebang line to it.",
 async fn write_stdin(mut stdin: tokio::process::ChildStdin, stdin_data: &[u8]) {
     log::debug!("Writing {} bytes on task stdin", stdin_data.len());
     if let Err(e) = stdin.write_all(stdin_data).await {
-        log::debug!("Writing stdin data failed: {}", e);
+        log::debug!("Writing stdin data failed: {e}");
     }
     drop(stdin);
     futures::future::pending::<()>().await;
@@ -483,7 +483,7 @@ fn check_error_filename(task_dir: TempDir) -> Option<tako::Error> {
     let mut buffer = [0; MAX_CUSTOM_ERROR_LENGTH];
     let size = f
         .read(&mut buffer)
-        .map_err(|e| log::debug!("Reading error file failed: {}", e))
+        .map_err(|e| log::debug!("Reading error file failed: {e}"))
         .ok()?;
     let msg = String::from_utf8_lossy(&buffer[..size]);
     Some(if size == 0 {
@@ -540,7 +540,7 @@ async fn create_task_future(
         }
     };
 
-    log::trace!("Running command {:?}", command);
+    log::trace!("Running command {command:?}");
 
     let mut child = command
         .spawn()

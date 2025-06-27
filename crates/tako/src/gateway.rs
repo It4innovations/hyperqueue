@@ -113,7 +113,7 @@ impl Display for CrashLimit {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             CrashLimit::NeverRestart => f.write_str("never-restart"),
-            CrashLimit::MaxCrashes(count) => write!(f, "{}", count),
+            CrashLimit::MaxCrashes(count) => write!(f, "{count}"),
             CrashLimit::Unlimited => f.write_str("unlimited"),
         }
     }

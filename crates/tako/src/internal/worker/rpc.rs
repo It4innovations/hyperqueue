@@ -46,15 +46,12 @@ async fn start_listener() -> crate::Result<(TcpListener, u16)> {
     let address = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), 0);
     let listener = TcpListener::bind(address).await?;
     let port = listener.local_addr()?.port();
-    log::info!("Listening on port {}", port);
+    log::info!("Listening on port {port}");
     Ok((listener, port))
 }
 
 async fn connect_to_server(addresses: &[SocketAddr]) -> crate::Result<(TcpStream, SocketAddr)> {
-    log::info!(
-        "Connecting to server (candidate addresses = {:?})",
-        addresses
-    );
+    log::info!("Connecting to server (candidate addresses = {addresses:?})");
 
     let max_attempts = 20;
     for _ in 0..max_attempts {
@@ -65,7 +62,7 @@ async fn connect_to_server(addresses: &[SocketAddr]) -> crate::Result<(TcpStream
                 return Ok((stream, address));
             }
             Err(e) => {
-                log::error!("Could not connect to server, error: {}", e);
+                log::error!("Could not connect to server, error: {e}");
                 sleep(Duration::from_secs(2)).await;
             }
         }
@@ -400,7 +397,7 @@ pub(crate) fn process_worker_message(state: &mut WorkerState, message: ToWorkerM
                 .iter()
                 .map(|task_id| {
                     let response = state.steal_task(*task_id);
-                    log::debug!("Steal attempt: {}, response {:?}", task_id, response);
+                    log::debug!("Steal attempt: {task_id}, response {response:?}");
                     (*task_id, response)
                 })
                 .collect();

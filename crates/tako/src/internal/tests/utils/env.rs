@@ -70,7 +70,7 @@ impl TestEnv {
 
     pub fn new_generic_resource(&mut self, count: usize) {
         for i in 0..count {
-            self.core.get_or_create_resource_id(&format!("Res{}", i));
+            self.core.get_or_create_resource_id(&format!("Res{i}"));
         }
     }
 
@@ -112,8 +112,8 @@ impl TestEnv {
 
             let wcfg = WorkerConfiguration {
                 resources: rd,
-                listen_address: format!("1.1.1.{}:123", i),
-                hostname: format!("test{}", i),
+                listen_address: format!("1.1.1.{i}:123"),
+                hostname: format!("test{i}"),
                 group: "default".to_string(),
                 work_dir: Default::default(),
                 heartbeat_interval: Duration::from_millis(1000),
@@ -329,7 +329,7 @@ impl TestComm {
     pub fn emptiness_check(&self) {
         if !self.worker_msgs.is_empty() {
             let ids: Vec<_> = self.worker_msgs.keys().collect();
-            panic!("Unexpected worker messages for workers: {:?}", ids);
+            panic!("Unexpected worker messages for workers: {ids:?}");
         }
         assert!(self.broadcast_msgs.is_empty());
         self.client.emptiness_check();

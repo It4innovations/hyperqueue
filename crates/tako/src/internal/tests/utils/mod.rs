@@ -29,9 +29,9 @@ pub fn expect_error_message<T>(result: anyhow::Result<T>, msg: &str) {
     match result {
         Ok(_) => panic!("Expected error, got Ok"),
         Err(error) => {
-            let formatted = format!("{:?}", error);
+            let formatted = format!("{error:?}");
             if !formatted.contains(msg) {
-                panic!("Did not find `{}` in `{}`", msg, formatted);
+                panic!("Did not find `{msg}` in `{formatted}`");
             }
         }
     }

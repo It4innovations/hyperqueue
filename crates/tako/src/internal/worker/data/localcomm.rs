@@ -70,7 +70,7 @@ async fn datanode_local_message_handler(
                     task.add_output(TaskOutput { id: data_id, size });
                     ToLocalDataClientMessageUp::Uploaded(data_id)
                 } else {
-                    log::debug!("Task {} not found", task_id);
+                    log::debug!("Task {task_id} not found");
                     ToLocalDataClientMessageUp::Error(format!("Task {task_id} is no longer active"))
                 }
             };
@@ -153,7 +153,7 @@ pub(crate) async fn datanode_local_connection_handler(
         )
         .await
         {
-            log::debug!("Data handler failed: {}", e);
+            log::debug!("Data handler failed: {e}");
             send_message(&mut tx, ToLocalDataClientMessageUp::Error(e.to_string())).await?;
         }
     }

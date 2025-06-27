@@ -51,20 +51,20 @@ pub(crate) async fn connection_initiator(
         let core_ref2 = core_ref.clone();
         let comm_ref = comm_ref.clone();
         group.add_task(async move {
-            log::debug!("New connection: {}", address);
+            log::debug!("New connection: {address}");
             let (connection, message) =
                 match worker_authentication(&core_ref2, socket, address).await {
                     Ok(r) => r,
                     Err(e) => {
-                        log::warn!("Worker connection ended with: {:?}", e);
+                        log::warn!("Worker connection ended with: {e:?}");
                         return;
                     }
                 };
             match message {
                 ConnectionRegistration::Worker(msg) => {
                     match worker_rpc_loop(&core_ref2, &comm_ref, connection, msg).await {
-                        Ok(_) => log::debug!("Connection ended: {}", address),
-                        Err(e) => log::warn!("Worker connection ended with: {:?}", e),
+                        Ok(_) => log::debug!("Connection ended: {address}"),
+                        Err(e) => log::warn!("Worker connection ended with: {e:?}"),
                     }
                 }
                 ConnectionRegistration::Custom => {
@@ -96,7 +96,7 @@ pub(crate) async fn worker_authentication(
 
     let message: ConnectionRegistration = open_message(&mut opener, &message_data)?;
 
-    log::debug!("Worker registration from {}", address);
+    log::debug!("Worker registration from {address}");
 
     let connection = ConnectionDescriptor {
         address,
@@ -122,7 +122,7 @@ async fn worker_rpc_loop(
     );
 
     let heartbeat_interval = msg.configuration.heartbeat_interval;
-    log::debug!("Worker heartbeat: {:?}", heartbeat_interval);
+    log::debug!("Worker heartbeat: {heartbeat_interval:?}");
     // Sanity that interval is not too small
     assert!(heartbeat_interval.as_millis() > 150);
 
@@ -237,11 +237,11 @@ async fn worker_rpc_loop(
             }
         }
         e = snd_loop => {
-            log::debug!("Sending loop terminated: {:?}, worker={}", e, worker_id);
+            log::debug!("Sending loop terminated: {e:?}, worker={worker_id}");
             LostWorkerReason::ConnectionLost
         }
         r = periodic_check => {
-            log::debug!("Worker time check loop terminated, worker={}", worker_id);
+            log::debug!("Worker time check loop terminated, worker={worker_id}");
             r
         }
     };
@@ -295,7 +295,7 @@ pub(crate) async fn worker_receive_loop<
             }
             FromWorkerMessage::Heartbeat => {
                 if let Some(worker) = core.get_worker_mut(worker_id) {
-                    log::debug!("Heartbeat received, worker={}", worker_id);
+                    log::debug!("Heartbeat received, worker={worker_id}");
                     worker.last_heartbeat = Instant::now();
                 };
             }

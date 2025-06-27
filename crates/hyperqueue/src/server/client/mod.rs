@@ -52,7 +52,7 @@ pub async fn handle_client_connections(
             if let Err(e) =
                 handle_client(connection, server_dir, state_ref, &senders2, end_flag, key).await
             {
-                log::error!("Client error: {}", e);
+                log::error!("Client error: {e}");
             }
         });
     }
@@ -239,7 +239,7 @@ pub async fn client_rpc_loop<
                 }
             }
             Err(e) => {
-                log::error!("Cannot parse client message: {}", e);
+                log::error!("Cannot parse client message: {e}");
                 if tx
                     .send(ToClientMessage::Error(format!("Cannot parse message: {e}")))
                     .await
@@ -490,7 +490,7 @@ async fn handle_wait_for_jobs_message(
                     None => continue,
                 };
             }
-            Err(err) => log::error!("Error while waiting on job(s): {:?}", err),
+            Err(err) => log::error!("Error while waiting on job(s): {err:?}"),
         };
     }
 
@@ -502,7 +502,7 @@ fn handle_worker_stop(
     senders: &Senders,
     selector: IdSelector,
 ) -> ToClientMessage {
-    log::debug!("Client asked for worker termination {:?}", selector);
+    log::debug!("Client asked for worker termination {selector:?}");
     let mut responses: Vec<(WorkerId, StopWorkerResponse)> = Vec::new();
 
     let worker_ids: Vec<WorkerId> = match selector {
@@ -538,7 +538,7 @@ fn handle_worker_stop(
             Ok(()) => responses.push((worker_id, StopWorkerResponse::Stopped)),
             Err(err) => {
                 responses.push((worker_id, StopWorkerResponse::Failed(err.to_string())));
-                log::error!("Unable to stop worker: {} error: {:?}", worker_id, err);
+                log::error!("Unable to stop worker: {worker_id} error: {err:?}");
             }
         }
     }

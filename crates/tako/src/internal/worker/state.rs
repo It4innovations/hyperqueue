@@ -172,7 +172,7 @@ impl WorkerState {
         let task = self.tasks.remove(&task_id).unwrap();
         let outputs = match task.state {
             TaskState::Waiting(x) => {
-                log::debug!("Removing waiting task id={}", task_id);
+                log::debug!("Removing waiting task id={task_id}");
                 assert!(!just_finished);
                 if x == 0 {
                     self.ready_task_queue.remove_task(task_id);
@@ -185,7 +185,7 @@ impl WorkerState {
                 Vec::new()
             }
             TaskState::Running(s) => {
-                log::debug!("Removing running task id={}", task_id);
+                log::debug!("Removing running task id={task_id}");
                 assert!(just_finished);
                 assert!(self.running_tasks.remove(&task_id));
                 self.schedule_task_start();
@@ -227,7 +227,7 @@ impl WorkerState {
     }
 
     pub fn cancel_task(&mut self, task_id: TaskId) {
-        log::debug!("Canceling task {}", task_id);
+        log::debug!("Canceling task {task_id}");
         let was_waiting = match self.tasks.find_mut(&task_id) {
             None => {
                 /* This may happen that task was computed or when work steal
@@ -351,7 +351,7 @@ impl WorkerState {
     }
 
     pub fn remove_worker(&mut self, worker_id: WorkerId) {
-        log::debug!("Lost worker={} announced", worker_id);
+        log::debug!("Lost worker={worker_id} announced");
         assert!(self.worker_addresses.remove(&worker_id).is_some());
         self.ready_task_queue.remove_worker(worker_id);
     }

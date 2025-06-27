@@ -254,7 +254,7 @@ fn render_timeline(data: &DashboardData, rect: Rect, frame: &mut Frame) {
 
     let offset = offset_duration(data).as_secs();
     let offset = if offset < 60 {
-        format!("{}s", offset)
+        format!("{offset}s")
     } else {
         format!("{}m", offset / 60)
     };

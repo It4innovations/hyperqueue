@@ -39,7 +39,7 @@ pub(crate) fn on_remove_worker(
     worker_id: WorkerId,
     reason: LostWorkerReason,
 ) {
-    log::debug!("Removing worker {}", worker_id);
+    log::debug!("Removing worker {worker_id}");
 
     let mut ready_to_assign = Vec::new();
     let mut removes = Vec::new();
@@ -56,7 +56,7 @@ pub(crate) fn on_remove_worker(
                 worker_id: w_id, ..
             } => {
                 if *w_id == worker_id {
-                    log::debug!("Removing task task={} from lost worker", task_id);
+                    log::debug!("Removing task task={task_id} from lost worker");
                     task.increment_instance_id();
                     task.set_fresh_flag(true);
                     ready_to_assign.push(task_id);
@@ -70,7 +70,7 @@ pub(crate) fn on_remove_worker(
             }
             TaskRuntimeState::Stealing(from_id, to_id) => {
                 if *from_id == worker_id {
-                    log::debug!("Canceling steal of task={} from lost worker", task_id);
+                    log::debug!("Canceling steal of task={task_id} from lost worker");
 
                     if let Some(to_id) = to_id {
                         removes.push((*to_id, task_id));
@@ -80,7 +80,7 @@ pub(crate) fn on_remove_worker(
                     ready_to_assign.push(task_id);
                     TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 })
                 } else if *to_id == Some(worker_id) {
-                    log::debug!("Task={} is stealing target for lost worker", task_id);
+                    log::debug!("Task={task_id} is stealing target for lost worker");
                     TaskRuntimeState::Stealing(*from_id, None)
                 } else {
                     continue;
@@ -132,11 +132,7 @@ pub(crate) fn on_remove_worker(
         data_obj.remove_placement(worker_id);
     }
 
-    log::debug!(
-        "Running tasks on lost worker {}: {:?}",
-        worker_id,
-        running_tasks
-    );
+    log::debug!("Running tasks on lost worker {worker_id}: {running_tasks:?}");
     let _ = core.remove_worker(worker_id);
 
     comm.broadcast_worker_message(&ToWorkerMessage::LostWorker(worker_id));
@@ -150,7 +146,7 @@ pub(crate) fn on_remove_worker(
     for task_id in running_tasks {
         let task = core.get_task_mut(task_id);
         if CrashLimit::NeverRestart == task.configuration.crash_limit {
-            log::debug!("Task {} with never restart flag crashed", task_id);
+            log::debug!("Task {task_id} with never restart flag crashed");
             let error_info = TaskFailInfo {
                 message: "Task was running on a lost worker while never restart flag was set."
                     .to_string(),
@@ -158,7 +154,7 @@ pub(crate) fn on_remove_worker(
             fail_task_helper(core, comm, None, task_id, error_info);
         } else if reason.is_failure() && task.increment_crash_counter() {
             let count = task.crash_counter;
-            log::debug!("Task {} reached crash limit {}", task_id, count);
+            log::debug!("Task {task_id} reached crash limit {count}");
             let error_info = TaskFailInfo {
                 message: format!(
                     "Task was running on a worker that was lost; the task has occurred {count} times in this situation and limit was reached."
@@ -316,7 +312,7 @@ pub(crate) fn on_task_finished(
             comm.ask_for_scheduling();
             comm.client().on_task_finished(task_id);
         } else {
-            log::debug!("Unknown task finished id={}", task_id);
+            log::debug!("Unknown task finished id={task_id}");
             return;
         }
     }
@@ -395,14 +391,9 @@ pub(crate) fn on_steal_response(
     msg: StealResponseMsg,
 ) {
     for (task_id, response) in msg.responses {
-        log::debug!(
-            "Steal response from {}, task={} response={:?}",
-            worker_id,
-            task_id,
-            response
-        );
+        log::debug!("Steal response from {worker_id}, task={task_id} response={response:?}");
         if core.find_task(task_id).is_none() {
-            log::debug!("Received trace response for invalid task {}", task_id);
+            log::debug!("Received trace response for invalid task {task_id}");
             continue;
         }
 
@@ -410,7 +401,7 @@ pub(crate) fn on_steal_response(
             let (from_worker_id, to_worker_id) = {
                 let task = core.get_task(task_id);
                 if task.is_done_or_running() {
-                    log::debug!("Received trace response for finished task={}", task_id);
+                    log::debug!("Received trace response for finished task={task_id}");
                     continue;
                 }
                 if let TaskRuntimeState::Stealing(from_w, to_w) = &task.state {
@@ -423,7 +414,7 @@ pub(crate) fn on_steal_response(
 
             match response {
                 StealResponse::Ok => {
-                    log::debug!("Task stealing was successful task={}", task_id);
+                    log::debug!("Task stealing was successful task={task_id}");
                     if let Some(w_id) = to_worker_id {
                         let task = core.get_task(task_id);
                         comm.send_worker_message(w_id, &task.make_compute_message(Vec::new()));
@@ -435,7 +426,7 @@ pub(crate) fn on_steal_response(
                     }
                 }
                 StealResponse::Running => {
-                    log::debug!("Task stealing was not successful task={}", task_id);
+                    log::debug!("Task stealing was not successful task={task_id}");
 
                     let (tasks, workers) = core.split_tasks_workers_mut();
                     let task = tasks.get_task(task_id);
@@ -472,7 +463,7 @@ fn fail_task_helper(
     let consumers: Vec<TaskId> = {
         let (tasks, workers) = core.split_tasks_workers_mut();
         if let Some(task) = tasks.find_task(task_id) {
-            log::debug!("Task task_id={} failed", task_id);
+            log::debug!("Task task_id={task_id} failed");
             if let Some(worker_id) = worker_id {
                 if task.configuration.resources.is_multi_node() {
                     let ws = task.mn_placement().unwrap();
@@ -497,7 +488,7 @@ fn fail_task_helper(
     let mut objs_to_remove = ObjsToRemoveFromWorkers::new();
 
     for &consumer in &consumers {
-        log::debug!("Task={} canceled because of failed dependency", consumer);
+        log::debug!("Task={consumer} canceled because of failed dependency");
         assert!(matches!(
             core.remove_task(consumer, &mut objs_to_remove),
             TaskRuntimeState::Waiting(_)
@@ -542,7 +533,7 @@ pub(crate) fn on_cancel_tasks(core: &mut Core, comm: &mut impl Comm, task_ids: &
 
     let (tasks, workers) = core.split_tasks_workers_mut();
     for &task_id in task_ids {
-        log::debug!("Canceling task id={}", task_id);
+        log::debug!("Canceling task id={task_id}");
         if let Some(task) = tasks.find_task(task_id) {
             to_unregister.insert(task_id);
             task.collect_recursive_consumers(tasks, &mut to_unregister);

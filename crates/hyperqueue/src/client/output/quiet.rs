@@ -72,7 +72,7 @@ impl Output for Quiet {
     }
 
     fn print_job_open(&self, job_id: JobId) {
-        println!("{}", job_id);
+        println!("{job_id}");
     }
 
     fn print_job_list(&self, jobs: Vec<JobInfo>, _total_jobs: usize) {
