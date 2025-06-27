@@ -56,6 +56,9 @@ theme:
     - header.autohide
     - navigation.instant
     - navigation.top
+    - navigation.footer
+    - content.action.edit
+    - content.code.copy
   #    - navigation.sections
   #    - navigation.tabs
   #    - navigation.indexes
