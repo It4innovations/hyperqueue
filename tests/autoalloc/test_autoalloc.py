@@ -152,7 +152,7 @@ def test_pbs_multinode_allocation(hq_env: HqEnv):
 
     with MockJobManager(hq_env, manager):
         start_server_with_quick_refresh(hq_env)
-        prepare_tasks(hq_env)
+        prepare_tasks(hq_env, nodes=2)
 
         add_queue(hq_env, manager="pbs", max_workers_per_alloc=2)
         qsub_script_path = manager.get_script_path()
@@ -171,7 +171,7 @@ def test_slurm_multinode_allocation(hq_env: HqEnv):
 
     with MockJobManager(hq_env, manager):
         start_server_with_quick_refresh(hq_env)
-        prepare_tasks(hq_env)
+        prepare_tasks(hq_env, nodes=2)
 
         add_queue(hq_env, manager="slurm", max_workers_per_alloc=2)
         sbatch_script_path = manager.get_script_path()
@@ -609,7 +609,7 @@ def test_do_not_submit_from_paused_queue(hq_env: HqEnv, flavor: ManagerFlavor):
 
 
 def test_slurm_allocation_name(hq_env: HqEnv):
-    manager = ExtractSubmitScriptPath(SlurmManagerFlavor().create_adapter())
+    handler = ExtractSubmitScriptPath(SlurmManagerFlavor().create_adapter())
 
     def check_name(path: str, name: str):
         with open(path) as f:
@@ -621,10 +621,11 @@ def test_slurm_allocation_name(hq_env: HqEnv):
                     return
             raise Exception(f"Slurm name {name} not found in {path}")
 
-    with MockJobManager(hq_env, manager):
+    with MockJobManager(hq_env, handler):
         start_server_with_quick_refresh(hq_env)
         prepare_tasks(hq_env)
 
         add_queue(hq_env, manager="slurm", name="foo", backlog=2)
-        check_name(manager.get_script_path(), "foo-1")
-        check_name(manager.get_script_path(), "foo-2")
+        check_name(handler.get_script_path(), "foo-1")
+        handler.add_worker(hq_env, default_job_id())
+        check_name(handler.get_script_path(), "foo-2")

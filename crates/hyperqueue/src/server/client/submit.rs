@@ -406,8 +406,7 @@ mod tests {
     use std::path::PathBuf;
     use std::time::Duration;
     use tako::gateway::{
-        CrashLimit, ResourceRequest, ResourceRequestEntry, ResourceRequestVariants,
-        SharedTaskConfiguration, TaskDataFlags,
+        CrashLimit, ResourceRequest, ResourceRequestEntry, ResourceRequestVariants, TaskDataFlags,
     };
     use tako::internal::tests::utils::sorted_vec;
     use tako::program::ProgramDefinition;
