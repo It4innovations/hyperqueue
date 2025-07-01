@@ -408,6 +408,60 @@ fn test_query_min_utilization3() {
 }
 
 #[test]
+fn test_query_min_utilization_vs_partial() {
+    for (cpu_tasks, gpu_tasks, alloc) in [
+        (1, 0, 0),
+        (2, 0, 1),
+        (3, 0, 1),
+        (4, 1, 2),
+        (1, 1, 1),
+        (2, 1, 1),
+        (3, 1, 1),
+        (4, 1, 2),
+        (0, 1, 1),
+        (0, 2, 1),
+        (0, 3, 1),
+        (0, 0, 0),
+    ] {
+        let mut core = Core::default();
+        let tasks: Vec<_> = (1..=cpu_tasks)
+            .map(|task_id| TaskBuilder::new(task_id).cpus_compact(2).build())
+            .collect();
+        if !tasks.is_empty() {
+            submit_test_tasks(&mut core, tasks);
+        }
+        let tasks: Vec<_> = (10..10 + gpu_tasks)
+            .map(|task_id| {
+                TaskBuilder::new(task_id)
+                    .cpus_compact(2)
+                    .add_resource(1, 1)
+                    .build()
+            })
+            .collect();
+        if !tasks.is_empty() {
+            submit_test_tasks(&mut core, tasks);
+        }
+        let descriptor = ResourceDescriptor::new(vec![ResourceDescriptorItem {
+            name: "cpus".into(),
+            kind: ResourceDescriptorKind::simple_indices(4),
+        }]);
+        let r = compute_new_worker_query(
+            &mut core,
+            &[WorkerTypeQuery {
+                partial: true,
+                descriptor,
+                time_limit: None,
+                max_sn_workers: 2,
+                max_workers_per_allocation: 1,
+                min_utilization: 1.0,
+            }],
+        );
+        assert_eq!(r.single_node_workers_per_query, vec![alloc]);
+        assert!(r.multi_node_allocations.is_empty());
+    }
+}
+
+#[test]
 fn test_query_min_time2() {
     let mut core = Core::default();
 

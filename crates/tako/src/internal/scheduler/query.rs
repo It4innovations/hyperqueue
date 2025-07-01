@@ -11,6 +11,7 @@ struct WorkerTypeState {
     w_resources: WorkerResources,
     time_limit: Option<Duration>,
     max: u32,
+    min: u32,
 }
 
 /// Read the documentation of `new_worker_query`` in control.rs
@@ -29,16 +30,12 @@ pub(crate) fn compute_new_worker_query(
             if !ws.w_resources.is_capable_to_run_with(request, |rq| {
                 ws.time_limit.is_none_or(|t| rq.min_time() <= t)
             }) {
-                if ws.partial {
-                    if !ws.w_resources.is_lowerbound_for(request, |rq| {
+                if ws.partial
+                    && ws.w_resources.is_lowerbound_for(request, |rq| {
                         ws.time_limit.is_none_or(|t| rq.min_time() <= t)
-                    }) {
-                        continue;
-                    }
-                    if ws.loads.is_empty() {
-                        let load = WorkerLoad::new(&ws.w_resources);
-                        ws.loads.push(load);
-                    }
+                    })
+                {
+                    ws.min = 1;
                 }
                 continue;
             }
@@ -73,6 +70,7 @@ pub(crate) fn compute_new_worker_query(
             w_resources: WorkerResources::from_description(&q.descriptor, &resource_map),
             time_limit: q.time_limit,
             max: q.max_sn_workers,
+            min: 0,
         })
         .collect();
 
@@ -104,13 +102,10 @@ pub(crate) fn compute_new_worker_query(
         add_task(&mut new_loads, task);
     }
 
-    let single_node_allocations = new_loads
+    let single_node_allocations: Vec<u32> = new_loads
         .iter()
         .zip(queries.iter())
         .map(|(ws, q)| {
-            if ws.partial {
-                return ws.loads.len();
-            }
             ws.loads
                 .iter()
                 .map(|load| {
@@ -120,7 +115,8 @@ pub(crate) fn compute_new_worker_query(
                         0
                     }
                 })
-                .sum()
+                .sum::<u32>()
+                .max(ws.min)
         })
         .collect();
 
