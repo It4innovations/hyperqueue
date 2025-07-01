@@ -1663,6 +1663,14 @@ fn resources_summary(resources: &ResourceDescriptor, multiline: bool) -> String 
             special_format(descriptor).unwrap_or_else(|| resource_summary_kind(&descriptor.kind))
         )
         .unwrap();
+        if multiline
+            && resources
+                .coupling
+                .as_ref()
+                .is_some_and(|c| c.names.contains(&descriptor.name))
+        {
+            result.push_str(" [coupled]");
+        }
         first = false;
     }
     result
