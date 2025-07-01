@@ -89,7 +89,9 @@ pub(crate) fn compute_new_worker_query(
         }
     }
     for task_id in core.sleeping_sn_tasks() {
-        let task = core.get_task(*task_id);
+        let Some(task) = core.find_task(*task_id) else {
+            continue;
+        };
         add_task(&mut new_loads, task);
     }
 
@@ -98,7 +100,9 @@ pub(crate) fn compute_new_worker_query(
     // However, scheduler is lazy and if there is no worker at all it will do nothing, even
     // postponing ready_to_assign. So we have to look also into this array
     for task_id in core.sn_ready_to_assign() {
-        let task = core.get_task(*task_id);
+        let Some(task) = core.find_task(*task_id) else {
+            continue;
+        };
         add_task(&mut new_loads, task);
     }
 

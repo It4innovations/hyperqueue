@@ -194,11 +194,13 @@ impl Core {
     pub fn new_worker(&mut self, worker: Worker) {
         /* Wake up sleeping tasks */
         let mut sleeping_sn_tasks = self.take_sleeping_tasks();
-        self.single_node_ready_to_assign
-            .append(&mut sleeping_sn_tasks);
-
+        if self.single_node_ready_to_assign.is_empty() {
+            self.single_node_ready_to_assign = sleeping_sn_tasks;
+        } else {
+            self.single_node_ready_to_assign
+                .append(&mut sleeping_sn_tasks);
+        }
         self.multi_node_queue.wakeup_sleeping_tasks();
-
         let worker_id = worker.id;
         if let Some(g) = self.worker_groups.get_mut(&worker.configuration.group) {
             g.new_worker(worker_id);

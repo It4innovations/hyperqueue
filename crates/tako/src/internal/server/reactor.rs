@@ -567,7 +567,6 @@ pub(crate) fn on_cancel_tasks(core: &mut Core, comm: &mut impl Comm, task_ids: &
 
     let mut objs_to_remove = ObjsToRemoveFromWorkers::new();
     core.remove_tasks_batched(&to_unregister, &mut objs_to_remove);
-
     for (w_id, ids) in running_ids {
         comm.send_worker_message(w_id, &ToWorkerMessage::CancelTasks(TaskIdsMsg { ids }));
     }
