@@ -24,6 +24,23 @@ impl ResourceAllocator {
     pub fn get_current_free(&self, idx: u32) -> ResourceAmount {
         self.pools[idx.into()].current_free()
     }
+
+    pub fn force_claim_from_groups(
+        &mut self,
+        resource: ResourceId,
+        group_idxs: &[usize],
+        count: ResourceAmount,
+    ) -> Allocation {
+        let al = self.pools[resource].claim_resources_with_group_mask(
+            resource,
+            &AllocationRequest::Compact(count),
+            group_idxs,
+        );
+        let mut allocation = Allocation::new();
+        allocation.add_resource_allocation(al);
+        self.free_resources.remove(&allocation);
+        allocation
+    }
 }
 
 pub fn simple_descriptor(
@@ -1179,19 +1196,12 @@ fn test_coupling_force2() {
         let mut allocator = test_allocator(&descriptor);
 
         for g in [0, 1] {
-            allocator.pools[0.into()].claim_resources_with_group_mask(
-                0.into(),
-                &AllocationRequest::Compact(2.into()),
-                &[g],
-            );
+            allocator.force_claim_from_groups(0.into(), &[g], 2.into());
         }
         for g in [1, 2] {
-            allocator.pools[1.into()].claim_resources_with_group_mask(
-                1.into(),
-                &AllocationRequest::Compact(2.into()),
-                &[g],
-            );
+            allocator.force_claim_from_groups(1.into(), &[g], 2.into());
         }
+
         let rq = ResBuilder::default()
             .add_force_compact(0, ResourceAmount::new_units(1))
             .add_force_compact(1, ResourceAmount::new_units(1))
@@ -1206,19 +1216,12 @@ fn test_coupling_force3() {
     let mut allocator = test_allocator(&descriptor);
 
     for g in [0, 1] {
-        allocator.pools[0.into()].claim_resources_with_group_mask(
-            0.into(),
-            &AllocationRequest::Compact(2.into()),
-            &[g],
-        );
+        allocator.force_claim_from_groups(0.into(), &[g], 2.into());
     }
     for g in [1, 3] {
-        allocator.pools[1.into()].claim_resources_with_group_mask(
-            1.into(),
-            &AllocationRequest::Compact(1.into()),
-            &[g],
-        );
+        allocator.force_claim_from_groups(1.into(), &[g], 1.into());
     }
+    allocator.validate();
     let rq = ResBuilder::default()
         .add_force_compact(0, ResourceAmount::new_units(3))
         .add_force_compact(1, ResourceAmount::new_units(3))

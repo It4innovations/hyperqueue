@@ -450,10 +450,13 @@ fn test_query_min_utilization_vs_partial() {
         if !tasks.is_empty() {
             submit_test_tasks(&mut core, tasks);
         }
-        let descriptor = ResourceDescriptor::new(vec![ResourceDescriptorItem {
-            name: "cpus".into(),
-            kind: ResourceDescriptorKind::simple_indices(4),
-        }]);
+        let descriptor = ResourceDescriptor::new(
+            vec![ResourceDescriptorItem {
+                name: "cpus".into(),
+                kind: ResourceDescriptorKind::simple_indices(4),
+            }],
+            None,
+        );
         let r = compute_new_worker_query(
             &mut core,
             &[WorkerTypeQuery {
@@ -812,7 +815,7 @@ fn test_query_after_task_cancel() {
         rt.core(),
         &[WorkerTypeQuery {
             partial: true,
-            descriptor: ResourceDescriptor::new(Vec::new()),
+            descriptor: ResourceDescriptor::new(Vec::new(), None),
             time_limit: None,
             max_sn_workers: 5,
             max_workers_per_allocation: 3,

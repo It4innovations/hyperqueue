@@ -4,6 +4,7 @@ use crate::internal::common::resources::request::{
 use crate::internal::common::resources::{ResourceId, ResourceVec};
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::resources::concise::{ConciseFreeResources, ConciseResourceState};
+use crate::internal::worker::resources::groups::{find_compact_groups, find_coupled_groups};
 use crate::internal::worker::resources::map::ResourceLabelMap;
 use crate::internal::worker::resources::pool::{
     FAST_MAX_COUPLED_RESOURCES, FAST_MAX_GROUPS, GroupsResourcePool, ResourcePool,
@@ -24,6 +25,7 @@ pub struct ResourceAllocator {
     pub(super) couplings: Option<ResourceCoupling>,
     pub(super) free_resources: ConciseFreeResources,
     pub(super) remaining_time: Option<Duration>,
+    coupling_n_group_size: usize,
     blocked_requests: Vec<BlockedRequest>,
     higher_priority_blocked_requests: usize,
     pub(super) running_tasks: Vec<Rc<Allocation>>, // TODO: Rework on multiset?
@@ -84,12 +86,16 @@ impl ResourceAllocator {
                 .map(|name| resource_map.get_index(&name).unwrap())
                 .collect(),
         });
-
+        let coupling_n_group_size = couplings
+            .as_ref()
+            .and_then(|c| c.resources.get(0).map(|r| pools[*r].n_groups()))
+            .unwrap_or(0);
         ResourceAllocator {
             pools,
             couplings,
             free_resources,
             remaining_time: None,
+            coupling_n_group_size,
             blocked_requests: Vec::new(),
             higher_priority_blocked_requests: 0,
             running_tasks: Vec::new(),
@@ -135,10 +141,10 @@ impl ResourceAllocator {
     fn has_resources_for_entry(
         pool: &ResourcePool,
         free: &ConciseResourceState,
-        policy: &AllocationRequest,
+        entry: &ResourceRequestEntry,
     ) -> bool {
         let max_alloc = free.amount_max_alloc();
-        match policy {
+        match &entry.request {
             AllocationRequest::Compact(amount) | AllocationRequest::Scatter(amount) => {
                 *amount <= max_alloc
             }
@@ -154,11 +160,10 @@ impl ResourceAllocator {
                 if free.n_groups() < socket_count {
                     return false;
                 }
-                let mut groups: SmallVec<[ResourceUnits; FAST_MAX_GROUPS]> =
-                    free.groups().iter().copied().collect();
-                groups.sort_unstable();
-                let sum: ResourceUnits = groups.iter().rev().take(socket_count).sum();
-                units <= sum
+                let Some(groups) = find_compact_groups(pool.n_groups(), free, entry) else {
+                    return false;
+                };
+                groups.len() <= socket_count
             }
             AllocationRequest::All => max_alloc == pool.full_size(),
         }
@@ -197,14 +202,18 @@ impl ResourceAllocator {
                     coupling.push(entry);
                 }
             }
-            Self::has_resources_for_entry(pool, free.get(entry.resource_id), &entry.request)
+            Self::has_resources_for_entry(pool, free.get(entry.resource_id), &entry)
         }) {
             return false;
         }
         if coupling.len() <= 1 || coupling.iter().all(|entry| !entry.request.is_forced()) {
             return true;
         }
-        let Some(groups) = ResourcePool::find_coupled_groups(pools, &coupling) else {
+        let Some(groups) = find_coupled_groups(
+            pools[request.entries()[0].resource_id.as_usize()].n_groups(),
+            free,
+            &coupling,
+        ) else {
             return false;
         };
         coupling.iter().all(|entry| {
@@ -316,7 +325,9 @@ impl ResourceAllocator {
             allocation.normalize_allocation();
             return allocation;
         }
-        let group_set = ResourcePool::find_coupled_groups(&mut self.pools, &coupling).unwrap();
+        let group_set =
+            find_coupled_groups(self.coupling_n_group_size, &self.free_resources, &coupling)
+                .unwrap();
         for entry in coupling {
             allocation.add_resource_allocation(
                 self.pools[entry.resource_id].claim_resources_with_group_mask(
@@ -348,7 +359,6 @@ impl ResourceAllocator {
             self.new_blocked_request(request);
             return None;
         }
-
         let allocation = self.claim_resources(request);
         if !self.check_blocked_request(&allocation) {
             self.release_allocation_helper(&allocation);

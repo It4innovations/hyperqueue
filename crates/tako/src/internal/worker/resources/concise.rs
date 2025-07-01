@@ -7,43 +7,57 @@ use crate::resources::{
 use smallvec::SmallVec;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub(crate) struct ConciseResourceState {
-    free_units: SmallVec<[ResourceUnits; 1]>,
+pub(crate) struct ConciseResourceGroup {
+    units: ResourceUnits,
     fractions: Map<ResourceIndex, ResourceFractions>,
 }
 
+impl ConciseResourceGroup {
+    pub fn new(units: ResourceUnits, fractions: Map<ResourceIndex, ResourceFractions>) -> Self {
+        ConciseResourceGroup { units, fractions }
+    }
+
+    pub fn units(&self) -> ResourceUnits {
+        self.units
+    }
+
+    pub fn fractions(&self) -> &Map<ResourceIndex, ResourceFractions> {
+        &self.fractions
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub(crate) struct ConciseResourceState {
+    free: SmallVec<[ConciseResourceGroup; 1]>,
+}
+
 impl ConciseResourceState {
-    pub fn new(
-        free_units: SmallVec<[ResourceUnits; 1]>,
-        fractions: Map<ResourceIndex, ResourceFractions>,
-    ) -> Self {
-        ConciseResourceState {
-            free_units,
-            fractions,
-        }
+    pub fn new(free: SmallVec<[ConciseResourceGroup; 1]>) -> Self {
+        ConciseResourceState { free }
     }
 
     fn remove_fractions(
         &mut self,
-        group_id: usize,
+        group_idx: usize,
         resource_idx: ResourceIndex,
         fractions: ResourceFractions,
     ) {
-        let old_f = self.fractions.entry(resource_idx).or_insert(0);
+        let free = &mut self.free[group_idx];
+        let old_f = free.fractions.entry(resource_idx).or_insert(0);
         if *old_f < fractions {
             *old_f = FRACTIONS_PER_UNIT + *old_f - fractions;
-            assert!(self.free_units[group_id] > 0);
-            self.free_units[group_id] -= 1;
+            assert!(free.units > 0);
+            free.units -= 1;
         } else {
             *old_f -= fractions;
         }
     }
 
     pub fn remove(&mut self, resource_allocation: &ResourceAllocation) {
-        if self.free_units.len() == 1 {
+        if self.free.len() == 1 {
             let (units, fractions) = resource_allocation.amount.split();
-            assert!(self.free_units[0] >= units);
-            self.free_units[0] -= units;
+            assert!(self.free[0].units >= units);
+            self.free[0].units -= units;
             if fractions > 0 {
                 if resource_allocation.indices.is_empty() {
                     self.remove_fractions(0, ResourceIndex::new(0), fractions);
@@ -59,8 +73,9 @@ impl ConciseResourceState {
         } else {
             for idx in &resource_allocation.indices {
                 if idx.fractions == 0 {
-                    assert!(self.free_units[idx.group_idx as usize] > 0);
-                    self.free_units[idx.group_idx as usize] -= 1
+                    let free = &mut self.free[idx.group_idx as usize];
+                    assert!(free.units > 0);
+                    free.units -= 1
                 } else {
                     self.remove_fractions(idx.group_idx as usize, idx.index, idx.fractions);
                 }
@@ -70,23 +85,24 @@ impl ConciseResourceState {
 
     fn add_fractions(
         &mut self,
-        group_id: usize,
+        group_idx: usize,
         resource_idx: ResourceIndex,
         fractions: ResourceFractions,
     ) {
-        let old_f = self.fractions.entry(resource_idx).or_insert(0);
+        let mut free = &mut self.free[group_idx];
+        let old_f = free.fractions.entry(resource_idx).or_insert(0);
         *old_f += fractions;
         if *old_f >= FRACTIONS_PER_UNIT {
             *old_f -= FRACTIONS_PER_UNIT;
             assert!(*old_f < FRACTIONS_PER_UNIT);
-            self.free_units[group_id] += 1;
+            free.units += 1;
         }
     }
 
     pub fn add(&mut self, resource_allocation: &ResourceAllocation) {
-        if self.free_units.len() == 1 {
+        if self.free.len() == 1 {
             let (units, fractions) = resource_allocation.amount.split();
-            self.free_units[0] += units;
+            self.free[0].units += units;
             if fractions > 0 {
                 if resource_allocation.indices.is_empty() {
                     self.add_fractions(0, ResourceIndex::new(0), fractions);
@@ -102,7 +118,7 @@ impl ConciseResourceState {
         } else {
             for idx in &resource_allocation.indices {
                 if idx.fractions == 0 {
-                    self.free_units[idx.group_idx as usize] += 1
+                    self.free[idx.group_idx as usize].units += 1
                 } else {
                     self.add_fractions(idx.group_idx as usize, idx.index, idx.fractions);
                 }
@@ -111,36 +127,53 @@ impl ConciseResourceState {
     }
 
     pub fn n_groups(&self) -> usize {
-        self.free_units.len()
+        self.free.len()
     }
 
-    pub fn groups(&self) -> &[ResourceUnits] {
-        &self.free_units
+    pub fn groups(&self) -> &[ConciseResourceGroup] {
+        &self.free
+    }
+
+    fn fractions(&self) -> impl Iterator<Item = ResourceFractions> {
+        self.free.iter().flat_map(|g| g.fractions.values().copied())
     }
 
     pub fn amount_max_alloc(&self) -> ResourceAmount {
-        let units = self.free_units.iter().sum();
-        let fractions = *self.fractions.values().max().unwrap_or(&0);
+        let units = self.free.iter().map(|g| g.units).sum();
+        let fractions = self.fractions().max().unwrap_or(0);
         ResourceAmount::new(units, fractions)
+    }
+
+    pub fn amount_max_per_group(&self) -> impl Iterator<Item = ResourceAmount> {
+        self.free.iter().map(|g| {
+            let fractions = g.fractions.values().copied().max().unwrap_or(0);
+            ResourceAmount::new(g.units, fractions)
+        })
     }
 
     #[cfg(test)]
     pub fn amount_sum(&self) -> ResourceAmount {
-        let units = ResourceAmount::new_units(self.free_units.iter().sum());
+        let units = ResourceAmount::new_units(self.free.iter().map(|g| g.units).sum());
         let fractions = self
-            .fractions
-            .values()
-            .map(|f| ResourceAmount::new_fractions(*f))
+            .fractions()
+            .map(|f| ResourceAmount::new_fractions(f))
             .sum();
         units + fractions
     }
 
+    #[cfg(debug_assertions)]
     pub(crate) fn strip_zeros(&self) -> ConciseResourceState {
         ConciseResourceState::new(
-            self.free_units.clone(),
-            self.fractions
+            self.free
                 .iter()
-                .filter_map(|(k, v)| if *v > 0 { Some((*k, *v)) } else { None })
+                .map(|g| ConciseResourceGroup {
+                    units: g.units,
+                    fractions: g
+                        .fractions
+                        .iter()
+                        .filter_map(|(k, v)| if *v > 0 { Some((*k, *v)) } else { None })
+                        .collect(),
+                })
                 .collect(),
         )
     }
@@ -189,7 +222,9 @@ impl ConciseFreeResources {
 #[cfg(test)]
 mod tests {
     use crate::Map;
-    use crate::internal::worker::resources::concise::{ConciseFreeResources, ConciseResourceState};
+    use crate::internal::worker::resources::concise::{
+        ConciseFreeResources, ConciseResourceGroup, ConciseResourceState,
+    };
     use crate::resources::ResourceUnits;
 
     impl ConciseFreeResources {
@@ -210,7 +245,15 @@ mod tests {
 
     impl ConciseResourceState {
         pub fn new_simple(free_units: &[ResourceUnits]) -> Self {
-            ConciseResourceState::new(free_units.into(), Map::new())
+            ConciseResourceState::new(
+                free_units
+                    .iter()
+                    .map(|units| ConciseResourceGroup {
+                        units: *units,
+                        fractions: Map::new(),
+                    })
+                    .collect(),
+            )
         }
     }
 }
