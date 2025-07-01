@@ -422,7 +422,7 @@ fn compute_query_responses(
         .single_node_workers_per_query
         .into_iter()
         .map(|single_node_workers| QueryResponse {
-            single_node_workers: single_node_workers as u32,
+            single_node_workers,
             multinode_allocations: 0,
             multinode_workers_per_alloc: 0,
         })
