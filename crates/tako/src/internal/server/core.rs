@@ -32,7 +32,6 @@ pub struct Core {
     // TODO: benchmark and possibly replace with a set
     single_node_ready_to_assign: Vec<TaskId>,
     multi_node_queue: MultiNodeQueue,
-    has_new_tasks: bool,
 
     sleeping_sn_tasks: Vec<TaskId>, // Tasks that cannot be scheduled to any available worker
 
@@ -185,12 +184,6 @@ impl Core {
         self.worker_listen_port
     }
 
-    pub fn check_has_new_tasks_and_reset(&mut self) -> bool {
-        let result = self.has_new_tasks;
-        self.has_new_tasks = false;
-        result
-    }
-
     pub fn new_worker(&mut self, worker: Worker) {
         /* Wake up sleeping tasks */
         let mut sleeping_sn_tasks = self.take_sleeping_tasks();
@@ -287,7 +280,6 @@ impl Core {
     pub fn add_task(&mut self, task: Task) {
         let is_ready = task.is_ready();
         let task_id = task.id;
-        self.has_new_tasks = true;
         assert!(self.tasks.insert(task).is_none());
         if is_ready {
             self.add_ready_to_assign(task_id);
