@@ -55,6 +55,15 @@ impl AllocationRequest {
         }
     }
 
+    pub fn amount_or_none_if_all(&self) -> Option<ResourceAmount> {
+        match self {
+            AllocationRequest::Compact(amount)
+            | AllocationRequest::ForceCompact(amount)
+            | AllocationRequest::Scatter(amount) => Some(*amount),
+            AllocationRequest::All => None,
+        }
+    }
+
     pub fn amount(&self, all: ResourceAmount) -> ResourceAmount {
         match self {
             AllocationRequest::Compact(amount)

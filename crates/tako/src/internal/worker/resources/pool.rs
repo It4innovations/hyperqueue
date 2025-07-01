@@ -1,18 +1,20 @@
-use crate::Set;
-use crate::internal::common::Map;
 use crate::internal::common::resources::allocation::AllocationIndex;
 use crate::internal::common::resources::amount::FRACTIONS_PER_UNIT;
 use crate::internal::common::resources::descriptor::ResourceDescriptorKind;
 use crate::internal::common::resources::{ResourceAmount, ResourceId, ResourceIndex, ResourceVec};
-use crate::internal::worker::resources::concise::ConciseResourceState;
+use crate::internal::common::Map;
+use crate::internal::worker::resources::concise::{
+    ConciseFreeResources, ConciseResourceGroup, ConciseResourceState,
+};
 use crate::internal::worker::resources::map::ResourceLabelMap;
 use crate::resources::{
     Allocation, AllocationRequest, ResourceAllocation, ResourceFractions, ResourceUnits,
 };
+use crate::Set;
 use std::cmp::Reverse;
 
 use crate::gateway::ResourceRequestEntry;
-use smallvec::{SmallVec, smallvec};
+use smallvec::{smallvec, SmallVec};
 
 #[derive(Debug)]
 pub(crate) struct IndicesResourcePool {
@@ -30,8 +32,6 @@ pub(crate) struct GroupsResourcePool {
     is_coupled: bool,
     //reverse_map: Map<ResourceIndex, usize>,
 }
-
-type GroupSet = SmallVec<[usize; 2]>;
 
 impl GroupsResourcePool {
     pub fn group_amounts(&self) -> impl Iterator<Item = ResourceAmount> {
@@ -183,35 +183,32 @@ impl ResourcePool {
     }
 
     pub(crate) fn concise_state(&self) -> ConciseResourceState {
-        let (units, fractions) = match self {
-            ResourcePool::Empty => (smallvec![], Map::new()),
-            ResourcePool::Indices(pool) => (
-                smallvec![pool.indices.len() as ResourceUnits],
-                pool.fractions.clone(),
-            ),
+        let free = match self {
+            ResourcePool::Empty => smallvec![],
+            ResourcePool::Indices(pool) => {
+                smallvec![ConciseResourceGroup::new(
+                    pool.indices.len() as ResourceUnits,
+                    pool.fractions.clone()
+                )]
+            }
             ResourcePool::Sum(pool) => {
                 let mut fractions: Map<ResourceIndex, ResourceFractions> = Map::new();
-                let frac = pool.free.fractions();
+                let (units, frac) = pool.free.split();
                 if frac > 0 {
                     fractions.insert(ResourceIndex::new(0), frac);
                 }
-                (smallvec![pool.free.units()], fractions)
+                smallvec![ConciseResourceGroup::new(units, fractions)]
             }
-            ResourcePool::Groups(pool) => {
-                let mut fractions = Map::new();
-                for f in &pool.fractions {
-                    fractions.extend(f);
-                }
-                (
-                    pool.indices
-                        .iter()
-                        .map(|g| g.len() as ResourceUnits)
-                        .collect(),
-                    fractions,
-                )
-            }
+            ResourcePool::Groups(pool) => pool
+                .indices
+                .iter()
+                .zip(pool.fractions.iter())
+                .map(|(indices, fractions)| {
+                    ConciseResourceGroup::new(indices.len() as ResourceUnits, fractions.clone())
+                })
+                .collect(),
         };
-        ConciseResourceState::new(units, fractions)
+        ConciseResourceState::new(free)
     }
 
     fn claim_all_from_groups(pool: &mut GroupsResourcePool) -> SmallVec<[AllocationIndex; 1]> {
@@ -352,104 +349,6 @@ impl ResourcePool {
         }
 
         indices
-    }
-
-    pub fn find_coupled_groups(
-        pools: &[ResourcePool],
-        entries: &[&crate::resources::ResourceRequestEntry],
-    ) -> Option<GroupSet> {
-        struct State {
-            remaining: ResourceAmount,
-            group_amounts: SmallVec<[ResourceAmount; FAST_MAX_GROUPS]>,
-        }
-        let mut result: GroupSet = SmallVec::new();
-        let n_groups = pools[entries[0].resource_id.as_usize()].n_groups();
-        let mut states: SmallVec<[State; FAST_MAX_COUPLED_RESOURCES]> = entries
-            .iter()
-            .map(|e| {
-                let pool = pools[e.resource_id.as_usize()].as_groups();
-                State {
-                    remaining: e.request.amount(pool.full_size()),
-                    group_amounts: pool.group_amounts().collect(),
-                }
-            })
-            .collect();
-        loop {
-            if let Some(group_idx) = (0..n_groups)
-                .filter(|group_idx| {
-                    states
-                        .iter()
-                        .all(|s| s.group_amounts[*group_idx] >= s.remaining)
-                })
-                .min_by_key(|group_idx| {
-                    (
-                        states
-                            .iter()
-                            .map(|s| s.group_amounts[*group_idx] - s.remaining)
-                            .min()
-                            .unwrap_or(ResourceAmount::ZERO),
-                        states
-                            .iter()
-                            .map(|s| s.group_amounts[*group_idx] - s.remaining)
-                            .sum::<ResourceAmount>(),
-                    )
-                })
-            {
-                if !result.contains(&group_idx) {
-                    result.push(group_idx);
-                }
-                break;
-            } else {
-                let Some(group_idx) = (0..n_groups)
-                    .filter(|group_idx| {
-                        states
-                            .iter()
-                            .any(|s| !s.group_amounts[*group_idx].is_zero())
-                    })
-                    .min_by_key(|group_idx| {
-                        (
-                            Reverse(
-                                states
-                                    .iter()
-                                    .map(|s| s.group_amounts[*group_idx].min(s.remaining))
-                                    .sum::<ResourceAmount>(),
-                            ),
-                            states
-                                .iter()
-                                .map(|s| s.group_amounts[*group_idx].saturating_sub(s.remaining))
-                                .min()
-                                .unwrap_or(ResourceAmount::ZERO),
-                            states
-                                .iter()
-                                .map(|s| s.group_amounts[*group_idx].saturating_sub(s.remaining))
-                                .sum::<ResourceAmount>(),
-                        )
-                    })
-                else {
-                    return None;
-                };
-                for state in states.iter_mut() {
-                    let (r_units, r_fractions) = state.remaining.split();
-                    let amount = &mut state.group_amounts[group_idx];
-                    let (a_units, a_fractions) = amount.split();
-                    let t_units = r_units.min(a_units);
-                    let t_fractions = if r_fractions == 0 || a_fractions < r_fractions {
-                        0
-                    } else {
-                        r_fractions
-                    };
-                    let target = ResourceAmount::new(t_units, t_fractions);
-                    if target.is_zero() {
-                        continue;
-                    }
-
-                    *amount -= target;
-                    state.remaining -= target;
-                }
-                result.push(group_idx);
-            }
-        }
-        Some(result)
     }
 
     pub fn take_indices(
@@ -607,8 +506,8 @@ impl ResourcePool {
             ResourcePool::Empty => unreachable!(),
             ResourcePool::Indices(pool) => {
                 for index in allocation.indices.iter().rev() {
-                    // Iterating reversly as indices was originally taken by pop()
-                    // Just to add small determinism, we return then in same order
+                    // Iterating reversely, as indices were originally taken by pop()
+                    // Just to add small determinism, we return then in the same order
                     assert_eq!(index.group_idx, 0);
                     if index.fractions == 0 {
                         pool.indices.push(index.index);
@@ -630,8 +529,8 @@ impl ResourcePool {
             }
             ResourcePool::Groups(pool) => {
                 for index in allocation.indices.iter().rev() {
-                    // Iterating reversly as indices was originally taken by pop()
-                    // Just to add small determinism, we return then in same order
+                    // Iterating reversely, as indices were originally taken by pop()
+                    // Just to add small determinism, we return then in the same order
                     if index.fractions == 0 {
                         pool.indices[index.group_idx as usize].push(index.index);
                     } else {
