@@ -1,12 +1,15 @@
+use crate::TaskId;
 use crate::control::WorkerTypeQuery;
 use crate::internal::scheduler::query::compute_new_worker_query;
 use crate::internal::server::core::Core;
+use crate::internal::server::reactor::on_cancel_tasks;
 use crate::internal::tests::utils::env::{TestEnv, create_test_comm};
 use crate::internal::tests::utils::schedule::{
     create_test_scheduler, create_test_workers, submit_test_tasks,
 };
 use crate::internal::tests::utils::task::TaskBuilder;
 use crate::resources::{ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind};
+use crate::tests::utils::schedule::create_test_worker;
 use std::time::Duration;
 
 #[test]
@@ -777,4 +780,29 @@ fn test_query_unknown_do_not_add_extra() {
         }],
     );
     assert_eq!(r.single_node_workers_per_query, vec![2]);
+}
+
+#[test]
+fn test_query_after_task_cancel() {
+    let mut rt = TestEnv::new();
+    submit_test_tasks(
+        &mut rt.core(),
+        vec![TaskBuilder::new(1).cpus_compact(10).build()],
+    );
+    create_test_worker(rt.core(), 102.into(), 1);
+    rt.schedule();
+    let mut comm = create_test_comm();
+    on_cancel_tasks(rt.core(), &mut comm, &[TaskId::new_test(1)]);
+    let r = compute_new_worker_query(
+        rt.core(),
+        &[WorkerTypeQuery {
+            partial: true,
+            descriptor: ResourceDescriptor::new(Vec::new()),
+            time_limit: None,
+            max_sn_workers: 5,
+            max_workers_per_allocation: 3,
+            min_utilization: 0.0,
+        }],
+    );
+    assert_eq!(r.single_node_workers_per_query, vec![0]);
 }
