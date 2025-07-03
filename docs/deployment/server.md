@@ -1,6 +1,9 @@
 The server is a crucial component of HyperQueue which manages [workers](worker.md) and [jobs](../jobs/jobs.md). Before
-running
-any computations or deploying workers, you must first start the server.
+running any computations or deploying workers, you must first start the server.
+
+!!! Tip
+    
+    You can find CLI reference for HQ server commands [here](cli:hq.server).
 
 ## Starting the server
 

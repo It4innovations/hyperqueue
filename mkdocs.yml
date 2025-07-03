@@ -106,6 +106,7 @@ plugins:
 
 hooks:
   - scripts/docs/build_cli_reference.py
+  - scripts/docs/postprocess_cli_links.py
 
 extra:
   analytics:

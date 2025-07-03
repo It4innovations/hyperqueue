@@ -2,6 +2,10 @@ Workers manage the computational resources of a single computer (node) and use t
 They connect to a running instance of a HyperQueue [server](server.md) and wait for task assignments. Once some task
 is assigned to them, they will compute it and notify the server of its completion.
 
+!!! Tip
+
+    You can find CLI reference for HQ worker commands [here](cli:hq.worker).
+
 ## Starting workers
 Workers should be started on machines that will actually execute the submitted computations, e.g. computing nodes on an
 HPC cluster. You can either use the automatic allocation system of HyperQueue to start workers as needed, or deploy
