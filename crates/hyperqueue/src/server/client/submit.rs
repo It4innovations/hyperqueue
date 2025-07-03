@@ -1,14 +1,16 @@
 use std::borrow::Cow;
+use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
 
 use chrono::{DateTime, Utc};
 use tako::gateway::{
     EntryType, SharedTaskConfiguration, TaskConfiguration, TaskDataFlags, TaskSubmit,
 };
-use tako::{Set, TaskId};
+use tako::{Map, Set, TaskId};
 use thin_vec::ThinVec;
 
 use crate::common::arraydef::IntArray;
+use crate::common::format::human_duration;
 use crate::common::placeholders::{
     fill_placeholders_after_submit, fill_placeholders_log, normalize_path,
 };
@@ -21,6 +23,7 @@ use crate::transfer::messages::{
     TaskExplainResponse, TaskIdSelector, TaskKind, TaskKindProgram, TaskSelector,
     TaskStatusSelector, TaskWithDependencies, ToClientMessage,
 };
+use tako::program::ProgramDefinition;
 use tako::{JobId, JobTaskCount, JobTaskId};
 
 fn create_task_submit(job_id: JobId, submit_desc: &mut JobSubmitDescription) -> TaskSubmit {
@@ -113,7 +116,7 @@ pub(crate) fn handle_submit(
     senders: &Senders,
     mut message: SubmitRequest,
 ) -> ToClientMessage {
-    log::debug!("Received submit request {message:?}");
+    log_submit_request(&message);
 
     let mut state = state_ref.get_mut();
     if let Some(err) = validate_submit(
@@ -193,6 +196,107 @@ pub(crate) fn handle_submit(
         job: job_detail,
         server_uid: state_ref.get().server_info().server_uid.clone(),
     })
+}
+
+fn log_submit_request(request: &SubmitRequest) {
+    struct PrettyDebugJobTaskDescription<'a>(&'a JobTaskDescription);
+
+    impl Debug for PrettyDebugJobTaskDescription<'_> {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            match &self.0 {
+                JobTaskDescription::Array {
+                    ids,
+                    entries,
+                    task_desc:
+                        TaskDescription {
+                            kind:
+                                TaskKind::ExternalProgram(TaskKindProgram {
+                                    program:
+                                        ProgramDefinition {
+                                            args,
+                                            env,
+                                            stdout,
+                                            stderr,
+                                            stdin,
+                                            cwd,
+                                        },
+                                    pin_mode,
+                                    task_dir,
+                                }),
+                            resources,
+                            time_limit,
+                            priority,
+                            crash_limit,
+                        },
+                } => f
+                    .debug_struct("Array")
+                    .field("ids", ids)
+                    .field("entries", &entries.as_ref().map(|e| e.len()))
+                    .field("resources", resources)
+                    .field(
+                        "args",
+                        &args
+                            .iter()
+                            .map(|s| s.to_string())
+                            .collect::<Vec<String>>()
+                            .join(" "),
+                    )
+                    .field(
+                        "env",
+                        &env.iter()
+                            .map(|(k, v)| (k.to_string(), v.to_string()))
+                            .collect::<Map<String, String>>(),
+                    )
+                    .field("stdout", stdout)
+                    .field("stderr", stderr)
+                    .field("stdin", &format!("{} bytes", stdin.len()))
+                    .field("workdir", cwd)
+                    .field("pin_mode", pin_mode)
+                    .field("task_dir", task_dir)
+                    .field(
+                        "time_limit",
+                        &time_limit.map(|d| human_duration(chrono::Duration::from_std(d).unwrap())),
+                    )
+                    .field("priority", priority)
+                    .field("crash_limit", crash_limit)
+                    .finish(),
+                JobTaskDescription::Graph { tasks } => {
+                    f.write_fmt(format_args!("Graph ({}) task(s)", tasks.len()))
+                }
+            }
+        }
+    }
+
+    struct PrettyDebugSubmitRequest<'a>(&'a SubmitRequest);
+
+    impl Debug for PrettyDebugSubmitRequest<'_> {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            let SubmitRequest {
+                job_desc: JobDescription { name, max_fails },
+                submit_desc:
+                    JobSubmitDescription {
+                        task_desc,
+                        submit_dir,
+                        stream_path,
+                    },
+                job_id,
+            } = self.0;
+
+            f.debug_struct("SubmitRequest")
+                .field("name", name)
+                .field("tasks", &PrettyDebugJobTaskDescription(task_desc))
+                .field("max_fails", max_fails)
+                .field("submit_dir", submit_dir)
+                .field("stream_path", stream_path)
+                .field("job_id", &job_id)
+                .finish()
+        }
+    }
+
+    log::debug!(
+        "Received submit request {:?}",
+        PrettyDebugSubmitRequest(request)
+    );
 }
 
 /// Prefills placeholders in the submit request and creates job ID
