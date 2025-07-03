@@ -27,7 +27,7 @@ $ hq submit --stream=<stream-dir> --array=1-10_000 ...
 
 !!! warning
 
-    It is the user's responsibility to ensure that the `<stream-dir>` path is accessible and writable by each worker that might execute tasks of the submitted job. See also [Working with a non-shared filesystem](#working-with-a-non-shared-file-system).
+    It is the user's responsibility to ensure that the `<stream-dir>` path is accessible and writable by each worker that might execute tasks of the submitted job. See also [Working with a non-shared filesystem](#working-with-a-non-shared-filesystem).
 
 The command above will cause the `stdout` and `stderr` of all `10_000` tasks to be streamed in a compact way into a small number of files located in `<stream-dir>`. Note that the number of files created in the directory will be independent of the number of tasks of the job, thus alleviating the performance issue on networked filesystems. The created binary files will also contain additional metadata, which allows the resulting files to be filtered/sorted by tasks or channel.
 
