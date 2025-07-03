@@ -16,3 +16,5 @@ not required. A common use-case is to start the server on a login of an HPC syst
 [comment]: <> (TODO: describe scheduler)
 
 Learn more about deploying [server](server.md) and the [workers](worker.md).
+
+There is also a third component that we call the **client**, which represents the users of HyperQueue invoking various `hq` commands to communicate with the server component.

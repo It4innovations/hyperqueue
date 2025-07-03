@@ -15,7 +15,7 @@ A job with multi-node task can be specified by ``--nodes=X`` option.
 
 An example of a job with multi-node task asking for 4 nodes:
 
-```commandline
+```bash
 $ hq submit --nodes 4 test.sh
 ```
 
@@ -46,7 +46,7 @@ are put in "default" group.
 
 A group of a worker can be specified at the start of the worker and it may be any string. Example:
 
-```commandline
+```bash
 $ hq worker start --group my_group
 ```
 

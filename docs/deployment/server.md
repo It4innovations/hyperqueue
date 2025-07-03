@@ -44,18 +44,15 @@ $ hq --server-dir=foo worker start
     $ hq worker start &
     ```
 
-!!! important
-
-    When you start the server, it will create a new subdirectory in the server directory, which will store the data of the current running instance. It will also create a symlink `hq-current` which will point to the currently active
-    subdirectory.
-    Using this approach, you can start a server using the same server directory multiple times without overwriting data
-    of the previous runs.
-
 !!! danger "Server directory access"
 
     Encryption keys are stored in the server directory. Whoever has access to the server directory may submit jobs,
     connect workers to the server and decrypt communication between HyperQueue components. By default, the directory is
     only accessible by the user who started the server.
+
+## Running multiple servers
+
+When you start the server, it will create a new subdirectory in the server directory, which will store the data of the current running instance. It will also create a symlink `hq-current` which will point to the currently active subdirectory. Using this approach, you can start a server using the same server directory multiple times without overwriting data of the previous runs.
 
 ## Keeping the server alive
 
@@ -98,7 +95,7 @@ have to be connected to the server after it restarts.
 
     If the server crashes, the last few seconds of progress may be lost. For example,
     when a task is finished and the server crashes before the journal is written, then
-    after resuming the server, the task will be not be computed after a server restart.
+    after resuming the server, the task will be recomputed.
 
 ### Exporting journal events
 
@@ -110,7 +107,7 @@ $ hq journal export <journal-path>
 ```
 
 The events will be read from the provided journal and printed to `stdout` encoded in JSON, one
-event per line (this corresponds to line-delimited JSON, i.e. [NDJSON](http://ndjson.org/)).
+event per line (this corresponds to line-delimited JSON, i.e. [JSON Lines](https://jsonlines.org/)).
 
 You can also directly stream events in real-time from the server using the following command:
 
@@ -123,17 +120,15 @@ $ hq journal stream
     The JSON format of the journal events and their definition is currently unstable and can change
     with a new HyperQueue version.
 
-### Pruning journal
+### Pruning the journal
 
-Command `hq journal prune` removes all completed jobs and disconnected workers from the journal file.
+The `hq journal prune` command removes all completed jobs and disconnected workers from the journal file, in order to reduce its size on disk.
 
-### Flushing journal
+### Flushing the journal
 
-Command `hq journal flush` will force the server to flush the journal.
-It is mainly for the testing purpose or if you are going to `hq journal export` on
-a live journal (however, it is usually better to use `hq journal stream`).
+Command `hq journal flush` will force the server to flush the journal, so that the latest state of affairs is persisted to disk. It is mainly useful for testing or if you are going to run `hq journal export` while a server is running (however, it is usually better to use `hq journal stream`).
 
-## Stopping server
+## Stopping the server
 
 You can stop a running server with the following command:
 

@@ -1,4 +1,5 @@
-Workers connect to a running instance of a HyperQueue [server](server.md) and wait for task assignments. Once some task
+Workers manage the computational resources of a single computer (node) and use them to execute tasks submitted into HyperQueue.
+They connect to a running instance of a HyperQueue [server](server.md) and wait for task assignments. Once some task
 is assigned to them, they will compute it and notify the server of its completion.
 
 ## Starting workers
@@ -7,8 +8,8 @@ HPC cluster. You can either use the automatic allocation system of HyperQueue to
 workers manually.
 
 ### Automatic worker deployment (recommended)
-If you are using a job manager (PBS or Slurm) on an HPC cluster, the easiest way of deploying workers is to use
-[**Automatic allocation**](allocation.md). It is a component of HyperQueue that takes care of submitting PBS/Slurm jobs
+If you are using an allocation manager (PBS or Slurm) on an HPC cluster, the easiest way of deploying workers is to use
+[**Automatic allocation**](allocation.md). It is a component of HyperQueue that takes care of submitting PBS/Slurm allocations
 and spawning HyperQueue workers.
 
 ### Manual worker deployment
@@ -32,11 +33,11 @@ If you want to connect to a different server, use the `--server-dir` option.
 
     However, if a shared filesystem is not available on your cluster, you can just copy the server directory from the
     server machine to the worker machine and access it from there. The worker machine still has to be able to initiate
-    a TCP/IP connection to the server machine though.
+    a TCP/IP connection to the server machine though. See [this page](./cloud.md) for more details.
 
 #### Deploying a worker using PBS/Slurm
 If you want to manually start a worker using PBS or Slurm, simply use the corresponding submit command (`qsub` or `sbatch`)
-and run the `hq worker start` command inside the allocated job. If you want to start a worker on each allocated node,
+and run the `hq worker start` command inside the created allocation. If you want to start a worker on each allocated node,
 you can run this command on each node using e.g. `mpirun`.
 
 Example submission script:
@@ -69,7 +70,7 @@ Example submission script:
     srun --overlap /<path-to-hyperqueue>/hq worker start --manager slurm
     ```
 
-The worker will try to automatically detect that it is started under a PBS/Slurm job, but you can also explicitly pass
+The worker will try to automatically detect that it is started under a PBS/Slurm allocation, but you can also explicitly pass
 the option `--manager <pbs/slurm>` to tell the worker that it should expect a specific environment.
 
 #### Deploying a worker using SSH
@@ -77,7 +78,7 @@ the option `--manager <pbs/slurm>` to tell the worker that it should expect a sp
 If you have an OpenSSH-compatible `ssh` binary available in your environment, HQ can deploy workers to a set of hostnames using the `deploy-ssh` command:
 
 ```bash
-$ hq worker deploy-ssh <nodefile> <worker-args>
+$ hq worker deploy-ssh <nodefile> <worker-start-args>
 ```
 
 To use this command, you need to prepare a *hostfile*, which should contain a set of lines describing individual hostnames on which you want to deploy the workers:
@@ -109,13 +110,12 @@ $ hq worker stop <selector>
 
 ## Time limit
 HyperQueue workers are designed to be volatile, i.e. it is expected that they will be stopped from time to time, because
-they are often started inside PBS/Slurm jobs that have a limited duration.
+they are often started inside PBS/Slurm allocations that have a limited duration.
 
-It is very useful for the workers to know how much remaining time ("lifetime") do they have until they will be stopped.
+It is very useful for the workers to know how much remaining time ("lifetime") they have until they will be stopped.
 This duration is called the `Worker time limit`.
 
-When a worker is started manually inside a PBS or Slurm job, it will automatically calculate the time limit from the job's
-metadata. If you want to set time limit for workers started outside of PBS/Slurm jobs or if you want to
+When a worker is started manually inside a PBS or Slurm allocation, it will automatically calculate the time limit from the metadata of the allocation. If you want to set time limit for workers started outside of PBS/Slurm allocations or if you want to
 override the detected settings, you can use the `--time-limit=<DURATION>` option[^1] when starting the worker.
 
 [^1]: You can use various [shortcuts](../cli/shortcuts.md#duration) for the duration value.
@@ -126,7 +126,7 @@ The time limit of a worker affects what tasks can be scheduled to it. For exampl
 will not be scheduled onto a worker that only has a remaining time limit of 5 minutes.
 
 ## Idle timeout
-When you deploy *HQ* workers inside a PBS or Slurm job, keeping the worker alive will drain resources from your
+When you deploy *HQ* workers inside a PBS or Slurm allocation, keeping the worker alive will drain resources from your
 accounting project (unless you use a free queue). If a worker has nothing to do, it might be better to terminate it
 sooner to avoid paying these costs for no reason.
 
@@ -152,8 +152,8 @@ This value will be then used for each worker that does not explicitly specify it
 Each worker can be in one of the following states:
 
 * **Running** Worker is running and is able to process tasks
-* **Connection lost** Worker lost connection to the server. Probably someone manually killed the worker or job walltime
-  in its PBS/Slurm job was [reached](#time-limit).
+* **Connection lost** Worker lost connection to the server. Probably someone manually killed the worker or the walltime
+  of its PBS/Slurm allocation was [reached](#time-limit).
 * **Heartbeat lost** Communication between server and worker was interrupted. It usually signifies a network problem or
   a hardware crash of the computational node.
 * **Stopped** Worker was [stopped](#stopping-workers).
@@ -161,16 +161,20 @@ Each worker can be in one of the following states:
 
 ### Lost connection to the server
 
-The behavior of what should happen with a worker that lost its connection to the server is configured
+The behavior of what should happen when a worker loses its connection to the server is configured
 via `hq worker start --on-server-lost=<policy>`. You can select from two policies:
 
 * `stop` - The worker immediately terminates and kills all currently running tasks.
-* `finish-running` - The worker does not start to execute any new tasks, but it tries to finish tasks
+* `finish-running` - The worker does not start executing any new tasks, but it tries to finish tasks
   that are already running. When all such tasks finish, the worker will terminate.
 
 `stop` is the default policy when a worker is manually started by `hq worker start`.
 When a worker is started by the [automatic allocator](allocation.md), then `finish-running` is used
 as the default value.
+
+## Worker groups
+
+Each worker is a member of exactly one worker group. Groups are used to determine which workers are eligible to execute multi-node tasks. You can find more information about worker groups [here](../jobs/multinode.md#groups).
 
 ## Useful worker commands
 Here is a list of useful worker commands:
@@ -188,7 +192,3 @@ If you also want to include workers that are offline (i.e. that have crashed or 
 ```bash
 $ hq worker info <worker-id>
 ```
-
-### Worker groups
-
-Each worker is a member exactly of one group. Groups are used when multi-node tasks are used. See more [here](../jobs/multinode.md#groups)

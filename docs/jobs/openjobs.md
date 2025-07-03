@@ -9,7 +9,7 @@ long as it is open.
 
 A job can be opened by the following command:
 
-```commandline
+```bash
 $ hq job open
 ```
 
@@ -21,7 +21,7 @@ Job <ID> is open.
 
 If you want to get just ID without any additional text, you can open job as follows:
 
-```commandline
+```bash
 $ hq --output-mode=quiet job open
 ```
 
@@ -44,7 +44,7 @@ $ hq submit --job <JOB_ID> ... other submit args ...
 All tasks in one job share the task ID space. When you do not specify task ids, HQ automatically assigns a smallest ID
 that is bigger then any existing task id.
 
-```commandline
+```bash
 $ hq job open
 $ hq submit --job <JOB_ID> -- hostname # Task ID is 0 
 $ hq submit --job <JOB_ID> -- hostname # Task ID is 1
@@ -55,7 +55,7 @@ $ hq submit --job <JOB_ID> --each-line='test.txt' -- do-something
 
 If you are explicitly specifying task IDs, it is an error if task ID is reused:
 
-```commandline
+```bash
 $ hq submit --job <JOB_ID> -- hostname # Task ID is 0
 
 # This is Ok 
@@ -71,7 +71,7 @@ Job's name and configuration open `--max-fails` are the property of the job. The
 cannot be later changed. Submit options `--name` and `--max-fails` cannot be used if you are submitting into an open
 job.
 
-```commandline
+```bash
 # Configuring jobs's name and max fails
 $ hq job open --name=MyOpenJob --max-fails=10
 
@@ -84,7 +84,7 @@ $ hq submit --job <JOB_ID> --max-fails=5 ...
 Submitting job definition file into an open job works in the similar way as a normal submit, you just need to
 add `--job` parameter.
 
-```commandline
+```bash
 $ hq job submit-file --job <JOB_ID> job-definition.toml
 ```
 
@@ -92,7 +92,7 @@ $ hq job submit-file --job <JOB_ID> job-definition.toml
 
 You can close a job by calling:
 
-```commandline
+```bash
 $ hq job close <JOB_SELECTOR>
 ```
 

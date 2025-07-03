@@ -110,7 +110,7 @@ If `--array` defines an ID that exceeds the number of lines in the file (or the 
 
 For example:
 
-```commandline
+```bash
 $ hq submit --each-line input.txt --array "2, 8-10"
 ```
 

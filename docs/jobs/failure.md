@@ -9,7 +9,7 @@ recompute only tasks with a specific status (e.g. failed tasks).
 By following combination of commands you may recompute only failed tasks. Let us assume that we want to recompute
 all failed tasks in job 5:
 
-```commandline
+```bash
 $ hq submit --array=`hq job task-ids 5 --filter=failed` ./my-computation
 ```
 It works as follows: Command `hq job task-ids 5 --filter=failed` returns IDs of failed jobs of job `5`, and we set
@@ -17,13 +17,13 @@ it to `--array` parameter that starts only tasks for given IDs.
 
 If we want to recompute all failed tasks and all canceled tasks we can do it as follows:
 
-```commandline
+```bash
 $ hq submit --array=`hq job task-ids 5 --filter=failed,canceled` ./my-computation
 ```
 
 Note that it also works with `--each-line` or `--from-json`, i.e.:
 
-```commandline
+```bash
 # Original computation
 $ hq submit --each-line=input.txt ./my-computation
 
@@ -56,7 +56,7 @@ You can change this behavior with the `--max-fails=<X>` option of the `submit` c
 If specified, once more tasks than `X` tasks fail, the rest of the job's tasks that were not completed yet will be canceled.
 
 For example:
-```commandline
+```bash
 $ hq submit --array 1-1000 --max-fails 5 ...
 ```
 This will create a task array with `1000` tasks. Once `5` or more tasks fail, the remaining uncompleted tasks of the job

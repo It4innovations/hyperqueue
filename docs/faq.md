@@ -54,7 +54,7 @@ about anything related to HyperQueue, feel free to ask on our [discussion forum]
     each with a single task.
 
     HQ also supports [streaming](jobs/streaming.md) of task outputs into a single file.
-    This avoids creating many small files for each task on a distributed file system, which improves
+    This avoids creating many small files for each task on a distributed filesystem, which improves
     scaling.
 
 ??? question "Does HQ support multi-CPU tasks?"

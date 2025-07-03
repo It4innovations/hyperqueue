@@ -60,7 +60,7 @@ without the need to write an additional external script.
 Same as with the `program` method, `function` will return a [`Task`](hyperqueue.task.task.Task)
 that can used to define [dependencies](dependencies.md).
 
-!!! notice
+!!! note
 
     Currently, a new Python interpreter will be started for each Python task.
 
