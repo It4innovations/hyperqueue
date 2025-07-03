@@ -13,7 +13,7 @@ workflows.
 
 ## Defining dependencies
 To define a dependency between tasks, you will first need to store the
-[`Task`](hyperqueue.task.task.Task) instances that you get when you create a [task](submit.md#tasks).
+[`Task`](pyapi:hyperqueue.task.task.Task) instances that you get when you create a [task](submit.md#tasks).
 You can then use the `deps` parameter when creating a new task and pass an existing task instance
 to define a dependency:
 
