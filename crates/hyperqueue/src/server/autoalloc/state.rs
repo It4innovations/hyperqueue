@@ -252,6 +252,26 @@ impl AllocationQueue {
     pub fn get_worker_config(&self) -> Option<&WorkerConfiguration> {
         self.worker_config.as_ref()
     }
+
+    /// How many workers are currently queued or running?
+    pub fn active_worker_count(&self) -> u32 {
+        self.active_allocations()
+            .map(|allocation| allocation.target_worker_count as u32)
+            .sum::<u32>()
+    }
+
+    /// Returns true only if at least a single allocation could be added to this queue.
+    pub fn has_space_for_submit(&self) -> bool {
+        if self.queued_allocations().count() >= self.info.backlog() as usize {
+            return false;
+        }
+        if let Some(max_worker_count) = self.info.max_worker_count() {
+            if self.active_worker_count() >= max_worker_count {
+                return false;
+            }
+        }
+        true
+    }
 }
 
 // Allocation
