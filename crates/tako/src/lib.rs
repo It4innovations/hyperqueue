@@ -34,11 +34,11 @@ pub const MAX_FRAME_SIZE: usize = 128 * 1024 * 1024;
 pub mod resources {
     pub use crate::internal::common::resources::{
         AMD_GPU_RESOURCE_NAME, Allocation, AllocationRequest, CPU_RESOURCE_ID, CPU_RESOURCE_NAME,
-        MEM_RESOURCE_NAME, NVIDIA_GPU_RESOURCE_NAME, NumOfNodes, ResourceAllocation,
-        ResourceAmount, ResourceDescriptiorCoupling, ResourceDescriptor, ResourceDescriptorItem,
-        ResourceDescriptorKind, ResourceFractions, ResourceIndex, ResourceLabel, ResourceRequest,
-        ResourceRequestEntries, ResourceRequestEntry, ResourceRequestVariants, ResourceUnits,
-        TimeRequest,
+        MEM_RESOURCE_NAME, NVIDIA_GPU_RESOURCE_NAME, NumOfNodes, ResourceAllocRequest,
+        ResourceAllocation, ResourceAmount, ResourceDescriptiorCoupling, ResourceDescriptor,
+        ResourceDescriptorItem, ResourceDescriptorKind, ResourceFractions, ResourceIndex,
+        ResourceLabel, ResourceRequest, ResourceRequestEntries, ResourceRequestVariants,
+        ResourceUnits, TimeRequest,
     };
 
     pub use crate::internal::common::resources::map::ResourceMap;

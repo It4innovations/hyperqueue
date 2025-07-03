@@ -102,12 +102,12 @@ impl fmt::Display for AllocationRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
-pub struct ResourceRequestEntry {
+pub struct ResourceAllocRequest {
     pub resource_id: ResourceId,
     pub request: AllocationRequest,
 }
 
-pub type ResourceRequestEntries = SmallVec<[ResourceRequestEntry; 3]>;
+pub type ResourceRequestEntries = SmallVec<[ResourceAllocRequest; 3]>;
 pub type TimeRequest = Duration;
 
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]

@@ -195,10 +195,6 @@ impl ConciseFreeResources {
         &self.resources[resource_id]
     }
 
-    /*pub fn get_mut(&mut self, resource_id: ResourceId) -> &mut ConciseResourceState {
-        &mut self.resources[resource_id]
-    }*/
-
     pub fn all_states(&self) -> &[ConciseResourceState] {
         &self.resources
     }

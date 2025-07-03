@@ -15,7 +15,7 @@ pub use map::{
     NVIDIA_GPU_RESOURCE_NAME,
 };
 pub use request::{
-    AllocationRequest, ResourceRequest, ResourceRequestEntries, ResourceRequestEntry,
+    AllocationRequest, ResourceAllocRequest, ResourceRequest, ResourceRequestEntries,
     ResourceRequestVariants, TimeRequest,
 };
 

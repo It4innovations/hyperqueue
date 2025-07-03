@@ -8,6 +8,7 @@ use crate::internal::worker::resources::concise::{ConciseResourceGroup, ConciseR
 use crate::internal::worker::resources::map::ResourceLabelMap;
 use crate::resources::{AllocationRequest, ResourceAllocation, ResourceFractions, ResourceUnits};
 
+use crate::internal::worker::resources::groups::find_compact_groups;
 use smallvec::{SmallVec, smallvec};
 
 #[derive(Debug)]
@@ -42,6 +43,10 @@ impl GroupsResourcePool {
 
     pub fn is_coupled(&self) -> bool {
         self.is_coupled
+    }
+
+    pub fn n_groups(&self) -> usize {
+        self.indices.len()
     }
 }
 
@@ -161,7 +166,7 @@ impl ResourcePool {
     pub fn n_groups(&self) -> usize {
         match self {
             ResourcePool::Empty | ResourcePool::Indices(..) | ResourcePool::Sum(..) => 1,
-            ResourcePool::Groups(pool) => pool.indices.len(),
+            ResourcePool::Groups(pool) => pool.n_groups(),
         }
     }
 
@@ -260,6 +265,7 @@ impl ResourcePool {
                 index %= pool.indices.len();
             };
         }
+        indices.sort_by_key(|i| (i.fractions, i.group_idx, i.index));
         indices
     }
 
@@ -435,6 +441,7 @@ impl ResourcePool {
     pub(crate) fn claim_resources(
         &mut self,
         resource_id: ResourceId,
+        free: &ConciseResourceState,
         policy: &AllocationRequest,
     ) -> ResourceAllocation {
         let (amount, indices) = match self {
@@ -459,9 +466,10 @@ impl ResourcePool {
                     | AllocationRequest::ForceCompact(amount) => {
                         // We do neet need to distinguish between force compact and compact
                         // because we already know that here that allocation is possible
+                        let group_set = find_compact_groups(pool.n_groups(), free, policy).unwrap();
                         (
                             *amount,
-                            Self::claim_compact_from_groups(*amount, pool, None),
+                            Self::claim_scatter_from_groups(*amount, pool, Some(&group_set)),
                         )
                     }
                     AllocationRequest::Scatter(amount) => (
