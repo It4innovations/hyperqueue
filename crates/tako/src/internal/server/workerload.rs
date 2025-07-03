@@ -1,6 +1,6 @@
 use crate::internal::common::index::IndexVec;
 use crate::internal::common::resources::map::ResourceMap;
-use crate::internal::common::resources::request::ResourceRequestEntry;
+use crate::internal::common::resources::request::ResourceAllocRequest;
 use crate::internal::common::resources::{
     ResourceAmount, ResourceDescriptor, ResourceId, ResourceRequest, ResourceRequestVariants,
     ResourceVec,
@@ -111,7 +111,7 @@ impl WorkerResources {
         }
     }
 
-    pub(crate) fn max_amount(&self, entry: &ResourceRequestEntry) -> ResourceAmount {
+    pub(crate) fn max_amount(&self, entry: &ResourceAllocRequest) -> ResourceAmount {
         match entry.request {
             AllocationRequest::Compact(amount)
             | AllocationRequest::ForceCompact(amount)

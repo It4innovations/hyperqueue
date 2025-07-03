@@ -921,8 +921,7 @@ fn test_allocator_groups_and_fractions() {
         .add_compact(0, ResourceAmount::new(3, 5000))
         .finish_v();
     let al1 = allocator.try_allocate(&rq1).unwrap().0;
-    // pools [[1 1] [1 0.5] [0 0]
-
+    // pools [[1 1] [0 0.5] [0 0]
     let r1 = &al1.resources[0].indices;
     assert_eq!(r1.len(), 4);
     assert_eq!(r1[0].group_idx, r1[1].group_idx);
@@ -933,7 +932,7 @@ fn test_allocator_groups_and_fractions() {
         .add_compact(0, ResourceAmount::new(0, 4000))
         .finish_v();
     let al2 = allocator.try_allocate(&rq2).unwrap().0;
-    // pools [[1 1] [0.1 1] [0 0]
+    // pools [[1 1] [0.1 0] [0 0]
 
     let r2 = &al2.resources[0].indices;
     assert_eq!(r2.len(), 1);
@@ -946,27 +945,25 @@ fn test_allocator_groups_and_fractions() {
         .add_compact(0, ResourceAmount::new(2, 8000))
         .finish_v();
     let al3 = allocator.try_allocate(&rq3).unwrap().0;
-    // pools [[1 1] [0.6 0.2] [0 0]
+    // pools [[1 1] [0.6 0] [0.2 0]
 
     let r3 = &al3.resources[0].indices;
     assert_eq!(r3.len(), 3);
-    assert_eq!(r3[0].group_idx, r3[1].group_idx);
-    assert_ne!(r3[0].group_idx, r3[2].group_idx);
+    assert_eq!(r3[0].group_idx, r3[2].group_idx);
+    assert_ne!(r3[0].group_idx, r3[1].group_idx);
     assert_ne!(r3[0].group_idx, r2[0].group_idx);
-    assert_ne!(r3[1].group_idx, r2[0].group_idx);
-    assert_eq!(r3[2].group_idx, r2[0].group_idx);
+    assert_ne!(r3[2].group_idx, r2[0].group_idx);
     assert_ne!(r3[2].index, r2[0].index);
 
     let rq4 = ResBuilder::default()
         .add_compact(0, ResourceAmount::new(0, 7000))
         .finish_v();
     let al4 = allocator.try_allocate(&rq4).unwrap().0;
-    // pools [[1 0.3] [0.6 0.2] [0 0]
+    // pools [[1 0.3] [0.6 0] [0.2 0]
     allocator.validate();
 
     allocator.release_allocation(al2);
-    // pools [[1 0.3] [1 0.2] [0 0]
-
+    // pools [[1 0.3] [1 0] [0.2 0]
     let rq6 = ResBuilder::default()
         .add_compact(0, ResourceAmount::new(2, 3000))
         .finish_v();
@@ -976,7 +973,8 @@ fn test_allocator_groups_and_fractions() {
     assert_eq!(r5[0].fractions, 0);
     assert_eq!(r5[1].fractions, 0);
     assert_eq!(r5[2].fractions, 3000);
-    assert_eq!(r5[0].group_idx, r5[2].group_idx);
+
+    assert!(r5[0].group_idx == r5[2].group_idx || r5[1].group_idx == r5[2].group_idx);
     assert_ne!(r5[1].group_idx, r5[0].group_idx);
     allocator.validate();
 
@@ -1235,4 +1233,22 @@ fn test_coupling_force3() {
     assert_eq!(g1.len(), 2);
     assert!(g1.contains_key(&2));
     assert!(g1.contains_key(&3));
+}
+
+#[test]
+fn test_compact_scattering() {
+    let descriptor = simple_descriptor(4, 4);
+    let mut allocator = test_allocator(&descriptor);
+    allocator.reset_temporaries(None);
+    let rq1 = ResBuilder::default()
+        .add_compact(0, ResourceAmount::new_units(6))
+        .finish_v();
+    let al1 = allocator.try_allocate(&rq1).unwrap().0;
+    let r1 = &al1.resources[0].indices;
+    assert_eq!(r1.len(), 6);
+    assert_eq!(r1[0].group_idx, r1[1].group_idx);
+    assert_eq!(r1[0].group_idx, r1[2].group_idx);
+    assert_eq!(r1[3].group_idx, r1[4].group_idx);
+    assert_eq!(r1[3].group_idx, r1[5].group_idx);
+    assert_ne!(r1[0].group_idx, r1[3].group_idx);
 }

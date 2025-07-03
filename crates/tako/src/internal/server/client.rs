@@ -4,7 +4,7 @@ use crate::gateway::{
     ResourceRequestVariants as ClientResourceRequestVariants, SharedTaskConfiguration, TaskSubmit,
 };
 
-use crate::internal::common::resources::request::ResourceRequestEntry;
+use crate::internal::common::resources::request::ResourceAllocRequest;
 use crate::internal::server::comm::CommSender;
 use crate::internal::server::core::Core;
 use crate::internal::server::reactor::on_new_tasks;
@@ -27,7 +27,7 @@ fn convert_client_resources(
                         .into_iter()
                         .map(|r| {
                             let resource_id = core.get_or_create_resource_id(&r.resource);
-                            ResourceRequestEntry {
+                            ResourceAllocRequest {
                                 resource_id,
                                 request: r.policy,
                             }
