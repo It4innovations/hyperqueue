@@ -23,6 +23,7 @@ nav:
       - Cheatsheet: cheatsheet.md
   - Examples:
       - examples/README.md
+      - Processing data arrays: examples/data-arrays/README.md
       - Iterative computation: examples/iterative-computation/README.md
   - Deployment:
       - deployment/index.md
