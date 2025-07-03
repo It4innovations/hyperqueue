@@ -1,6 +1,6 @@
 # Client
 To submit [jobs](../jobs/jobs.md) using the Python API, you first need to create
-a [`Client`](hyperqueue.client.Client) that connects to a running HyperQueue cluster. You have two
+a [`Client`](pyapi:hyperqueue.client.Client) that connects to a running HyperQueue cluster. You have two
 options of deploying the cluster. Once you have an instance of a `Client`, you can use it to
 [submit](submit.md) a job.
 
@@ -21,14 +21,14 @@ the node that executes the Python code, you can simply create an instance of a `
 passing any parameters.
 
 ## Using a local cluster
-You can use the [`LocalCluster`](hyperqueue.cluster.LocalCluster)
+You can use the [`LocalCluster`](pyapi:hyperqueue.cluster.LocalCluster)
 class to spawn a HyperQueue server and a set of workers directly on your local machine.
 This functionality is primarily intended for local prototyping and debugging, but it can also be
 used for actual computations for simple use-cases that do not require a distributed deployment of
 HyperQueue.
 
 When you create the cluster, it will initially only start the HyperQueue server. To connect workers
-to it, use the [`start_worker`](hyperqueue.cluster.LocalCluster#f_start_worker) method.
+to it, use the [`start_worker`](pyapi:hyperqueue.cluster.LocalCluster#f_start_worker) method.
 
 ```python
 from hyperqueue import LocalCluster

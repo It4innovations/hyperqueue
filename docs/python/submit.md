@@ -1,12 +1,12 @@
 # Submitting jobs
 You can use the Python API to submit [jobs](../jobs/jobs.md) (directed acyclic graphs of tasks)
-through a [`Client`](hyperqueue.client.Client). In addition to the functionality offered by the
+through a [`Client`](pyapi:hyperqueue.client.Client). In addition to the functionality offered by the
 HyperQueue CLI, you can use the Python API to add [dependencies](dependencies.md) between jobs,
 configure each task [individually](#parametrizing-tasks) and create tasks out of
 [Python functions](#python-functions).
 
 ## Job
-To build a job, you first have to create an instance of the [`Job`](hyperqueue.job.Job) class.
+To build a job, you first have to create an instance of the [`Job`](pyapi:hyperqueue.job.Job) class.
 
 ```python
 from hyperqueue import Job
@@ -23,19 +23,19 @@ To create complex workflows, you can also specify [dependencies](dependencies.md
 
 ### External programs
 To create a task that will execute an external program, you can use the
-[`program`](hyperqueue.job.Job#f_program) method of a `Job`:
+[`program`](pyapi:hyperqueue.job.Job#f_program) method of a `Job`:
 
 ```python
 job.program(["/bin/my-program", "foo", "bar", "--arg", "42"])
 ```
 
 You can pass the program arguments or various other [parameters](#parametrizing-tasks) to the task.
-The `program` method will return a [`Task`](hyperqueue.task.task.Task) object that represents the
+The `program` method will return a [`Task`](pyapi:hyperqueue.task.task.Task) object that represents the
 created task. This object can be used further e.g. for defining [dependencies](dependencies.md).
 
 ### Python functions
 If you want to execute a Python function as a task, you can use the
-[`function`](hyperqueue.job.Job#f_function) method of a `Job`:
+[`function`](pyapi:hyperqueue.job.Job#f_function) method of a `Job`:
 
 ```python
 def preprocess_data(fast, path):
@@ -57,7 +57,7 @@ Python tasks can be useful to perform e.g. various data preprocessing and organi
 co-locate the logic of Python tasks together with the code that defines the submitted workflow (job),
 without the need to write an additional external script.
 
-Same as with the `program` method, `function` will return a [`Task`](hyperqueue.task.task.Task)
+Same as with the `program` method, `function` will return a [`Task`](pyapi:hyperqueue.task.task.Task)
 that can used to define [dependencies](dependencies.md).
 
 !!! note
@@ -71,7 +71,7 @@ a worker - this means that it needs to have access to the correct Python version
 that contains the `hyperqueue` package!
 
 To make sure that the function will be executed in the correct Python environment, you can use
-[`PythonEnv`](hyperqueue.task.function.PythonEnv) and its `prologue` argument. It lets you specify
+[`PythonEnv`](pyapi:hyperqueue.task.function.PythonEnv) and its `prologue` argument. It lets you specify
 a (shell) command that will be executed before the Python interpreter that executes your
 function is spawned.
 
@@ -96,12 +96,12 @@ output paths, environment variables or HyperQueue specific parameters like
 the CLI, where you can only use a single set of parameters for all tasks of a job, with the Python
 API you can specify these parameters individually for each task.
 
-You can find more details in the documentation of the [`program`](hyperqueue.job.Job#f_program) or
-[`function`](hyperqueue.job.Job#f_function) methods.
+You can find more details in the documentation of the [`program`](pyapi:hyperqueue.job.Job#f_program) or
+[`function`](pyapi:hyperqueue.job.Job#f_function) methods.
 
 ## Submitting a job
 Once you have added some tasks to the job, you can submit it using the `Client`'s
-[`submit`](hyperqueue.client.Client#f_submit) method:
+[`submit`](pyapi:hyperqueue.client.Client#f_submit) method:
 
 ```python
 client = Client()
@@ -109,7 +109,7 @@ submitted = client.submit(job)
 ```
 
 To wait until the job has finished executing, use the
-[`wait_for_jobs`](hyperqueue.client.Client#f_wait_for_jobs) method:
+[`wait_for_jobs`](pyapi:hyperqueue.client.Client#f_wait_for_jobs) method:
 
 ```python
 client.wait_for_jobs([submitted])

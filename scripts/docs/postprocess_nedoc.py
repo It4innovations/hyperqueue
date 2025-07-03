@@ -21,10 +21,11 @@ from pathlib import Path
 import nedoc.config
 from nedoc import core
 
+# Regex to match PyAPI links like [Foo](pyapi:hyperqueue.cluster.LocalCluster)
 # The second group is used to avoid adding the hash fragment to the link lookup key
-LINK_REGEX = re.compile(r"\[`.*?`]\(((?!#)[^#]*?)(#.*?)?\)")
+PYAPI_LINK_REGEX = re.compile(r"\[([^\]]+)\]\(pyapi:([^#]*?)(#.*?)?\)")
 
-PYTHON_API_DIR = "python/apidoc"
+PYTHON_API_DIR = "python/apidoc/"
 
 site_url = None
 url_map = {}
@@ -81,25 +82,21 @@ def on_files(files, config, **kwargs):
         logging.warning(f"WARNING: {map_file} file is missing")
 
 
-def on_page_markdown(src: str, page, config, *args, **kwargs):
-    global api_links
+def on_page_markdown(markdown: str, page, config, *args, **kwargs):
+    def replace_cli_link(match):
+        global api_links
+        link_text = match.group(1)
+        pyapi_key = match.group(2)
+        hash = match.group(3) or ""
+        link_url = url_map.get(pyapi_key)
+        if link_url:
+            api_links += 1
+            pyapi_url = f"{site_url}{link_url}"
+            return f"[{link_text}]({pyapi_url}{hash})"
+        else:
+            raise Exception(f"PyAPI link key {pyapi_key} not found in {page.file.src_path}")
 
-    # TODO: use Markdown parser
-    lines = []
-    for line_index, line in enumerate(src.splitlines(keepends=False)):
-        # Iterate from the end to make replacing substrings easier
-        for match in reversed(list(LINK_REGEX.finditer(line))):
-            link_key = match.group(1)
-            link_url = url_map.get(link_key)
-            if link_url:
-                api_links += 1
-                url = f"{site_url}/{link_url}"
-                start, end = match.span(1)
-                line = line[:start] + url + line[end:]
-            else:
-                raise Exception(f"Link key {link_key} not found in {page.file.src_path} on line {line_index}")
-        lines.append(line)
-    return "\n".join(lines)
+    return PYAPI_LINK_REGEX.sub(replace_cli_link, markdown)
 
 
 def on_post_build(config, **kwargs):
