@@ -1100,7 +1100,7 @@ fn test_task_deps() {
     let mut core = Core::default();
     //create_test_workers(&mut core, &[1, 1, 1]);
     submit_example_3(&mut core);
-    assert_eq!(core.get_read_to_assign().len(), 2);
+    assert_eq!(core.get_ready_to_assign().len(), 2);
     create_test_workers(&mut core, &[1]);
     start_and_finish_on_worker(&mut core, 2, 100);
     core.assert_waiting(&[3, 4, 6]);

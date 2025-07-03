@@ -547,7 +547,7 @@ mod tests {
             self.worker_groups.get(group_name)
         }
 
-        pub fn get_read_to_assign(&self) -> &[TaskId] {
+        pub fn get_ready_to_assign(&self) -> &[TaskId] {
             &self.single_node_ready_to_assign
         }
 
