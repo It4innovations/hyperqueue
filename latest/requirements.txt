@@ -6,4 +6,3 @@ mike==2.1.3
 requests==2.32.4
 jinja2==3.1.6
 nedoc @ git+https://github.com/spirali/nedoc@6994f657be3c110a4b3be6df99682206e1b1181e
-mkdocs-nedoc-plugin @ git+https://github.com/kobzol/mkdocs-nedoc-plugin@7c5ecc3b8a975886c02779d4f9c013882a0ab6a8
