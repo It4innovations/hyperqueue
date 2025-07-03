@@ -103,8 +103,8 @@ impl AutoAllocState {
         to_remove
     }
 
-    pub fn has_queues(&self) -> bool {
-        !self.queues.is_empty()
+    pub fn has_active_queues(&self) -> bool {
+        self.queues.values().any(|q| q.state().is_active())
     }
 
     #[cfg(test)]
