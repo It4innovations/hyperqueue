@@ -43,7 +43,8 @@ As this is a large behavioral change, we would be happy to hear your feedback!
 ### Docs
 
 * CLI documentation (when `--help` is used) was cleaned up and improved
-* Our documentation now contains an automatically generated reference of all available HQ CLI commands and options.
+* Our documentation now contains an automatically generated reference of all available HQ CLI commands and options
+* The `hq doc` and `hq generate-completion` commands have been documented
 
 ### Experimental
 
