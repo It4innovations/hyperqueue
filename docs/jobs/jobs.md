@@ -427,25 +427,25 @@ Here is a list of useful job commands:
 
 ### Display a summary table of all jobs
 
-```commandline
+```bash
 $ hq job summary
 ```
 
 ### Display information about a specific job
 
-```commandline
+```bash
 $ hq job info <job-selector>
 ```
 
 ### Display information about individual tasks (potentially across multiple jobs)
 
-```commandline
+```bash
 $ hq task list <job-selector> [--task-status <status>] [--tasks <task-selector>]
 ```
 
 ### Display job `stdout`/`stderr`
 
-```commandline
+```bash
 $ hq job cat <job-id> [--tasks <task-selector>] <stdout/stderr>
 ```
 
@@ -456,7 +456,7 @@ worker. HyperQueue server remembers how many times were a task running while a w
 If the count reaches the limit, then the task is set to the failed state.
 By default, this limit is `5` but it can be changed as follows:
 
-```commandline
+```bash
 $ hq submit --crash-limit=<NEWLIMIT> ...
 ```
 

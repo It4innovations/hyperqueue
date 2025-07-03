@@ -27,7 +27,7 @@ $ hq submit --stream=<stream-dir> --array=1-10_000 ...
 
 !!! warning
 
-    It is the user's responsibility to ensure that the `<stream-dir>` path is accessible and writable by each worker that might execute tasks of the submitted job. See also [Working with a non-shared file system](#working-with-a-non-shared-file-system).
+    It is the user's responsibility to ensure that the `<stream-dir>` path is accessible and writable by each worker that might execute tasks of the submitted job. See also [Working with a non-shared filesystem](#working-with-a-non-shared-file-system).
 
 The command above will cause the `stdout` and `stderr` of all `10_000` tasks to be streamed in a compact way into a small number of files located in `<stream-dir>`. Note that the number of files created in the directory will be independent of the number of tasks of the job, thus alleviating the performance issue on networked filesystems. The created binary files will also contain additional metadata, which allows the resulting files to be filtered/sorted by tasks or channel.
 
@@ -111,7 +111,7 @@ If you want to see the output of a specific task, you can use the `--task=<task-
 If you want to inspect the contents of the stream directory along with its inner metadata that shows which task and which channel
 has produced which part of the data, you can use the `show` subcommand:
 
-```commandline
+```bash
 $ hq output-log <stream-directory> show
 ```
 
@@ -124,7 +124,7 @@ You can filter a specific channel with the `--channel=stdout/stderr` flag.
 
 The contents of the stream directory can be exported into JSON by the following command:
 
-```commandline
+```bash
 $ hq output-log <stream-dir> export
 ```
 
@@ -153,8 +153,8 @@ when working with such a streaming directory.
 
     When a server is restored from a journal file, it will maintain the same server UID. When a server is started "from a scratch" a new server UID is generated.
 
-## Working with a non-shared file system
+## Working with a non-shared filesystem
 
-You do not need to have a shared file system when working with streaming. You just have to collect all generated files from the streaming directories in the different file systems into a single directory before using the `hq output-log` commands.
+You do not need to have a shared filesystem when working with streaming. You just have to collect all generated files from the streaming directories in the different filesystems into a single directory before using the `hq output-log` commands.
 
 For example, you could use `/tmp/hq-stream` as a stream directory, which can be a local disk path on each worker, and then merge the contents of all such directories and use `hq output-log` on the resulting merged directory.

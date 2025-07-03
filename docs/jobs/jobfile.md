@@ -22,13 +22,13 @@ command = ["sleep", "1"]
 Let us assume that we have named this file as ``myfile.toml``,
 then we can run the following command to submit a job:
 
-```commandline
+```bash
 $ hq job submit-file myfile.toml
 ```
 
 The effect will be same as running:
 
-```commandline
+```bash
 $ hq submit sleep 1
 ```
 

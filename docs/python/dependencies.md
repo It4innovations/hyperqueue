@@ -6,7 +6,7 @@ If a task `B` **depends** on task `A`, then `B` will not be executed until `A` h
 finished. Using dependencies, you can describe arbitrarily complex DAG (directed acyclic graph)
 workflows.
 
-!!! notice
+!!! note
 
     HyperQueue jobs are independent of each other, so dependencies can only be specified between tasks
     within a single job.
