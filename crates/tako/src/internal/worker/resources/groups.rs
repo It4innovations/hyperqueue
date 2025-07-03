@@ -1,6 +1,6 @@
 use crate::internal::worker::resources::concise::{ConciseFreeResources, ConciseResourceState};
 use crate::internal::worker::resources::pool::{FAST_MAX_COUPLED_RESOURCES, FAST_MAX_GROUPS};
-use crate::resources::ResourceAmount;
+use crate::resources::{AllocationRequest, ResourceAmount};
 use smallvec::SmallVec;
 use std::cmp::Reverse;
 
@@ -85,7 +85,7 @@ fn group_minimizer(n_groups: usize, states: &mut [GroupMinimizationState]) -> Op
 pub fn find_coupled_groups(
     n_groups: usize,
     free: &ConciseFreeResources,
-    entries: &[&crate::resources::ResourceRequestEntry],
+    entries: &[&crate::resources::ResourceAllocRequest],
 ) -> Option<GroupSet> {
     let mut states = entries
         .iter()
@@ -103,9 +103,9 @@ pub fn find_coupled_groups(
 pub fn find_compact_groups(
     n_groups: usize,
     free: &ConciseResourceState,
-    entry: &crate::resources::ResourceRequestEntry,
+    policy: &AllocationRequest,
 ) -> Option<GroupSet> {
-    let remaining = entry.request.amount_or_none_if_all().unwrap();
+    let remaining = policy.amount_or_none_if_all().unwrap();
     let mut states = [GroupMinimizationState {
         remaining,
         group_amounts: free.amount_max_per_group().collect(),
