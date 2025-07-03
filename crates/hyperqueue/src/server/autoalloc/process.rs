@@ -355,7 +355,14 @@ async fn perform_submits(
         return Ok(());
     }
 
-    // TODO: do not run the code below if all queues have full backlog anyway
+    // If there is no allocation that we could possibly create, then stop
+    if queues
+        .iter()
+        .all(|(_, queue)| !queue.has_space_for_submit())
+    {
+        return Ok(());
+    }
+
     let queries: Vec<WorkerTypeQuery> = queues
         .iter()
         .map(|(id, queue)| {
@@ -470,11 +477,7 @@ fn compute_submission_permit(
 ) -> SubmissionPermit {
     let info = queue.info();
 
-    // How many workers are currently already queued or running?
-    let active_workers = queue
-        .active_allocations()
-        .map(|allocation| allocation.target_worker_count as u32)
-        .sum::<u32>();
+    let active_workers = queue.active_worker_count();
     let queued_allocs = queue.queued_allocations().collect::<Vec<_>>();
 
     let mut max_remaining_workers_to_spawn = match info.max_worker_count() {
