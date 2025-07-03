@@ -411,7 +411,7 @@ time limit is reached), because it was not the cause of the termination.
 
 In addition to a numerical value, the option `--crash-limit` may have two special values:
 
-* `never-restart` or just `n` -- Task is never restarted. It is similar to `--crash-counter=1`, but
+* `never-restart` -- Task is never restarted. It is similar to `--crash-counter=1`, but
   the task is never restarted even in the case when the task
   was running on a worker that was stopped by a way that does not increase crash counter.
 * `unlimited` -- Task will always be restarted.
