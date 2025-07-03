@@ -46,6 +46,4 @@ def on_page_markdown(markdown: str, page, config, files):
 
 
 def on_post_build(config):
-    """MkDocs hook to report CLI links processed"""
-    if cli_links_processed > 0:
-        print(f"Processed {cli_links_processed} CLI links")
+    print(f"Processed {cli_links_processed} CLI links")
