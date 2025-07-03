@@ -29,6 +29,12 @@ two machine-readable modes, [JSON](#json) and [Quiet](#quiet).
 The `json` output mode is intended to provide very detailed information in the form of a JSON value.
 With this mode, HyperQueue will always output exactly one JSON value, either an array or an object.
 
+!!! warning
+
+    The JSON output is currently unstable and can change with every new HyperQueue version. It can also
+    be incomplete and might not contain all information outputted by the human-readable `cli` mode.
+    The documentation below can be inaccurate, please examine [source code](https://github.com/It4innovations/hyperqueue/blob/main/crates/hyperqueue/src/client/output/json.rs) for more details.
+
 ### Error handling
 When an error occurs during the execution of a command, the program will exit with exit code `1`
 and the program will output a JSON object with a single `error` key containing a human-readable
