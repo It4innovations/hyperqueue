@@ -66,7 +66,7 @@ fn simple_allocator(
     remaining_time: Option<Duration>,
 ) -> ResourceAllocator {
     let mut names = vec!["cpus".to_string()];
-    names.extend((1..free.len()).map(|i| format!("res{}", i)));
+    names.extend((1..free.len()).map(|i| format!("res{i}")));
     let ds: Vec<_> = free
         .iter()
         .enumerate()

@@ -6,12 +6,8 @@ use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::resources::concise::{ConciseFreeResources, ConciseResourceState};
 use crate::internal::worker::resources::groups::{find_compact_groups, find_coupled_groups};
 use crate::internal::worker::resources::map::ResourceLabelMap;
-use crate::internal::worker::resources::pool::{
-    FAST_MAX_COUPLED_RESOURCES, FAST_MAX_GROUPS, GroupsResourcePool, ResourcePool,
-};
-use crate::resources::{
-    Allocation, ResourceAllocation, ResourceAmount, ResourceDescriptor, ResourceMap, ResourceUnits,
-};
+use crate::internal::worker::resources::pool::{FAST_MAX_COUPLED_RESOURCES, ResourcePool};
+use crate::resources::{Allocation, ResourceAmount, ResourceDescriptor, ResourceMap};
 use smallvec::SmallVec;
 use std::rc::Rc;
 use std::time::Duration;
@@ -22,7 +18,6 @@ pub(crate) struct ResourceCoupling {
 
 pub struct ResourceAllocator {
     pub(super) pools: ResourceVec<ResourcePool>,
-    pub(super) couplings: Option<ResourceCoupling>,
     pub(super) free_resources: ConciseFreeResources,
     pub(super) remaining_time: Option<Duration>,
     coupling_n_group_size: usize,
@@ -83,16 +78,15 @@ impl ResourceAllocator {
             resources: c
                 .names
                 .iter()
-                .map(|name| resource_map.get_index(&name).unwrap())
+                .map(|name| resource_map.get_index(name).unwrap())
                 .collect(),
         });
         let coupling_n_group_size = couplings
             .as_ref()
-            .and_then(|c| c.resources.get(0).map(|r| pools[*r].n_groups()))
+            .and_then(|c| c.resources.first().map(|r| pools[*r].n_groups()))
             .unwrap_or(0);
         ResourceAllocator {
             pools,
-            couplings,
             free_resources,
             remaining_time: None,
             coupling_n_group_size,
@@ -202,7 +196,7 @@ impl ResourceAllocator {
                     coupling.push(entry);
                 }
             }
-            Self::has_resources_for_entry(pool, free.get(entry.resource_id), &entry)
+            Self::has_resources_for_entry(pool, free.get(entry.resource_id), entry)
         }) {
             return false;
         }
