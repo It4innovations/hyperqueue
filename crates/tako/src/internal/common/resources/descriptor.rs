@@ -285,7 +285,7 @@ impl ResourceDescriptor {
                         group_size = Some(r.kind.n_groups())
                     }
                 } else {
-                    return Err(format!("Coupling of unknown resource: '{}'", name).into());
+                    return Err(format!("Coupling of unknown resource: '{name}'").into());
                 }
             }
         }
