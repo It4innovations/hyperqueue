@@ -1,4 +1,5 @@
 use std::fmt;
+use std::fmt::{Debug, Formatter};
 use std::str::FromStr;
 
 use serde::Deserialize;
@@ -6,7 +7,7 @@ use serde::Serialize;
 
 use crate::common::arrayparser::parse_array;
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, Clone, Copy)]
 pub struct IntRange {
     pub start: u32,
     pub count: u32,
@@ -25,6 +26,13 @@ impl IntRange {
     pub fn contains(&self, value: u32) -> bool {
         let end = self.start + self.count;
         self.start <= value && value < end && ((value - self.start) % self.step == 0)
+    }
+}
+
+impl Debug for IntRange {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let Self { start, count, step } = self;
+        write!(f, "({start}-{};{step})", start + count)
     }
 }
 
