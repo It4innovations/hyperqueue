@@ -2,10 +2,6 @@
 you to autonomously ask the allocation manager (PBS/Slurm) for computing resources and spawn HyperQueue [workers](worker.md)
 on the provided nodes.
 
-!!! Tip
-
-    You can find CLI reference for HQ autoalloc commands [here](cli:hq.alloc).
-
 Using this mechanism, you can submit computations into HyperQueue without caring about the underlying PBS/Slurm allocations.
 
 !!! Note "Job vs allocation terminology"
@@ -23,7 +19,7 @@ Each allocation queue has a set of [parameters](#parameters). You can use them t
 allocation, but for start you can simply use the defaults. However, you will almost certainly need to specify some
 credentials to be able to ask for computing resources using PBS/Slurm.
 
-To create a new allocation queue, you can use the following command. Any trailing arguments (passed after `--`) will be passed verbatim directly to `qsub`/`sbatch` when requesting a new allocation.
+To create a new allocation queue, you can use the [`hq alloc add`](cli:hq.alloc.add.pbs) command. Any trailing arguments (passed after `--`) will be passed verbatim directly to `qsub`/`sbatch` when requesting a new allocation.
 
 === "PBS"
 
@@ -228,12 +224,12 @@ It also uses additional safety limits. If `10` allocations in a succession fail 
 
 ## Pausing automatic allocation
 
-If you want to pause the submission of new allocations from a given allocation queue, without removing the queue completely, you can use the `hq alloc pause <queue-id>` command.
+If you want to pause the submission of new allocations from a given allocation queue, without removing the queue completely, you can use the [`hq alloc pause`](cli:hq.alloc.pause) command.
 
-If you later want to resume allocation submission, you can use the `hq alloc resume <queue-id>` command.
+If you later want to resume allocation submission, you can use the [`hq alloc resume`](cli:hq.alloc.resume) command.
 
 ## Stopping automatic allocation
-If you want to remove an allocation queue, use the following command:
+If you want to remove an allocation queue, use the [`hq alloc remove`](cli:hq.alloc.remove) command:
 
 ```bash
 $ hq alloc remove <queue-id>
@@ -254,8 +250,8 @@ to debug its behavior. To aid with this process, HyperQueue provides a dry-run a
 
 ### Dry-run command
 To test whether PBS/Slurm will accept the submit parameters that you provide to the auto allocator
-without creating an allocation queue, you can use the `dry-run` command. It accepts the same
-parameters as `hq alloc add`, which it will use to immediately submit an allocation and print
+without creating an allocation queue, you can use the [`hq alloc dry-run`](cli:hq.alloc.dry-run) command. It accepts the same
+parameters as [`hq alloc add`](cli:hq.alloc.add.pbs), which it will use to immediately submit an allocation and print
 any encountered errors.
 
 ```bash
@@ -289,14 +285,20 @@ If the allocation was submitted successfully, it will be canceled immediately to
     ```
 
 ## Useful autoalloc commands
-Here is a list of useful commands to manage automatic allocation:
+Below you can find a list of useful automatic allocation commands. The complete `hq alloc` CLI reference can be found [here](cli:hq.alloc).
 
 ### Display a list of all allocation queues
+
+The [`hq alloc list`](cli:hq.alloc.ist) command will show basic information about all allocation queues.
+
 ```bash
 $ hq alloc list
 ```
 
 ### Display information about an allocation queue
+
+The [`hq alloc info`](cli:hq.alloc.info) command will show allocations in the selected allocation queue.
+
 ```bash
 $ hq alloc info <queue-id>
 ```

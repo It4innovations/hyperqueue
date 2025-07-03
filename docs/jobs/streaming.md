@@ -68,7 +68,7 @@ streaming file. With the following two exceptions:
 
 ## Inspecting the stream data
 
-HyperQueue lets you inspect the data stored inside the stream directory using various subcommands. All these commands have the following structure:
+HyperQueue lets you inspect the data stored inside the stream directory using various subcommands of [`hq output-log`](cli:hq.output-log). All these commands have the following structure:
 
 ```bash
 $ hq output-log <stream-dir> <subcommand> <subcommand-args>

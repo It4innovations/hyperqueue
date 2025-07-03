@@ -22,7 +22,7 @@ In simple jobs, task id is always set to `0`.
 
 ## Submitting jobs
 
-To submit a simple job that will execute some executable with the provided arguments, use the `hq submit` command:
+To submit a simple job that will execute some executable with the provided arguments, use the [`hq submit`](cli:hq.job.submit) command:
 
 ```bash
 $ hq submit <program> <arg1> <arg2> ...
@@ -221,7 +221,7 @@ $ hq submit --stdout '%{CWD}/job-%{JOB_ID}/%{TASK_ID}-%{INSTANCE_ID}.stdout' ...
 ## State
 
 At any moment in time, each task and job has a specific *state* that represents what is currently happening to it. You
-can query the state of a job with the following command[^1]:
+can query the state of a job using the [`hq job info`](cli:hq.job.info) command[^1]:
 
 ```bash
 $ hq job info <job-id>
@@ -271,8 +271,7 @@ matches from the following list of rules:
 ## Cancelling jobs
 
 You can prematurely terminate a submitted job that haven't been completed yet by *cancelling* it using
-the `hq job cancel`
-command[^1]:
+the [`hq job cancel`](cli:hq.job.cancel) command[^1]:
 
 ```bash
 $ hq job cancel <job-selector>
@@ -283,7 +282,7 @@ Cancelling a job will cancel all of its tasks that are not yet completed.
 ## Forgetting jobs
 
 If you want to completely forget a job, and thus free up its associated memory, you can do that using
-the `hq job forget` command[^1]:
+the [`hq job forget`](cli:hq.job.forget) command[^1]:
 
 ```console
 $ hq job forget <job-selector>
@@ -300,7 +299,7 @@ However, only jobs that are completed, i.e. that have been finished successfully
 forgotten. If you want to forget a waiting or a running job, [cancel](#cancelling-jobs) it first.
 
 Note that if you are using a journal, forgetting only free the memory of the server but the tasks remains
-in journal, run `hq journal prune` to remove completed jobs and workers from journal file.
+in journal, run [`hq journal prune`](cli:hq.journal.prune) to remove completed jobs and workers from journal file.
 
 ## Waiting for jobs
 
@@ -317,7 +316,7 @@ There are three ways of waiting until a job completes:
 
         This method can be used for benchmarking the job duration.
 
-- **Wait command** There is a separate `hq job wait` command that can be used to wait until an existing job
+- **Wait command** There is a separate [`hq job wait`](cli:hq.job.wait) command that can be used to wait until an existing job
   completes[^1]:
 
     ```bash
@@ -325,7 +324,7 @@ There are three ways of waiting until a job completes:
     ```
 
 - **Interactive wait** If you want to interactively observe the status of a job (which is useful especially if it
-  has [multiple tasks](arrays.md)), you can use the `hq job progress` command:
+  has [multiple tasks](arrays.md)), you can use the [`hq job progress`](cli:hq.job.progress) command:
 
     === "Submit and observe"
         ```bash
@@ -396,11 +395,34 @@ The file will not be deleted if the task fails or is cancelled.
     $ hq submit --stdout=":rm-if-finished" /my-program
     ```
 
+## Crash limit
+
+When a worker is lost, then all running tasks on the worker are suspicious that they may cause the crash of the
+worker. HyperQueue server remembers how many times were a task running while a worker is lost (crash counter).
+If the count reaches the limit, then the task is set to the failed state.
+By default, this limit is `5` but it can be changed as follows:
+
+```bash
+$ hq submit --crash-limit=<NEWLIMIT> ...
+```
+
+The crash counter of a task is not increased when worker is stopped for known reason (via command `hq server stop` or
+time limit is reached), because it was not the cause of the termination.
+
+In addition to a numerical value, the option `--crash-limit` may have two special values:
+
+* `never-restart` or just `n` -- Task is never restarted. It is similar to `--crash-counter=1`, but
+  the task is never restarted even in the case when the task
+  was running on a worker that was stopped by a way that does not increase crash counter.
+* `unlimited` -- Task will always be restarted.
+
 ## Useful job commands
 
-Here is a list of useful job commands:
+Below you can find a list of useful job commands. The complete `hq job` CLI reference can be found [here](cli:hq.job).
 
 ### Display job table
+
+You can display basic job information using [`hq job list`](cli:hq.job.list).
 
 === "List queued and running jobs"
     ```bash
@@ -427,17 +449,23 @@ Here is a list of useful job commands:
 
 ### Display a summary table of all jobs
 
+The [`hq job summary`](cli:hq.job.summary) command shows aggregated counts of jobs with a given status:
+
 ```bash
 $ hq job summary
 ```
 
 ### Display information about a specific job
 
+You can use the [`hq job info`](cli:hq.job.info) command to show detailed information about specific job(s).
+
 ```bash
 $ hq job info <job-selector>
 ```
 
-### Display information about individual tasks (potentially across multiple jobs)
+### Display information about individual tasks
+
+You can use the [`hq task list`](cli:hq.task.list) command to display information about individual tasks, even across multiple jobs.
 
 ```bash
 $ hq task list <job-selector> [--task-status <status>] [--tasks <task-selector>]
@@ -445,28 +473,8 @@ $ hq task list <job-selector> [--task-status <status>] [--tasks <task-selector>]
 
 ### Display job `stdout`/`stderr`
 
+You can use the [`hq job cat`](cli:hq.job.cat) command to print the `stdout` or `stderr` of specific job(s) and task(s).
+
 ```bash
 $ hq job cat <job-id> [--tasks <task-selector>] <stdout/stderr>
 ```
-
-## Crashing limit
-
-When a worker is lost, then all running tasks on the worker are suspicious that they may cause the crash of the
-worker. HyperQueue server remembers how many times were a task running while a worker is lost (crash counter).
-If the count reaches the limit, then the task is set to the failed state.
-By default, this limit is `5` but it can be changed as follows:
-
-```bash
-$ hq submit --crash-limit=<NEWLIMIT> ...
-```
-
-The crash counter of a task is not increased when worker is stopped for known reason (via command `hq server stop` or
-time limit is reached), because it was not the cause of the termination.
-
-In addition to a numerical value, the option `--crash-limit` may have two special values:
-
-* `never-restart` or just `n` -- Task is never restarted. It is similar to `--crash-counter=1`, but
-  the task is never restarted even in the case when the task
-  was running on a worker that was stopped by a way that does not increase crash counter.
-* `unlimited` -- Task will always be restarted.
-

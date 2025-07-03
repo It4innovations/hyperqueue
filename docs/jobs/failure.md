@@ -12,7 +12,7 @@ all failed tasks in job 5:
 ```bash
 $ hq submit --array=`hq job task-ids 5 --filter=failed` ./my-computation
 ```
-It works as follows: Command `hq job task-ids 5 --filter=failed` returns IDs of failed jobs of job `5`, and we set
+The [`hq job task-ids 5 --filter=failed`](cli:hq.job.task-ids) command returns IDs of failed jobs of job `5`, and we set
 it to `--array` parameter that starts only tasks for given IDs.
 
 If we want to recompute all failed tasks and all canceled tasks we can do it as follows:
@@ -31,7 +31,6 @@ $ hq submit --each-line=input.txt ./my-computation
 # Resubmitting failed jobs
 $ hq submit --each-line=input.txt --array=`hq job task-ids last --filter=failed` ./my-computation
 ```
-
 
 ## Task restart
 

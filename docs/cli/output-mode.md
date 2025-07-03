@@ -47,7 +47,7 @@ Time-based items are formatted in the following way:
 - **Datetime (timestamp)** - formatted as a `ISO8601` date in UTC
 
 ### Supported commands
-- Server info: `hq server info`
+- Server info: [`hq server info`](cli:hq.server.info)
 
     ??? Example
         ```json
@@ -62,7 +62,7 @@ Time-based items are formatted in the following way:
         }
         ```
 
-- Worker list: `hq worker list`
+- Worker list: [`hq worker list`](cli:hq.worker.list)
 
     ??? Example
         ```json
@@ -91,7 +91,7 @@ Time-based items are formatted in the following way:
         }]
         ```
 
-- Worker info: `hq worker info <worker-id>`
+- Worker info: [`hq worker info`](cli:hq.worker.info)
 
     ??? Example
         ```json
@@ -120,7 +120,7 @@ Time-based items are formatted in the following way:
         }
         ```
 
-- Submit a job: `hq submit <command>`
+- Submit a job: [`hq submit`](cli:hq.submit)
 
     ??? Example
         ```json
@@ -129,7 +129,7 @@ Time-based items are formatted in the following way:
         }
         ```
 
-- Job list: `hq job list`
+- Job list: [`hq job list`](cli:hq.job.list)
 
     ??? Example
         ```json
@@ -155,7 +155,7 @@ Time-based items are formatted in the following way:
         }]
         ```
 
-- Job info: `hq job info <job-id> --tasks`
+- Job info: [`hq job info`](cli:hq.job.info)
 
     ??? Example
         ```json
@@ -219,7 +219,7 @@ Time-based items are formatted in the following way:
         }
         ```
 
-- Automatic allocation queue list: `hq alloc list`
+- Automatic allocation queue list: [`hq alloc list`](cli:hq.alloc.list)
 
     ??? Example
         ```json
@@ -237,7 +237,7 @@ Time-based items are formatted in the following way:
         }]
         ```
 
-- Automatic allocation queue info: `hq alloc info <allocation-queue-id>`
+- Automatic allocation queue info: [`hq alloc info`](cli:hq.alloc.info)
 
     ??? Example
         ```json
@@ -252,25 +252,6 @@ Time-based items are formatted in the following way:
         }]
         ```
 
-- Automatic allocation queue events: `hq alloc events <allocation-queue-id>`
-
-    ??? Example
-        ```json
-        [{
-          "date": "2021-12-20T08:56:16.437123396Z",
-          "event": "allocation-finished",
-          "params": {
-            "id": "pbs-1"
-          }
-        }, {
-          "date": "2021-12-20T08:58:16.437123396Z",
-          "event": "status-fail",
-          "params": {
-            "error": "qstat failed"
-          }
-        }]
-        ```
-
 ## Quiet
 The `quiet` output mode will cause HyperQueue to output only the most important information that
 should be parseable without any complex parsing logic, e.g. using only Bash scripts.
@@ -280,7 +261,7 @@ When an error occurs during the execution of a command, the program will exit wi
 and the error will be printed to the standard error output.
 
 ### Supported commands
-- Submit a job: `hq submit <command>`
+- Submit a job: [`hq submit`](cli:hq.submit)
 
     ??? Schema
         Outputs a single line containing the ID of the created job.
