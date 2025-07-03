@@ -70,7 +70,7 @@ pub enum StreamCommand {
     /// Prints summary of the log file
     Summary(SummaryOpts),
 
-    /// Prints jobs ids in the stream
+    /// Prints job ids in the stream
     Jobs,
 
     /// Prints the stream content ordered by time
