@@ -1,12 +1,5 @@
-use crate::client::commands::duration_doc;
-use std::collections::BTreeSet;
-use std::io::{BufRead, Read};
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
-use std::time::Duration;
-use std::{fs, io};
-
 use super::directives::parse_hq_directives;
+use crate::client::commands::duration_doc;
 use crate::client::commands::submit::directives::parse_hq_directives_from_file;
 use crate::client::commands::wait::{wait_for_jobs, wait_for_jobs_with_progress};
 use crate::client::globalsettings::GlobalSettings;
@@ -33,8 +26,17 @@ use bstr::BString;
 use chumsky::Parser as ChumskyParser;
 use chumsky::primitive::{filter, just};
 use chumsky::text::TextParser;
-use clap::{ArgMatches, Parser};
+use clap::builder::{PossibleValue, TypedValueParser};
+use clap::error::ErrorKind;
+use clap::{Arg, ArgMatches, Command, Error, Parser};
 use smallvec::smallvec;
+use std::collections::BTreeSet;
+use std::ffi::OsStr;
+use std::io::{BufRead, Read};
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
+use std::time::Duration;
+use std::{fs, io};
 use tako::gateway::{
     CrashLimit, EntryType, ResourceRequest, ResourceRequestEntries, ResourceRequestEntry,
     ResourceRequestVariants,
@@ -323,8 +325,9 @@ pub struct SubmitJobTaskConfOpts {
     /// The option takes a positive integer, "never-restart", or "unlimited".
     ///
     /// * "never-restart" = task is never restarted even the crash counter is not increased
+    ///
     /// * "unlimited" = there is no limit on crash counter value
-    #[arg(long, default_value = "5", value_parser = parse_crash_limit)]
+    #[arg(long, default_value = "5", value_parser = CrashLimitParser)]
     crash_limit: CrashLimit,
 }
 
@@ -988,13 +991,43 @@ fn make_entries_from_json(filename: &Path) -> anyhow::Result<Vec<EntryType>> {
     }
 }
 
+#[derive(Clone)]
+struct CrashLimitParser;
+
+impl TypedValueParser for CrashLimitParser {
+    type Value = CrashLimit;
+
+    fn parse_ref(
+        &self,
+        _cmd: &Command,
+        _arg: Option<&Arg>,
+        value: &OsStr,
+    ) -> Result<Self::Value, Error> {
+        parse_crash_limit(value.to_str().unwrap())
+            .map_err(|e| clap::Error::raw(ErrorKind::InvalidValue, format!("{e}\n")))
+    }
+
+    fn possible_values(&self) -> Option<Box<dyn Iterator<Item = PossibleValue> + '_>> {
+        Some(Box::new(
+            [
+                PossibleValue::new("never-restart"),
+                PossibleValue::new("unlimited"),
+                PossibleValue::new("<number>"),
+            ]
+            .into_iter(),
+        ))
+    }
+}
+
 pub fn parse_crash_limit(text: &str) -> anyhow::Result<CrashLimit> {
     if text == "never-restart" {
         Ok(CrashLimit::NeverRestart)
     } else if text == "unlimited" {
         Ok(CrashLimit::Unlimited)
     } else {
-        let v: u16 = text.parse().map_err(|_| anyhow!("Invalid crash limit"))?;
+        let v: u16 = text
+            .parse()
+            .map_err(|e| anyhow!("Invalid crash limit: {e:?}"))?;
         if v == 0 {
             bail!("Crash limit cannot be 0. Use `never-restart` or `unlimited` instead.");
         }
