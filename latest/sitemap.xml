@@ -61,6 +61,18 @@
          <lastmod>2025-07-03</lastmod>
     </url>
     <url>
+         <loc>https://it4innovations.github.io/hyperqueue/stable/examples/</loc>
+         <lastmod>2025-07-03</lastmod>
+    </url>
+    <url>
+         <loc>https://it4innovations.github.io/hyperqueue/stable/examples/data-arrays/</loc>
+         <lastmod>2025-07-03</lastmod>
+    </url>
+    <url>
+         <loc>https://it4innovations.github.io/hyperqueue/stable/examples/iterative-computation/</loc>
+         <lastmod>2025-07-03</lastmod>
+    </url>
+    <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/jobs/arrays/</loc>
          <lastmod>2025-07-03</lastmod>
     </url>
@@ -118,14 +130,6 @@
     </url>
     <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/python/submit/</loc>
-         <lastmod>2025-07-03</lastmod>
-    </url>
-    <url>
-         <loc>https://it4innovations.github.io/hyperqueue/stable/examples/</loc>
-         <lastmod>2025-07-03</lastmod>
-    </url>
-    <url>
-         <loc>https://it4innovations.github.io/hyperqueue/stable/examples/iterative-computation/</loc>
          <lastmod>2025-07-03</lastmod>
     </url>
 </urlset>
