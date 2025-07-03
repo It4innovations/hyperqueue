@@ -45,7 +45,7 @@ const DOC_ROOT: &str = "https://it4innovations.github.io/hyperqueue/";
 
 pub fn command_doc(opts: DocOpts) -> anyhow::Result<()> {
     let link = match opts.subcmd {
-        None => DOC_ROOT,
+        None => "",
         Some(cmd) => get_doc_path(&cmd),
     };
     let link = versioned_link(link);
