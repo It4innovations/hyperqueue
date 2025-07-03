@@ -2,10 +2,6 @@ Workers manage the computational resources of a single computer (node) and use t
 They connect to a running instance of a HyperQueue [server](server.md) and wait for task assignments. Once some task
 is assigned to them, they will compute it and notify the server of its completion.
 
-!!! Tip
-
-    You can find CLI reference for HQ worker commands [here](cli:hq.worker).
-
 ## Starting workers
 Workers should be started on machines that will actually execute the submitted computations, e.g. computing nodes on an
 HPC cluster. You can either use the automatic allocation system of HyperQueue to start workers as needed, or deploy
@@ -17,7 +13,8 @@ If you are using an allocation manager (PBS or Slurm) on an HPC cluster, the eas
 and spawning HyperQueue workers.
 
 ### Manual worker deployment
-If you want to start a worker manually, you can use the following command:
+
+If you want to start a worker manually, you can use the [`hq worker start`](cli:hq.worker.start) command:
 
 ```
 $ hq worker start
@@ -79,7 +76,7 @@ the option `--manager <pbs/slurm>` to tell the worker that it should expect a sp
 
 #### Deploying a worker using SSH
 
-If you have an OpenSSH-compatible `ssh` binary available in your environment, HQ can deploy workers to a set of hostnames using the `deploy-ssh` command:
+If you have an OpenSSH-compatible `ssh` binary available in your environment, HQ can deploy workers to a set of hostnames using the [`hq worker deploy-ssh`](cli:hq.worker.deploy-ssh) command:
 
 ```bash
 $ hq worker deploy-ssh <nodefile> <worker-start-args>
@@ -104,7 +101,8 @@ The nodes have to be accessible using a passwordless SSH connection.
 You can also use the `--show-output` flag to display output of the workers. You need to pass this flag before the `<nodefile>` argument.
 
 #### Stopping workers
-If you have started a worker manually, and you want to stop it, you can use the `hq worker stop` command[^2]:
+
+If you have started a worker manually, and you want to stop it, you can use the [`hq worker stop`](cli:hq.worker.stop) command[^2]:
 
 ```bash
 $ hq worker stop <selector>
@@ -181,10 +179,10 @@ as the default value.
 Each worker is a member of exactly one worker group. Groups are used to determine which workers are eligible to execute multi-node tasks. You can find more information about worker groups [here](../jobs/multinode.md#groups).
 
 ## Useful worker commands
-Here is a list of useful worker commands:
+Below you can find a list of useful worker commands. The complete `hq worker` CLI reference can be found [here](cli:hq.worker).
 
 ### Display worker list
-This command will display a list of workers that are currently connected to the server:
+The [`hq worker list`](cli:hq.worker.list) command will display a list of workers that are currently connected to the server:
 ```bash
 $ hq worker list
 ```
@@ -192,7 +190,18 @@ $ hq worker list
 If you also want to include workers that are offline (i.e. that have crashed or disconnected in the past), pass the
 `--all` flag to the `list` command.
 
-### Display information about a specific worker
+### Display worker information
+
+You can display information about a specific worker using the [`hq worker info`](cli:hq.worker.info) command:
+
 ```bash
 $ hq worker info <worker-id>
+```
+
+### Detect hardware resources
+
+You can test which hardware resources would a worker automatically detect on your current computer using the [`hq worker hwdetect`](cli:hq.worker.hwdetect) command:
+
+```bash
+$ hq worker hwdetect
 ```

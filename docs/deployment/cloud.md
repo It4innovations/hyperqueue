@@ -23,7 +23,7 @@ $ hq --server-dir=/home/foo/hq-access worker start
 
 In some cases you might want to generate the access file in advance, before the server is started, and let the server, clients and workers use that access file. This can be useful so that you don't have to redistribute the access file to client/worker nodes everytime the server restarts, which could be cumbersome.
 
-To achieve this, an access file can be generated in advance by the `generate-access` command:
+To achieve this, an access file can be generated in advance using the [`hq server generate-access`](cli:hq.server.generate-access) command:
 
 ```bash
 $ hq server generate-access myaccess.json --client-port=6789 --worker-port=1234

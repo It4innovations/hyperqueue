@@ -1,13 +1,9 @@
 The server is a crucial component of HyperQueue which manages [workers](worker.md) and [jobs](../jobs/jobs.md). Before
 running any computations or deploying workers, you must first start the server.
 
-!!! Tip
-    
-    You can find CLI reference for HQ server commands [here](cli:hq.server).
-
 ## Starting the server
 
-The server can be started by running the following command:
+The server can be started by running the [`hq server start`](cli:hq.server.start) command:
 
 ```bash
 $ hq server start
@@ -103,7 +99,7 @@ have to be connected to the server after it restarts.
 ### Exporting journal events
 
 If you'd like to programmatically analyze events that are stored in the journal file, you can
-export them to JSON using the following command:
+export them to JSON using the [`hq journal export`](cli:hq.journal.export) command:
 
 ```bash
 $ hq journal export <journal-path>
@@ -112,7 +108,7 @@ $ hq journal export <journal-path>
 The events will be read from the provided journal and printed to `stdout` encoded in JSON, one
 event per line (this corresponds to line-delimited JSON, i.e. [JSON Lines](https://jsonlines.org/)).
 
-You can also directly stream events in real-time from the server using the following command:
+You can also directly stream events in real-time from the server using the [`hq journal stream`](cli:hq.journal.stream) command:
 
 ```bash
 $ hq journal stream
@@ -125,15 +121,15 @@ $ hq journal stream
 
 ### Pruning the journal
 
-The `hq journal prune` command removes all completed jobs and disconnected workers from the journal file, in order to reduce its size on disk.
+The [`hq journal prune`](cli:hq.journal.prune) command removes all completed jobs and disconnected workers from the journal file, in order to reduce its size on disk.
 
 ### Flushing the journal
 
-Command `hq journal flush` will force the server to flush the journal, so that the latest state of affairs is persisted to disk. It is mainly useful for testing or if you are going to run `hq journal export` while a server is running (however, it is usually better to use `hq journal stream`).
+The [`hq journal flush`](cli:hq.journal.flush) command will force the server to flush the journal, so that the latest state of affairs is persisted to disk. It is mainly useful for testing or if you are going to run `hq journal export` while a server is running (however, it is usually better to use `hq journal stream`).
 
 ## Stopping the server
 
-You can stop a running server with the following command:
+You can stop a running server with the [`hq server stop`](cli:hq.server.stop) command:
 
 ```bash
 $ hq server stop

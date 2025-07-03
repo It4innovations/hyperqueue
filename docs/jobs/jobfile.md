@@ -1,5 +1,3 @@
-## Job Definition File
-
 Job Definition File (JDF) a way how to submit a complex pipeline into a HyperQueue.
 It is a [TOML](https://toml.io/) file that describes tasks of a job.
 JDF provides all functionalities as command line interface of HyperQueue and also adds access to additional features:
@@ -20,7 +18,7 @@ command = ["sleep", "1"]
 ```
 
 Let us assume that we have named this file as ``myfile.toml``,
-then we can run the following command to submit a job:
+then we can run the [`hq job submit-file`](cli:hq.job.submit-file) command to submit a job:
 
 ```bash
 $ hq job submit-file myfile.toml

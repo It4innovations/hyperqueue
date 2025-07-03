@@ -4,7 +4,7 @@ It is a common use case to execute the same command for multiple input parameter
 - Train many machine learning models using *hyperparameter search* for each model configuration.
 
 HyperQueue allows you to do this using a [job](jobs.md) that contains many tasks. We call such jobs
-**Task arrays**. You can create a task array with a single `submit` command and then manage all created
+**Task arrays**. You can create a task array with a single [`hq submit`](cli:hq.submit) command and then manage all created
 tasks as a single group using its containing job.
 
 !!! note

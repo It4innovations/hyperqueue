@@ -7,7 +7,7 @@ long as it is open.
 
 ## Opening a job
 
-A job can be opened by the following command:
+A job can be opened with the [`hq job open`](cli:hq.job.open) command:
 
 ```bash
 $ hq job open
@@ -90,7 +90,7 @@ $ hq job submit-file --job <JOB_ID> job-definition.toml
 
 ## Closing job
 
-You can close a job by calling:
+You can close a job with the [`hq job close`](cli:hq.job.close) command:
 
 ```bash
 $ hq job close <JOB_SELECTOR>
@@ -101,9 +101,11 @@ It has no effect on tasks already submitted to the job; they continue to be proc
 
 Closing of already closed job throws an error.
 
+## Completion semantics
+
 Leaving open jobs has no overhead, but it does affect the semantics of job completion.
 A job is considered completed when all tasks have been completed and the job is *closed*.
-Therefore, `hq job wait ...` will wait until all tasks of the selected jobs are complete and the jobs are closed.
+Therefore, [`hq job wait`](cli:hq.job.wait) will wait until all tasks of the selected jobs are complete and the jobs are closed.
 
 If you want to wait only for completion of tasks and ignoring if job is open or closed then there
 is `hq job wait --without-close ...`.

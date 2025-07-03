@@ -186,7 +186,7 @@ The default policy is the `compact` policy, i.e. `--cpus=<X>` is equivalent to `
 Each worker will automatically detect the number of CPUs available. On Linux systems, it will also
 detect the partitioning into sockets (NUMA configuration). In most cases, it should work out of the box.
 If you want to see how will a HQ worker see your CPU configuration without actually starting the worker,
-you can use the `hq worker hwdetect` command, which will print the detected CPU configuration.
+you can use the [`hq worker hwdetect`](cli:hq.worker.hwdetect) command, which will print the detected CPU configuration.
 
 
 ### Manual specification of CPU configuration

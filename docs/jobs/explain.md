@@ -1,5 +1,5 @@
 Sometimes, you may have connected workers and submitted tasks, but tasks are not running, and it is not clear why. For
-this purpose, there is an `explain` command in HQ.
+this purpose, there is a [`hq task explain`](cli:hq.task.explain) command in HQ.
 
 It can be used as follows:
 
