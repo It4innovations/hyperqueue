@@ -44,9 +44,10 @@ nav:
       - Multinode Tasks: jobs/multinode.md
       - Explain command: jobs/explain.md
   - CLI:
-      - Shortcuts: cli/shortcuts.md
       - Dashboard: cli/dashboard.md
+      - Shortcuts: cli/shortcuts.md
       - Output mode: cli/output-mode.md
+      - Documentation: cli/documentation.md
       - CLI reference: cli-reference/
   - Python API:
       - Getting started: python/index.md
