@@ -1,20 +1,13 @@
 use crate::internal::common::resources::allocation::AllocationIndex;
 use crate::internal::common::resources::amount::FRACTIONS_PER_UNIT;
 use crate::internal::common::resources::descriptor::ResourceDescriptorKind;
-use crate::internal::common::resources::{ResourceAmount, ResourceId, ResourceIndex, ResourceVec};
-use crate::internal::common::Map;
-use crate::internal::worker::resources::concise::{
-    ConciseFreeResources, ConciseResourceGroup, ConciseResourceState,
-};
+use crate::internal::common::resources::{ResourceAmount, ResourceId, ResourceIndex};
+use crate::internal::worker::resources::concise::{ConciseResourceGroup, ConciseResourceState};
 use crate::internal::worker::resources::map::ResourceLabelMap;
-use crate::resources::{
-    Allocation, AllocationRequest, ResourceAllocation, ResourceFractions, ResourceUnits,
-};
-use crate::Set;
-use std::cmp::Reverse;
+use crate::resources::{AllocationRequest, ResourceAllocation, ResourceFractions, ResourceUnits};
+use crate::{Map, Set};
 
-use crate::gateway::ResourceRequestEntry;
-use smallvec::{smallvec, SmallVec};
+use smallvec::{SmallVec, smallvec};
 
 #[derive(Debug)]
 pub(crate) struct IndicesResourcePool {
@@ -44,10 +37,6 @@ impl GroupsResourcePool {
                     f.values().max().copied().unwrap_or(0),
                 )
             })
-    }
-
-    pub fn full_size(&self) -> ResourceAmount {
-        self.full_size
     }
 
     pub fn is_coupled(&self) -> bool {
@@ -140,13 +129,6 @@ impl ResourcePool {
                 full_size: *size,
                 free: *size,
             }),
-        }
-    }
-
-    pub fn as_groups(&self) -> &GroupsResourcePool {
-        match self {
-            ResourcePool::Groups(g) => g,
-            _ => unreachable!(),
         }
     }
 
@@ -438,7 +420,7 @@ impl ResourcePool {
         let (amount, indices) = match policy {
             AllocationRequest::Compact(amount) | AllocationRequest::ForceCompact(amount) => (
                 *amount,
-                Self::claim_scatter_from_groups(*amount, pool, Some(&group_set)),
+                Self::claim_scatter_from_groups(*amount, pool, Some(group_set)),
             ),
             AllocationRequest::Scatter(_) | AllocationRequest::All => unreachable!(),
         };

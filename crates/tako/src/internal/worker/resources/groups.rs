@@ -37,7 +37,7 @@ fn group_minimizer(n_groups: usize, states: &mut [GroupMinimizationState]) -> Op
             result.push(group_idx);
             break;
         } else {
-            let Some(group_idx) = (0..n_groups)
+            let group_idx = (0..n_groups)
                 .filter(|group_idx| {
                     states
                         .iter()
@@ -61,10 +61,7 @@ fn group_minimizer(n_groups: usize, states: &mut [GroupMinimizationState]) -> Op
                             .map(|s| s.group_amounts[*group_idx].saturating_sub(s.remaining))
                             .sum::<ResourceAmount>(),
                     )
-                })
-            else {
-                return None;
-            };
+                })?;
             for state in states.iter_mut() {
                 let (r_units, r_fractions) = state.remaining.split();
                 let amount = &mut state.group_amounts[group_idx];

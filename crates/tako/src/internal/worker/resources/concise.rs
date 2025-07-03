@@ -16,14 +16,6 @@ impl ConciseResourceGroup {
     pub fn new(units: ResourceUnits, fractions: Map<ResourceIndex, ResourceFractions>) -> Self {
         ConciseResourceGroup { units, fractions }
     }
-
-    pub fn units(&self) -> ResourceUnits {
-        self.units
-    }
-
-    pub fn fractions(&self) -> &Map<ResourceIndex, ResourceFractions> {
-        &self.fractions
-    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -89,7 +81,7 @@ impl ConciseResourceState {
         resource_idx: ResourceIndex,
         fractions: ResourceFractions,
     ) {
-        let mut free = &mut self.free[group_idx];
+        let free = &mut self.free[group_idx];
         let old_f = free.fractions.entry(resource_idx).or_insert(0);
         *old_f += fractions;
         if *old_f >= FRACTIONS_PER_UNIT {
@@ -130,10 +122,6 @@ impl ConciseResourceState {
         self.free.len()
     }
 
-    pub fn groups(&self) -> &[ConciseResourceGroup] {
-        &self.free
-    }
-
     fn fractions(&self) -> impl Iterator<Item = ResourceFractions> {
         self.free.iter().flat_map(|g| g.fractions.values().copied())
     }
@@ -154,10 +142,7 @@ impl ConciseResourceState {
     #[cfg(test)]
     pub fn amount_sum(&self) -> ResourceAmount {
         let units = ResourceAmount::new_units(self.free.iter().map(|g| g.units).sum());
-        let fractions = self
-            .fractions()
-            .map(|f| ResourceAmount::new_fractions(f))
-            .sum();
+        let fractions = self.fractions().map(ResourceAmount::new_fractions).sum();
         units + fractions
     }
 
