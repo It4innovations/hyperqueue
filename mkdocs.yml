@@ -101,12 +101,11 @@ plugins:
   - mike:
       canonical_version: stable
       alias_type: copy
-  - nedoc:
-      path: python/apidoc
 
 hooks:
   - scripts/docs/build_cli_reference.py
   - scripts/docs/postprocess_cli_links.py
+  - scripts/docs/postprocess_nedoc.py
 
 extra:
   analytics:
