@@ -2,6 +2,10 @@
 you to autonomously ask the allocation manager (PBS/Slurm) for computing resources and spawn HyperQueue [workers](worker.md)
 on the provided nodes.
 
+!!! Tip
+
+    You can find CLI reference for HQ autoalloc commands [here](cli:hq.alloc).
+
 Using this mechanism, you can submit computations into HyperQueue without caring about the underlying PBS/Slurm allocations.
 
 !!! Note "Job vs allocation terminology"
