@@ -677,13 +677,13 @@ def test_job_tasks_table(hq_env: HqEnv):
 
     hq_env.start_worker()
 
-    table = hq_env.command(["task", "list", "1"], as_table=True)
     wait_for_job_state(hq_env, 1, "FINISHED")
+    table = hq_env.command(["task", "list", "1"], as_table=True)
     table.check_column_value("Worker", 0, "worker1")
 
     hq_env.command(["submit", "non-existent-program", "test"])
-    table = hq_env.command(["task", "list", "2"], as_table=True)
     wait_for_job_state(hq_env, 2, "FAILED")
+    table = hq_env.command(["task", "list", "2"], as_table=True)
     worker = table.get_column_value("Worker")[0]
     assert worker == "" or worker == "worker1"
 
