@@ -33,10 +33,13 @@ pub fn create_worker(id: u64) -> Worker {
     Worker::new(
         WorkerId::new(id as u32),
         WorkerConfiguration {
-            resources: ResourceDescriptor::new(vec![ResourceDescriptorItem {
-                name: CPU_RESOURCE_NAME.to_string(),
-                kind: ResourceDescriptorKind::simple_indices(1),
-            }]),
+            resources: ResourceDescriptor::new(
+                vec![ResourceDescriptorItem {
+                    name: CPU_RESOURCE_NAME.to_string(),
+                    kind: ResourceDescriptorKind::simple_indices(1),
+                }],
+                None,
+            ),
             listen_address: "".to_string(),
             hostname: "".to_string(),
             group: "default".to_string(),
