@@ -169,16 +169,19 @@ fn bench_cancel_waiting_task(c: &mut BenchmarkGroup<WallTime>) {
 }
 
 fn create_resource_queue(num_cpus: u32) -> ResourceWaitQueue {
-    let descriptor = ResourceDescriptor::new(vec![
-        ResourceDescriptorItem {
-            name: CPU_RESOURCE_NAME.to_string(),
-            kind: ResourceDescriptorKind::simple_indices(num_cpus),
-        },
-        ResourceDescriptorItem {
-            name: NVIDIA_GPU_RESOURCE_NAME.to_string(),
-            kind: ResourceDescriptorKind::simple_indices(8),
-        },
-    ]);
+    let descriptor = ResourceDescriptor::new(
+        vec![
+            ResourceDescriptorItem {
+                name: CPU_RESOURCE_NAME.to_string(),
+                kind: ResourceDescriptorKind::simple_indices(num_cpus),
+            },
+            ResourceDescriptorItem {
+                name: NVIDIA_GPU_RESOURCE_NAME.to_string(),
+                kind: ResourceDescriptorKind::simple_indices(8),
+            },
+        ],
+        None,
+    );
     ResourceWaitQueue::new(res_allocator_from_descriptor(descriptor))
 }
 
