@@ -1,4 +1,4 @@
-## DEV
+## 0.23.0
 
 ### Breaking change
 

@@ -1,6 +1,6 @@
 [package]
 name = "hyperqueue"
-version = "0.22.0"
+version = "0.23.0"
 description = "Task execution system for clusters"
 authors.workspace = true
 edition.workspace = true
