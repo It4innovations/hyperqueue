@@ -6,7 +6,6 @@ use crate::internal::common::resources::{
     ResourceVec,
 };
 use crate::internal::messages::worker::WorkerResourceCounts;
-use crate::resources::AllocationRequest;
 use crate::{Map, Set, TaskId};
 use std::ops::Deref;
 
@@ -112,12 +111,7 @@ impl WorkerResources {
     }
 
     pub(crate) fn max_amount(&self, entry: &ResourceAllocRequest) -> ResourceAmount {
-        match entry.request {
-            AllocationRequest::Compact(amount)
-            | AllocationRequest::ForceCompact(amount)
-            | AllocationRequest::Scatter(amount) => amount,
-            AllocationRequest::All => self.get(entry.resource_id),
-        }
+        entry.request.amount(self.get(entry.resource_id))
     }
 
     pub fn difficulty_score(&self, request: &ResourceRequest) -> u64 {
@@ -155,7 +149,7 @@ pub struct WorkerLoad {
     n_resources: ResourceVec<ResourceAmount>,
 
     /// The map stores task_ids of requests for which non-first resource alternative is used
-    /// i.e. if all tasks has only 1 option in resource requests, this map will be empty
+    /// i.e., if all tasks has only 1 option in resource requests, this map will be empty
     non_first_rq: Map<TaskId, usize>,
     round_robin_counter: usize,
 }
@@ -316,7 +310,8 @@ impl WorkerLoad {
 }
 
 /// This structure tracks an infimum over a set of task requests
-/// requests are added by method "include" to this set.
+///
+/// Requests are added by method "include" to this set.
 #[derive(Debug, Default)]
 pub struct ResourceRequestLowerBound {
     request_set: Set<ResourceRequest>,
@@ -344,13 +339,13 @@ impl ResourceRequestLowerBound {
 
 #[cfg(test)]
 mod tests {
-    use crate::TaskId;
     use crate::internal::common::resources::ResourceRequestVariants;
     use crate::internal::server::workerload::{
         ResourceRequestLowerBound, WorkerLoad, WorkerResources,
     };
-    use crate::internal::tests::utils::resources::{ResBuilder, cpus_compact, ra_builder};
+    use crate::internal::tests::utils::resources::{cpus_compact, ra_builder, ResBuilder};
     use crate::resources::{ResourceAmount, ResourceUnits};
+    use crate::TaskId;
     use smallvec::smallvec;
 
     pub fn wr_builder(units: &[ResourceUnits]) -> WorkerResources {

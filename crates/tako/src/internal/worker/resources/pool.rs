@@ -428,6 +428,10 @@ impl ResourcePool {
                 *amount,
                 Self::claim_scatter_from_groups(*amount, pool, Some(group_set)),
             ),
+            AllocationRequest::Tight(amount) | AllocationRequest::ForceTight(amount) => (
+                *amount,
+                Self::claim_compact_from_groups(*amount, pool, Some(group_set)),
+            ),
             AllocationRequest::Scatter(_) | AllocationRequest::All => unreachable!(),
         };
         ResourceAllocation {
@@ -469,6 +473,15 @@ impl ResourcePool {
                         (
                             *amount,
                             Self::claim_scatter_from_groups(*amount, pool, Some(&group_set)),
+                        )
+                    }
+                    AllocationRequest::Tight(amount) | AllocationRequest::ForceTight(amount) => {
+                        // We do neet need to distinguish between force tight and tight
+                        // because we already know that here that allocation is possible
+                        let group_set = find_compact_groups(pool.n_groups(), free, policy).unwrap();
+                        (
+                            *amount,
+                            Self::claim_compact_from_groups(*amount, pool, Some(&group_set)),
                         )
                     }
                     AllocationRequest::Scatter(amount) => (

@@ -1239,7 +1239,6 @@ fn test_coupling_force3() {
 fn test_compact_scattering() {
     let descriptor = simple_descriptor(4, 4);
     let mut allocator = test_allocator(&descriptor);
-    allocator.reset_temporaries(None);
     let rq1 = ResBuilder::default()
         .add_compact(0, ResourceAmount::new_units(6))
         .finish_v();
@@ -1251,4 +1250,35 @@ fn test_compact_scattering() {
     assert_eq!(r1[3].group_idx, r1[4].group_idx);
     assert_eq!(r1[3].group_idx, r1[5].group_idx);
     assert_ne!(r1[0].group_idx, r1[3].group_idx);
+}
+
+#[test]
+fn test_tight_scattering() {
+    let descriptor = simple_descriptor(4, 4);
+    let mut allocator = test_allocator(&descriptor);
+    let rq1 = ResBuilder::default()
+        .add_tight(0, ResourceAmount::new_units(6))
+        .finish_v();
+    let al1 = allocator.try_allocate(&rq1).unwrap().0;
+    let r1 = &al1.resources[0].indices;
+    assert_eq!(r1.len(), 6);
+    assert_eq!(r1[0].group_idx, r1[1].group_idx);
+    assert_eq!(r1[0].group_idx, r1[2].group_idx);
+    assert_eq!(r1[0].group_idx, r1[3].group_idx);
+    assert_eq!(r1[4].group_idx, r1[5].group_idx);
+    assert_ne!(r1[0].group_idx, r1[4].group_idx);
+}
+
+#[test]
+fn test_coupling_tight() {
+    for coupled in [true, false] {
+        let descriptor = descriptor_cpus_gpus(4, 4, 2, coupled);
+        let mut allocator = test_allocator(&descriptor);
+
+        let rq = ResBuilder::default()
+            .add_force_compact(0, ResourceAmount::new_units(1))
+            .add_force_compact(1, ResourceAmount::new_units(1))
+            .finish_v();
+        assert_eq!(allocator.try_allocate(&rq).is_none(), coupled);
+    }
 }
