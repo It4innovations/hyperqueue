@@ -1,3 +1,6 @@
+import collections
+
+from .utils.job import default_task_output
 from .utils import wait_for_job_state
 from .utils.cmd import bash
 from .conftest import HqEnv
@@ -118,3 +121,46 @@ def test_coupling_alloc2(hq_env: HqEnv):
         assert len(get_groups(f.read())) == 2
     with open(f"job-2/0.stdout", "r") as f:
         assert len(get_groups(f.read())) == 2
+
+
+def test_coupling_combined(hq_env: HqEnv):
+    def groups(job_id):
+        with open(default_task_output(job_id)) as f:
+            a, b = f.read().rstrip().split(";")
+            data1 = [int(x) // 10 for x in a.split(",")]
+            data2 = [int(x) // 10 for x in b.split(",")]
+        c1 = collections.Counter(data1)
+        c2 = collections.Counter(data2)
+        return sorted(c1.values()), sorted(c2.values())
+
+    hq_env.start_server()
+
+    hq_env.start_worker(
+        cpus="[[1, 2, 3, 4], [11, 12, 13, 14], [21, 22, 23, 24]]",
+        args=["--resource=foo=[[1, 2],[10,11],[22,21]]", "--coupling=cpus,foo"],
+    )
+
+    for i, (cpus, foos, expect) in enumerate(
+        [
+            ("6 tight", "2 tight", ([2, 4], [2])),
+            ("6 scatter", "2 scatter", ([2, 2, 2], [1, 1])),
+            ("6 compact", "2 compact", ([3, 3], [1, 1])),
+            ("6 tight", "2 compact", ([2, 4], [1, 1])),
+            ("6 compact", "2 tight", ([3, 3], [2])),
+            ("6 scatter", "2 tight", ([2, 2, 2], [2])),
+            ("6 scatter", "2 compact", ([2, 2, 2], [2])),
+        ],
+        1,
+    ):
+        hq_env.command(
+            [
+                "submit",
+                f"--cpus={cpus}",
+                "--resource",
+                f"foo={foos}",
+                "--",
+                *bash('echo "$HQ_RESOURCE_VALUES_cpus;$HQ_RESOURCE_VALUES_foo"'),
+            ]
+        )
+        wait_for_job_state(hq_env, i, "FINISHED")
+        assert groups(i) == expect

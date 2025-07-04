@@ -27,6 +27,7 @@ pub struct ResourceAmount(u64);
 
 impl ResourceAmount {
     pub const ZERO: ResourceAmount = ResourceAmount(0);
+    pub const ONE: ResourceAmount = ResourceAmount(1);
 
     pub fn new(units: ResourceUnits, fractions: ResourceFractions) -> Self {
         assert!(fractions < FRACTIONS_PER_UNIT);

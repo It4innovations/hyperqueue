@@ -139,10 +139,10 @@ impl ResourceAllocator {
     ) -> bool {
         let max_alloc = free.amount_max_alloc();
         match &request {
-            AllocationRequest::Compact(amount) | AllocationRequest::Scatter(amount) => {
-                *amount <= max_alloc
-            }
-            AllocationRequest::ForceCompact(amount) => {
+            AllocationRequest::Compact(amount)
+            | AllocationRequest::Tight(amount)
+            | AllocationRequest::Scatter(amount) => *amount <= max_alloc,
+            AllocationRequest::ForceCompact(amount) | AllocationRequest::ForceTight(amount) => {
                 if amount.is_zero() {
                     return true;
                 }
@@ -212,8 +212,11 @@ impl ResourceAllocator {
         };
         coupling.iter().all(|entry| {
             let amount = match entry.request {
-                AllocationRequest::ForceCompact(amount) => amount,
+                AllocationRequest::ForceCompact(amount) | AllocationRequest::ForceTight(amount) => {
+                    amount
+                }
                 AllocationRequest::Compact(_)
+                | AllocationRequest::Tight(_)
                 | AllocationRequest::Scatter(_)
                 | AllocationRequest::All => return true,
             };
@@ -369,15 +372,17 @@ impl ResourceAllocator {
             0.0f32
         } else {
             match entry.request {
-                AllocationRequest::Compact(amount) | AllocationRequest::Scatter(amount) => {
+                AllocationRequest::Compact(amount)
+                | AllocationRequest::Scatter(amount)
+                | AllocationRequest::Tight(amount) => {
                     amount.total_fractions() as f32 / size.total_fractions() as f32
                 }
-                AllocationRequest::ForceCompact(amount)
+                AllocationRequest::ForceCompact(amount) | AllocationRequest::ForceTight(amount)
                     if self.pools[entry.resource_id].n_groups() == 1 =>
                 {
                     amount.total_fractions() as f32 / size.total_fractions() as f32
                 }
-                AllocationRequest::ForceCompact(amount) => {
+                AllocationRequest::ForceCompact(amount) | AllocationRequest::ForceTight(amount) => {
                     (amount.total_fractions() * 2) as f32 / size.total_fractions() as f32
                 }
                 AllocationRequest::All => 2.0,

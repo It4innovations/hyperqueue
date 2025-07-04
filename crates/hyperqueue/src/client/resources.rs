@@ -14,11 +14,22 @@ fn p_allocation_request() -> impl CharParser<AllocationRequest> {
         .map(|_| AllocationRequest::All)
         .or(parse_resource_amount()
             .padded()
-            .then(choice((just("compact!"), just("compact"), just("scatter"))).or_not())
+            .then(
+                choice((
+                    just("compact!"),
+                    just("compact"),
+                    just("tight!"),
+                    just("tight"),
+                    just("scatter"),
+                ))
+                .or_not(),
+            )
             .try_map(|(amount, policy), span| {
                 let alloc = match policy {
                     None | Some("compact") => AllocationRequest::Compact(amount),
                     Some("compact!") => AllocationRequest::ForceCompact(amount),
+                    Some("tight") => AllocationRequest::Tight(amount),
+                    Some("tight!") => AllocationRequest::ForceTight(amount),
                     Some("scatter") => AllocationRequest::Scatter(amount),
                     _ => unreachable!(),
                 };
@@ -87,6 +98,20 @@ mod test {
             (
                 "cpus".to_string(),
                 AllocationRequest::ForceCompact(ResourceAmount::new_units(11))
+            )
+        );
+        assert_eq!(
+            parse_resource_request("cpus=2 tight").unwrap(),
+            (
+                "cpus".to_string(),
+                AllocationRequest::Tight(ResourceAmount::new_units(2))
+            )
+        );
+        assert_eq!(
+            parse_resource_request("abc=123 tight!").unwrap(),
+            (
+                "abc".to_string(),
+                AllocationRequest::ForceTight(ResourceAmount::new_units(123))
             )
         );
     }

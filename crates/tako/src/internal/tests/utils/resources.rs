@@ -51,6 +51,24 @@ impl ResourceRequestBuilder {
         self
     }
 
+    pub fn add_tight<Id: Into<ResourceId>, A: Into<ResourceAmount>>(
+        mut self,
+        id: Id,
+        amount: A,
+    ) -> Self {
+        self._add(id.into(), AllocationRequest::Tight(amount.into()));
+        self
+    }
+
+    pub fn add_force_tight<Id: Into<ResourceId>, A: Into<ResourceAmount>>(
+        mut self,
+        id: Id,
+        amount: A,
+    ) -> Self {
+        self._add(id.into(), AllocationRequest::ForceTight(amount.into()));
+        self
+    }
+
     pub fn add_scatter<Id: Into<ResourceId>, A: Into<ResourceAmount>>(
         mut self,
         id: Id,
