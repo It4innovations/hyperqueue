@@ -293,6 +293,7 @@ wasted allocation duration."
     let SharedWorkerStartOpts {
         cpus,
         resource,
+        coupling,
         group,
         no_detect_resources,
         no_hyper_threading,
@@ -319,6 +320,12 @@ wasted allocation duration."
             "--resource".to_string(),
             format!("\"{}\"", arg.into_original_input()),
         ]);
+    }
+    if let Some(arg) = coupling {
+        worker_args.extend([
+            "--coupling".to_string(),
+            format!("\"{}\"", arg.into_original_input()),
+        ])
     }
     if let Some(group) = group {
         worker_args.extend(["--group".to_string(), group]);
@@ -382,7 +389,7 @@ fn construct_resources_from_cli(args: &SharedWorkerStartOpts) -> Option<Resource
         }
     };
 
-    let resources = ResourceDescriptor::new(resources);
+    let resources = ResourceDescriptor::new(resources, None);
     resources.validate(true).ok()?;
     Some(resources)
 }

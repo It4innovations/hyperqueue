@@ -164,10 +164,13 @@ mod tests {
 
         let mut wcfg = create_test_worker_config(
             2.into(),
-            ResourceDescriptor::new(vec![
-                ResourceDescriptorItem::range("cpus", 1, 10),
-                ResourceDescriptorItem::range("gpus", 1, 4),
-            ]),
+            ResourceDescriptor::new(
+                vec![
+                    ResourceDescriptorItem::range("cpus", 1, 10),
+                    ResourceDescriptorItem::range("gpus", 1, 4),
+                ],
+                None,
+            ),
         );
         wcfg.time_limit = Some(Duration::from_secs(40_000));
         let worker2 = Worker::new(2.into(), wcfg, &resource_map, now);

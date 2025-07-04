@@ -208,15 +208,28 @@ impl ResourceDescriptorItem {
 
 /// Most precise description of request provided by a worker (without time resource)
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ResourceDescriptiorCoupling {
+    pub names: Vec<String>,
+}
+
+/// Most precise description of request provided by a worker (without time resource)
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ResourceDescriptor {
     pub resources: Vec<ResourceDescriptorItem>,
+    pub coupling: Option<ResourceDescriptiorCoupling>,
 }
 
 impl ResourceDescriptor {
-    pub fn new(mut resources: Vec<ResourceDescriptorItem>) -> Self {
+    pub fn new(
+        mut resources: Vec<ResourceDescriptorItem>,
+        coupling: Option<ResourceDescriptiorCoupling>,
+    ) -> Self {
         resources.sort_by(|x, y| x.name.cmp(&y.name));
 
-        ResourceDescriptor { resources }
+        ResourceDescriptor {
+            resources,
+            coupling,
+        }
     }
 
     pub fn simple_cpus(n_cpus: ResourceUnits) -> Self {
@@ -224,10 +237,13 @@ impl ResourceDescriptor {
     }
 
     pub fn sockets(n_sockets: ResourceUnits, n_cpus_per_socket: ResourceUnits) -> Self {
-        ResourceDescriptor::new(vec![ResourceDescriptorItem {
-            name: CPU_RESOURCE_NAME.to_string(),
-            kind: ResourceDescriptorKind::regular_sockets(n_sockets, n_cpus_per_socket),
-        }])
+        ResourceDescriptor::new(
+            vec![ResourceDescriptorItem {
+                name: CPU_RESOURCE_NAME.to_string(),
+                kind: ResourceDescriptorKind::regular_sockets(n_sockets, n_cpus_per_socket),
+            }],
+            None,
+        )
     }
 
     pub fn validate(&self, needs_cpus: bool) -> crate::Result<()> {
@@ -251,6 +267,27 @@ impl ResourceDescriptor {
         }
         if !has_cpus && needs_cpus {
             return Err("Resource 'cpus' is missing".into());
+        }
+        if let Some(coupling) = &self.coupling {
+            if coupling.names.len() < 2 {
+                return Err("Invalid number of coupled resources".into());
+            }
+            let mut group_size = None;
+            for name in &coupling.names {
+                if let Some(r) = self.resources.iter().find(|r| &r.name == name) {
+                    if let Some(g) = &group_size {
+                        if *g != r.kind.n_groups() {
+                            return Err(
+                                "Coupled resources needs to have the same number of groups".into(),
+                            );
+                        }
+                    } else {
+                        group_size = Some(r.kind.n_groups())
+                    }
+                } else {
+                    return Err(format!("Coupling of unknown resource: '{name}'").into());
+                }
+            }
         }
         Ok(())
     }

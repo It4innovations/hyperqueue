@@ -13,45 +13,36 @@ use std::time::Duration;
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub enum AllocationRequest {
     Compact(ResourceAmount),
-    ForceCompact(ResourceAmount),
+    Tight(ResourceAmount),
     Scatter(ResourceAmount),
+    ForceCompact(ResourceAmount),
+    ForceTight(ResourceAmount),
     All,
 }
 
 impl AllocationRequest {
     pub fn validate(&self) -> crate::Result<()> {
-        let check_nonzero = |amount: &ResourceAmount| {
-            if amount.is_zero() {
-                Err(DsError::GenericError(
-                    "Zero resources cannot be requested".to_string(),
-                ))
-            } else {
-                Ok(())
-            }
-        };
-        match &self {
-            AllocationRequest::ForceCompact(amount) => check_nonzero(amount).and_then(|_| {
-                if amount.fractions() > 0 {
-                    Err(DsError::GenericError(
-                        "ForceCompact have to use whole resource counts".to_string(),
-                    ))
-                } else {
-                    Ok(())
-                }
-            }),
-            AllocationRequest::Scatter(amount) | AllocationRequest::Compact(amount) => {
-                check_nonzero(amount)
-            }
-            AllocationRequest::All => Ok(()),
+        if self.amount_or_none_if_all().is_some_and(|a| a.is_zero()) {
+            Err(DsError::GenericError(
+                "Zero resources cannot be requested".to_string(),
+            ))
+        } else {
+            Ok(())
         }
     }
 
     pub fn min_amount(&self) -> ResourceAmount {
+        self.amount(ResourceAmount::ONE)
+    }
+
+    pub fn amount_or_none_if_all(&self) -> Option<ResourceAmount> {
         match self {
             AllocationRequest::Compact(amount)
             | AllocationRequest::ForceCompact(amount)
-            | AllocationRequest::Scatter(amount) => *amount,
-            AllocationRequest::All => ResourceAmount::new_units(1),
+            | AllocationRequest::Tight(amount)
+            | AllocationRequest::ForceTight(amount)
+            | AllocationRequest::Scatter(amount) => Some(*amount),
+            AllocationRequest::All => None,
         }
     }
 
@@ -59,8 +50,30 @@ impl AllocationRequest {
         match self {
             AllocationRequest::Compact(amount)
             | AllocationRequest::ForceCompact(amount)
+            | AllocationRequest::Tight(amount)
+            | AllocationRequest::ForceTight(amount)
             | AllocationRequest::Scatter(amount) => *amount,
             AllocationRequest::All => all,
+        }
+    }
+
+    pub fn is_relevant_for_coupling(&self) -> bool {
+        match self {
+            AllocationRequest::Compact(_)
+            | AllocationRequest::ForceCompact(_)
+            | AllocationRequest::Tight(_)
+            | AllocationRequest::ForceTight(_) => true,
+            AllocationRequest::Scatter(_) | AllocationRequest::All => false,
+        }
+    }
+
+    pub fn is_forced(&self) -> bool {
+        match self {
+            AllocationRequest::ForceCompact(_) | AllocationRequest::ForceTight(_) => true,
+            AllocationRequest::Compact(_)
+            | AllocationRequest::Tight(_)
+            | AllocationRequest::Scatter(_)
+            | AllocationRequest::All => false,
         }
     }
 }
@@ -70,6 +83,8 @@ impl fmt::Display for AllocationRequest {
         match self {
             AllocationRequest::Compact(amount) => write!(f, "{amount} compact"),
             AllocationRequest::ForceCompact(amount) => write!(f, "{amount} compact!"),
+            AllocationRequest::Tight(amount) => write!(f, "{amount} tight"),
+            AllocationRequest::ForceTight(amount) => write!(f, "{amount} tight!"),
             AllocationRequest::Scatter(amount) => write!(f, "{amount} scatter"),
             AllocationRequest::All => write!(f, "all"),
         }
@@ -77,12 +92,12 @@ impl fmt::Display for AllocationRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
-pub struct ResourceRequestEntry {
+pub struct ResourceAllocRequest {
     pub resource_id: ResourceId,
     pub request: AllocationRequest,
 }
 
-pub type ResourceRequestEntries = SmallVec<[ResourceRequestEntry; 3]>;
+pub type ResourceRequestEntries = SmallVec<[ResourceAllocRequest; 3]>;
 pub type TimeRequest = Duration;
 
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]

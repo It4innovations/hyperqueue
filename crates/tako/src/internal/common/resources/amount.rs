@@ -27,6 +27,7 @@ pub struct ResourceAmount(u64);
 
 impl ResourceAmount {
     pub const ZERO: ResourceAmount = ResourceAmount(0);
+    pub const ONE: ResourceAmount = ResourceAmount(1);
 
     pub fn new(units: ResourceUnits, fractions: ResourceFractions) -> Self {
         assert!(fractions < FRACTIONS_PER_UNIT);
@@ -54,6 +55,14 @@ impl ResourceAmount {
         (self.0 / (FRACTIONS_PER_UNIT as u64)) as ResourceUnits
     }
 
+    pub fn whole_units(&self) -> ResourceUnits {
+        let (mut units, fractions) = self.split();
+        if fractions > 0 {
+            units += 1;
+        }
+        units
+    }
+
     pub fn fractions(&self) -> ResourceFractions {
         (self.0 % (FRACTIONS_PER_UNIT as u64)) as ResourceFractions
     }
@@ -68,6 +77,11 @@ impl ResourceAmount {
 
     pub fn as_f32(&self) -> f32 {
         self.0 as f32 / FRACTIONS_PER_UNIT as f32
+    }
+
+    #[inline]
+    pub fn saturating_sub(&self, rhs: ResourceAmount) -> ResourceAmount {
+        ResourceAmount(self.0.saturating_sub(rhs.0))
     }
 }
 
