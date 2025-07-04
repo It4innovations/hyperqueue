@@ -19,7 +19,7 @@ therefore, there is a special section about [CPU resources](cresources.md).
 
 ## Worker resources
 
-Each worker has one or mores resources attached. Each resource is a **resource pool**
+Each worker has one or more resources attached. Each resource is a **resource pool**
 identified by a name. A resource pool represents some resources provided by a worker; each task can
 then ask for a part of the resources contained in that pool.
 
@@ -122,7 +122,7 @@ The following resources are detected automatically if a resource of a given name
 
 * RAM of the node is detected as resource "mem" in megabytes; i.e. `--resource mem=100` asks for 100 MiBs of the memory.
 
-If you want to see how is your system seen by a worker without actually starting it,
+If you want to see how your system is seen by a worker without actually starting it,
 you can start:
 
 ```bash
@@ -165,12 +165,12 @@ task requests.
     ```
 
     Then the first job can be allocated e.g. the GPU `2` and the second job can be allocated the GPUs
-    `1` and `3`. 
+    `1` and `3`.
 
 ## Requesting all resources
 
 A task may ask for all given resources of that type by specifying ``--resource <NAME>=all``.
-Such a task will be scheduled only on a worker that has at least ``1`` of such resource and when a task is executed
+Such a task will be scheduled only on a worker that has at least ``1`` of such a resource and when a task is executed
 all resources of that type will be given to this task.
 
 ## Resource request strategies
@@ -178,37 +178,107 @@ all resources of that type will be given to this task.
 When resource request is defined, after the amount you can define allocation strategy:
 ``--resource <NAME>="<AMOUNT> <STRATEGY>"``.
 
-Specifying strategy has effect only if worker provides indexed resource in groups.
+Example:
+
+```console
+$ hq submit --resource cpus="8 compact!" ...
+```
+
+Specifying strategy has effect only if the worker provides indexed resource in groups.
 If resource is other type, then strategy is ignored.
 
 When strategy is not defined then ``compact`` is used as default.
 
-* Compact (``compact``) - Tries to allocate indices in few groups as possible in the current worker state.
+Strategies:
 
-  Example:
-    ```console
-    $ hq submit --resource cpus="8 compact" ...
-    ```
+* **Compact** (``compact``) -- Tries to allocate indices in few groups as possible in the current worker state. After
+  the minimal number of groups is chosen, then the indices
+  are taken evenly from the selected groups.
 
-* Strict Compact (``compact!``) - Always allocate indices on as few groups as possible for a target node.
-  The task is not executed until the requirement could not be fully fulfilled.
+* **Strict Compact** (``compact!``) -- Always allocate indices on as few groups as possible for a target target.
+  The task is not executed until this requirement could not be fully fulfilled.
   E.g. If a worker has 4 indices per a group and you ask for 4 indices in the strict compact mode,
   it will always be executed with indices from a single group.
   If you ask for 8 cpus in the same way, it will always be executed with indices from two groups.
 
-  Example:
-    ```console
-    $ hq submit --resource cpus="8 compact!" ...`
-    ```
+* **Tight** (``tight``) - Similarly to ``compact``, the mode tries to allocate indices in few groups as possible in the
+  current worker state. When the groups are chosen, then it packs as much as possible to the first group, then to the
+  second, etc. See the Example below.
 
-* Scatter (``scatter``) - Allocate indices across as many groups as possible in the current worker state.
+* **Strict tight** (``tight!``) -- Strict mode for ``tight``. Works as ``tight`` but
+  a task is not executed until the minial number of groups for the given worker could not be
+  achieved.
+
+* **Scatter** (``scatter``) - Allocate indices across as many groups as possible in the current worker state.
   E.g. Let us assume that a worker has 4 groups with 8 indices per group, and you ask for 8 cpus in the scatter mode.
-  If possible in the current situation, HQ tries to run process with 2 cpus on each socket.
+  If possible in the current situation, HQ tries to run a process with 2 cpus on each socket.
 
-  Example:
-    ```console
-    $ hq submit --resource cpus="8 scatter" ...
-    ```
+### Example
+
+Let us assume that we have worker with resource `foo` that have indices organized
+to 3 groups with 4 indices in each group. We assume that all resources are free.
+The allocations in the square brackets below means how many indices we got from different groups, e.g. `[4, 2]` means
+that we get `4` indices from a group, and `2` indices from another group.
+
+* `6 compact` allocates: `[3, 3]`
+* `6 tight` allocates: `[4, 2]`
+* `6 scatter` allocates: `[2, 2, 2]`
+
+## Resource coupling
+
+Resource coupling extends the HQ ability to capture NUMA architectures.
+It allows saying that two or more resources of the worker should be allocated together (from the same groups). For
+example, we may want to allocate CPUs and GPUs from the same NUMA node.
+
+The current version does not provide automatic detection of coupling; you need to specify
+it manually, via option `--coupling` when the worker is started.
+
+For example:
+
+```bash
+$ hq worker starts ... --coupling=cpus,gpus
+```
+
+Coupled resources have to be indexed resources with groups, and they all need to have the same number of groups. The
+allocation then considers the groups of these resources aligned, i.e., when we have a compact request from coupled
+resources, they should be allocated from the same groups.
+
+When coupling is enabled, it modifies the behavior of `compact` and `tight` strategies
+when more coupled resources are requested. They do not minimize the number of used groups individually, but minizies it
+for all requested coupled resources.
+
+### Example
+
+Let us assume that we have worker with resource `cpus` that have indices organized
+to 3 groups with 4 indices in each group. And resource `gpus` that have 3 groups with 2 indices within each group.
+
+* `cpus=6 compact` and `gpus=2 compact` allocates `cpus=[3, 3]`, `gpus=[1, 1]`
+* `cpus=1 compact` and `gpus=2 compact` allocates `cpus=[1]`, `gpus=[2]`
+* `cpus=6 tight` and `gpus=2 compact` allocates `cpus=[4, 2]`, `gpus=[1, 1]`
+* `cpus=6 tight` and `gpus=2 tight` allocates `cpus=[4, 2]`, `gpus=[2]`
+
+### Strict strategies
+
+The coupling also modifies the semantics of strict strategies. The condition is stricter
+in such the case. The minimal number of groups has to be achievable not only individually, but also across all
+requested coupled resources with `compact!` or `tight!`
+strategies.
+
+Let us assume a worker from the example above. And assume that the there are the following
+free resources:
+
+* `cpus=[4, 4, 0]`
+* `gpus=[0, 2, 2]`
+
+The request `cpus=8 compact!` and `gpus=4 compact!` is enabled on a worker where `cpus` and `gpus` are not coupled;
+because each both resources can be taken from the minimal number of groups.
+
+The same request is not enabled on a worker where `cpus` and `gpus` are coupled, because resources are taken from three
+groups if we take an union of the used groups. But we can achieve a two groups in the union. e.g. the following
+situation:
+
+* `cpus=[4, 4, 0]`
+* `gpus=[2, 2, 0]`
 
 ### Non-integer allocation of resources
 
@@ -224,13 +294,14 @@ For sum resources, the amount is simply removed from the pool as in the case of 
 
 In the case of an indexed resource, the partial resource is always taken from a single index.
 It means that if there is an indexed resource with two indices that are both utilized on 0.75,
-then a task that ask for 0.5 of this resource will not be started, despite there is available 0.5 of the resource in
+then a task that asks for 0.5 of this resource will not be started, despite there is available 0.5 of the resource in
 total,
 because there is no single index that is free at least on 0.5.
 
-If non-integer is bigger than 1, than integer part is always satisfied as whole indices and rest is a part of another
+If non-integer is bigger than 1, then integer part is always satisfied as whole indices and the rest is a part of
+another
 index.
-E.g. when you ask for 2.5 of an indexed resource, you will get 2 complete indices and one index allocated on 50%.
+E.g., when you ask for 2.5 of an indexed resource, you will get 2 complete indices and one index allocated on 50%.
 
 !!! note
 
@@ -244,7 +315,7 @@ each resource request named `<NAME>`:
 * `HQ_RESOURCE_REQUEST_<NAME>` contains the amount of requested resources.
 * `HQ_RESOURCE_VALUES_<NAME>` contains the specific resource values allocated for the task as a
   comma-separated list. This variable is only filled for an indexed resource pool.
-  In case of non-integer amount, the partially allocated index is always the last index.
+  In the case of non-integer amount, the partially allocated index is always the last index.
 
 The slash symbol (`/`) in resource name is normalized to underscore (`_`) when being used in the
 environment variable name.

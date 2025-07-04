@@ -1,10 +1,28 @@
 ## Unreleased
 
+### Changes
+
+* Allocation policy `compact` is update.
+  It still tries to find the minimal number of the resource groups,
+  but when they are found, resources are evenly taken from the minimal groups.
+  For old behavior, use new policy `tight`.
+
+### New features
+
+* Implement resource "coupling".
+  You may specify that some resources are coupled, e.g. cpus and gpus.
+  That means that cpus are gpus are organized in numa nodes, and allocation strategy
+  will respect that, i.e., it tries to find cpus and gpus from the same numa nodes.
+  Note: The current implementation does not detect coupling automatically,
+  you have to specify it manually.
+* New policy `tight` (and `tight!`) that is the original implementation of `compact`.
+  The policy `compact` now behaves as is described in the section "Changes".
+* Resource policy `compact!` is now allowed to take fractional resource request.
+
 ### Fixes
 
 * Fixed the issue of possible ignoring idle timeout when time request is used.
 * Worker process terminated because of idle timeout now returns zero exit code.
-
 
 ## 0.23.0
 
@@ -12,19 +30,21 @@
 
 * In `--crash-limit` value 0 is no longer allowed, use `--crash-limit=unlimited`.
 * The `--workers-per-alloc` flag of the `hq alloc add` command has been **replaced** with `--max-workers-per-alloc`,
-  which determines the maximum number of workers to spawn in each allocation. Previously the flag caused the
+  which determines the maximum number of workers to spawn in each allocation. Previously, the flag caused the
   allocator to (almost) always spawn the determined number of workers per allocation, regardless of actual
   computational load.
 
 ### Changes
 
 The automatic allocator has been finally reimplemented, and is now much better:
+
 * It now uses information from the scheduler to determine how many allocations to spawn, and thus it can react to the
   current computational load much more accurately. It should also be less "eager".
 * It properly supports multi-node tasks.
 * It considers computational load across all allocation queues (before, each queue was treated separately, which led to
   creating too many submissions).
-* It now exposes a `min-utilization` parameter, which can be used to avoid spawning an allocation that couldn't be utilized
+* It now exposes a `min-utilization` parameter, which can be used to avoid spawning an allocation that couldn't be
+  utilized
   enough.
 
 As this is a large behavioral change, we would be happy to hear your feedback!
@@ -34,8 +54,8 @@ As this is a large behavioral change, we would be happy to hear your feedback!
 * New command `hq task explain <job_id> <task_id>` explains why a task cannot be run on a given worker.
 * The server scheduler now slightly prioritizes tasks from older jobs and finishing partially-computed task graphs
 * New values for `--crash-limit`:
-  * `never-restart` - task is never restarted, even if it "crashes" on a worker that was explicitly terminated.
-  * `unlimited` - unlimited crash limit
+    * `never-restart` - task is never restarted, even if it "crashes" on a worker that was explicitly terminated.
+    * `unlimited` - unlimited crash limit
 * `hq worker info` contains more information
 * `hq job forget` tries to free more memory
 * You can now configure Job name in the Python API.
@@ -57,7 +77,6 @@ As this is a large behavioral change, we would be happy to hear your feedback!
 ### Experimental
 
 * Added direct data transfers between tasks. User API not stabilized
-
 
 ## 0.22.0
 
@@ -709,7 +728,7 @@ would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
   is `hq submit`, which is now a shortcut for `hq job submit`. Here is a table of changed commands:
 
   | **Previous command** | **New command**    |
-  |----------------------|--------------------|
+            |----------------------|--------------------|
   | `hq jobs`            | `hq job list`    |
   | `hq job`             | `hq job info`    |
   | `hq resubmit`        | `hq job resubmit` |
