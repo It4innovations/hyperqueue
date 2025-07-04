@@ -36,13 +36,16 @@ impl RunningWorker {
             let worker_dir = server_dir.join("worker");
             let work_dir = worker_dir.join("workdir");
             let mut configuration = WorkerConfiguration {
-                resources: ResourceDescriptor::new(vec![ResourceDescriptorItem {
-                    name: CPU_RESOURCE_NAME.to_string(),
-                    kind: ResourceDescriptorKind::Range {
-                        start: ResourceIndex::new(0),
-                        end: ResourceIndex::new((cores - 1) as u32),
-                    },
-                }]),
+                resources: ResourceDescriptor::new(
+                    vec![ResourceDescriptorItem {
+                        name: CPU_RESOURCE_NAME.to_string(),
+                        kind: ResourceDescriptorKind::Range {
+                            start: ResourceIndex::new(0),
+                            end: ResourceIndex::new((cores - 1) as u32),
+                        },
+                    }],
+                    None,
+                ),
                 listen_address: Default::default(),
                 hostname: get_hostname(None),
                 group: "default".to_string(),
