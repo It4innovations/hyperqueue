@@ -1,3 +1,26 @@
+## Unrelaesed
+
+### Changes
+
+* Allocation policy `compact` is update. 
+  It still tries to find the minimal number of the resource groups,
+  but when they are found, resources are evenly taken from the minimal groups.
+  For old behavior, use new policy `tight`.
+
+
+### New features
+
+* Implement resource "coupling".
+  You may specify that some resources are compled, e.g. cpus and gpus.
+  That means that cpus are gpus are organized in numa nodes, and allocation strategy
+  will respect that, i.e. it tries to find cpus and gpus from the same numa nodes.
+  Note: The current implementation do not detect coupling automatically,
+  you have to specify it manually.
+* New policy `tight` (and `tight!`) that is the original implementation of `compact`.
+  The policy `compact` now behaves as is described in the section "Changes".
+* Resource policy `compact!` is now allowed to take fractional resource request.
+
+
 ## 0.23.0
 
 ### Breaking change
