@@ -180,7 +180,7 @@ class HqEnv(Env):
         final_check: bool = True,
         hostname=None,
         expect_fail=None,
-    ) -> subprocess.Popen | None:
+    ) -> Optional[subprocess.Popen]:
         self.id_counter += 1
         worker_id = self.id_counter
         worker_env = self.make_default_env()
