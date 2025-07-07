@@ -190,7 +190,9 @@ impl ResourceAllocator {
         let mut coupling: SmallVec<[&ResourceAllocRequest; FAST_MAX_COUPLED_RESOURCES]> =
             SmallVec::new();
         if !request.entries().iter().all(|entry| {
-            let pool = &pools[entry.resource_id.as_usize()];
+            let Some(pool) = pools.get(entry.resource_id.as_usize()) else {
+                return false;
+            };
             if let ResourcePool::Groups(g) = pool {
                 if g.is_coupled() && entry.request.is_relevant_for_coupling() {
                     coupling.push(entry);
