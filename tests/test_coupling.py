@@ -117,9 +117,9 @@ def test_coupling_alloc2(hq_env: HqEnv):
             g.add(int(f) // 10)
         return g
 
-    with open(f"job-1/0.stdout", "r") as f:
+    with open("job-1/0.stdout", "r") as f:
         assert len(get_groups(f.read())) == 2
-    with open(f"job-2/0.stdout", "r") as f:
+    with open("job-2/0.stdout", "r") as f:
         assert len(get_groups(f.read())) == 2
 
 
