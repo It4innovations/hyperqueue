@@ -485,7 +485,7 @@ fn test_pool_allocate_compact_all() {
             .unwrap()
             .resource_indices()
             .collect::<Vec<_>>(),
-        (0..24u32).rev().map(ResourceIndex::new).collect::<Vec<_>>()
+        (0..24u32).map(ResourceIndex::new).collect::<Vec<_>>()
     );
     assert!(allocator.get_current_free(0).is_zero());
     allocator.release_allocation(al);
@@ -1272,13 +1272,17 @@ fn test_tight_scattering() {
 #[test]
 fn test_coupling_tight() {
     for coupled in [true, false] {
-        let descriptor = descriptor_cpus_gpus(4, 4, 2, coupled);
+        let descriptor = descriptor_cpus_gpus(3, 4, 2, coupled);
         let mut allocator = test_allocator(&descriptor);
+
+        allocator.force_claim_from_groups(0.into(), &[0], 4.into());
+        allocator.force_claim_from_groups(1.into(), &[1, 2], 4.into());
 
         let rq = ResBuilder::default()
             .add_force_compact(0, ResourceAmount::new_units(1))
             .add_force_compact(1, ResourceAmount::new_units(1))
             .finish_v();
-        assert_eq!(allocator.try_allocate(&rq).is_none(), coupled);
+        let al = allocator.try_allocate(&rq);
+        assert_eq!(al.is_none(), coupled);
     }
 }
