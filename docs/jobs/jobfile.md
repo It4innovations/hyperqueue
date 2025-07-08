@@ -101,7 +101,7 @@ command = ["sleep", "3"]
 If you want to create uniform tasks you can define task array (similar to `--array`):
 
 ```toml
-[[array]]
+[array]
 ids = "1,2,50-100"
 command = ["sleep", "1"]
 ```
@@ -109,7 +109,7 @@ command = ["sleep", "1"]
 You can also specify array with content of `HQ_ENTRIES`:
 
 ```toml
-[[array]]
+[array]
 entries = ["One", "Two", "Three"]
 command = ["sleep", "1"]
 ```
