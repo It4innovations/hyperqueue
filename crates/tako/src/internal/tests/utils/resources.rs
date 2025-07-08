@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::internal::common::resources::request::{ResourceRequest, ResourceRequestEntry};
+use crate::internal::common::resources::request::{ResourceAllocRequest, ResourceRequest};
 use crate::internal::common::resources::{ResourceId, ResourceRequestVariants, ResourceVec};
 use crate::resources::{AllocationRequest, NumOfNodes, ResourceAmount, ResourceUnits};
 pub use ResourceRequestBuilder as ResBuilder;
@@ -8,7 +8,7 @@ pub use ResourceRequestBuilder as ResBuilder;
 #[derive(Default, Clone)]
 pub struct ResourceRequestBuilder {
     n_nodes: NumOfNodes,
-    resources: Vec<ResourceRequestEntry>,
+    resources: Vec<ResourceAllocRequest>,
     min_time: Duration,
 }
 
@@ -27,7 +27,7 @@ impl ResourceRequestBuilder {
     }
 
     fn _add(&mut self, id: ResourceId, request: AllocationRequest) {
-        self.resources.push(ResourceRequestEntry {
+        self.resources.push(ResourceAllocRequest {
             resource_id: id,
             request,
         });
@@ -48,6 +48,24 @@ impl ResourceRequestBuilder {
         amount: A,
     ) -> Self {
         self._add(id.into(), AllocationRequest::ForceCompact(amount.into()));
+        self
+    }
+
+    pub fn add_tight<Id: Into<ResourceId>, A: Into<ResourceAmount>>(
+        mut self,
+        id: Id,
+        amount: A,
+    ) -> Self {
+        self._add(id.into(), AllocationRequest::Tight(amount.into()));
+        self
+    }
+
+    pub fn add_force_tight<Id: Into<ResourceId>, A: Into<ResourceAmount>>(
+        mut self,
+        id: Id,
+        amount: A,
+    ) -> Self {
+        self._add(id.into(), AllocationRequest::ForceTight(amount.into()));
         self
     }
 
@@ -75,7 +93,7 @@ impl ResourceRequestBuilder {
         if !self.resources.iter().any(|r| r.resource_id == 0.into()) {
             self.resources.insert(
                 0,
-                ResourceRequestEntry {
+                ResourceAllocRequest {
                     resource_id: 0.into(),
                     request: AllocationRequest::Compact(ResourceAmount::new_units(1)),
                 },

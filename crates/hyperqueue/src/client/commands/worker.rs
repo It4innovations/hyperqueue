@@ -6,7 +6,8 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
 use tako::resources::{
-    CPU_RESOURCE_NAME, ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind,
+    CPU_RESOURCE_NAME, ResourceDescriptiorCoupling, ResourceDescriptor, ResourceDescriptorItem,
+    ResourceDescriptorKind,
 };
 use tako::worker::{ServerLostPolicy, WorkerConfiguration};
 use tako::{Map, Set};
@@ -39,7 +40,9 @@ use crate::worker::bootstrap::{
 use crate::worker::hwdetect::{
     GPU_ENVIRONMENTS, detect_additional_resources, detect_cpus, prune_hyper_threading,
 };
-use crate::worker::parser::{parse_cpu_definition, parse_resource_definition};
+use crate::worker::parser::{
+    parse_cpu_definition, parse_resource_coupling, parse_resource_definition,
+};
 use crate::{DEFAULT_WORKER_GROUP_NAME, rpc_call};
 use tako::WorkerId;
 
@@ -96,6 +99,13 @@ pub struct SharedWorkerStartOpts {
     /// if running outside a manager, then the group is empty.
     #[arg(long)]
     pub group: Option<String>,
+
+    /// Resource coupling
+    ///
+    /// Examples:{n}
+    /// - `--coupling cpus,gpus"
+    #[arg(long, action = clap::ArgAction::Append, value_parser = passthrough_parser(parse_resource_coupling))]
+    pub coupling: Option<PassThroughArgument<ResourceDescriptiorCoupling>>,
 
     #[clap(long)]
     /// Disables auto-detection of resources
@@ -220,6 +230,7 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
             SharedWorkerStartOpts {
                 cpus,
                 resource,
+                coupling,
                 group,
                 no_detect_resources,
                 no_hyper_threading,
@@ -304,8 +315,8 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
             );
         }
     }
-
-    let resources = ResourceDescriptor::new(resources);
+    let coupling: Option<_> = coupling.map(|x| x.into_parsed_arg());
+    let resources = ResourceDescriptor::new(resources, coupling);
     resources.validate(true)?;
 
     let work_dir = {

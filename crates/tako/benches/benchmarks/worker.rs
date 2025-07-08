@@ -15,8 +15,8 @@ use tako::internal::worker::task::{Task, TaskState};
 use tako::launcher::{StopReason, TaskBuildContext, TaskLaunchData, TaskLauncher, TaskResult};
 use tako::resources::ResourceAmount;
 use tako::resources::{
-    AllocationRequest, CPU_RESOURCE_NAME, NVIDIA_GPU_RESOURCE_NAME, ResourceDescriptor,
-    ResourceDescriptorItem, ResourceDescriptorKind, ResourceRequest, ResourceRequestEntry,
+    AllocationRequest, CPU_RESOURCE_NAME, NVIDIA_GPU_RESOURCE_NAME, ResourceAllocRequest,
+    ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind, ResourceRequest,
     ResourceRequestVariants, TimeRequest,
 };
 use tokio::sync::Notify;
@@ -169,16 +169,19 @@ fn bench_cancel_waiting_task(c: &mut BenchmarkGroup<WallTime>) {
 }
 
 fn create_resource_queue(num_cpus: u32) -> ResourceWaitQueue {
-    let descriptor = ResourceDescriptor::new(vec![
-        ResourceDescriptorItem {
-            name: CPU_RESOURCE_NAME.to_string(),
-            kind: ResourceDescriptorKind::simple_indices(num_cpus),
-        },
-        ResourceDescriptorItem {
-            name: NVIDIA_GPU_RESOURCE_NAME.to_string(),
-            kind: ResourceDescriptorKind::simple_indices(8),
-        },
-    ]);
+    let descriptor = ResourceDescriptor::new(
+        vec![
+            ResourceDescriptorItem {
+                name: CPU_RESOURCE_NAME.to_string(),
+                kind: ResourceDescriptorKind::simple_indices(num_cpus),
+            },
+            ResourceDescriptorItem {
+                name: NVIDIA_GPU_RESOURCE_NAME.to_string(),
+                kind: ResourceDescriptorKind::simple_indices(8),
+            },
+        ],
+        None,
+    );
     ResourceWaitQueue::new(res_allocator_from_descriptor(descriptor))
 }
 
@@ -202,11 +205,11 @@ fn bench_resource_queue_release_allocation(c: &mut BenchmarkGroup<WallTime>) {
                     0,
                     TimeRequest::new(0, 0),
                     smallvec![
-                        ResourceRequestEntry {
+                        ResourceAllocRequest {
                             resource_id: 0.into(),
                             request: AllocationRequest::Compact(ResourceAmount::new_units(64)),
                         },
-                        ResourceRequestEntry {
+                        ResourceAllocRequest {
                             resource_id: 1.into(),
                             request: AllocationRequest::Compact(ResourceAmount::new_units(2)),
                         },
@@ -244,13 +247,13 @@ fn bench_resource_queue_start_tasks(c: &mut BenchmarkGroup<WallTime>) {
                                     0,
                                     TimeRequest::new(0, 0),
                                     smallvec![
-                                        ResourceRequestEntry {
+                                        ResourceAllocRequest {
                                             resource_id: 0.into(),
                                             request: AllocationRequest::Compact(
                                                 ResourceAmount::new_units(64)
                                             ),
                                         },
-                                        ResourceRequestEntry {
+                                        ResourceAllocRequest {
                                             resource_id: 1.into(),
                                             request: AllocationRequest::Compact(
                                                 ResourceAmount::new_units(2)

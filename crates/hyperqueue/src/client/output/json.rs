@@ -565,9 +565,13 @@ fn format_worker_info(worker_info: WorkerInfo) -> serde_json::Value {
     })
 }
 fn format_resource_descriptor(descriptor: &ResourceDescriptor) -> Value {
-    let ResourceDescriptor { resources } = descriptor;
+    let ResourceDescriptor {
+        resources,
+        coupling,
+    } = descriptor;
     json!({
-        "resources": resources.iter().map(format_resource).collect::<Vec<_>>()
+        "resources": resources.iter().map(format_resource).collect::<Vec<_>>(),
+        "coupling": coupling,
     })
 }
 

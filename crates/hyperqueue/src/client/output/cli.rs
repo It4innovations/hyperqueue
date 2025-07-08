@@ -1663,6 +1663,14 @@ fn resources_summary(resources: &ResourceDescriptor, multiline: bool) -> String 
             special_format(descriptor).unwrap_or_else(|| resource_summary_kind(&descriptor.kind))
         )
         .unwrap();
+        if multiline
+            && resources
+                .coupling
+                .as_ref()
+                .is_some_and(|c| c.names.contains(&descriptor.name))
+        {
+            result.push_str(" [coupled]");
+        }
         first = false;
     }
     result
@@ -1723,43 +1731,55 @@ mod tests {
 
     #[test]
     fn test_resources_summary() {
-        let d = ResourceDescriptor::new(vec![ResourceDescriptorItem {
-            name: "cpus".into(),
-            kind: ResourceDescriptorKind::simple_indices(1),
-        }]);
+        let d = ResourceDescriptor::new(
+            vec![ResourceDescriptorItem {
+                name: "cpus".into(),
+                kind: ResourceDescriptorKind::simple_indices(1),
+            }],
+            None,
+        );
         assert_eq!(resources_summary(&d, false), "cpus 1");
 
-        let d = ResourceDescriptor::new(vec![ResourceDescriptorItem {
-            name: "cpus".into(),
-            kind: ResourceDescriptorKind::simple_indices(5),
-        }]);
+        let d = ResourceDescriptor::new(
+            vec![ResourceDescriptorItem {
+                name: "cpus".into(),
+                kind: ResourceDescriptorKind::simple_indices(5),
+            }],
+            None,
+        );
         assert_eq!(resources_summary(&d, true), "cpus: 5");
 
-        let d = ResourceDescriptor::new(vec![
-            ResourceDescriptorItem {
-                name: "cpus".into(),
-                kind: res_kind_groups(&[vec!["0", "1", "2", "4"], vec!["10", "11", "12", "14"]]),
-            },
-            ResourceDescriptorItem {
-                name: "gpus".into(),
-                kind: res_kind_list(&["4", "7"]),
-            },
-            ResourceDescriptorItem {
-                name: "mmmem".into(),
-                kind: res_kind_sum(1234),
-            },
-            ResourceDescriptorItem {
-                name: "zzz".into(),
-                kind: res_kind_groups(&[
-                    vec!["0", "1"],
-                    vec!["10", "11"],
-                    vec!["20", "21"],
-                    vec!["30", "31"],
-                    vec!["40", "41"],
-                    vec!["50", "51", "52", "53", "54", "55"],
-                ]),
-            },
-        ]);
+        let d = ResourceDescriptor::new(
+            vec![
+                ResourceDescriptorItem {
+                    name: "cpus".into(),
+                    kind: res_kind_groups(&[
+                        vec!["0", "1", "2", "4"],
+                        vec!["10", "11", "12", "14"],
+                    ]),
+                },
+                ResourceDescriptorItem {
+                    name: "gpus".into(),
+                    kind: res_kind_list(&["4", "7"]),
+                },
+                ResourceDescriptorItem {
+                    name: "mmmem".into(),
+                    kind: res_kind_sum(1234),
+                },
+                ResourceDescriptorItem {
+                    name: "zzz".into(),
+                    kind: res_kind_groups(&[
+                        vec!["0", "1"],
+                        vec!["10", "11"],
+                        vec!["20", "21"],
+                        vec!["30", "31"],
+                        vec!["40", "41"],
+                        vec!["50", "51", "52", "53", "54", "55"],
+                    ]),
+                },
+            ],
+            None,
+        );
         assert_eq!(
             resources_summary(&d, true),
             "cpus: 2x4\ngpus: 2\nmmmem: 1234\nzzz: 5x2 1x6"
@@ -1772,26 +1792,35 @@ mod tests {
 
     #[test]
     fn test_resource_full_describe() {
-        let d = ResourceDescriptor::new(vec![ResourceDescriptorItem {
-            name: "cpus".into(),
-            kind: ResourceDescriptorKind::simple_indices(1),
-        }]);
+        let d = ResourceDescriptor::new(
+            vec![ResourceDescriptorItem {
+                name: "cpus".into(),
+                kind: ResourceDescriptorKind::simple_indices(1),
+            }],
+            None,
+        );
         assert_eq!(resources_full_describe(&d), "cpus: [0]");
 
-        let d = ResourceDescriptor::new(vec![
-            ResourceDescriptorItem {
-                name: "cpus".into(),
-                kind: res_kind_groups(&[vec!["0", "1", "2", "4"], vec!["10", "11", "12", "14"]]),
-            },
-            ResourceDescriptorItem {
-                name: "gpus".into(),
-                kind: res_kind_list(&["4", "7"]),
-            },
-            ResourceDescriptorItem {
-                name: "mem".into(),
-                kind: res_kind_sum(1234),
-            },
-        ]);
+        let d = ResourceDescriptor::new(
+            vec![
+                ResourceDescriptorItem {
+                    name: "cpus".into(),
+                    kind: res_kind_groups(&[
+                        vec!["0", "1", "2", "4"],
+                        vec!["10", "11", "12", "14"],
+                    ]),
+                },
+                ResourceDescriptorItem {
+                    name: "gpus".into(),
+                    kind: res_kind_list(&["4", "7"]),
+                },
+                ResourceDescriptorItem {
+                    name: "mem".into(),
+                    kind: res_kind_sum(1234),
+                },
+            ],
+            None,
+        );
         assert_eq!(
             resources_full_describe(&d),
             "cpus: [[0,1,2,4],[10,11,12,14]]\ngpus: [4,7]\nmem: sum(1234)"
@@ -1800,10 +1829,13 @@ mod tests {
 
     #[test]
     fn test_resources_summary_mem() {
-        let d = ResourceDescriptor::new(vec![ResourceDescriptorItem {
-            name: MEM_RESOURCE_NAME.into(),
-            kind: res_kind_sum(4 * 1024 + 123),
-        }]);
+        let d = ResourceDescriptor::new(
+            vec![ResourceDescriptorItem {
+                name: MEM_RESOURCE_NAME.into(),
+                kind: res_kind_sum(4 * 1024 + 123),
+            }],
+            None,
+        );
         assert_eq!(resources_summary(&d, false), "mem 4.12 GiB");
     }
 }

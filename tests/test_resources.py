@@ -522,3 +522,44 @@ def test_resources_and_many_priorities(hq_env: HqEnv):
         return s == 6 * ["WAITING"] + 3 * ["RUNNING"] + 3 * ["WAITING"] + 9 * ["RUNNING"]
 
     wait_until(check, timeout_s=5)
+
+
+def groups(job_id):
+    with open(default_task_output(job_id)) as f:
+        data = [int(x) // 10 for x in f.read().rstrip().split(",")]
+    c = collections.Counter(data)
+    return sorted(c.values())
+
+
+def test_tight_vs_compact_policy(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["submit", "--cpus", "6 tight", "--", "bash", "-c", "echo $HQ_CPUS"])
+    hq_env.command(["submit", "--cpus", "6 tight!", "--", "bash", "-c", "echo $HQ_CPUS"])
+
+    table = hq_env.command(["job", "info", "1"], as_table=True)
+    table.check_row_value("Resources", "cpus: 6 tight")
+    table = hq_env.command(["job", "info", "2"], as_table=True)
+    table.check_row_value("Resources", "cpus: 6 tight!")
+
+    hq_env.start_worker(cpus="[[1, 2, 3, 4], [11, 12, 13, 14], [21, 22, 23, 24]]")
+    wait_for_job_state(hq_env, [1, 2], "FINISHED")
+
+    hq_env.command(["submit", "--cpus", "6 compact", "--", "bash", "-c", "echo $HQ_CPUS"])
+    hq_env.command(["submit", "--cpus", "6 compact!", "--", "bash", "-c", "echo $HQ_CPUS"])
+
+    wait_for_job_state(hq_env, [3, 4], "FINISHED")
+
+    assert groups(1) == [2, 4]
+    assert groups(2) == [2, 4]
+    assert groups(3) == [3, 3]
+    assert groups(4) == [3, 3]
+
+
+def test_fractional_force_compact(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["submit", "--priority=10", "--array=1-100", "--cpus", "0.3 compact!", "--", "sleep", "0"])
+    hq_env.command(["submit", "--cpus", "2.5 compact!", "--", "bash", "-c", "echo $HQ_CPUS"])
+
+    hq_env.start_worker(cpus="[[1, 2], [11, 12], [21, 22]]")
+    wait_for_job_state(hq_env, [1, 2], "FINISHED")
+    assert groups(2) == [1, 2]

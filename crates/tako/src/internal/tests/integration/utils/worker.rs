@@ -73,9 +73,7 @@ pub fn create_worker_configuration(
     } = builder.build().unwrap();
     (
         WorkerConfiguration {
-            resources: ResourceDescriptor {
-                resources: resources.resources,
-            },
+            resources: ResourceDescriptor::new(resources.resources, None),
             listen_address: "".to_string(),
             hostname: "".to_string(),
             group: "".to_string(),
