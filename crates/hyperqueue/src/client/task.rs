@@ -27,6 +27,8 @@ pub enum TaskCommand {
     Info(TaskInfoOpts),
     /// Explain if task can run on a selected worker
     Explain(TaskExplainOpts),
+    /// Display working directory of selected task(s)
+    Workdir(TaskWorkdirOpts),
 }
 
 #[derive(clap::Parser)]
@@ -63,6 +65,16 @@ pub struct TaskExplainOpts {
 
     /// Select specific task(s)
     pub task_id: JobTaskId,
+}
+
+#[derive(clap::Parser)]
+pub struct TaskWorkdirOpts {
+    /// Select specific job
+    #[arg(value_parser = parse_last_single_id)]
+    pub job_selector: SingleIdSelector,
+
+    /// Select specific task(s)
+    pub task_selector: IntArray,
 }
 
 pub async fn output_job_task_list(
@@ -198,5 +210,46 @@ pub async fn output_job_task_explain(
     gsettings
         .printer()
         .print_explanation(response.task_id, &response.explanation);
+    Ok(())
+}
+
+pub async fn output_job_task_workdir(
+    gsettings: &GlobalSettings,
+    session: &mut ClientSession,
+    opts: TaskWorkdirOpts,
+) -> anyhow::Result<()> {
+    let task_selector = TaskSelector {
+        id_selector: TaskIdSelector::Specific(opts.task_selector),
+        status_selector: TaskStatusSelector::All,
+    };
+
+    let job_id_selector = match opts.job_selector {
+        SingleIdSelector::Specific(id) => IdSelector::Specific(IntArray::from_id(id)),
+        SingleIdSelector::Last => IdSelector::LastN(1),
+    };
+
+    let message = FromClientMessage::JobDetail(JobDetailRequest {
+        job_id_selector,
+        task_selector: Some(task_selector),
+    });
+    let response =
+        rpc_call!(session.connection(), message, ToClientMessage::JobDetailResponse(r) => r)
+            .await?;
+
+    let jobs = response
+        .details
+        .into_iter()
+        .filter_map(|(job_id, opt_job)| match opt_job {
+            Some(job) => Some((job_id, job)),
+            None => {
+                log::warn!("Job {job_id} not found");
+                None
+            }
+        })
+        .collect();
+
+    gsettings
+        .printer()
+        .print_task_workdir(jobs, &response.server_uid);
     Ok(())
 }
