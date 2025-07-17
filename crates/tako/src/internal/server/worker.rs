@@ -5,7 +5,9 @@ use crate::internal::common::Set;
 use crate::internal::common::resources::TimeRequest;
 use crate::internal::common::resources::map::ResourceMap;
 use crate::internal::common::resources::{ResourceRequest, ResourceRequestVariants};
-use crate::internal::server::task::Task;
+use crate::internal::messages::worker::{TaskIdsMsg, ToWorkerMessage};
+use crate::internal::server::comm::Comm;
+use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::taskmap::TaskMap;
 use crate::internal::server::workerload::{ResourceRequestLowerBound, WorkerLoad, WorkerResources};
 use crate::internal::worker::configuration::WorkerConfiguration;
@@ -235,6 +237,54 @@ impl Worker {
         })
     }
 
+    pub fn set_stopping_flag(&mut self, value: bool) {
+        self.flags.set(WorkerFlags::STOPPING, value);
+    }
+
+    pub fn is_stopping(&self) -> bool {
+        self.flags.contains(WorkerFlags::STOPPING)
+    }
+
+    pub fn retract_overtime_tasks(
+        &mut self,
+        comm: &mut impl Comm,
+        task_map: &mut TaskMap,
+        now: Instant,
+    ) {
+        if self.termination_time.is_none() || self.mn_task.is_some() {
+            return;
+        }
+        let task_ids: Vec<TaskId> = self
+            .sn_tasks
+            .iter()
+            .copied()
+            .filter(|task_id| {
+                let task = task_map.get_task_mut(*task_id);
+                if task.is_assigned()
+                    && !self.is_capable_to_run_rqv(&task.configuration.resources, now)
+                {
+                    log::debug!(
+                        "Retracting task={task_id}, time request cannot be fulfilled anymore"
+                    );
+                    task.state = TaskRuntimeState::Stealing(self.id, None);
+                    true
+                } else {
+                    false
+                }
+            })
+            .collect();
+        if !task_ids.is_empty() {
+            for task_id in &task_ids {
+                self.sn_tasks.remove(task_id);
+            }
+            comm.send_worker_message(
+                self.id,
+                &ToWorkerMessage::StealTasks(TaskIdsMsg { ids: task_ids }),
+            );
+            comm.ask_for_scheduling();
+        }
+    }
+
     pub fn has_time_to_run(&self, time_request: TimeRequest, now: Instant) -> bool {
         if let Some(time) = self.termination_time {
             now + time_request < time
@@ -244,20 +294,7 @@ impl Worker {
     }
 
     pub fn has_time_to_run_for_rqv(&self, rqv: &ResourceRequestVariants, now: Instant) -> bool {
-        if self.termination_time.is_none() {
-            return true;
-        }
-        rqv.requests()
-            .iter()
-            .any(|r| self.has_time_to_run(r.min_time(), now))
-    }
-
-    pub fn set_stopping_flag(&mut self, value: bool) {
-        self.flags.set(WorkerFlags::STOPPING, value);
-    }
-
-    pub fn is_stopping(&self) -> bool {
-        self.flags.contains(WorkerFlags::STOPPING)
+        self.has_time_to_run(rqv.min_time(), now)
     }
 }
 

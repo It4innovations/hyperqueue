@@ -262,7 +262,11 @@ impl ResourceRequestVariants {
     }
 
     pub fn min_time(&self) -> TimeRequest {
-        self.variants.iter().map(|v| v.min_time).min().unwrap()
+        self.variants
+            .iter()
+            .map(|v| v.min_time)
+            .min()
+            .unwrap_or(Duration::new(0, 0))
     }
 
     pub fn to_gateway(
