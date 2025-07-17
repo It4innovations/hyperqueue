@@ -258,7 +258,6 @@ impl Task {
         matches!(&self.state, TaskRuntimeState::Waiting(_))
     }
 
-    #[cfg(test)] // Used only tests, feel free to make it non-test-code
     #[inline]
     pub(crate) fn is_assigned(&self) -> bool {
         matches!(&self.state, TaskRuntimeState::Assigned(_))

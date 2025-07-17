@@ -786,7 +786,7 @@ fn test_query_unknown_do_not_add_extra() {
 fn test_query_after_task_cancel() {
     let mut rt = TestEnv::new();
     submit_test_tasks(
-        &mut rt.core(),
+        rt.core(),
         vec![TaskBuilder::new(1).cpus_compact(10).build()],
     );
     create_test_worker(rt.core(), 102.into(), 1);

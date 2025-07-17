@@ -316,9 +316,7 @@ def test_deploy_ssh_error(hq_env: HqEnv):
     hq_env.start_server()
     with hq_env.mock.mock_program_with_code(
         "ssh",
-        """
-        exit(42)
-        """,
+        "exit(42)",
     ):
         nodefile = prepare_localhost_nodefile()
         hq_env.command(["worker", "deploy-ssh", nodefile], expect_fail="Worker exited with code 42")
@@ -351,9 +349,9 @@ def test_deploy_ssh_wait_for_worker(hq_env: HqEnv):
     with hq_env.mock.mock_program_with_code(
         "ssh",
         """
-        import time
-        time.sleep(1)
-        """,
+import time
+time.sleep(1)
+""",
     ):
         nodefile = prepare_localhost_nodefile()
         hq_env.command(["worker", "deploy-ssh", nodefile])
@@ -364,12 +362,12 @@ def test_deploy_ssh_multiple_workers(hq_env: HqEnv):
     with hq_env.mock.mock_program_with_code(
         "ssh",
         """
-        import os
+import os
 
-        os.makedirs("workers", exist_ok=True)
-        with open(f"workers/{os.getpid()}", "w") as f:
-            f.write(str(os.getpid()))
-        """,
+os.makedirs("workers", exist_ok=True)
+with open(f"workers/{os.getpid()}", "w") as f:
+    f.write(str(os.getpid()))
+""",
     ):
         nodefile = prepare_localhost_nodefile(count=3)
         hq_env.command(["worker", "deploy-ssh", nodefile])
@@ -381,8 +379,8 @@ def test_deploy_ssh_show_output(hq_env: HqEnv):
     with hq_env.mock.mock_program_with_code(
         "ssh",
         """
-        print("FOOBAR")
-        """,
+print("FOOBAR")
+""",
     ):
         nodefile = prepare_localhost_nodefile(count=3)
         output = hq_env.command(["worker", "deploy-ssh", "--show-output", nodefile])
@@ -436,3 +434,11 @@ def test_worker_state_info(hq_env: HqEnv):
     b = table.get_row_value("Runtime Info")
     assert "2@0" in table.get_row_value("Last task started")
     assert {a, b} == {"running multinode task; main node", "running multinode task; secondary node"}
+
+
+def test_worker_idle_timeout_vs_time_request(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["submit", "--array=1-20", "--time-request=18s500ms", "--", "sleep", "1"])
+    worker = hq_env.start_worker(cpus=1, args=["--heartbeat=500ms", "--idle-timeout=1s500ms", "--time-limit=20s"])
+    time.sleep(6)
+    hq_env.check_process_exited(worker, expected_code=1)

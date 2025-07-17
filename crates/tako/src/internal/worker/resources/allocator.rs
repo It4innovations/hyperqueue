@@ -319,7 +319,6 @@ impl ResourceAllocator {
 
 #[cfg(test)]
 mod tests {
-
     use crate::internal::common::resources::descriptor::{
         ResourceDescriptor, ResourceDescriptorKind,
     };
