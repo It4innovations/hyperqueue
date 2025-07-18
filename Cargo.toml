@@ -39,7 +39,7 @@ thiserror = "2"
 tempfile = "3.12.0"
 tracing = "0.1"
 anyhow = "1"
-nix = { version = "0.29", features = ["process", "signal"] }
+nix = { version = "0.30", features = ["process", "signal"] }
 bstr = { version = "1", features = ["serde"] }
 psutil = "3"
 thin-vec = { version = "0.2", features = ["serde"] }
