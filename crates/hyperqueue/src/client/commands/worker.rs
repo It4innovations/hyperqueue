@@ -309,7 +309,7 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
     resources.validate(true)?;
 
     let work_dir = {
-        let tmpdir = TempDir::with_prefix("hq-worker")?.into_path();
+        let tmpdir = TempDir::with_prefix("hq-worker")?.keep();
         work_dir.unwrap_or_else(|| tmpdir.join("work"))
     };
 
