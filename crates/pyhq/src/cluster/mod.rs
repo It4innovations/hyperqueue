@@ -15,8 +15,7 @@ pub struct Cluster {
 
 impl Cluster {
     pub fn start(server_dir: Option<PathBuf>) -> anyhow::Result<Self> {
-        let server_dir =
-            server_dir.unwrap_or_else(|| TempDir::with_prefix("hq").unwrap().into_path());
+        let server_dir = server_dir.unwrap_or_else(|| TempDir::with_prefix("hq").unwrap().keep());
         let server = RunningServer::start(server_dir.clone())?;
         Ok(Self {
             server: Some(server),
