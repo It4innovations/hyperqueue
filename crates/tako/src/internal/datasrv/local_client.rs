@@ -1,34 +1,24 @@
-use crate::comm::{deserialize, serialize};
 use crate::internal::common::error::DsError;
 use crate::internal::datasrv::dataobj::{DataInputId, OutputId};
 use crate::internal::datasrv::messages::{
     DataDown, FromLocalDataClientMessageUp, PutDataUp, ToLocalDataClientMessageDown,
 };
 use crate::internal::datasrv::utils::UPLOAD_CHUNK_SIZE;
-use crate::internal::worker::localcomm::IntroMessage;
+use crate::internal::worker::localclient::LocalClientConnection;
+use crate::internal::worker::localcomm::ConnectionType;
 use bstr::BStr;
-use futures::{SinkExt, StreamExt};
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
-use tokio::net::UnixStream;
-use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
 pub struct LocalDataClient {
-    stream: Framed<UnixStream, LengthDelimitedCodec>,
+    connection: LocalClientConnection,
 }
 
 impl LocalDataClient {
     pub async fn connect(path: &Path, token: &BStr) -> crate::Result<Self> {
-        log::debug!("Creating local connection to: {}", path.display());
-        let stream = UnixStream::connect(path).await?;
-        let mut stream =
-            crate::internal::worker::localcomm::make_protocol_builder().new_framed(stream);
-        let data = serialize(&IntroMessage {
-            token: token.into(),
-        })?;
-        stream.send(data.into()).await?;
-        Ok(LocalDataClient { stream })
+        let connection = LocalClientConnection::connect(path, token, ConnectionType::Data).await?;
+        Ok(LocalDataClient { connection })
     }
 
     #[allow(clippy::needless_lifetimes)]
@@ -36,24 +26,11 @@ impl LocalDataClient {
         &mut self,
         message: FromLocalDataClientMessageUp<'a>,
     ) -> crate::Result<()> {
-        let data = serialize(&message)?;
-        self.stream.send(data.into()).await?;
-        Ok(())
+        self.connection.send_message(message).await
     }
 
     async fn read_message(&mut self) -> crate::Result<ToLocalDataClientMessageDown> {
-        let data = self.stream.next().await;
-        Ok(match data {
-            Some(data) => {
-                let data = data?;
-                deserialize(&data)?
-            }
-            None => {
-                return Err(DsError::GenericError(
-                    "Unexpected end of stream".to_string(),
-                ));
-            }
-        })
+        self.connection.read_message().await
     }
 
     pub async fn put_data_object_from_file(
