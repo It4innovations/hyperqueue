@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::gateway::WorkerRuntimeInfo;
+use crate::gateway::{LostWorkerReason, WorkerRuntimeInfo};
 use crate::internal::common::Set;
 use crate::internal::common::resources::TimeRequest;
 use crate::internal::common::resources::map::ResourceMap;
@@ -19,16 +19,13 @@ bitflags::bitflags! {
         // There is no "waiting" task for resources of this worker
         // Therefore this worker should not cause balancing even it is underloaded
         const PARKED = 0b00000001;
-        // The worker is in processed of being stopped. In the current implementation
-        // it is always the case when the user ask for stop
-        const STOPPING = 0b00000010;
         // The server sent message ReservationOn to worker that causes
         // that the worker will not be turned off because of idle timeout.
         // This state induced by processing multi node tasks.
         // It may occur when we are waiting for remaining workers for multi-node tasks
         // and for non-master nodes of a multi-node tasks (because they will not receive any
         // ComputeTask message).
-        const RESERVED = 0b00000100;
+        const RESERVED = 0b00000010;
     }
 }
 
@@ -56,6 +53,7 @@ pub struct Worker {
     pub(crate) flags: WorkerFlags,
     // When the worker will be terminated
     pub(crate) termination_time: Option<Instant>,
+    pub(crate) stop_reason: Option<LostWorkerReason>,
 
     pub(crate) mn_task: Option<MultiNodeTaskAssignment>,
 
@@ -237,12 +235,12 @@ impl Worker {
         })
     }
 
-    pub fn set_stopping_flag(&mut self, value: bool) {
-        self.flags.set(WorkerFlags::STOPPING, value);
+    pub fn set_stop(&mut self, reason: LostWorkerReason) {
+        self.stop_reason = Some(reason);
     }
 
     pub fn is_stopping(&self) -> bool {
-        self.flags.contains(WorkerFlags::STOPPING)
+        self.stop_reason.is_some()
     }
 
     pub fn retract_overtime_tasks(
@@ -315,6 +313,7 @@ impl Worker {
             sn_load: load,
             sn_tasks: Default::default(),
             flags: WorkerFlags::empty(),
+            stop_reason: None,
             last_heartbeat: now,
             mn_task: None,
             idle_timestamp: now,

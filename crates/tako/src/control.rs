@@ -8,7 +8,9 @@ use tokio::net::TcpListener;
 use tokio::sync::Notify;
 
 use crate::events::EventProcessor;
-use crate::gateway::{MultiNodeAllocationResponse, TaskSubmit, WorkerRuntimeInfo};
+use crate::gateway::{
+    LostWorkerReason, MultiNodeAllocationResponse, TaskSubmit, WorkerRuntimeInfo,
+};
 use crate::internal::common::error::DsError;
 use crate::internal::messages::worker::ToWorkerMessage;
 use crate::internal::scheduler::query::compute_new_worker_query;
@@ -81,7 +83,7 @@ impl ServerRef {
     pub fn stop_worker(&self, worker_id: WorkerId) -> crate::Result<()> {
         let mut core = self.core_ref.get_mut();
         if let Some(ref mut worker) = core.get_worker_mut(worker_id) {
-            worker.set_stopping_flag(true);
+            worker.set_stop(LostWorkerReason::Stopped);
             let mut comm = self.comm_ref.get_mut();
             comm.send_worker_message(worker_id, &ToWorkerMessage::Stop);
             Ok(())

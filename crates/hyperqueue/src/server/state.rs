@@ -239,13 +239,13 @@ impl State {
         }
 
         let worker = self.workers.get_mut(&worker_id).unwrap();
-        worker.set_offline_state(reason.clone());
+        worker.set_offline_state(reason);
 
         senders.autoalloc.on_worker_lost(
             worker_id,
             &worker.configuration,
             LostWorkerDetails {
-                reason: reason.clone(),
+                reason,
                 lifetime: (Utc::now() - worker.started_at()).to_std().unwrap(),
             },
         );

@@ -190,7 +190,7 @@ def test_idle_timeout_worker_cfg(hq_env: HqEnv):
     table.check_column_value("State", 0, "RUNNING")
 
     time.sleep(1.5)
-    hq_env.check_process_exited(w, expected_code=None)
+    hq_env.check_process_exited(w, expected_code=0)
     table = list_all_workers(hq_env)
     table.check_column_value("State", 0, "IDLE TIMEOUT")
 
@@ -441,4 +441,4 @@ def test_worker_idle_timeout_vs_time_request(hq_env: HqEnv):
     hq_env.command(["submit", "--array=1-20", "--time-request=18s500ms", "--", "sleep", "1"])
     worker = hq_env.start_worker(cpus=1, args=["--heartbeat=500ms", "--idle-timeout=1s500ms", "--time-limit=20s"])
     time.sleep(6)
-    hq_env.check_process_exited(worker, expected_code=1)
+    hq_env.check_process_exited(worker, expected_code=0)
