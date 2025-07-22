@@ -321,7 +321,7 @@ mod tests {
         );
         let path = TempDir::with_prefix("foo")
             .unwrap()
-            .into_path()
+            .keep()
             .join("access.json");
         store_access_record(&record, path.clone()).unwrap();
         let loaded = load_worker_access_file(&path).unwrap();

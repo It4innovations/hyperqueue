@@ -412,13 +412,13 @@ mod tests {
     #[tokio::test]
     async fn test_status_empty_directory() {
         let tmp_dir = TempDir::with_prefix("foo").unwrap();
-        assert!(get_server_status(&tmp_dir.into_path()).await.is_err());
+        assert!(get_server_status(&tmp_dir.keep()).await.is_err());
     }
 
     #[tokio::test]
     async fn test_status_directory_with_access_file() {
         let tmp_dir = TempDir::with_prefix("foo").unwrap();
-        let tmp_path = tmp_dir.into_path();
+        let tmp_path = tmp_dir.keep();
         let server_dir = ServerDir::open(&tmp_path).unwrap();
         let record = FullAccessRecord::new(
             ConnectAccessRecordPart {
@@ -441,7 +441,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_status_directory_with_symlink() {
-        let tmp_dir = TempDir::with_prefix("foo").unwrap().into_path();
+        let tmp_dir = TempDir::with_prefix("foo").unwrap().keep();
         let actual_dir = tmp_dir.join("server-dir");
         std::fs::create_dir(&actual_dir).unwrap();
         std::os::unix::fs::symlink(&actual_dir, tmp_dir.join(SYMLINK_PATH)).unwrap();
