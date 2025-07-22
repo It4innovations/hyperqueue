@@ -13,6 +13,8 @@ pub(crate) mod resources;
 pub(crate) mod data;
 pub(crate) mod localcomm;
 
+pub(crate) mod localclient;
+mod notifications;
 #[cfg(test)]
 mod test_rqueue;
 #[cfg(test)]

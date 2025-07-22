@@ -17,7 +17,7 @@ use tokio_util::codec::LengthDelimitedCodec;
 use tokio_util::codec::length_delimited::Builder;
 
 pub(crate) enum Registration {
-    DataConnection {
+    Task {
         task_id: TaskId,
         input_map: Option<Rc<Vec<DataObjectId>>>,
     },
@@ -55,7 +55,7 @@ pub(crate) struct LocalCommState {
 fn new_raw_token() -> BString {
     "hq0-"
         .bytes()
-        .chain(rand::rng().sample_iter(&Alphanumeric).take(12))
+        .chain(rand::rng().sample_iter(&Alphanumeric).take(8))
         .collect()
 }
 
@@ -74,7 +74,7 @@ impl LocalCommState {
             registered_tokens: Map::new(),
         }
     }
-    pub fn register_task(&mut self, registration: Registration) -> Token {
+    pub fn register(&mut self, registration: Registration) -> Token {
         loop {
             let token = Token::new();
             if self.registered_tokens.contains_key(&token) {
@@ -94,7 +94,7 @@ impl LocalCommState {
         self.registered_tokens.get(token)
     }
 
-    pub fn data_access_key(&self, token: &Token) -> BString {
+    pub fn access_key(&self, token: &Token) -> BString {
         let mut out = self
             .unix_socket_path
             .as_os_str()
@@ -112,8 +112,15 @@ impl LocalCommState {
 }
 
 #[derive(Serialize, Deserialize)]
+pub(crate) enum ConnectionType {
+    Notifier,
+    Data,
+}
+
+#[derive(Serialize, Deserialize)]
 pub(crate) struct IntroMessage {
     pub token: BString,
+    pub connection_type: ConnectionType,
 }
 
 pub(crate) fn make_protocol_builder() -> Builder {
@@ -134,15 +141,25 @@ async fn handle_connection(state_ref: WorkerStateRef, stream: UnixStream) -> cra
             .check_token(message.token.as_bstr())
             .ok_or_else(|| crate::Error::GenericError("Invalid token".to_string()))?;
         match registration {
-            Registration::DataConnection { task_id, input_map } => {
-                log::debug!("New local data connection: {task_id}");
-                let task_id = *task_id;
-                let input_map = input_map.clone();
-                drop(lc_state);
-                drop(state);
-                let state_ref = state_ref.clone();
-                datanode_local_connection_handler(state_ref, rx, tx, task_id, input_map).await?;
-            }
+            Registration::Task { task_id, input_map } => match message.connection_type {
+                ConnectionType::Data => {
+                    log::debug!("New local data connection: {task_id}");
+                    let task_id = *task_id;
+                    let input_map = input_map.clone();
+                    drop(lc_state);
+                    drop(state);
+                    let state_ref = state_ref.clone();
+                    datanode_local_connection_handler(state_ref, rx, tx, task_id, input_map)
+                        .await?;
+                }
+                ConnectionType::Notifier => {
+                    log::debug!("New local notifier connection: {task_id}");
+                    let task_id = *task_id;
+                    drop(lc_state);
+                    drop(state);
+                    todo!()
+                }
+            },
         }
     } else {
         log::debug!("Local connection: closed without providing intro message")

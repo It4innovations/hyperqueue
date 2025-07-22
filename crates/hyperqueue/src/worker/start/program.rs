@@ -16,8 +16,8 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::oneshot::Receiver;
 
 use crate::common::env::{
-    HQ_CPUS, HQ_DATA_ACCESS, HQ_ENTRY, HQ_ERROR_FILENAME, HQ_HOST_FILE, HQ_INSTANCE_ID, HQ_JOB_ID,
-    HQ_NODE_FILE, HQ_NUM_NODES, HQ_PIN, HQ_SUBMIT_DIR, HQ_TASK_DIR, HQ_TASK_ID,
+    HQ_CPUS, HQ_ENTRY, HQ_ERROR_FILENAME, HQ_HOST_FILE, HQ_INSTANCE_ID, HQ_JOB_ID, HQ_NODE_FILE,
+    HQ_NUM_NODES, HQ_PIN, HQ_SUBMIT_DIR, HQ_TASK_DIR, HQ_TASK_ID, HQ_TOKEN,
 };
 use crate::common::placeholders::{
     CompletePlaceholderCtx, ResolvablePaths, fill_placeholders_in_paths,
@@ -157,17 +157,16 @@ pub(super) fn build_program_task(
             HQ_INSTANCE_ID.into(),
             build_ctx.instance_id().to_string().into(),
         );
-        if let Some(key) = build_ctx.data_access_key() {
-            program.env.insert(HQ_DATA_ACCESS.into(), key);
-            program.env.insert(
-                "HQ".into(),
-                std::env::current_exe()
-                    .unwrap()
-                    .as_os_str()
-                    .as_bytes()
-                    .into(),
-            );
-        }
+        let key = build_ctx.access_key();
+        program.env.insert(HQ_TOKEN.into(), key);
+        program.env.insert(
+            "HQ".into(),
+            std::env::current_exe()
+                .unwrap()
+                .as_os_str()
+                .as_bytes()
+                .into(),
+        );
 
         let ctx = CompletePlaceholderCtx {
             task_id,
