@@ -47,16 +47,16 @@ fn download_update_priorities() {
 }
 
 #[tokio::test]
-async fn download_invalid_hostname() {
+async fn download_invalid_host() {
     let set = tokio::task::LocalSet::new();
     set.run_until(async move {
         let (dm_ref, interface) = test_download_manager();
 
         let data_id1 = DataObjectId::new(1.into(), 5.into());
-        interface.get_mut().hosts.insert(
-            data_id1,
-            PlacementConfig::Valid("nonexistingx:1".to_string()),
-        );
+        interface
+            .get_mut()
+            .hosts
+            .insert(data_id1, PlacementConfig::Valid("localhost:0".to_string()));
 
         let dm_ref2 = dm_ref.clone();
         start_download_manager(&dm_ref2, 1, 0);
