@@ -238,6 +238,14 @@ async fn worker_rpc_loop(
                     comm.send_worker_message(worker_id, &ToWorkerMessage::Stop);
                 }
             }
+
+            if let Some((_, stop)) = worker.stop_reason {
+                let delay = Duration::from_secs(60);
+                if now > stop + delay {
+                    log::debug!("Stopping of worker timeout");
+                    break LostWorkerReason::ConnectionLost;
+                }
+            }
         }
     };
 
@@ -275,6 +283,7 @@ async fn worker_rpc_loop(
     let reason = core
         .get_worker_by_id_or_panic(worker_id)
         .stop_reason
+        .map(|(r, _)| r)
         .unwrap_or(reason);
     comm.remove_worker(worker_id);
     on_remove_worker(&mut core, &mut *comm, worker_id, reason);
