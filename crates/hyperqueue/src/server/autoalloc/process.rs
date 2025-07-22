@@ -1903,7 +1903,7 @@ mod tests {
         run_test(async |mut ctx: TestCtx| {
             let make_dir = || {
                 let tempdir = TempDir::with_prefix("hq").unwrap();
-                tempdir.into_path()
+                tempdir.keep()
             };
 
             let max_kept = 2;
@@ -2488,7 +2488,7 @@ mod tests {
             WrappedRcRefCell::wrap(()),
             move |_, _| async move {
                 let tempdir = TempDir::with_prefix("hq").unwrap();
-                let dir = tempdir.into_path();
+                let dir = tempdir.keep();
 
                 Ok(AllocationSubmissionResult::new(
                     Err(anyhow::anyhow!("failure")),
@@ -2508,7 +2508,7 @@ mod tests {
             move |state, _worker_count| async move {
                 let mut state = state.get_mut();
                 let tempdir = TempDir::with_prefix("hq").unwrap();
-                let dir = tempdir.into_path();
+                let dir = tempdir.keep();
 
                 state.allocation_attempts += 1;
 
