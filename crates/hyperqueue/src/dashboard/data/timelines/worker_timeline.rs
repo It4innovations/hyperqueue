@@ -60,7 +60,7 @@ impl WorkerTimeline {
                 }
                 EventPayload::WorkerLost(lost_id, reason) => {
                     if let Some(worker) = self.workers.get_mut(lost_id) {
-                        worker.set_loss_details(event.time.into(), reason.clone());
+                        worker.set_loss_details(event.time.into(), *reason);
                     }
                 }
                 EventPayload::WorkerOverviewReceived(overview) => {

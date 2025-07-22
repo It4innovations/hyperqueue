@@ -233,7 +233,9 @@ async fn worker_rpc_loop(
                     && !worker.is_reserved()
                 {
                     log::debug!("Idle timeout reached, worker={}", worker.id);
-                    break LostWorkerReason::IdleTimeout;
+                    worker.set_stop(LostWorkerReason::IdleTimeout);
+                    let mut comm = comm_ref2.get_mut();
+                    comm.send_worker_message(worker_id, &ToWorkerMessage::Stop);
                 }
             }
         }
@@ -270,15 +272,11 @@ async fn worker_rpc_loop(
     );
     let mut core = core_ref.get_mut();
     let mut comm = comm_ref.get_mut();
-    let stopping = { core.get_worker_by_id_or_panic(worker_id).is_stopping() };
+    let reason = core
+        .get_worker_by_id_or_panic(worker_id)
+        .stop_reason
+        .unwrap_or(reason);
     comm.remove_worker(worker_id);
-
-    let reason = if stopping {
-        LostWorkerReason::Stopped
-    } else {
-        reason
-    };
-
     on_remove_worker(&mut core, &mut *comm, worker_id, reason);
     Ok(())
 }

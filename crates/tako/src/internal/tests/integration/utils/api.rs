@@ -81,7 +81,7 @@ pub async fn wait_for_worker_lost(
             .get_mut()
             .worker_state
             .get(&worker_id)
-            .and_then(|s| s.lost_reason.clone())
+            .and_then(|s| s.lost_reason)
         {
             return s;
         }

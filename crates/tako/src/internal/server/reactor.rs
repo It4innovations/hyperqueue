@@ -141,7 +141,7 @@ pub(crate) fn on_remove_worker(
     // so in journal restoration we can detect what tasks were running
     // without explicit logging
     comm.client()
-        .on_worker_lost(worker_id, &running_tasks, reason.clone());
+        .on_worker_lost(worker_id, &running_tasks, reason);
 
     for task_id in running_tasks {
         let task = core.get_task_mut(task_id);

@@ -155,7 +155,7 @@ pub struct TaskConfiguration {
     pub entry: Option<EntryType>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Copy, Clone, Eq, PartialEq)]
 pub enum LostWorkerReason {
     Stopped,
     ConnectionLost,
