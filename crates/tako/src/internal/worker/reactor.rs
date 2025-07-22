@@ -30,14 +30,13 @@ pub(crate) fn start_task(
     let task = state.get_task(task_id);
     //let (tasks, lc_state, launcher) = state.borrow_tasks_and_lc_state_and_launcher();
     //let task = tasks.get(&task_id);
-    let token = task.need_data_layer().then(|| {
-        state
-            .lc_state
-            .borrow_mut()
-            .register_task(Registration::DataConnection {
-                task_id,
-                input_map: task.data_deps.clone(),
-            })
+    let token = state.lc_state.borrow_mut().register(Registration::Task {
+        task_id,
+        input_map: if task.need_data_layer() {
+            task.data_deps.clone()
+        } else {
+            None
+        },
     });
     match state.task_launcher.build_task(
         TaskBuildContext {
@@ -70,9 +69,7 @@ pub(crate) fn start_task(
         }
         Err(error) => {
             log::debug!("Task initialization failed id={task_id}, error={error:?}");
-            if let Some(token) = token {
-                state.lc_state.borrow_mut().unregister_token(&token);
-            }
+            state.lc_state.borrow_mut().unregister_token(&token);
             state.finish_task_failed(task_id, TaskFailInfo::from_string(error.to_string()));
         }
     };
@@ -84,16 +81,14 @@ async fn handle_task_future(
     task_future: TaskFuture,
     state_ref: WorkerStateRef,
     task_id: TaskId,
-    token: Option<Token>,
+    token: Token,
 ) {
     let time_limit = {
         let state = state_ref.get();
         if let Some(task) = state.find_task(task_id) {
             task.time_limit
         } else {
-            if let Some(token) = token {
-                state.lc_state.borrow_mut().unregister_token(&token)
-            }
+            state.lc_state.borrow_mut().unregister_token(&token);
             // Task was removed before spawn took place
             return;
         }
@@ -122,9 +117,7 @@ async fn handle_task_future(
         task_future.await
     };
     let mut state = state_ref.get_mut();
-    if let Some(token) = token {
-        state.lc_state.borrow_mut().unregister_token(&token)
-    }
+    state.lc_state.borrow_mut().unregister_token(&token);
     match result {
         Ok(TaskResult::Finished) => {
             log::debug!("Inner task finished id={task_id}");

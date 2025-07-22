@@ -74,7 +74,7 @@ pub struct TaskBuildContext<'a> {
     pub(crate) task: &'a Task,
     pub(crate) state: &'a WorkerState,
     pub(crate) resource_index: usize,
-    pub(crate) token: Option<Token>,
+    pub(crate) token: Token,
 }
 
 impl<'a> TaskBuildContext<'a> {
@@ -134,10 +134,8 @@ impl<'a> TaskBuildContext<'a> {
         self.state.get_resource_label_map()
     }
 
-    pub fn data_access_key(&self) -> Option<BString> {
-        self.token
-            .as_ref()
-            .map(|token| self.state.lc_state.borrow().data_access_key(token))
+    pub fn access_key(&self) -> BString {
+        self.state.lc_state.borrow().access_key(&self.token)
     }
 
     pub fn server_uid(&self) -> &str {

@@ -10,6 +10,7 @@ use crate::common::manager::info::ManagerType;
 use crate::server::autoalloc::{Allocation, AllocationId, QueueId, QueueParameters};
 use crate::server::event::Event;
 use crate::server::job::{JobTaskCounters, JobTaskInfo, SubmittedJobDescription};
+use bstr::BString;
 use std::path::PathBuf;
 use std::time::Duration;
 use tako::gateway::{
