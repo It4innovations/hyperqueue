@@ -53,7 +53,7 @@ pub struct Worker {
     pub(crate) flags: WorkerFlags,
     // When the worker will be terminated
     pub(crate) termination_time: Option<Instant>,
-    pub(crate) stop_reason: Option<LostWorkerReason>,
+    pub(crate) stop_reason: Option<(LostWorkerReason, Instant)>,
 
     pub(crate) mn_task: Option<MultiNodeTaskAssignment>,
 
@@ -236,7 +236,7 @@ impl Worker {
     }
 
     pub fn set_stop(&mut self, reason: LostWorkerReason) {
-        self.stop_reason = Some(reason);
+        self.stop_reason = Some((reason, Instant::now()));
     }
 
     pub fn is_stopping(&self) -> bool {
