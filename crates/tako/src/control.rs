@@ -83,9 +83,13 @@ impl ServerRef {
     pub fn stop_worker(&self, worker_id: WorkerId) -> crate::Result<()> {
         let mut core = self.core_ref.get_mut();
         if let Some(ref mut worker) = core.get_worker_mut(worker_id) {
-            worker.set_stop(LostWorkerReason::Stopped);
-            let mut comm = self.comm_ref.get_mut();
-            comm.send_worker_message(worker_id, &ToWorkerMessage::Stop);
+            if !worker.is_stopping() {
+                worker.set_stop(LostWorkerReason::Stopped);
+                let mut comm = self.comm_ref.get_mut();
+                comm.send_worker_message(worker_id, &ToWorkerMessage::Stop);
+            } else {
+                log::debug!("Worker is already stopping");
+            }
             Ok(())
         } else {
             Err(format!("Worker with id {worker_id} not found").into())
