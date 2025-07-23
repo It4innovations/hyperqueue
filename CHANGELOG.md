@@ -1,3 +1,11 @@
+## Unreleased
+
+### Fixes
+
+* Fixed the issue of possible ignoring idle timeout when time request is used.
+* Worker process terminated because of idle timeout now returns zero exit code.
+
+
 ## 0.23.0
 
 ### Breaking change
