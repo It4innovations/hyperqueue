@@ -4,8 +4,7 @@ use crate::internal::datasrv::messages::{
     DataDown, FromLocalDataClientMessageUp, PutDataUp, ToLocalDataClientMessageDown,
 };
 use crate::internal::datasrv::utils::UPLOAD_CHUNK_SIZE;
-use crate::internal::worker::localclient::LocalClientConnection;
-use crate::internal::worker::localcomm::ConnectionType;
+use crate::internal::worker::localclient::{LocalClientConnection, LocalConnectionType};
 use bstr::BStr;
 use std::fs::File;
 use std::io::{Read, Write};
@@ -16,9 +15,8 @@ pub struct LocalDataClient {
 }
 
 impl LocalDataClient {
-    pub async fn connect(path: &Path, token: &BStr) -> crate::Result<Self> {
-        let connection = LocalClientConnection::connect(path, token, ConnectionType::Data).await?;
-        Ok(LocalDataClient { connection })
+    pub fn new(connection: LocalClientConnection) -> Self {
+        LocalDataClient { connection }
     }
 
     #[allow(clippy::needless_lifetimes)]

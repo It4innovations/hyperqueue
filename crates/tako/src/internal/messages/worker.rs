@@ -7,6 +7,7 @@ use crate::resources::ResourceFractions;
 use crate::task::SerializedTaskContext;
 use crate::{InstanceId, Priority};
 use crate::{TaskId, WorkerId};
+use bstr::BString;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use std::rc::Rc;
@@ -195,4 +196,11 @@ pub enum FromWorkerMessage {
     Stop(WorkerStopReason),
     PlacementQuery(DataObjectId),
     NewPlacement(DataObjectId),
+    Notify(WorkerNotifyMessage),
+}
+
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct WorkerNotifyMessage {
+    pub task_id: TaskId,
+    pub message: Box<[u8]>,
 }

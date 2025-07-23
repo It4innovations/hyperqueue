@@ -38,6 +38,7 @@ pub(crate) fn prune_journal(
             | EventPayload::AllocationStarted(_, _)
             | EventPayload::AllocationFinished(_, _)
             | EventPayload::ServerStart { .. }
+            | EventPayload::TaskNotify(_)
             | EventPayload::ServerStop => Some(event),
         };
         if let Some(event) = event {
