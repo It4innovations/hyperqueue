@@ -11,6 +11,7 @@ use crate::transfer::messages::{
     FromClientMessage, IdSelector, JobDetailRequest, SingleIdSelector, TaskExplainRequest,
     TaskIdSelector, TaskSelector, TaskStatusSelector, ToClientMessage,
 };
+use bstr::BString;
 use tako::{JobId, JobTaskId};
 
 #[derive(clap::Parser)]
@@ -27,6 +28,8 @@ pub enum TaskCommand {
     Info(TaskInfoOpts),
     /// Explain if task can run on a selected worker
     Explain(TaskExplainOpts),
+    /// Send a notification within a task
+    Notify(NotifyOpts),
 }
 
 #[derive(clap::Parser)]
@@ -63,6 +66,11 @@ pub struct TaskExplainOpts {
 
     /// Select specific task(s)
     pub task_id: JobTaskId,
+}
+
+#[derive(clap::Parser)]
+pub struct NotifyOpts {
+    pub message: BString,
 }
 
 pub async fn output_job_task_list(
