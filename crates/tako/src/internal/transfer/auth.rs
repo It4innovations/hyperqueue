@@ -346,7 +346,7 @@ mod tests {
     }
 
     #[test]
-    fn test_auth_diferent_keys() {
+    fn test_auth_different_keys() {
         let secret_key1 = Some(Arc::new(SecretKey::generate(32).unwrap()));
         let secret_key2 = Some(Arc::new(SecretKey::generate(32).unwrap()));
         let mut a1 = Authenticator::new(0, "a", "b", secret_key1);

@@ -138,7 +138,7 @@ pub(crate) async fn start_test_upload_service(interface: TestUploadInterface) ->
 
 pub(crate) fn start_download_manager(
     dm_ref: &DownloadManagerRef<TestDmInterface, u32>,
-    repeat_timout: u64,
+    repeat_timeout: u64,
     timeout: u64,
 ) {
     let dm_ref = dm_ref.clone();
@@ -147,7 +147,7 @@ pub(crate) fn start_download_manager(
             dm_ref,
             2,
             3,
-            Duration::from_secs(repeat_timout),
+            Duration::from_secs(repeat_timeout),
             Duration::from_secs(timeout),
         )
         .await

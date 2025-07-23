@@ -217,7 +217,7 @@ $ hq submit --stdout=out.txt:rm-if-finished /my-program
 #### Pregenerating access files
 
 * Via command `hq server generate-access` you can precreate an access file that can be later used for staring server,
-  and connecting workers, and clients. This is usefull in cloud environments.
+  and connecting workers, and clients. This is useful in cloud environments.
 
 #### Job submission
 
@@ -326,7 +326,7 @@ an old client/worker to a new server (Connecting a new client/worker to an old s
 
 ### Platforms
 
-* HQ can be now compiled for Raspbery Pi
+* HQ can be now compiled for Raspberry Pi
 
 ### Fixes
 
@@ -342,7 +342,7 @@ an old client/worker to a new server (Connecting a new client/worker to an old s
 
 #### Streaming
 
-* Fixed a bug in closing streaming when tasks are very short and sychronized.
+* Fixed a bug in closing streaming when tasks are very short and synchronized.
 
 ## v0.13.0
 

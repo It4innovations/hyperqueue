@@ -596,11 +596,11 @@ pub async fn open_job(
         "job".to_string()
     };
 
-    let reponse = rpc_call!(session.connection(), FromClientMessage::OpenJob(JobDescription {
+    let response = rpc_call!(session.connection(), FromClientMessage::OpenJob(JobDescription {
          name, max_fails }), ToClientMessage::OpenJobResponse(r) => r)
     .await?;
 
-    gsettings.printer().print_job_open(reponse.job_id);
+    gsettings.printer().print_job_open(response.job_id);
     Ok(())
 }
 
@@ -781,7 +781,7 @@ pub(crate) async fn send_submit_request(
             bail!("Task {task_id} is defined more than once.")
         }
         SubmitResponse::InvalidDependencies(task_id) => {
-            bail!("Invalid dependancy on {task_id}")
+            bail!("Invalid dependency on {task_id}")
         }
     }
     Ok(())

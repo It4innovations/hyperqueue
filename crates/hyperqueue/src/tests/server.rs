@@ -30,7 +30,7 @@ impl RunningHqServer {
 
 /// Start the whole HQ server, including almost all bells and whistles,
 /// and then run a future that will perform the actual test on it.
-/// After the future finishes, the server will be shutted down.
+/// After the future finishes, the server will be shut down.
 ///
 /// If you need to configure the server, add parameters (or some builder) here.
 pub async fn run_hq_test<F, Fut>(test_fn: F)

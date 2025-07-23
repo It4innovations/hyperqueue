@@ -384,8 +384,8 @@ impl ResourcePool {
                 match policy {
                     AllocationRequest::Compact(amount)
                     | AllocationRequest::ForceCompact(amount) => {
-                        // We do neet need to distinguish between force compact and compact
-                        // because we already know that here that allocation is possible
+                        // We need to distinguish between force compact and compact
+                        // because we already know that that allocation is possible
                         (*amount, Self::claim_compact_from_groups(*amount, pool))
                     }
                     AllocationRequest::Scatter(amount) => {
@@ -412,7 +412,7 @@ impl ResourcePool {
             ResourcePool::Empty => unreachable!(),
             ResourcePool::Indices(pool) => {
                 for index in allocation.indices.iter().rev() {
-                    // Iterating reversly as indices was originaly taken by pop()
+                    // Iterating reversly as indices was originally taken by pop()
                     // Just to add small determinism, we return then in same order
                     assert_eq!(index.group_idx, 0);
                     if index.fractions == 0 {
@@ -435,7 +435,7 @@ impl ResourcePool {
             }
             ResourcePool::Groups(pool) => {
                 for index in allocation.indices.iter().rev() {
-                    // Iterating reversly as indices was originaly taken by pop()
+                    // Iterating reversly as indices was originally taken by pop()
                     // Just to add small determinism, we return then in same order
                     if index.fractions == 0 {
                         pool.indices[index.group_idx as usize].push(index.index);

@@ -30,7 +30,7 @@ impl ParseError {
         }
     }
 
-    /// Returns the span that the error occured at.
+    /// Returns the span that the error occurred at.
     pub fn span(&self) -> <Self as Error<char>>::Span {
         self.error.span()
     }

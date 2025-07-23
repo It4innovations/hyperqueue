@@ -155,7 +155,7 @@ pub struct WorkerLoad {
     n_resources: ResourceVec<ResourceAmount>,
 
     /// The map stores task_ids of requests for which non-first resource alternative is used
-    /// i.e. if all tasks has only 1 option in resource requets, this map will be empty
+    /// i.e. if all tasks has only 1 option in resource requests, this map will be empty
     non_first_rq: Map<TaskId, usize>,
     round_robin_counter: usize,
 }
