@@ -3,6 +3,7 @@ pub mod data;
 pub mod doc;
 pub mod job;
 pub mod journal;
+pub mod notify;
 pub mod outputlog;
 pub mod server;
 pub mod submit;

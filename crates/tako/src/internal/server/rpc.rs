@@ -343,6 +343,9 @@ pub(crate) async fn worker_receive_loop<
                     log::debug!("Placement for invalid object");
                 }
             }
+            FromWorkerMessage::Notify(notify) => {
+                todo!()
+            }
         }
     }
     Ok(None)

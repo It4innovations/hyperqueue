@@ -1,5 +1,6 @@
 use crate::server::Senders;
 use crate::server::state::StateRef;
+use bstr::BString;
 use tako::events::EventProcessor;
 use tako::gateway::LostWorkerReason;
 use tako::internal::messages::common::TaskFailInfo;
@@ -91,5 +92,11 @@ impl EventProcessor for UpstreamEventProcessor {
                 .events
                 .on_overview_received(overview, persist_event);
         }
+    }
+
+    fn on_task_notify(&mut self, task_id: TaskId, worker_id: WorkerId, message: Box<[u8]>) {
+        self.senders
+            .events
+            .on_task_notify(task_id, worker_id, message);
     }
 }
