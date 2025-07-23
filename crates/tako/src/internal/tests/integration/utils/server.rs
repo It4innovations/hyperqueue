@@ -1,11 +1,11 @@
+use bstr::BString;
+use derive_builder::Builder;
+use orion::auth::SecretKey;
 use std::future::Future;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
-
-use derive_builder::Builder;
-use orion::auth::SecretKey;
 use tokio::net::TcpListener;
 use tokio::sync::Notify;
 use tokio::task::{JoinHandle, LocalSet};
@@ -156,6 +156,7 @@ pub struct AsyncTestClientProcessor {
     pub task_state: Map<TaskId, TestTaskState>,
     pub overviews: Map<WorkerId, Box<WorkerOverview>>,
     pub worker_state: Map<WorkerId, TestWorkerState>,
+    pub notifications: Vec<(TaskId, WorkerId, Box<[u8]>)>,
 }
 
 pub type AsyncTestClientProcessorRef = WrappedRcRefCell<AsyncTestClientProcessor>;
@@ -171,6 +172,7 @@ impl AsyncTestClientProcessorRef {
         let mut inner = self.get_mut();
         inner.task_state.clear();
         inner.overviews.clear();
+        inner.notifications.clear();
     }
 }
 
@@ -237,6 +239,12 @@ impl EventProcessor for AsyncTestClientProcessorRef {
         self.get_mut().overviews.insert(overview.id, overview);
         self.get().notify.notify_one();
     }
+
+    fn on_task_notify(&mut self, task_id: TaskId, worker_id: WorkerId, message: Box<[u8]>) {
+        self.get_mut()
+            .notifications
+            .push((task_id, worker_id, message))
+    }
 }
 
 async fn create_handle(
@@ -269,6 +277,7 @@ async fn create_handle(
         task_state: Default::default(),
         overviews: Default::default(),
         worker_state: Default::default(),
+        notifications: Vec::new(),
     });
     server_ref.set_client_events(Box::new(client_ref.clone()));
     (

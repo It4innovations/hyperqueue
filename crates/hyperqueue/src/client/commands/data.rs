@@ -1,8 +1,10 @@
+use crate::client::commands::notify::get_local_connection;
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::error::HqError;
 use clap::Parser;
 use std::path::{Path, PathBuf};
 use tako::datasrv::{DataInputId, LocalDataClient, OutputId};
+use tako::internal::worker::localclient::LocalConnectionType;
 
 #[derive(Parser)]
 pub struct DataOpts {
@@ -38,13 +40,8 @@ pub struct GetOpts {
 }
 
 async fn create_local_data_client() -> crate::Result<LocalDataClient> {
-    let data_access = std::env::var("HQ_DATA_ACCESS").map_err(|_| {
-        HqError::GenericError("HQ_DATA_ACCESS variable not found. Are you running this command inside a task with data layer enabled?".to_string())
-    })?;
-    let (path, token) = data_access.split_once(':').ok_or_else(|| {
-        HqError::GenericError("Value of HQ_DATA_ACCESS has a wrong format".to_string())
-    })?;
-    Ok(LocalDataClient::connect(Path::new(path), token.into()).await?)
+    let connection = get_local_connection(LocalConnectionType::Data).await?;
+    Ok(LocalDataClient::new(connection))
 }
 
 pub async fn command_task_data(_gsettings: &GlobalSettings, opts: DataOpts) -> anyhow::Result<()> {

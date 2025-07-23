@@ -1,5 +1,7 @@
 use crate::datasrv::DataObjectId;
 use crate::internal::worker::data::datanode_local_connection_handler;
+use crate::internal::worker::localclient::LocalConnectionType;
+use crate::internal::worker::notifications::notify_local_connection_handler;
 use crate::internal::worker::state::WorkerStateRef;
 use crate::{MAX_FRAME_SIZE, Map, TaskId};
 use bstr::{BStr, BString, ByteSlice, ByteVec};
@@ -112,15 +114,9 @@ impl LocalCommState {
 }
 
 #[derive(Serialize, Deserialize)]
-pub(crate) enum ConnectionType {
-    Notifier,
-    Data,
-}
-
-#[derive(Serialize, Deserialize)]
 pub(crate) struct IntroMessage {
     pub token: BString,
-    pub connection_type: ConnectionType,
+    pub connection_type: LocalConnectionType,
 }
 
 pub(crate) fn make_protocol_builder() -> Builder {
@@ -142,7 +138,7 @@ async fn handle_connection(state_ref: WorkerStateRef, stream: UnixStream) -> cra
             .ok_or_else(|| crate::Error::GenericError("Invalid token".to_string()))?;
         match registration {
             Registration::Task { task_id, input_map } => match message.connection_type {
-                ConnectionType::Data => {
+                LocalConnectionType::Data => {
                     log::debug!("New local data connection: {task_id}");
                     let task_id = *task_id;
                     let input_map = input_map.clone();
@@ -152,12 +148,12 @@ async fn handle_connection(state_ref: WorkerStateRef, stream: UnixStream) -> cra
                     datanode_local_connection_handler(state_ref, rx, tx, task_id, input_map)
                         .await?;
                 }
-                ConnectionType::Notifier => {
+                LocalConnectionType::Notifier => {
                     log::debug!("New local notifier connection: {task_id}");
                     let task_id = *task_id;
                     drop(lc_state);
                     drop(state);
-                    todo!()
+                    notify_local_connection_handler(state_ref, rx, tx, task_id).await?;
                 }
             },
         }

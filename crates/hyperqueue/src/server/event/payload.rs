@@ -2,8 +2,10 @@ use crate::common::serialization::Serialized;
 use crate::server::autoalloc::QueueId;
 use crate::server::autoalloc::{AllocationId, QueueParameters};
 use crate::transfer::messages::{JobDescription, SubmitRequest};
+use bstr::BString;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
+use std::sync::Arc;
 use tako::gateway::LostWorkerReason;
 use tako::worker::{WorkerConfiguration, WorkerOverview};
 use tako::{InstanceId, TaskId, static_assert_size};
@@ -64,10 +66,22 @@ pub enum EventPayload {
     AllocationStarted(QueueId, AllocationId),
     /// PBS/Slurm allocation has finished executing
     AllocationFinished(QueueId, AllocationId),
+    /// Server is started
     ServerStart {
         server_uid: String,
     },
+    /// Server is stopped
     ServerStop,
+
+    /// Notification from task (not stored in journal)
+    TaskNotify(TaskNotification),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TaskNotification {
+    pub task_id: TaskId,
+    pub worker_id: WorkerId,
+    pub message: Box<[u8]>,
 }
 
 // Keep the size of the event structure in check

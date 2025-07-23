@@ -25,4 +25,4 @@ pub const HQ_CPUS: &str = create_hq_env!("CPUS");
 pub const HQ_NODE_FILE: &str = create_hq_env!("NODE_FILE");
 pub const HQ_HOST_FILE: &str = create_hq_env!("HOST_FILE");
 pub const HQ_NUM_NODES: &str = create_hq_env!("NUM_NODES");
-pub const HQ_TOKEN: &str = create_hq_env!("TOKEN");
+pub const HQ_ACCESS_KEY: &str = create_hq_env!("ACCESS_KEY");

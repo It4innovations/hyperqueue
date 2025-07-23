@@ -134,7 +134,7 @@ async fn send_message(
 }
 
 pub(crate) async fn datanode_local_connection_handler(
-    data_node_ref: WorkerStateRef,
+    state_ref: WorkerStateRef,
     mut rx: impl Stream<Item = Result<BytesMut, std::io::Error>> + Unpin,
     mut tx: impl Sink<Bytes> + Unpin,
     task_id: TaskId,
@@ -144,12 +144,7 @@ pub(crate) async fn datanode_local_connection_handler(
         let data = data?;
         let message: FromLocalDataClientMessageDown = bincode::deserialize(&data)?;
         if let Err(e) = datanode_local_message_handler(
-            &data_node_ref,
-            task_id,
-            &input_map,
-            message,
-            &mut rx,
-            &mut tx,
+            &state_ref, task_id, &input_map, message, &mut rx, &mut tx,
         )
         .await
         {

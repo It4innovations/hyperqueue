@@ -156,6 +156,13 @@ fn format_payload(event: EventPayload) -> serde_json::Value {
                 "job_id": job_id
             })
         }
+        EventPayload::TaskNotify(notify) => {
+            json!({
+                "task_id": notify.task_id,
+                "worker_id": notify.worker_id,
+                "message": notify.message,
+            })
+        }
     }
 }
 

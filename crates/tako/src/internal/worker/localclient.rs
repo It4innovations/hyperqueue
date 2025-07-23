@@ -1,10 +1,10 @@
 use crate::comm::{deserialize, serialize};
 use crate::internal::common::error::DsError;
-use crate::internal::worker::localcomm::{ConnectionType, IntroMessage};
+use crate::internal::worker::localcomm::IntroMessage;
 use bstr::BStr;
 use futures::{SinkExt, StreamExt};
-use serde::Serialize;
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 use tokio::net::UnixStream;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
@@ -13,11 +13,17 @@ pub struct LocalClientConnection {
     stream: Framed<UnixStream, LengthDelimitedCodec>,
 }
 
+#[derive(Serialize, Deserialize)]
+pub enum LocalConnectionType {
+    Notifier,
+    Data,
+}
+
 impl LocalClientConnection {
     pub async fn connect(
         path: &Path,
         token: &BStr,
-        connection_type: ConnectionType,
+        connection_type: LocalConnectionType,
     ) -> crate::Result<Self> {
         log::debug!("Creating local connection to: {}", path.display());
         let stream = UnixStream::connect(path).await?;

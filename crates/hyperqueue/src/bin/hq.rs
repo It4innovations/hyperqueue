@@ -12,6 +12,7 @@ use hyperqueue::client::commands::job::{
     output_job_list, output_job_summary,
 };
 use hyperqueue::client::commands::journal::command_journal;
+use hyperqueue::client::commands::notify::command_task_notify;
 use hyperqueue::client::commands::outputlog::command_reader;
 use hyperqueue::client::commands::server::{ServerCommand, ServerOpts, command_server};
 use hyperqueue::client::commands::submit::command::{SubmitJobConfOpts, open_job};
@@ -511,6 +512,7 @@ async fn main() -> hyperqueue::Result<()> {
             TaskCommand::List(opts) => command_task_list(&gsettings, opts).await,
             TaskCommand::Info(opts) => command_task_info(&gsettings, opts).await,
             TaskCommand::Explain(opts) => command_task_explain(&gsettings, opts).await,
+            TaskCommand::Notify(opts) => command_task_notify(&gsettings, opts).await,
         },
         SubCommand::Data(opts) => command_task_data(&gsettings, opts).await,
         #[cfg(feature = "dashboard")]
