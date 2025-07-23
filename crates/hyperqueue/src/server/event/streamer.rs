@@ -2,10 +2,12 @@ use crate::common::serialization::Serialized;
 use crate::server::autoalloc::{AllocationId, QueueId, QueueParameters};
 use crate::server::event::Event;
 use crate::server::event::journal::{EventStreamMessage, EventStreamSender};
-use crate::server::event::payload::EventPayload;
+use crate::server::event::payload::{EventPayload, TaskNotification};
 use crate::transfer::messages::{JobDescription, SubmitRequest};
+use bstr::BString;
 use chrono::{DateTime, Utc};
 use smallvec::SmallVec;
+use std::sync::Arc;
 use tako::gateway::LostWorkerReason;
 use tako::worker::{WorkerConfiguration, WorkerOverview};
 use tako::{InstanceId, JobId, Set, TaskId, WorkerId, WrappedRcRefCell};
@@ -246,6 +248,18 @@ impl EventStreamer {
             },
             None,
             ForwardMode::StreamAndPersist,
+        );
+    }
+
+    pub fn on_task_notify(&self, task_id: TaskId, worker_id: WorkerId, message: Box<[u8]>) {
+        self.send_event(
+            EventPayload::TaskNotify(TaskNotification {
+                task_id,
+                worker_id,
+                message,
+            }),
+            None,
+            ForwardMode::Stream,
         );
     }
 
