@@ -580,7 +580,7 @@ pub(crate) fn on_resolve_placement(
     worker_id: WorkerId,
     data_id: DataObjectId,
 ) {
-    // TODO: Maube randomize what placement to return?
+    // TODO: Maybe randomize what placement to return?
     let placement = core
         .dataobj_map()
         .find_data_object(data_id)

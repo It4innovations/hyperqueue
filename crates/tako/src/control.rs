@@ -107,7 +107,7 @@ impl ServerRef {
 
       max_sn_workers defines how many of that worker type can outer system provides,
       if a big number is filled, it may be slow to compute the result.
-      This is ment for single node tasks, i.e. they may or may not be in a same allocation.
+      This is meant for single node tasks, i.e. they may or may not be in a same allocation.
 
       max_worker_per_allocation defines how many of that worker type
       we can get in one allocation at most.

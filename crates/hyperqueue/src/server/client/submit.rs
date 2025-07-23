@@ -152,7 +152,7 @@ pub(crate) fn handle_submit(
     } else {
         match &mut message.submit_desc.task_desc {
             JobTaskDescription::Array { ids, entries, .. } => {
-                /* Try fillin task ids */
+                /* Try filling task ids */
                 if ids.is_empty() {
                     if let Some(entries) = entries {
                         *ids = IntArray::from_range(0, entries.len() as JobTaskCount)

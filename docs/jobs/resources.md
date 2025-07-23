@@ -8,7 +8,7 @@ Some generic resources are [automatically detected](#automatically-detected-reso
 users may also define their own resources.
 
 From version 0.13.0, CPUs are also managed as other resources, but they have still some extra functionality;
-therefore, there is a special section about [CPU resources](cresources.md). 
+therefore, there is a special section about [CPU resources](cresources.md).
 
 !!! important
 
@@ -16,7 +16,6 @@ therefore, there is a special section about [CPU resources](cresources.md).
     things (like GPUs), but it is the responsibility of the user to make sure that this correspondence
     makes sense. With exception of CPUs, HyperQueue by itself does not attach any semantics to resources,
     they are just numbers used for scheduling.
-
 
 ## Worker resources
 
@@ -27,48 +26,48 @@ then ask for a part of the resources contained in that pool.
 There are two kinds of resource pools:
 
 * **Indexed pool**: This pool represents an enumerated set of resources represented by strings.
-Each resource has its own identity. Tasks do not ask for specific values from the set, they just specify
-how many resources they require and HyperQueue will allocate the specified amount of resources
-from the pool for each task.
+  Each resource has its own identity. Tasks do not ask for specific values from the set, they just specify
+  how many resources they require and HyperQueue will allocate the specified amount of resources
+  from the pool for each task.
 
-    This pool is useful for resources that have their own identity, for example individual GPU or
-    FPGA accelerators.
+  This pool is useful for resources that have their own identity, for example individual GPU or
+  FPGA accelerators.
 
-    HyperQueue guarantees that no individual resource from the indexed pool is allocated to more than
-    a single task at any given time and that a task will not be executed on a worker if it does not
-    currently have enough individual resources to fulfill the [resource request](#resource-request)
-    of the task.
+  HyperQueue guarantees that no individual resource from the indexed pool is allocated to more than
+  a single task at any given time and that a task will not be executed on a worker if it does not
+  currently have enough individual resources to fulfill the [resource request](#resource-request)
+  of the task.
 
-    Indexed pool can be defined with **groups** where indices live in separated groups. Task may
-    then ask for different allocation policies (e.g. use resources from the same or different groups).
-    The main purpose of this is to capture NUMA architectures, each group then represents a socket with cores.
+  Indexed pool can be defined with **groups** where indices live in separated groups. Task may
+  then ask for different allocation policies (e.g. use resources from the same or different groups).
+  The main purpose of this is to capture NUMA architectures, each group then represents a socket with cores.
 
 * **Sum pool**: This pool represents a resource that has a certain size which is split into individual
-    tasks. A typical example is memory; if a worker has `2000` bytes of memory, it can serve e.g. four
-    tasks, if each task asks for `500` bytes of memory.
+  tasks. A typical example is memory; if a worker has `2000` bytes of memory, it can serve e.g. four
+  tasks, if each task asks for `500` bytes of memory.
 
-    HyperQueue guarantees that the sum of resource request sizes of *running* tasks on a worker does
-    not exceed the total size of the sum pool.
+  HyperQueue guarantees that the sum of resource request sizes of *running* tasks on a worker does
+  not exceed the total size of the sum pool.
 
 ### Specifying worker resources
 
 You can specify the resource pools of a worker when you start it:
 
 ```bash
-$ hq worker start --resource "<NAME1>=<DEF1>" --resource "<NAME2>=<DEF2>" ...
+$ hq worker start --resource "<NAME-1>=<DEF-1>" --resource "<NAME-2>=<DEF-2>" ...
 ```
 
-where `NAMEi` is a name (string ) of the `i`-th resource pool and `DEFi` is a definition of the
+where `NAME-i` is a name (string ) of the `i`-th resource pool and `DEF-i` is a definition of the
 `i-th` resource pool. You can define resource pools using one of the following formats:
 
 * `[<VALUE>, <VALUE>, ..., <VALUE>]` where `VALUE` is a string. This defines a
-   an indexed pool with the given values. If you need to enter a string resource that contains special
+  an indexed pool with the given values. If you need to enter a string resource that contains special
   characters (`[`, `]`, `,`, whitespace), you can wrap the value in quotes:
   `["foo [,]", bar, "my resource"]`.
 * `range(<START>-<END>)` where `START` and `END` are non-negative integers. This defines
-   an indexed pool with numbers in the inclusive range `[START, END]`.
+  an indexed pool with numbers in the inclusive range `[START, END]`.
 * `[[<VALUE>, ..., <VALUE>], [<VALUE>, ..., <VALUE>], ...]` where `VALUE` is a string. This
-   defines an indexed pool where indices are grouped.
+  defines an indexed pool where indices are grouped.
 * `<N>x<M>` Creates indexed pool with N groups of size M, indices are indexed from 0,
   (e.g. "2x3" is equivalent to `[[0, 1, 2], [3, 4, 5]`)
 * `sum(<SIZE>)` where `SIZE` is a positive integer. This defines a sum pool with the given
@@ -85,6 +84,7 @@ where `NAMEi` is a name (string ) of the `i`-th resource pool and `DEFi` is a de
     ```
 
 ### Resource names
+
 Resource names are restricted by the following rules:
 
 - They can only contain ASCII letters and digits (`a-z`, `A-Z`, `0-9`) and the slash (`/`) symbol.
@@ -113,8 +113,8 @@ The following resources are detected automatically if a resource of a given name
     - AMD GPUs are stored under the resource name `gpus/amd`. These GPUs are detected from the environment
       variable `ROCR_VISIBLE_DEVICES`.
 
-    You can set these environment variables when starting a worker to override the list of available GPUs:
-  
+  You can set these environment variables when starting a worker to override the list of available GPUs:
+
     ```bash
     $ CUDA_VISIBLE_DEVICES=2,3 hq worker start
     # The worker will have resource gpus/nvidia=[2,3]
@@ -123,7 +123,7 @@ The following resources are detected automatically if a resource of a given name
 * RAM of the node is detected as resource "mem" in megabytes; i.e. `--resource mem=100` asks for 100 MiBs of the memory.
 
 If you want to see how is your system seen by a worker without actually starting it,
-you can start: 
+you can start:
 
 ```bash
 $ hq worker hwdetect
@@ -167,13 +167,11 @@ task requests.
     Then the first job can be allocated e.g. the GPU `2` and the second job can be allocated the GPUs
     `1` and `3`. 
 
-
 ## Requesting all resources
 
 A task may ask for all given resources of that type by specifying ``--resource <NAME>=all``.
 Such a task will be scheduled only on a worker that has at least ``1`` of such resource and when a task is executed
-all resources of that type will be given to this task. 
-
+all resources of that type will be given to this task.
 
 ## Resource request strategies
 
@@ -187,7 +185,7 @@ When strategy is not defined then ``compact`` is used as default.
 
 * Compact (``compact``) - Tries to allocate indices in few groups as possible in the current worker state.
 
-    Example:
+  Example:
     ```console
     $ hq submit --resource cpus="8 compact" ...
     ```
@@ -198,7 +196,7 @@ When strategy is not defined then ``compact`` is used as default.
   it will always be executed with indices from a single group.
   If you ask for 8 cpus in the same way, it will always be executed with indices from two groups.
 
-    Example:
+  Example:
     ```console
     $ hq submit --resource cpus="8 compact!" ...`
     ```
@@ -207,11 +205,11 @@ When strategy is not defined then ``compact`` is used as default.
   E.g. Let us assume that a worker has 4 groups with 8 indices per group, and you ask for 8 cpus in the scatter mode.
   If possible in the current situation, HQ tries to run process with 2 cpus on each socket.
 
-    Example:
+  Example:
     ```console
     $ hq submit --resource cpus="8 scatter" ...
     ```
-  
+
 ### Non-integer allocation of resources
 
 Amount of the resource may be a non-integer number.
@@ -224,28 +222,29 @@ can ask for is `0.0001`.
 
 For sum resources, the amount is simply removed from the pool as in the case of integer resources.
 
-In the case of an indexed resource, the partial resource is always taken from a single index. 
+In the case of an indexed resource, the partial resource is always taken from a single index.
 It means that if there is an indexed resource with two indices that are both utilized on 0.75,
-then a task that ask for 0.5 of this resource will not be started, despite there is available 0.5 of the resource in total,
+then a task that ask for 0.5 of this resource will not be started, despite there is available 0.5 of the resource in
+total,
 because there is no single index that is free at least on 0.5.
 
-If non-integer is bigger than 1, than integer part is always satisfied as whole indices and rest is a part of another index.
+If non-integer is bigger than 1, than integer part is always satisfied as whole indices and rest is a part of another
+index.
 E.g. when you ask for 2.5 of an indexed resource, you will get 2 complete indices and one index allocated on 50%.
-
 
 !!! note
 
     In the current version, policy "compact!" is not allowed with non-integer amounts.
 
-
 ### Resource environment variables
+
 When a task that has resource requests is executed, the following variables are passed to it for
 each resource request named `<NAME>`:
 
 * `HQ_RESOURCE_REQUEST_<NAME>` contains the amount of requested resources.
 * `HQ_RESOURCE_VALUES_<NAME>` contains the specific resource values allocated for the task as a
-comma-separated list. This variable is only filled for an indexed resource pool.
-In case of non-integer amount, the partially allocated index is always the last index.
+  comma-separated list. This variable is only filled for an indexed resource pool.
+  In case of non-integer amount, the partially allocated index is always the last index.
 
 The slash symbol (`/`) in resource name is normalized to underscore (`_`) when being used in the
 environment variable name.

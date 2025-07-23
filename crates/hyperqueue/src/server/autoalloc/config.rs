@@ -42,7 +42,7 @@ pub fn max_allocation_fails() -> u64 {
         .and_then(|value| value.parse::<u64>().ok())
         .unwrap_or(3)
 }
-/// Delay levels between submisisons. See [`super::state::RateLimiter`].
+/// Delay levels between submissions. See [`super::state::RateLimiter`].
 pub const SUBMISSION_DELAYS: [Duration; 5] = [
     Duration::ZERO,
     Duration::from_secs(60),
