@@ -4,6 +4,7 @@ use crate::internal::common::resources::{
 };
 use crate::internal::common::utils::has_unique_elements;
 use serde::{Deserialize, Serialize};
+use std::fmt::{Debug, Formatter};
 
 use crate::resources::CPU_RESOURCE_NAME;
 use thiserror::Error;
@@ -17,7 +18,7 @@ pub enum DescriptorError {
 }
 
 // Do now construct these directly, use the appropriate constructors
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub enum ResourceDescriptorKind {
     List {
         values: Vec<ResourceLabel>,
@@ -179,7 +180,33 @@ impl ResourceDescriptorKind {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+impl Debug for ResourceDescriptorKind {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ResourceDescriptorKind::List { values } => {
+                write!(f, "list({})", values.join(", "))
+            }
+            ResourceDescriptorKind::Groups { groups } => {
+                write!(f, "groups(")?;
+                for (index, group) in groups.iter().enumerate() {
+                    write!(f, "[{}]", group.join(", "))?;
+                    if index < groups.len() - 1 {
+                        write!(f, ", ")?;
+                    }
+                }
+                write!(f, ")")
+            }
+            ResourceDescriptorKind::Range { start, end } => {
+                write!(f, "range({start}-{end})")
+            }
+            ResourceDescriptorKind::Sum { size } => {
+                write!(f, "sum({size})")
+            }
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone)]
 pub struct ResourceDescriptorItem {
     pub name: String,
     pub kind: ResourceDescriptorKind,
@@ -206,6 +233,12 @@ impl ResourceDescriptorItem {
     }
 }
 
+impl Debug for ResourceDescriptorItem {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}={:?}", self.name, self.kind)
+    }
+}
+
 /// Define names of coupled resources
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ResourceDescriptorCoupling {
@@ -213,7 +246,7 @@ pub struct ResourceDescriptorCoupling {
 }
 
 /// Most precise description of request provided by a worker (without time resource)
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ResourceDescriptor {
     pub resources: Vec<ResourceDescriptorItem>,
     pub coupling: Option<ResourceDescriptorCoupling>,
