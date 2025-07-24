@@ -18,8 +18,8 @@ use crate::server::autoalloc::Allocation;
 use crate::server::job::JobTaskInfo;
 use crate::stream::reader::outputlog::Summary;
 use crate::transfer::messages::{
-    AutoAllocListResponse, JobDetail, JobInfo, ServerInfo, WaitForJobsResponse, WorkerExitInfo,
-    WorkerInfo,
+    AutoAllocListQueuesResponse, JobDetail, JobInfo, ServerInfo, WaitForJobsResponse,
+    WorkerExitInfo, WorkerInfo,
 };
 use tako::server::TaskExplanation;
 use tako::{JobId, JobTaskId, TaskId};
@@ -143,8 +143,15 @@ impl Output for Quiet {
     fn print_summary(&self, _filename: &Path, _summary: Summary) {}
 
     // Autoalloc
-    fn print_autoalloc_queues(&self, _info: AutoAllocListResponse) {}
+    fn print_autoalloc_queues(&self, _info: AutoAllocListQueuesResponse) {}
     fn print_allocations(&self, _allocations: Vec<Allocation>) {}
+    fn print_allocation_output(
+        &self,
+        _allocation: Allocation,
+        _stream: OutputStream,
+    ) -> anyhow::Result<()> {
+        Ok(())
+    }
 
     // Hw
     fn print_hw(&self, _descriptor: &ResourceDescriptor) {}

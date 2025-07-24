@@ -7,7 +7,7 @@ use crate::JobDataObjectId;
 use crate::client::status::Status;
 use crate::common::arraydef::IntArray;
 use crate::common::manager::info::ManagerType;
-use crate::server::autoalloc::{Allocation, QueueId, QueueParameters};
+use crate::server::autoalloc::{Allocation, AllocationId, QueueId, QueueParameters};
 use crate::server::event::Event;
 use crate::server::job::{JobTaskCounters, JobTaskInfo, SubmittedJobDescription};
 use std::path::PathBuf;
@@ -278,9 +278,12 @@ pub struct WorkerInfoRequest {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum AutoAllocRequest {
-    List,
-    Info {
+    ListQueues,
+    GetQueueInfo {
         queue_id: QueueId,
+    },
+    GetAllocationInfo {
+        allocation_id: AllocationId,
     },
     AddQueue {
         parameters: QueueParameters,
@@ -473,12 +476,13 @@ pub enum AutoAllocResponse {
     QueuePaused(QueueId),
     QueueResumed(QueueId),
     DryRunSuccessful,
-    Info(Vec<Allocation>),
-    List(AutoAllocListResponse),
+    QueueInfo(Vec<Allocation>),
+    AllocationInfo(Allocation),
+    QueueList(AutoAllocListQueuesResponse),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct AutoAllocListResponse {
+pub struct AutoAllocListQueuesResponse {
     pub queues: Map<QueueId, QueueData>,
 }
 

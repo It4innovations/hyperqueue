@@ -140,7 +140,7 @@ pub async fn try_submit_allocation(params: QueueParameters) -> anyhow::Result<()
         .await
         .map_err(|e| anyhow::anyhow!("Could not submit allocation: {:?}", e))?;
 
-    let working_dir = allocation.working_dir().to_path_buf();
+    let working_dir = allocation.working_dir().clone();
     let id = allocation
         .into_id()
         .map_err(|e| anyhow::anyhow!("Could not submit allocation: {:?}", e))?;
@@ -310,10 +310,18 @@ async fn handle_message(
             response.respond(result);
             true
         }
-        AutoAllocMessage::GetAllocations(queue_id, response) => {
+        AutoAllocMessage::GetQueueAllocations(queue_id, response) => {
             let result = match autoalloc.get_queue(queue_id) {
                 Some(queue) => Ok(queue.all_allocations().cloned().collect()),
                 None => Err(anyhow::anyhow!("Queue {queue_id} not found")),
+            };
+            response.respond(result);
+            false
+        }
+        AutoAllocMessage::GetAllocation(alloc_id, response) => {
+            let result = match autoalloc.get_allocation_by_id(&alloc_id) {
+                Some(alloc) => Ok(alloc),
+                None => Err(anyhow::anyhow!("Allocation {alloc_id} not found")),
             };
             response.respond(result);
             false
@@ -605,7 +613,7 @@ async fn queue_try_submit(
 
         match result {
             Ok(submission_result) => {
-                let working_dir = submission_result.working_dir().to_path_buf();
+                let working_dir = submission_result.working_dir().clone();
                 match submission_result.into_id() {
                     Ok(allocation_id) => {
                         log::info!(

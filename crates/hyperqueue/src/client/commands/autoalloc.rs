@@ -3,11 +3,14 @@ use std::time::Duration;
 
 use crate::client::commands::worker::{ArgServerLostPolicy, SharedWorkerStartOpts};
 use crate::client::globalsettings::GlobalSettings;
+use crate::client::output::outputs::OutputStream;
 use crate::common::format::server_lost_policy_to_str;
 use crate::common::manager::info::ManagerType;
 use crate::common::utils::time::parse_hms_or_human_time;
 use crate::rpc_call;
-use crate::server::autoalloc::{Allocation, AllocationState, QueueId, QueueParameters};
+use crate::server::autoalloc::{
+    Allocation, AllocationId, AllocationState, QueueId, QueueParameters,
+};
 use crate::server::bootstrap::get_client_session;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
@@ -28,7 +31,9 @@ enum AutoAllocCommand {
     /// Displays allocation queues
     List,
     /// Display allocations of the specified allocation queue
-    Info(AllocationsOpts),
+    Info(AllocationInfoOpts),
+    /// Display stdout/stderr of the specified allocation
+    Cat(CatAllocationOpts),
     /// Add a new allocation queue
     Add(AddQueueOpts),
     /// Pause an existing allocation queue
@@ -41,6 +46,16 @@ enum AutoAllocCommand {
     DryRun(DryRunOpts),
     /// Removes an allocation queue with the given ID
     Remove(RemoveQueueOpts),
+}
+
+#[derive(Parser)]
+struct CatAllocationOpts {
+    /// Allocation ID
+    allocation: AllocationId,
+
+    /// Channel to output: "stdout" or "stderr"
+    #[arg(value_enum)]
+    channel: OutputStream,
 }
 
 #[derive(Parser)]
@@ -184,7 +199,7 @@ struct EventsOpts {
 }
 
 #[derive(Parser)]
-struct AllocationsOpts {
+struct AllocationInfoOpts {
     /// ID of the allocation queue
     queue: u32,
 
@@ -229,6 +244,9 @@ pub async fn command_autoalloc(
         AutoAllocCommand::Info(opts) => {
             print_allocations(gsettings, session, opts).await?;
         }
+        AutoAllocCommand::Cat(opts) => {
+            print_allocation_output(gsettings, session, opts).await?;
+        }
         AutoAllocCommand::Remove(opts) => {
             remove_queue(session, opts.queue_id, opts.force).await?;
         }
@@ -243,6 +261,23 @@ pub async fn command_autoalloc(
         }
     }
     Ok(())
+}
+
+async fn print_allocation_output(
+    gsettings: &GlobalSettings,
+    mut session: ClientSession,
+    opts: CatAllocationOpts,
+) -> anyhow::Result<()> {
+    let message = FromClientMessage::AutoAlloc(AutoAllocRequest::GetAllocationInfo {
+        allocation_id: opts.allocation,
+    });
+    let allocation = rpc_call!(session.connection(), message,
+        ToClientMessage::AutoAllocResponse(AutoAllocResponse::AllocationInfo(alloc)) => alloc
+    )
+    .await?;
+    gsettings
+        .printer()
+        .print_allocation_output(allocation, opts.channel)
 }
 
 fn args_to_params(manager: ManagerType, args: SharedQueueOpts) -> anyhow::Result<QueueParameters> {
@@ -468,9 +503,9 @@ async fn print_allocation_queues(
     gsettings: &GlobalSettings,
     mut session: ClientSession,
 ) -> anyhow::Result<()> {
-    let message = FromClientMessage::AutoAlloc(AutoAllocRequest::List);
+    let message = FromClientMessage::AutoAlloc(AutoAllocRequest::ListQueues);
     let response = rpc_call!(session.connection(), message,
-        ToClientMessage::AutoAllocResponse(AutoAllocResponse::List(r)) => r
+        ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueueList(r)) => r
     )
     .await?;
 
@@ -481,13 +516,13 @@ async fn print_allocation_queues(
 async fn print_allocations(
     gsettings: &GlobalSettings,
     mut session: ClientSession,
-    opts: AllocationsOpts,
+    opts: AllocationInfoOpts,
 ) -> anyhow::Result<()> {
-    let message = FromClientMessage::AutoAlloc(AutoAllocRequest::Info {
+    let message = FromClientMessage::AutoAlloc(AutoAllocRequest::GetQueueInfo {
         queue_id: opts.queue,
     });
     let mut allocations = rpc_call!(session.connection(), message,
-        ToClientMessage::AutoAllocResponse(AutoAllocResponse::Info(allocs)) => allocs
+        ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueueInfo(allocs)) => allocs
     )
     .await?;
     filter_allocations(&mut allocations, opts.filter);

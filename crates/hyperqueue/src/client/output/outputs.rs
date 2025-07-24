@@ -1,5 +1,5 @@
 use crate::transfer::messages::{
-    AutoAllocListResponse, JobDetail, JobInfo, ServerInfo, WaitForJobsResponse, WorkerInfo,
+    AutoAllocListQueuesResponse, JobDetail, JobInfo, ServerInfo, WaitForJobsResponse, WorkerInfo,
 };
 
 use crate::client::job::WorkerMap;
@@ -27,9 +27,9 @@ pub enum Outputs {
 
 #[derive(clap::ValueEnum, Clone, Copy)]
 pub enum OutputStream {
-    /// Displays stdout output stream for given job and task(s)
+    /// Displays stdout output stream
     Stdout,
-    /// Displays stderr output stream for given job and task(s)
+    /// Displays stderr output stream
     Stderr,
 }
 
@@ -85,8 +85,13 @@ pub trait Output {
     fn print_summary(&self, path: &Path, summary: Summary);
 
     // Autoalloc
-    fn print_autoalloc_queues(&self, info: AutoAllocListResponse);
+    fn print_autoalloc_queues(&self, info: AutoAllocListQueuesResponse);
     fn print_allocations(&self, allocations: Vec<Allocation>);
+    fn print_allocation_output(
+        &self,
+        allocation: Allocation,
+        stream: OutputStream,
+    ) -> anyhow::Result<()>;
 
     // Hw
     fn print_hw(&self, descriptor: &ResourceDescriptor);

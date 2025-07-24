@@ -65,8 +65,8 @@ impl QueueHandler for PbsHandler {
                 worker_count,
                 timelimit,
                 &format_allocation_name(name, queue_id, allocation_num),
-                &directory.join("stdout").display().to_string(),
-                &directory.join("stderr").display().to_string(),
+                &directory.stdout().display().to_string(),
+                &directory.stderr().display().to_string(),
                 &params.additional_args.join(" "),
                 &worker_args,
                 mode,
@@ -97,7 +97,7 @@ impl QueueHandler for PbsHandler {
             allocations.iter().map(|alloc| alloc.id.clone()).collect();
         let workdir = allocations
             .first()
-            .map(|alloc| alloc.working_dir.clone())
+            .map(|alloc| alloc.working_dir.as_ref().to_path_buf())
             .unwrap_or_else(get_current_dir);
 
         log::debug!("Running PBS command `{}`", arguments.join(" "));
@@ -137,7 +137,7 @@ impl QueueHandler for PbsHandler {
         allocation: &Allocation,
     ) -> Pin<Box<dyn Future<Output = AutoAllocResult<()>>>> {
         let allocation_id = allocation.id.clone();
-        let workdir = allocation.working_dir.clone();
+        let workdir = allocation.working_dir.as_ref().to_path_buf();
 
         Box::pin(async move {
             let arguments = vec!["qdel", &allocation_id];

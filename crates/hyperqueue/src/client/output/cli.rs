@@ -3,7 +3,6 @@ use cli_table::{Cell, CellStruct, Color, ColorChoice, Style, Table, TableStruct,
 use itertools::Itertools;
 
 use std::fmt::{Display, Write};
-use std::io::Write as write;
 
 use crate::client::job::WorkerMap;
 use crate::client::output::outputs::{MAX_DISPLAYED_WORKERS, Output, OutputStream};
@@ -15,9 +14,9 @@ use crate::server::autoalloc::{Allocation, AllocationState};
 use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState};
 use crate::stream::reader::outputlog::Summary;
 use crate::transfer::messages::{
-    AutoAllocListResponse, JobDetail, JobInfo, JobTaskDescription, PinMode, QueueData, QueueState,
-    ServerInfo, TaskDescription, TaskKind, TaskKindProgram, WaitForJobsResponse, WorkerExitInfo,
-    WorkerInfo,
+    AutoAllocListQueuesResponse, JobDetail, JobInfo, JobTaskDescription, PinMode, QueueData,
+    QueueState, ServerInfo, TaskDescription, TaskKind, TaskKindProgram, WaitForJobsResponse,
+    WorkerExitInfo, WorkerInfo,
 };
 use tako::{JobId, JobTaskCount, JobTaskId, TaskId, WorkerId};
 
@@ -950,7 +949,7 @@ impl Output for CliOutput {
         self.print_vertical_table(rows);
     }
 
-    fn print_autoalloc_queues(&self, info: AutoAllocListResponse) {
+    fn print_autoalloc_queues(&self, info: AutoAllocListQueuesResponse) {
         let mut queues: Vec<_> = info.queues.into_iter().collect();
         queues.sort_unstable_by(|a, b| a.0.cmp(&b.0));
 
@@ -1010,7 +1009,7 @@ impl Output for CliOutput {
                 vec![
                     allocation.id.cell(),
                     allocation_status_to_cell(&allocation.status),
-                    allocation.working_dir.display().cell(),
+                    allocation.working_dir.as_ref().display().cell(),
                     allocation.target_worker_count.cell(),
                     format_time(Some(times.get_queued_at())),
                     format_time(times.get_started_at()),
@@ -1157,6 +1156,20 @@ impl Output for CliOutput {
             ];
             self.print_horizontal_table(rows, header);
         }
+    }
+
+    fn print_allocation_output(
+        &self,
+        allocation: Allocation,
+        stream: OutputStream,
+    ) -> anyhow::Result<()> {
+        let path = match stream {
+            OutputStream::Stdout => allocation.working_dir.stdout(),
+            OutputStream::Stderr => allocation.working_dir.stderr(),
+        };
+        log::info!("Outputting allocation path at {}", path.display());
+        output_file(&path);
+        Ok(())
     }
 }
 
@@ -1342,9 +1355,6 @@ pub fn print_job_output(
     task_paths: TaskToPathsMap,
 ) -> anyhow::Result<()> {
     let read_stream = |task_id: JobTaskId, output_stream: &OutputStream| {
-        let stdout = std::io::stdout();
-        let mut stdout = stdout.lock();
-
         let (_, stdout_path, stderr_path) = get_task_paths(&task_paths, task_id);
         let (opt_path, stream_name) = match output_stream {
             OutputStream::Stdout => (stdout_path, "stdout"),
@@ -1352,20 +1362,11 @@ pub fn print_job_output(
         };
 
         if task_header {
-            writeln!(stdout, "# Job {}, task {}", job_detail.info.id, task_id)
-                .expect("Could not write output");
+            println!("# Job {}, task {}", job_detail.info.id, task_id);
         }
 
         if let Some(path) = opt_path {
-            match File::open(path) {
-                Ok(mut file) => {
-                    let copy = std::io::copy(&mut file, &mut stdout);
-                    if let Err(error) = copy {
-                        log::warn!("Could not output contents of `{path}`: {error:?}");
-                    }
-                }
-                Err(error) => log::warn!("File `{path}` cannot be opened: {error:?}"),
-            };
+            output_file(Path::new(path));
         } else {
             log::warn!("Task {task_id} has no `{stream_name}` stream associated with it");
         }
@@ -1376,6 +1377,24 @@ pub fn print_job_output(
     }
 
     Ok(())
+}
+
+fn output_file(path: &Path) {
+    let stdout = std::io::stdout();
+    let mut stdout = stdout.lock();
+
+    match File::open(path) {
+        Ok(mut file) => {
+            let copy = std::io::copy(&mut file, &mut stdout);
+            if let Err(error) = copy {
+                log::warn!(
+                    "Could not output contents of `{}`: {error:?}",
+                    path.display()
+                );
+            }
+        }
+        Err(error) => log::warn!("File at `{}` cannot be opened: {error:?}", path.display()),
+    };
 }
 
 fn session_to_cell(is_open: bool) -> CellStruct {

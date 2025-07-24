@@ -68,8 +68,8 @@ impl QueueHandler for SlurmHandler {
                 worker_count,
                 timelimit,
                 &format_allocation_name(name, queue_id, allocation_num),
-                &working_dir.join("stdout").display().to_string(),
-                &working_dir.join("stderr").display().to_string(),
+                &working_dir.stdout().display().to_string(),
+                &working_dir.stderr().display().to_string(),
                 &params.additional_args.join(" "),
                 &worker_args,
             );
@@ -97,7 +97,7 @@ impl QueueHandler for SlurmHandler {
             allocations.iter().map(|alloc| alloc.id.clone()).collect();
         let workdir = allocations
             .first()
-            .map(|alloc| alloc.working_dir.clone())
+            .map(|alloc| alloc.working_dir.as_ref().to_path_buf())
             .unwrap_or_else(get_current_dir);
 
         Box::pin(async move {
@@ -116,7 +116,7 @@ impl QueueHandler for SlurmHandler {
         allocation: &Allocation,
     ) -> Pin<Box<dyn Future<Output = AutoAllocResult<()>>>> {
         let allocation_id = allocation.id.clone();
-        let workdir = allocation.working_dir.clone();
+        let workdir = allocation.working_dir.as_ref().to_path_buf();
 
         Box::pin(async move {
             let arguments = vec!["scancel", &allocation_id];

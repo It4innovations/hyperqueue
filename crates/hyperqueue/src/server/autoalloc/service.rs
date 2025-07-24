@@ -12,7 +12,7 @@ use crate::common::manager::info::{GetManagerInfo, ManagerInfo};
 use crate::common::rpc::{ResponseToken, RpcSender, initiate_request, make_rpc_queue};
 use crate::server::autoalloc::process::autoalloc_process;
 use crate::server::autoalloc::state::AutoAllocState;
-use crate::server::autoalloc::{Allocation, QueueId, QueueParameters};
+use crate::server::autoalloc::{Allocation, AllocationId, QueueId, QueueParameters};
 use crate::server::event::streamer::EventStreamer;
 use crate::transfer::messages::QueueData;
 use tako::JobId;
@@ -49,7 +49,8 @@ pub enum AutoAllocMessage {
         id: QueueId,
         response: ResponseToken<anyhow::Result<()>>,
     },
-    GetAllocations(QueueId, ResponseToken<anyhow::Result<Vec<Allocation>>>),
+    GetQueueAllocations(QueueId, ResponseToken<anyhow::Result<Vec<Allocation>>>),
+    GetAllocation(AllocationId, ResponseToken<anyhow::Result<Allocation>>),
     QuitService,
 }
 
@@ -146,8 +147,14 @@ impl AutoAllocService {
     pub async fn get_allocations(&self, id: QueueId) -> anyhow::Result<Vec<Allocation>> {
         let fut = initiate_request(|token| {
             self.sender
-                .send(AutoAllocMessage::GetAllocations(id, token))
+                .send(AutoAllocMessage::GetQueueAllocations(id, token))
         });
+        fut.await?
+    }
+
+    pub async fn get_allocation_by_id(&self, id: AllocationId) -> anyhow::Result<Allocation> {
+        let fut =
+            initiate_request(|token| self.sender.send(AutoAllocMessage::GetAllocation(id, token)));
         fut.await?
     }
 
