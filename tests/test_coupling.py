@@ -62,7 +62,7 @@ def test_coupling_alloc1(hq_env: HqEnv):
         args=["--coupling=cpus,foo", "--resource=ddd=sum(123)", "--resource=foo=[[10,20,30,40],[50,60,70,80]]"],
     )
 
-    wait_for_job_state(hq_env, 1, "FINISHED")
+    wait_for_job_state(hq_env, [1, 2], "FINISHED")
 
     def get_groups(data):
         cpus, foos = (x.split(",") for x in data.rstrip().split(";"))
