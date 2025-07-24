@@ -901,6 +901,7 @@ fn increase_status_error_counter(
     }
 }
 
+#[derive(Debug)]
 enum AllocationSyncReason {
     WorkedConnected(WorkerId),
     WorkerLost(WorkerId, LostWorkerDetails),
@@ -917,9 +918,16 @@ fn sync_allocation_status(
 ) {
     let allocation = get_or_return!(queue.get_allocation_mut(allocation_id));
 
+    log::debug!("Syncing status of allocation {allocation_id}, reason: {sync_reason:?}");
+
+    #[derive(Copy, Clone, Debug)]
     enum AllocationFinished {
-        Failure,
-        Success,
+        AllWorkersFailed,
+        AllWorkersFinished,
+        FromQueuedToExternalFailure,
+        FromQueuedToExternalFinish,
+        FromRunningToExternalFailure,
+        FromRunningToExternalFinish,
     }
 
     let finished: Option<AllocationFinished> = {
@@ -992,9 +1000,9 @@ fn sync_allocation_status(
                             };
 
                             if is_failed {
-                                Some(AllocationFinished::Failure)
+                                Some(AllocationFinished::AllWorkersFailed)
                             } else {
-                                Some(AllocationFinished::Success)
+                                Some(AllocationFinished::AllWorkersFinished)
                             }
                         } else {
                             None
@@ -1024,6 +1032,10 @@ fn sync_allocation_status(
                         None
                     }
                     (AllocationState::Queued { .. }, AllocationExternalStatus::Running) => {
+                        log::debug!(
+                            "Allocation {allocation_id} marked externally as running, even though a worker has not connected yet"
+                        );
+
                         // The allocation has started running. Usually, we will receive
                         // information about this by a worker being connected, but in theory this
                         // event can happen sooner (or the allocation can start, but the worker
@@ -1060,9 +1072,9 @@ fn sync_allocation_status(
                         };
 
                         Some(if failed {
-                            AllocationFinished::Failure
+                            AllocationFinished::FromQueuedToExternalFailure
                         } else {
-                            AllocationFinished::Success
+                            AllocationFinished::FromQueuedToExternalFinish
                         })
                     }
                     (
@@ -1094,9 +1106,9 @@ fn sync_allocation_status(
                         };
 
                         Some(if failed {
-                            AllocationFinished::Failure
+                            AllocationFinished::FromRunningToExternalFailure
                         } else {
-                            AllocationFinished::Success
+                            AllocationFinished::FromRunningToExternalFinish
                         })
                     }
                     (
@@ -1125,13 +1137,21 @@ fn sync_allocation_status(
     };
 
     match finished {
-        Some(AllocationFinished::Success) => {
-            log::debug!("Marking allocation {allocation_id} success");
+        Some(
+            AllocationFinished::AllWorkersFinished
+            | AllocationFinished::FromQueuedToExternalFinish
+            | AllocationFinished::FromRunningToExternalFinish,
+        ) => {
+            log::debug!("Marking allocation {allocation_id} as success: {finished:?}");
             queue.limiter_mut().on_allocation_success();
             events.on_allocation_finished(queue_id, allocation_id.to_string());
         }
-        Some(AllocationFinished::Failure) => {
-            log::debug!("Marking allocation {allocation_id} failure");
+        Some(
+            AllocationFinished::AllWorkersFailed
+            | AllocationFinished::FromQueuedToExternalFailure
+            | AllocationFinished::FromRunningToExternalFailure,
+        ) => {
+            log::debug!("Marking allocation {allocation_id} as failure: {finished:?}");
             queue.limiter_mut().on_allocation_fail();
             events.on_allocation_finished(queue_id, allocation_id.to_string());
         }

@@ -13,6 +13,8 @@ use tako::worker::{ServerLostPolicy, WorkerConfiguration};
 use tako::{Map, Set};
 
 use clap::Parser;
+use signal_hook::consts::{SIGHUP, SIGINT, SIGSTOP, SIGTERM};
+use signal_hook::iterator::Signals;
 use tako::hwstats::GpuFamily;
 use tako::internal::worker::configuration::OverviewConfiguration;
 use tempfile::TempDir;
@@ -200,10 +202,31 @@ pub struct WorkerStartOpts {
     pub wait_between_download_tries: Duration,
 }
 
+/// Create signal hooks that will propagate received signals to the whole process group
+/// of the worker.
+fn prepare_signal_handler() {
+    std::thread::spawn(move || {
+        let mut signals =
+            Signals::new(&[SIGTERM, SIGINT, SIGHUP, SIGSTOP]).expect("Cannot create signal list");
+
+        // Listen for incoming signals.
+        for signal in signals.forever() {
+            log::info!("Received signal {signal}, forwarding it to my process group");
+
+            // And then handle it with the default handler.
+            signal_hook::low_level::emulate_default_handler(signal).unwrap_or_else(|error| {
+                panic!("Could not execute default handler for signal {signal}: {error:?}")
+            });
+        }
+    });
+}
+
 pub async fn start_hq_worker(
     gsettings: &GlobalSettings,
     opts: WorkerStartOpts,
 ) -> anyhow::Result<()> {
+    prepare_signal_handler();
+
     let mut configuration = gather_configuration(opts)?;
     finalize_configuration(&mut configuration);
 
