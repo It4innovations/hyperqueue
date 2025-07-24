@@ -15,6 +15,7 @@ use crate::server::autoalloc::config::MAX_KEPT_DIRECTORIES;
 use crate::server::autoalloc::queue::QueueHandler;
 use crate::server::autoalloc::{LostWorkerDetails, QueueInfo};
 use tako::Map;
+use tako::resources::ResourceDescriptor;
 use tako::worker::WorkerConfiguration;
 
 // Main state holder
@@ -154,9 +155,9 @@ pub struct AllocationQueue {
     name: Option<String>,
     handler: Box<dyn QueueHandler>,
     rate_limiter: RateLimiter,
-    /// A worker configuration from a worker that connected from an allocation
+    /// Worker resources from a worker that connected from an allocation
     /// attached to this queue.
-    worker_config: Option<WorkerConfiguration>,
+    worker_resources: Option<ResourceDescriptor>,
 }
 
 impl AllocationQueue {
@@ -165,6 +166,7 @@ impl AllocationQueue {
         name: Option<String>,
         handler: Box<dyn QueueHandler>,
         rate_limiter: RateLimiter,
+        worker_resources: Option<ResourceDescriptor>,
     ) -> Self {
         Self {
             state: AllocationQueueState::Active,
@@ -173,7 +175,7 @@ impl AllocationQueue {
             handler,
             allocations: Default::default(),
             rate_limiter,
-            worker_config: None,
+            worker_resources,
         }
     }
 
@@ -252,13 +254,13 @@ impl AllocationQueue {
             .filter(|alloc| alloc.is_active())
     }
 
-    pub fn register_worker_config(&mut self, config: WorkerConfiguration) {
+    pub fn register_worker_resources(&mut self, config: WorkerConfiguration) {
         // Always overwrite the config with the latest one that we have seen
-        self.worker_config = Some(config);
+        self.worker_resources = Some(config.resources);
     }
 
-    pub fn get_worker_config(&self) -> Option<&WorkerConfiguration> {
-        self.worker_config.as_ref()
+    pub fn get_worker_resources(&self) -> Option<&ResourceDescriptor> {
+        self.worker_resources.as_ref()
     }
 
     /// How many workers are currently queued or running?
@@ -594,6 +596,7 @@ mod tests {
                 None,
                 Box::new(NullHandler),
                 RateLimiter::new(vec![Duration::from_secs(1)], 1, 1),
+                None,
             ),
             None,
         );

@@ -379,7 +379,12 @@ async fn start_server(
             for queue in new_queues {
                 senders
                     .autoalloc
-                    .add_queue(&server_dir, *queue.params, Some(queue.queue_id))
+                    .add_queue(
+                        &server_dir,
+                        *queue.params,
+                        Some(queue.queue_id),
+                        queue.worker_resources,
+                    )
                     .await
                     .unwrap();
             }

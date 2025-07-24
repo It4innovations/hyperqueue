@@ -1,5 +1,6 @@
 use crate::common::error::HqError;
-use crate::server::autoalloc::{QueueId, QueueParameters};
+use crate::common::manager::info::GetManagerInfo;
+use crate::server::autoalloc::{AllocationId, QueueId, QueueParameters};
 use crate::server::client::{submit_job_desc, validate_submit};
 use crate::server::event::journal::JournalReader;
 use crate::server::event::payload::EventPayload;
@@ -9,6 +10,7 @@ use crate::transfer::messages::{JobDescription, SubmitRequest};
 use crate::worker::start::RunningTaskContext;
 use std::path::Path;
 use tako::gateway::TaskSubmit;
+use tako::resources::ResourceDescriptor;
 use tako::{InstanceId, ItemId, JobId, JobTaskId, Map, TaskId, WorkerId};
 
 struct RestorerTaskInfo {
@@ -38,6 +40,7 @@ struct RestorerJob {
 pub struct Queue {
     pub queue_id: QueueId,
     pub params: Box<QueueParameters>,
+    pub worker_resources: Option<ResourceDescriptor>,
 }
 
 fn is_task_completed(tasks: &Map<JobTaskId, RestorerTaskInfo>, task_id: JobTaskId) -> bool {
@@ -134,6 +137,8 @@ pub(crate) struct StateRestorer {
     jobs: Map<JobId, RestorerJob>,
     max_job_id: <JobId as ItemId>::IdType,
     max_worker_id: <WorkerId as ItemId>::IdType,
+    queue_to_worker_resources: Map<QueueId, ResourceDescriptor>,
+    allocation_to_queue_id: Map<AllocationId, QueueId>,
     truncate_size: Option<u64>,
     queues: Map<QueueId, Box<QueueParameters>>,
     max_queue_id: QueueId,
@@ -159,7 +164,7 @@ impl StateRestorer {
     }
 
     pub fn restore_jobs_and_queues(
-        self,
+        mut self,
         state: &mut State,
     ) -> crate::Result<(Vec<TaskSubmit>, Vec<Queue>)> {
         let mut jobs = Vec::new();
@@ -167,11 +172,19 @@ impl StateRestorer {
             let mut new_jobs = job.restore_job(job_id, state)?;
             jobs.append(&mut new_jobs);
         }
-        let queues = self
+        let queues: Vec<Queue> = self
             .queues
             .into_iter()
-            .map(|(queue_id, params)| Queue { queue_id, params })
+            .map(|(queue_id, params)| {
+                let worker_resources = self.queue_to_worker_resources.remove(&queue_id);
+                Queue {
+                    queue_id,
+                    params,
+                    worker_resources,
+                }
+            })
             .collect();
+
         Ok((jobs, queues))
     }
 
@@ -194,9 +207,20 @@ impl StateRestorer {
                 ))
             })?;
             match event.payload {
-                EventPayload::WorkerConnected(worker_id, _) => {
+                EventPayload::WorkerConnected(worker_id, config) => {
                     log::debug!("Replaying: WorkerConnected {worker_id}");
                     self.max_worker_id = self.max_worker_id.max(worker_id.as_num());
+
+                    // If we see a worker connected from an allocation, it should have occurred
+                    // in the log *after* the corresponding allocation has been submitted from a
+                    // queue.
+                    if let Some(info) = config.get_manager_info() {
+                        if let Some(queue_id) = self.allocation_to_queue_id.get(&info.allocation_id)
+                        {
+                            self.queue_to_worker_resources
+                                .insert(*queue_id, config.resources);
+                        }
+                    }
                 }
                 EventPayload::WorkerLost(worker_id, reason) => {
                     if reason.is_failure() {
@@ -333,7 +357,13 @@ impl StateRestorer {
                 EventPayload::AllocationQueueRemoved(queue_id) => {
                     self.queues.remove(&queue_id);
                 }
-                EventPayload::AllocationQueued { .. } => {}
+                EventPayload::AllocationQueued {
+                    allocation_id,
+                    queue_id,
+                    ..
+                } => {
+                    self.allocation_to_queue_id.insert(allocation_id, queue_id);
+                }
                 EventPayload::AllocationStarted(_, _) => {}
                 EventPayload::AllocationFinished(_, _) => {}
                 EventPayload::ServerStart { server_uid } => self.server_uid = server_uid,
