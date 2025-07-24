@@ -467,6 +467,18 @@ async fn main() -> hyperqueue::Result<()> {
         reset_sigpipe();
     }
 
+    let is_long_running = matches!(
+        top_opts.subcmd,
+        SubCommand::Server(ServerOpts {
+            subcmd: ServerCommand::Start(_),
+        }) | SubCommand::Worker(WorkerOpts {
+            subcmd: WorkerCommand::Start(_),
+        })
+    );
+    if is_long_running {
+        log::info!("HyperQueue {HQ_VERSION}");
+    }
+
     let result = match top_opts.subcmd {
         SubCommand::Server(opts) => command_server(&gsettings, opts).await,
         SubCommand::Worker(opts) => match opts.subcmd {
