@@ -19,8 +19,8 @@ use crate::server::state::{State, StateRef};
 use crate::transfer::connection::accept_client;
 use crate::transfer::messages::{
     CancelJobResponse, CloseJobResponse, FromClientMessage, IdSelector, JobDetail,
-    JobDetailResponse, JobInfoResponse, JobSubmitDescription, StopWorkerResponse, SubmitRequest,
-    TaskSelector, ToClientMessage, WorkerListResponse,
+    JobDetailResponse, JobInfoResponse, JobSubmitDescription, StopWorkerResponse, StreamEvents,
+    SubmitRequest, TaskSelector, ToClientMessage, WorkerListResponse,
 };
 use crate::transfer::messages::{ForgetJobResponse, WaitForJobsResponse};
 use tako::{JobId, JobTaskCount, WorkerId};
@@ -32,6 +32,7 @@ use crate::common::serialization::Serialized;
 use crate::server::Senders;
 use crate::server::client::submit::{handle_open_job, handle_task_explain};
 use crate::server::event::payload::EventPayload;
+use crate::server::event::streamer::EventFilter;
 pub(crate) use submit::{submit_job_desc, validate_submit};
 
 pub async fn handle_client_connections(
@@ -179,19 +180,33 @@ pub async fn client_rpc_loop<
                     FromClientMessage::CloseJob(msg) => {
                         handle_job_close(&state_ref, senders, &msg.selector).await
                     }
-                    FromClientMessage::StreamEvents(msg) => {
-                        let enable_worker_overviews = msg.enable_worker_overviews;
+                    FromClientMessage::StreamEvents(StreamEvents {
+                        past_events,
+                        live_events,
+                        enable_worker_overviews,
+                        job_filter,
+                        allow_notify,
+                    }) => {
+                        let enable_worker_overviews = enable_worker_overviews;
                         if enable_worker_overviews {
                             senders.server_control.add_worker_overview_listener();
                         }
                         log::debug!("Start streaming events to client");
+                        if !live_events && !past_events {
+                            break;
+                        }
+
+                        // Job filter is now implemented only for live events
+                        assert!(job_filter.is_none() || !past_events);
+
                         /* We create two event queues, one for historic events and one for live events
                         So while historic events are loaded from the file and streamed, live events are already
                         collected and sent immediately once the historic events are sent */
                         let (tx1, rx1) = mpsc::unbounded_channel::<Event>();
-                        let live = if msg.live_events {
+                        let live = if live_events {
                             let (tx2, rx2) = mpsc::unbounded_channel::<Event>();
-                            let listener_id = senders.events.register_listener(tx2);
+                            let filter = EventFilter::new(job_filter, allow_notify);
+                            let listener_id = senders.events.register_listener(filter, tx2);
                             Some((rx2, listener_id))
                         } else {
                             None
@@ -200,16 +215,19 @@ pub async fn client_rpc_loop<
                         // If we use a journal, we can replay historical events from it.
                         // If not, we can at least try to reconstruct a few basic events
                         // based on the current state.
-                        if senders.events.is_journal_enabled() {
-                            senders.events.start_journal_replay(tx1);
-                        } else if let Err(e) = reconstruct_historical_events(state_ref, tx1) {
-                            log::error!("Cannot reconstruct historical state: {e:?}");
+                        if past_events {
+                            if senders.events.is_journal_enabled() {
+                                senders.events.start_journal_replay(tx1);
+                            } else if let Err(e) = reconstruct_historical_events(state_ref, tx1) {
+                                log::error!("Cannot reconstruct historical state: {e:?}");
+                            }
+                            stream_history_events(&mut tx, rx1).await;
                         }
 
-                        stream_history_events(&mut tx, rx1).await;
-
                         if let Some((rx2, listener_id)) = live {
-                            let _ = tx.send(ToClientMessage::EventLiveBoundary).await;
+                            if past_events {
+                                let _ = tx.send(ToClientMessage::EventLiveBoundary).await;
+                            }
                             stream_events(&mut tx, &mut rx, rx2).await;
                             senders.events.unregister_listener(listener_id);
                         }
