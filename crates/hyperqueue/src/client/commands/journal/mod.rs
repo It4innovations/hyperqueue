@@ -60,20 +60,27 @@ struct ExportOpts {
 pub async fn command_journal(gsettings: &GlobalSettings, opts: JournalOpts) -> anyhow::Result<()> {
     match opts.command {
         JournalCommand::Export(opts) => export_json(opts),
-        JournalCommand::Replay => stream_json(gsettings, false).await,
-        JournalCommand::Stream => stream_json(gsettings, true).await,
+        JournalCommand::Replay => stream_json(gsettings, true, false).await,
+        JournalCommand::Stream => stream_json(gsettings, true, true).await,
         JournalCommand::Prune => prune_journal(gsettings).await,
         JournalCommand::Flush => flush_journal(gsettings).await,
     }
 }
 
-async fn stream_json(gsettings: &GlobalSettings, live_events: bool) -> anyhow::Result<()> {
+async fn stream_json(
+    gsettings: &GlobalSettings,
+    past_events: bool,
+    live_events: bool,
+) -> anyhow::Result<()> {
     let mut connection = get_client_session(gsettings.server_directory()).await?;
     connection
         .connection()
         .send(FromClientMessage::StreamEvents(StreamEvents {
+            past_events,
             live_events,
             enable_worker_overviews: false,
+            job_filter: None,
+            allow_notify: true,
         }))
         .await?;
     let stdout = std::io::stdout();

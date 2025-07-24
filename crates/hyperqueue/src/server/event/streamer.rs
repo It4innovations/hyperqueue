@@ -13,9 +13,15 @@ use tako::worker::{WorkerConfiguration, WorkerOverview};
 use tako::{InstanceId, JobId, Set, TaskId, WorkerId, WrappedRcRefCell};
 use tokio::sync::{mpsc, oneshot};
 
+struct EventListener {
+    filter: EventFilter,
+    sender: mpsc::UnboundedSender<Event>,
+    id: u32,
+}
+
 struct Inner {
     storage_sender: Option<EventStreamSender>,
-    client_listeners: Vec<(mpsc::UnboundedSender<Event>, u32)>,
+    client_listeners: Vec<EventListener>,
 }
 
 /// How should events be forwarded.
@@ -24,6 +30,35 @@ enum ForwardMode {
     Stream,
     /// Stream the event to clients and persist it.
     StreamAndPersist,
+}
+
+pub struct EventFilter {
+    jobs: Option<Set<JobId>>,
+    notify: bool,
+}
+
+impl EventFilter {
+    pub fn new(jobs: Option<Set<JobId>>, notify: bool) -> Self {
+        EventFilter { jobs, notify }
+    }
+
+    pub fn check(&self, payload: &EventPayload) -> bool {
+        if let Some(jobs) = &self.jobs {
+            match payload {
+                EventPayload::JobCompleted(job_id)
+                | EventPayload::JobOpen(job_id, _)
+                | EventPayload::JobClose(job_id) => jobs.contains(job_id),
+                EventPayload::TaskNotify(notify) => {
+                    self.notify && jobs.contains(&notify.task_id.job_id())
+                }
+                _ => false,
+            }
+        } else if !self.notify {
+            !matches!(payload, EventPayload::TaskNotify(_))
+        } else {
+            true
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -222,14 +257,19 @@ impl EventStreamer {
             time: now.unwrap_or_else(Utc::now),
             payload,
         };
-        inner
-            .client_listeners
-            .retain(|(listener, _)| listener.send(event.clone()).is_ok());
-        if let Some(ref streamer) = inner.storage_sender
-            && matches!(forward_mode, ForwardMode::StreamAndPersist)
-            && streamer.send(EventStreamMessage::Event(event)).is_err()
-        {
-            log::error!("Event streaming queue has been closed.");
+        inner.client_listeners.retain(|listener| {
+            if listener.filter.check(&event.payload) {
+                listener.sender.send(event.clone()).is_ok()
+            } else {
+                true
+            }
+        });
+        if let Some(ref streamer) = inner.storage_sender {
+            if matches!(forward_mode, ForwardMode::StreamAndPersist)
+                && streamer.send(EventStreamMessage::Event(event)).is_err()
+            {
+                log::error!("Event streaming queue has been closed.");
+            }
         }
     }
 
@@ -274,16 +314,24 @@ impl EventStreamer {
         }
     }
 
-    pub fn register_listener(&self, current_sender: mpsc::UnboundedSender<Event>) -> u32 {
+    pub fn register_listener(
+        &self,
+        filter: EventFilter,
+        sender: mpsc::UnboundedSender<Event>,
+    ) -> u32 {
         let mut inner = self.inner.get_mut();
         let listener_id = inner
             .client_listeners
             .iter()
-            .map(|x| x.1)
+            .map(|x| x.id)
             .max()
             .unwrap_or(0)
             + 1;
-        inner.client_listeners.push((current_sender, listener_id));
+        inner.client_listeners.push(EventListener {
+            filter,
+            sender,
+            id: listener_id,
+        });
         listener_id
     }
 
@@ -292,7 +340,7 @@ impl EventStreamer {
         let p = inner
             .client_listeners
             .iter()
-            .position(|(_, id)| *id == listener_id)
+            .position(|listener| listener.id == listener_id)
             .unwrap();
         inner.client_listeners.remove(p);
     }
