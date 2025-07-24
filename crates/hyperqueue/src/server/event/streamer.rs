@@ -112,6 +112,14 @@ impl EventStreamer {
         );
     }
 
+    pub fn on_job_closed(&self, job_id: JobId) {
+        self.send_event(
+            EventPayload::JobClose(job_id),
+            None,
+            ForwardMode::StreamAndPersist,
+        );
+    }
+
     pub fn on_job_submitted(
         &self,
         job_id: JobId,
