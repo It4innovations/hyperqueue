@@ -18,6 +18,8 @@
 * New policy `tight` (and `tight!`) that is the original implementation of `compact`.
   The policy `compact` now behaves as is described in the section "Changes".
 * Resource policy `compact!` is now allowed to take fractional resource request.
+* There is a new command `hq alloc cat <alloc-id> <stdout/stderr>`, which can be used
+  to debug the output of allocations submitted by the automatic allocator.
 
 ### Fixes
 
