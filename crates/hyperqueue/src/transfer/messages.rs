@@ -47,6 +47,7 @@ pub enum FromClientMessage {
     // and the client will only receive ToClientMessage::Event
     // or ToClientMessage::EventLiveBoundary
     StreamEvents(StreamEvents),
+
     PruneJournal,
     FlushJournal,
 }

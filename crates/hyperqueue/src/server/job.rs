@@ -174,8 +174,9 @@ impl Job {
         self.is_open
     }
 
-    pub fn close(&mut self) {
+    pub fn close(&mut self, senders: &Senders) {
         self.is_open = false;
+        senders.events.on_job_closed(self.job_id);
     }
 
     pub fn max_id(&self) -> Option<JobTaskId> {
