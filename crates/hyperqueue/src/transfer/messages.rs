@@ -21,7 +21,7 @@ use tako::program::ProgramDefinition;
 use tako::resources::ResourceDescriptor;
 use tako::server::TaskExplanation;
 use tako::worker::WorkerConfiguration;
-use tako::{JobId, JobTaskCount, JobTaskId, Map, TaskId, WorkerId};
+use tako::{JobId, JobTaskCount, JobTaskId, Map, Set, TaskId, WorkerId};
 
 // Messages client -> server
 #[allow(clippy::large_enum_variant)]
@@ -45,8 +45,8 @@ pub enum FromClientMessage {
     ServerDebugDump(PathBuf),
 
     // This command switches the connection into streaming connection,
-    // it will no longer reacts to any other client messages
-    // and client will only receive ToClientMessage::Event
+    // it will no longer react to any other client messages,
+    // and the client will only receive ToClientMessage::Event
     // or ToClientMessage::EventLiveBoundary
     StreamEvents(StreamEvents),
     PruneJournal,
@@ -92,11 +92,18 @@ pub struct TaskKindProgram {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct StreamEvents {
-    /// If false, only replay historical events.
     /// If true, replay historical events and then start streaming live events.
+    pub past_events: bool,
+    /// If true, and then start streaming live events.
+    /// If both `live_events` and `past_events` are true, then historical events are replayed first
+    /// then event `EventLiveBoundary` is sent, then live events are streamed.
     pub live_events: bool,
     /// Enable worker overviews during the event streaming.
     pub enable_worker_overviews: bool,
+    /// Stream events only relevant for a given jobs
+    pub job_filter: Option<Set<JobId>>,
+    /// Send TaskNotifyEvent only if `allow_notify` is on
+    pub allow_notify: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
