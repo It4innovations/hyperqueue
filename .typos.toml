@@ -1,0 +1,8 @@
+[default.extend-words]
+ratatui = "ratatui"
+HPE = "HPE"
+
+[files]
+# typos doesn't have an include list, so this is an alternative,
+# so that we don't have to spell out the correct filenames both in scripts and on CI
+extend-exclude = ["*", "!crates", "!tests", "!docs", "!README.md", "!CHANGELOG.md"]

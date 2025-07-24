@@ -83,6 +83,9 @@ jobs:
           cargo install --git https://github.com/spirali/cli_doc
           mkdocs build
 
+
+      - name: Spellcheck
+        uses: crate-ci/typos@v1.34.0
   compatibility_mode:
     runs-on: ${{ matrix.os }}
     strategy:
