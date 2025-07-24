@@ -339,13 +339,13 @@ impl ResourceRequestLowerBound {
 
 #[cfg(test)]
 mod tests {
+    use crate::TaskId;
     use crate::internal::common::resources::ResourceRequestVariants;
     use crate::internal::server::workerload::{
         ResourceRequestLowerBound, WorkerLoad, WorkerResources,
     };
-    use crate::internal::tests::utils::resources::{cpus_compact, ra_builder, ResBuilder};
+    use crate::internal::tests::utils::resources::{ResBuilder, cpus_compact, ra_builder};
     use crate::resources::{ResourceAmount, ResourceUnits};
-    use crate::TaskId;
     use smallvec::smallvec;
 
     pub fn wr_builder(units: &[ResourceUnits]) -> WorkerResources {

@@ -7,7 +7,7 @@ use crate::internal::worker::resources::allocator::ResourceAllocator;
 use crate::internal::worker::resources::concise::{ConciseFreeResources, ConciseResourceState};
 use crate::internal::worker::resources::pool::ResourcePool;
 use crate::resources::{
-    AllocationRequest, ResourceAmount, ResourceDescriptiorCoupling, ResourceDescriptorItem,
+    AllocationRequest, ResourceAmount, ResourceDescriptorCoupling, ResourceDescriptorItem,
     ResourceIndex, ResourceUnits,
 };
 
@@ -1078,7 +1078,7 @@ fn test_coupling1() {
                     kind: ResourceDescriptorKind::regular_sockets(4, 4),
                 },
             ],
-            Some(ResourceDescriptiorCoupling {
+            Some(ResourceDescriptorCoupling {
                 names: vec!["cpus".to_string(), "gpus".to_string()],
             }),
         );
@@ -1117,7 +1117,7 @@ fn descriptor_cpus_gpus(
                 kind: ResourceDescriptorKind::regular_sockets(n_sockets, socket_size2),
             },
         ],
-        coupled.then(|| ResourceDescriptiorCoupling {
+        coupled.then(|| ResourceDescriptorCoupling {
             names: vec!["cpus".to_string(), "gpus".to_string()],
         }),
     )

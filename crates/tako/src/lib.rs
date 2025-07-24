@@ -35,7 +35,7 @@ pub mod resources {
     pub use crate::internal::common::resources::{
         AMD_GPU_RESOURCE_NAME, Allocation, AllocationRequest, CPU_RESOURCE_ID, CPU_RESOURCE_NAME,
         MEM_RESOURCE_NAME, NVIDIA_GPU_RESOURCE_NAME, NumOfNodes, ResourceAllocRequest,
-        ResourceAllocation, ResourceAmount, ResourceDescriptiorCoupling, ResourceDescriptor,
+        ResourceAllocation, ResourceAmount, ResourceDescriptor, ResourceDescriptorCoupling,
         ResourceDescriptorItem, ResourceDescriptorKind, ResourceFractions, ResourceIndex,
         ResourceLabel, ResourceRequest, ResourceRequestEntries, ResourceRequestVariants,
         ResourceUnits, TimeRequest,

@@ -8,7 +8,7 @@ use crate::define_id_type;
 use crate::internal::common::index::IndexVec;
 pub use allocation::{Allocation, ResourceAllocation};
 pub use descriptor::{
-    ResourceDescriptiorCoupling, ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind,
+    ResourceDescriptor, ResourceDescriptorCoupling, ResourceDescriptorItem, ResourceDescriptorKind,
 };
 pub use map::{
     AMD_GPU_RESOURCE_NAME, CPU_RESOURCE_ID, CPU_RESOURCE_NAME, MEM_RESOURCE_NAME,
