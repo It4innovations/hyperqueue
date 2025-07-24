@@ -16,6 +16,7 @@ use crate::server::autoalloc::{Allocation, QueueId, QueueParameters};
 use crate::server::event::streamer::EventStreamer;
 use crate::transfer::messages::QueueData;
 use tako::JobId;
+use tako::resources::ResourceDescriptor;
 
 #[derive(Debug)]
 pub enum AutoAllocMessage {
@@ -34,6 +35,7 @@ pub enum AutoAllocMessage {
         server_directory: PathBuf,
         params: QueueParameters,
         queue_id: Option<QueueId>,
+        worker_resources: Option<ResourceDescriptor>,
         response: ResponseToken<anyhow::Result<QueueId>>,
     },
     RemoveQueue {
@@ -103,12 +105,14 @@ impl AutoAllocService {
         server_dir: &Path,
         params: QueueParameters,
         queue_id: Option<QueueId>,
+        worker_resources: Option<ResourceDescriptor>,
     ) -> anyhow::Result<QueueId> {
         let fut = initiate_request(|token| {
             self.sender.send(AutoAllocMessage::AddQueue {
                 server_directory: server_dir.to_path_buf(),
                 params,
                 queue_id,
+                worker_resources,
                 response: token,
             })
         });

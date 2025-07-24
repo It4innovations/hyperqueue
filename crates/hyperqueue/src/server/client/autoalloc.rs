@@ -34,9 +34,10 @@ pub async fn handle_autoalloc_message(
                 }
             }
 
-            let result = senders
-                .autoalloc
-                .add_queue(server_dir.directory(), parameters, None);
+            let result =
+                senders
+                    .autoalloc
+                    .add_queue(server_dir.directory(), parameters, None, None);
             match result.await {
                 Ok(queue_id) => {
                     ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueueCreated(queue_id))

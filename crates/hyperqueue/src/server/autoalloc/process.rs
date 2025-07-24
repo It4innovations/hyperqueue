@@ -192,7 +192,7 @@ async fn handle_message(
             if let Some((queue, queue_id, allocation_id)) =
                 get_data_from_worker(autoalloc, &manager_info)
             {
-                queue.register_worker_config(config);
+                queue.register_worker_resources(config);
                 log::info!(
                     "Worker {id} connected from allocation {}",
                     manager_info.allocation_id
@@ -264,10 +264,18 @@ async fn handle_message(
             server_directory,
             params,
             queue_id,
+            worker_resources,
             response,
         } => {
             log::debug!("Creating queue, params={params:?}");
-            let result = create_queue(autoalloc, events, server_directory, params, queue_id);
+            let result = create_queue(
+                autoalloc,
+                events,
+                server_directory,
+                params,
+                queue_id,
+                worker_resources,
+            );
             response.respond(result);
             true
         }
@@ -389,9 +397,9 @@ async fn perform_submits(
 /// Create a worker query that corresponds to the provided resources of the given `queue`.
 fn create_queue_worker_query(queue: &AllocationQueue) -> WorkerTypeQuery {
     let (descriptor, partial) = {
-        if let Some(worker_config) = queue.get_worker_config() {
-            // If we have a known worker config, we estimate exact resources based on it
-            (worker_config.resources.clone(), false)
+        if let Some(worker_resources) = queue.get_worker_resources() {
+            // If we have known worker resources, we estimate exact resources based on it
+            (worker_resources.clone(), false)
         } else if let Some(resources) = queue.info().cli_resource_descriptor() {
             // If not, try to at least estimate partial resources based from the CLI arguments
             (resources.clone(), true)
@@ -656,6 +664,7 @@ fn create_queue(
     server_directory: PathBuf,
     params: QueueParameters,
     queue_id: Option<QueueId>,
+    worker_resources: Option<ResourceDescriptor>,
 ) -> anyhow::Result<QueueId> {
     let name = params.name.clone();
     let handler = create_allocation_handler(&params.manager, name.clone(), server_directory);
@@ -663,7 +672,13 @@ fn create_queue(
 
     match handler {
         Ok(handler) => {
-            let queue = AllocationQueue::new(queue_info, name, handler, create_rate_limiter());
+            let queue = AllocationQueue::new(
+                queue_info,
+                name,
+                handler,
+                create_rate_limiter(),
+                worker_resources,
+            );
             let id = {
                 let id = autoalloc.add_queue(queue, queue_id);
                 if queue_id.is_none() {
@@ -2135,6 +2150,7 @@ mod tests {
                     server_directory: PathBuf::from("test"),
                     params,
                     queue_id: None,
+                    worker_resources: None,
                     response: token,
                 },
             )
@@ -2174,7 +2190,7 @@ mod tests {
             self.state
                 .get_queue_mut(queue)
                 .expect("queue not found")
-                .register_worker_config(config);
+                .register_worker_resources(config);
         }
 
         async fn start_worker<Info: Into<ManagerInfo>>(
@@ -2347,6 +2363,7 @@ mod tests {
                 None,
                 always_queued_handler(),
                 limiter,
+                None,
             )
         }
     }
