@@ -206,9 +206,9 @@ impl ResourceDescriptorItem {
     }
 }
 
-/// Most precise description of request provided by a worker (without time resource)
+/// Define names of coupled resources
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ResourceDescriptiorCoupling {
+pub struct ResourceDescriptorCoupling {
     pub names: Vec<String>,
 }
 
@@ -216,13 +216,13 @@ pub struct ResourceDescriptiorCoupling {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ResourceDescriptor {
     pub resources: Vec<ResourceDescriptorItem>,
-    pub coupling: Option<ResourceDescriptiorCoupling>,
+    pub coupling: Option<ResourceDescriptorCoupling>,
 }
 
 impl ResourceDescriptor {
     pub fn new(
         mut resources: Vec<ResourceDescriptorItem>,
-        coupling: Option<ResourceDescriptiorCoupling>,
+        coupling: Option<ResourceDescriptorCoupling>,
     ) -> Self {
         resources.sort_by(|x, y| x.name.cmp(&y.name));
 

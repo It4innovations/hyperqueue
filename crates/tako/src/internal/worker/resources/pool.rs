@@ -8,7 +8,7 @@ use crate::resources::{AllocationRequest, ResourceAllocation, ResourceFractions,
 use crate::{Map, Set};
 
 use crate::internal::worker::resources::groups::find_compact_groups;
-use smallvec::{smallvec, SmallVec};
+use smallvec::{SmallVec, smallvec};
 
 #[derive(Debug)]
 pub(crate) struct IndicesResourcePool {

@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
 use tako::resources::{
-    CPU_RESOURCE_NAME, ResourceDescriptiorCoupling, ResourceDescriptor, ResourceDescriptorItem,
+    CPU_RESOURCE_NAME, ResourceDescriptor, ResourceDescriptorCoupling, ResourceDescriptorItem,
     ResourceDescriptorKind,
 };
 use tako::worker::{ServerLostPolicy, WorkerConfiguration};
@@ -104,8 +104,8 @@ pub struct SharedWorkerStartOpts {
     ///
     /// Examples:{n}
     /// - `--coupling cpus,gpus"
-    #[arg(long, action = clap::ArgAction::Append, value_parser = passthrough_parser(parse_resource_coupling))]
-    pub coupling: Option<PassThroughArgument<ResourceDescriptiorCoupling>>,
+    #[arg(long, value_parser = passthrough_parser(parse_resource_coupling))]
+    pub coupling: Option<PassThroughArgument<ResourceDescriptorCoupling>>,
 
     #[clap(long)]
     /// Disables auto-detection of resources

@@ -4,7 +4,7 @@ use chumsky::text::TextParser;
 use chumsky::{Error, Parser};
 use itertools::Itertools;
 use tako::resources::{
-    DescriptorError, ResourceDescriptiorCoupling, ResourceDescriptorItem, ResourceDescriptorKind,
+    DescriptorError, ResourceDescriptorCoupling, ResourceDescriptorItem, ResourceDescriptorKind,
     ResourceUnits,
 };
 
@@ -208,12 +208,12 @@ pub fn parse_resource_definition(input: &str) -> anyhow::Result<ResourceDescript
     all_consuming(parse_resource_definition_inner()).parse_text(input)
 }
 
-pub fn parse_resource_coupling(input: &str) -> anyhow::Result<ResourceDescriptiorCoupling> {
+pub fn parse_resource_coupling(input: &str) -> anyhow::Result<ResourceDescriptorCoupling> {
     let names = input.split(",").map(|s| s.trim().to_string()).collect_vec();
     if names.len() < 2 {
-        bail!("Resource coupling needs at least two resources");
+        bail!("Resource coupling needs at least two resource names separated by commas");
     }
-    Ok(ResourceDescriptiorCoupling { names })
+    Ok(ResourceDescriptorCoupling { names })
 }
 
 #[cfg(test)]

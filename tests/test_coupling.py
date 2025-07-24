@@ -8,7 +8,10 @@ from .conftest import HqEnv
 
 def test_coupling_invalid_inputs(hq_env: HqEnv):
     hq_env.start_server()
-    hq_env.start_worker(args=["--coupling", "cpus"], expect_fail="Resource coupling needs at least two resources")
+    hq_env.start_worker(
+        args=["--coupling", "cpus"],
+        expect_fail="Resource coupling needs at least two resource names separated by commas",
+    )
     hq_env.start_worker(args=["--coupling", "cpus,xxx"], expect_fail="Coupling of unknown resource: 'xxx'")
     hq_env.start_worker(
         args=["--resource", "xxx=[1,2,3]", "--resource", "yyy=[[1,2,3], [10,11]]", "--coupling", "xxx,yyy"],
@@ -71,10 +74,10 @@ def test_coupling_alloc1(hq_env: HqEnv):
         return g
 
     for i in range(1, 51):
-        with open(f"job-1/{i}.stdout", "r") as f:
+        with open(default_task_output(job_id=1, task_id=i), "r") as f:
             assert len(get_groups(f.read())) == 1
     for i in range(1, 51):
-        with open(f"job-2/{i}.stdout", "r") as f:
+        with open(default_task_output(job_id=2, task_id=i), "r") as f:
             assert len(get_groups(f.read())) == 1
 
 
@@ -117,9 +120,9 @@ def test_coupling_alloc2(hq_env: HqEnv):
             g.add(int(f) // 10)
         return g
 
-    with open("job-1/0.stdout", "r") as f:
+    with open(default_task_output(job_id=1), "r") as f:
         assert len(get_groups(f.read())) == 2
-    with open("job-2/0.stdout", "r") as f:
+    with open(default_task_output(job_id=2), "r") as f:
         assert len(get_groups(f.read())) == 2
 
 
