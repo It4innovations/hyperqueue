@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 use std::path::PathBuf;
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
@@ -10,7 +10,7 @@ use tako::gateway::LostWorkerReason;
 
 use crate::common::idcounter::IdCounter;
 use crate::common::manager::info::ManagerType;
-use crate::common::utils::time::now_monotonic;
+use crate::common::utils::time::{AbsoluteTime, now_monotonic};
 use crate::server::autoalloc::config::MAX_KEPT_DIRECTORIES;
 use crate::server::autoalloc::queue::QueueHandler;
 use crate::server::autoalloc::{LostWorkerDetails, QueueInfo};
@@ -281,7 +281,7 @@ pub type AllocationId = String;
 pub struct Allocation {
     pub id: AllocationId,
     pub target_worker_count: u64,
-    pub queued_at: SystemTime,
+    pub queued_at: AbsoluteTime,
     pub status: AllocationState,
     pub working_dir: PathBuf,
 }
@@ -291,7 +291,7 @@ impl Allocation {
         Self {
             id,
             target_worker_count,
-            queued_at: SystemTime::now(),
+            queued_at: AbsoluteTime::now(),
             status: AllocationState::Queued {
                 status_error_count: 0,
             },
@@ -358,23 +358,23 @@ pub enum AllocationState {
     /// The same thing can happen for the running state, because it might never end if not enough
     /// workers ever connect to it.
     Running {
-        started_at: SystemTime,
+        started_at: AbsoluteTime,
         connected_workers: Set<WorkerId>,
         disconnected_workers: DisconnectedWorkers,
         status_error_count: u32,
     },
     /// The allocation has finished by connecting and disconnecting the expected amount of workers.
     Finished {
-        started_at: SystemTime,
-        finished_at: SystemTime,
+        started_at: AbsoluteTime,
+        finished_at: AbsoluteTime,
         disconnected_workers: DisconnectedWorkers,
     },
     /// Zero (or not enough) workers have connected, but the allocation has been finished.
     FinishedUnexpectedly {
         connected_workers: Set<WorkerId>,
         disconnected_workers: DisconnectedWorkers,
-        started_at: Option<SystemTime>,
-        finished_at: SystemTime,
+        started_at: Option<AbsoluteTime>,
+        finished_at: AbsoluteTime,
         failed: bool,
     },
 }

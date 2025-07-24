@@ -176,13 +176,13 @@ fn parse_allocation_status(
 
             if exit_status == Some(0) {
                 AllocationExternalStatus::Finished {
-                    started_at,
-                    finished_at,
+                    started_at: started_at.map(|t| t.into()),
+                    finished_at: finished_at.into(),
                 }
             } else {
                 AllocationExternalStatus::Failed {
-                    started_at,
-                    finished_at,
+                    started_at: started_at.map(|t| t.into()),
+                    finished_at: finished_at.into(),
                 }
             }
         }
