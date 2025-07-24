@@ -1,5 +1,5 @@
 use std::collections::VecDeque;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
@@ -21,7 +21,7 @@ use tako::worker::WorkerConfiguration;
 pub struct AutoAllocState {
     allocation_to_queue: Map<AllocationId, QueueId>,
     queues: Map<QueueId, AllocationQueue>,
-    inactive_allocation_directories: VecDeque<PathBuf>,
+    inactive_allocation_directories: VecDeque<AllocationWorkdir>,
     max_kept_directories: usize,
     queue_id_counter: IdCounter,
 }
@@ -69,6 +69,14 @@ impl AutoAllocState {
         self.allocation_to_queue.get(allocation_id).copied()
     }
 
+    pub fn get_allocation_by_id(&self, allocation_id: &str) -> Option<Allocation> {
+        self.allocation_to_queue
+            .get(allocation_id)
+            .and_then(|queue_id| self.queues.get(queue_id))
+            .and_then(|queue| queue.allocations.get(allocation_id))
+            .cloned()
+    }
+
     pub fn get_queue(&self, id: QueueId) -> Option<&AllocationQueue> {
         self.queues.get(&id)
     }
@@ -89,12 +97,12 @@ impl AutoAllocState {
         self.queues.iter_mut().map(|(k, v)| (*k, v))
     }
 
-    pub fn add_inactive_directory(&mut self, directory: PathBuf) {
+    pub fn add_inactive_directory(&mut self, directory: AllocationWorkdir) {
         self.inactive_allocation_directories.push_back(directory);
     }
 
     /// Returns directories of inactive allocations that are scheduled for removal.
-    pub fn get_directories_for_removal(&mut self) -> Vec<PathBuf> {
+    pub fn get_directories_for_removal(&mut self) -> Vec<AllocationWorkdir> {
         let mut to_remove = Vec::new();
         while self.inactive_allocation_directories.len() > self.max_kept_directories {
             let directory = self.inactive_allocation_directories.pop_front().unwrap();
@@ -278,16 +286,41 @@ impl AllocationQueue {
 pub type AllocationId = String;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AllocationWorkdir(PathBuf);
+
+impl AllocationWorkdir {
+    pub fn stdout(&self) -> PathBuf {
+        self.0.join("stdout")
+    }
+
+    pub fn stderr(&self) -> PathBuf {
+        self.0.join("stderr")
+    }
+}
+
+impl From<PathBuf> for AllocationWorkdir {
+    fn from(value: PathBuf) -> Self {
+        Self(value)
+    }
+}
+
+impl AsRef<Path> for AllocationWorkdir {
+    fn as_ref(&self) -> &Path {
+        self.0.as_path()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Allocation {
     pub id: AllocationId,
     pub target_worker_count: u64,
     pub queued_at: AbsoluteTime,
     pub status: AllocationState,
-    pub working_dir: PathBuf,
+    pub working_dir: AllocationWorkdir,
 }
 
 impl Allocation {
-    pub fn new(id: AllocationId, target_worker_count: u64, working_dir: PathBuf) -> Self {
+    pub fn new(id: AllocationId, target_worker_count: u64, working_dir: AllocationWorkdir) -> Self {
         Self {
             id,
             target_worker_count,

@@ -24,8 +24,8 @@ use crate::server::autoalloc::{Allocation, AllocationState, QueueId};
 use crate::server::job::{JobTaskInfo, JobTaskState, StartedTaskData};
 use crate::stream::reader::outputlog::Summary;
 use crate::transfer::messages::{
-    AutoAllocListResponse, JobDetail, JobInfo, JobTaskDescription, PinMode, QueueData, ServerInfo,
-    TaskDescription, TaskKind, TaskKindProgram, WaitForJobsResponse, WorkerInfo,
+    AutoAllocListQueuesResponse, JobDetail, JobInfo, JobTaskDescription, PinMode, QueueData,
+    ServerInfo, TaskDescription, TaskKind, TaskKindProgram, WaitForJobsResponse, WorkerInfo,
 };
 use tako::server::TaskExplanation;
 use tako::{JobId, JobTaskId};
@@ -229,7 +229,7 @@ impl Output for JsonOutput {
         self.print(json);
     }
 
-    fn print_autoalloc_queues(&self, info: AutoAllocListResponse) {
+    fn print_autoalloc_queues(&self, info: AutoAllocListQueuesResponse) {
         let mut queues: Vec<_> = info.queues.into_iter().collect();
         queues.sort_by_key(|descriptor| descriptor.0);
 
@@ -243,6 +243,16 @@ impl Output for JsonOutput {
 
     fn print_allocations(&self, allocations: Vec<Allocation>) {
         self.print(allocations.into_iter().map(format_allocation).collect());
+    }
+
+    fn print_allocation_output(
+        &self,
+        _allocation: Allocation,
+        _stream: OutputStream,
+    ) -> anyhow::Result<()> {
+        Err(anyhow::anyhow!(
+            "JSON output mode doesn't support allocation output"
+        ))
     }
 
     fn print_hw(&self, descriptor: &ResourceDescriptor) {

@@ -4,11 +4,10 @@ pub mod slurm;
 
 use crate::common::manager::info::ManagerType;
 use crate::common::utils::time::AbsoluteTime;
-use crate::server::autoalloc::state::AllocationId;
+use crate::server::autoalloc::state::{AllocationId, AllocationWorkdir};
 use crate::server::autoalloc::{Allocation, AutoAllocResult, QueueId};
 use serde::{Deserialize, Serialize};
 use std::future::Future;
-use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::time::Duration;
 use tako::Map;
@@ -94,13 +93,13 @@ pub struct AllocationSubmissionResult {
     ///
     /// It is returned always because we need to delete regularly to avoid too many directories and
     /// files being created.
-    working_dir: PathBuf,
+    working_dir: AllocationWorkdir,
     /// ID of the created allocation, if it was successfully submitted.
     id: AutoAllocResult<AllocationId>,
 }
 
 impl AllocationSubmissionResult {
-    pub fn new(id: AutoAllocResult<AllocationId>, working_dir: PathBuf) -> Self {
+    pub fn new(id: AutoAllocResult<AllocationId>, working_dir: AllocationWorkdir) -> Self {
         Self { id, working_dir }
     }
 
@@ -108,8 +107,8 @@ impl AllocationSubmissionResult {
         self.id
     }
 
-    pub fn working_dir(&self) -> &Path {
-        self.working_dir.as_path()
+    pub fn working_dir(&self) -> &AllocationWorkdir {
+        &self.working_dir
     }
 }
 

@@ -2,7 +2,7 @@ use crate::common::serverdir::ServerDir;
 use crate::server::Senders;
 use crate::server::autoalloc::try_submit_allocation;
 use crate::transfer::messages::{
-    AutoAllocListResponse, AutoAllocRequest, AutoAllocResponse, ToClientMessage,
+    AutoAllocListQueuesResponse, AutoAllocRequest, AutoAllocResponse, ToClientMessage,
 };
 
 pub async fn handle_autoalloc_message(
@@ -11,11 +11,13 @@ pub async fn handle_autoalloc_message(
     request: AutoAllocRequest,
 ) -> ToClientMessage {
     match request {
-        AutoAllocRequest::List => {
+        AutoAllocRequest::ListQueues => {
             let queues = senders.autoalloc.get_queues();
-            ToClientMessage::AutoAllocResponse(AutoAllocResponse::List(AutoAllocListResponse {
-                queues: queues.await,
-            }))
+            ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueueList(
+                AutoAllocListQueuesResponse {
+                    queues: queues.await,
+                },
+            ))
         }
         AutoAllocRequest::DryRun { parameters } => {
             if let Err(e) = try_submit_allocation(parameters).await {
@@ -44,11 +46,11 @@ pub async fn handle_autoalloc_message(
                 Err(error) => ToClientMessage::Error(error.to_string()),
             }
         }
-        AutoAllocRequest::Info { queue_id } => {
+        AutoAllocRequest::GetQueueInfo { queue_id } => {
             let result = senders.autoalloc.get_allocations(queue_id);
             match result.await {
                 Ok(allocations) => {
-                    ToClientMessage::AutoAllocResponse(AutoAllocResponse::Info(allocations))
+                    ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueueInfo(allocations))
                 }
                 Err(error) => ToClientMessage::Error(error.to_string()),
             }
@@ -77,6 +79,15 @@ pub async fn handle_autoalloc_message(
                 Ok(_) => {
                     ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueueResumed(queue_id))
                 }
+                Err(error) => ToClientMessage::Error(error.to_string()),
+            }
+        }
+        AutoAllocRequest::GetAllocationInfo { allocation_id } => {
+            let result = senders.autoalloc.get_allocation_by_id(allocation_id);
+            match result.await {
+                Ok(allocation) => ToClientMessage::AutoAllocResponse(
+                    AutoAllocResponse::AllocationInfo(allocation),
+                ),
                 Err(error) => ToClientMessage::Error(error.to_string()),
             }
         }

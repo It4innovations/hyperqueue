@@ -1,6 +1,6 @@
 use crate::common::manager::info::ManagerType;
 use crate::common::utils::fs;
-use crate::server::autoalloc::state::AllocationId;
+use crate::server::autoalloc::state::{AllocationId, AllocationWorkdir};
 use crate::server::autoalloc::{AutoAllocResult, QueueId, QueueParameters};
 use anyhow::Context;
 use bstr::ByteSlice;
@@ -45,7 +45,7 @@ pub fn create_allocation_dir(
     id: QueueId,
     name: Option<&String>,
     allocation_num: u64,
-) -> Result<PathBuf, std::io::Error> {
+) -> Result<AllocationWorkdir, std::io::Error> {
     let mut dir = server_directory;
     dir.push("autoalloc");
 
@@ -60,7 +60,7 @@ pub fn create_allocation_dir(
 
     std::fs::create_dir_all(&dir)?;
 
-    Ok(dir)
+    Ok(dir.into())
 }
 
 /// Creates a name for an external allocation, based on the allocation counter
@@ -75,12 +75,13 @@ pub fn format_allocation_name(name: Option<String>, queue_id: u32, allocation_id
 pub async fn submit_script<F>(
     script: String,
     program: &str,
-    directory: &Path,
+    directory: &AllocationWorkdir,
     get_job_id: F,
 ) -> AutoAllocResult<AllocationId>
 where
     F: FnOnce(&str) -> AutoAllocResult<AllocationId>,
 {
+    let directory = directory.as_ref();
     let script_path = directory.join(SUBMIT_SCRIPT_NAME);
     let script_path = script_path.to_str().unwrap();
 
