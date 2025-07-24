@@ -349,6 +349,8 @@ If the allocation was submitted successfully, it will be canceled immediately to
     hq-submit.sh
     ```
 
+  You can output the contents of the `stdout` and `stderr` files of an allocation using the [`hq alloc cat`](cli:hq.alloc.cat) command.
+
 ## Useful autoalloc commands
 
 Below you can find a list of useful automatic allocation commands. The complete `hq alloc` CLI reference can be
@@ -371,3 +373,11 @@ $ hq alloc info <queue-id>
 ```
 
 You can filter allocations by their state (`queued`, `running`, `finished`, `failed`) using the `--filter` option.
+
+### Display stdout/stderr output of an allocation
+
+The [`hq alloc cat`](cli:hq.alloc.cat) command will print the stdout/stderr output of a specific allocation. It can be used to debug allocation errors (e.g. some PBS/Slurm problems) or the output of workers spawned in allocations.
+
+```bash
+$ hq alloc cat <allocation-id> <stdout/stderr>
+```
