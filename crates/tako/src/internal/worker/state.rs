@@ -1,6 +1,6 @@
 use crate::datasrv::DataObjectId;
-use crate::internal::common::resources::map::ResourceMap;
 use crate::internal::common::resources::Allocation;
+use crate::internal::common::resources::map::ResourceMap;
 use crate::internal::common::stablemap::StableMap;
 use crate::internal::common::{Map, Set, WrappedRcRefCell};
 use crate::internal::datasrv::{DataObjectRef, DataStorage};
@@ -18,6 +18,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use crate::WorkerId;
 use crate::internal::worker::data::download::WorkerDownloadManagerRef;
 use crate::internal::worker::localcomm::LocalCommState;
 use crate::internal::worker::resources::allocator::ResourceAllocator;
@@ -26,12 +27,11 @@ use crate::internal::worker::rqueue::ResourceWaitQueue;
 use crate::internal::worker::task::{RunningState, Task, TaskState};
 use crate::internal::worker::task_comm::RunningTaskComm;
 use crate::launcher::TaskLauncher;
-use crate::WorkerId;
 use crate::{PriorityTuple, TaskId};
 use orion::aead::SecretKey;
+use rand::SeedableRng;
 use rand::prelude::IndexedRandom;
 use rand::rngs::SmallRng;
-use rand::SeedableRng;
 use tokio::sync::oneshot;
 
 pub type TaskMap = StableMap<TaskId, Task>;
@@ -340,10 +340,11 @@ impl WorkerState {
             &other_worker.address
         );
         assert_ne!(self.worker_id, other_worker.worker_id); // We should not receive message about ourselves
-        assert!(self
-            .worker_addresses
-            .insert(other_worker.worker_id, other_worker.address)
-            .is_none());
+        assert!(
+            self.worker_addresses
+                .insert(other_worker.worker_id, other_worker.address)
+                .is_none()
+        );
 
         let resources = WorkerResources::from_transport(other_worker.resources);
         self.ready_task_queue
