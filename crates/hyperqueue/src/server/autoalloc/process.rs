@@ -1,5 +1,6 @@
 use crate::common::manager::info::{ManagerInfo, ManagerType};
 use crate::common::rpc::RpcReceiver;
+use crate::common::utils::time::AbsoluteTime;
 use crate::get_or_return;
 use crate::server::autoalloc::config::{
     MAX_QUEUED_STATUS_ERROR_COUNT, MAX_RUNNING_STATUS_ERROR_COUNT, MAX_SUBMISSION_FAILS,
@@ -23,7 +24,7 @@ use anyhow::Context;
 use futures::future::join_all;
 use std::future::Future;
 use std::path::PathBuf;
-use std::time::{Instant, SystemTime};
+use std::time::Instant;
 use tako::WorkerId;
 use tako::control::{ServerRef, WorkerTypeQuery};
 use tako::resources::ResourceDescriptor;
@@ -486,9 +487,7 @@ fn compute_submission_permit(
     };
 
     log::debug!(
-        r"Counting possible allocations: query response {query_response:?}.
-Backlog: {}, currently queued: {}, max workers to spawn: {max_remaining_workers_to_spawn}
-",
+        "Counting possible allocations: query response {query_response:?}. Backlog: {}, currently queued: {}, max workers to spawn: {max_remaining_workers_to_spawn}",
         info.backlog(),
         queued_allocs.len()
     );
@@ -803,7 +802,7 @@ async fn refresh_queue_allocations(
                 let status = status_map.remove(&allocation_id).unwrap_or_else(|| {
                     Ok(AllocationExternalStatus::Failed {
                         started_at: None,
-                        finished_at: SystemTime::now(),
+                        finished_at: AbsoluteTime::now(),
                     })
                 });
                 match status {
@@ -864,7 +863,7 @@ fn increase_status_error_counter(
                     connected_workers: Default::default(),
                     disconnected_workers: Default::default(),
                     started_at: None,
-                    finished_at: SystemTime::now(),
+                    finished_at: AbsoluteTime::now(),
                     // The allocation did not receive any workers, and its
                     // status check has repeatedly failed, so most likely
                     // it has failed.
@@ -889,7 +888,7 @@ fn increase_status_error_counter(
                     connected_workers: std::mem::take(connected_workers),
                     disconnected_workers: std::mem::take(disconnected_workers),
                     started_at: Some(*started_at),
-                    finished_at: SystemTime::now(),
+                    finished_at: AbsoluteTime::now(),
                     // Hard to say what has happened, but since the
                     // allocation has at least started, consider it to be a
                     // success.
@@ -930,7 +929,7 @@ fn sync_allocation_status(
                     allocation.status = AllocationState::Running {
                         connected_workers: Set::from_iter([worker_id]),
                         disconnected_workers: Default::default(),
-                        started_at: SystemTime::now(),
+                        started_at: AbsoluteTime::now(),
                         status_error_count: 0,
                     };
                     events.on_allocation_started(queue_id, allocation_id.to_string());
@@ -988,7 +987,7 @@ fn sync_allocation_status(
 
                             allocation.status = AllocationState::Finished {
                                 started_at: *started_at,
-                                finished_at: SystemTime::now(),
+                                finished_at: AbsoluteTime::now(),
                                 disconnected_workers: std::mem::take(disconnected_workers),
                             };
 
@@ -1030,7 +1029,7 @@ fn sync_allocation_status(
                         // event can happen sooner (or the allocation can start, but the worker
                         // fails to start).
                         allocation.status = AllocationState::Running {
-                            started_at: SystemTime::now(),
+                            started_at: AbsoluteTime::now(),
                             connected_workers: Default::default(),
                             disconnected_workers: Default::default(),
                             status_error_count: 0,

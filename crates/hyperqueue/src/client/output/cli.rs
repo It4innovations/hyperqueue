@@ -27,7 +27,6 @@ use humantime::format_duration;
 use std::borrow::Cow;
 
 use std::path::Path;
-use std::time::SystemTime;
 
 use tako::program::StdioDef;
 use tako::resources::{ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind};
@@ -39,6 +38,7 @@ use crate::client::output::common::{
 use crate::client::output::json::format_datetime;
 use crate::common::arraydef::IntArray;
 use crate::common::utils::str::{pluralize, select_plural, truncate_middle};
+use crate::common::utils::time::AbsoluteTime;
 use crate::worker::start::WORKER_EXTRA_PROCESS_PID;
 use anyhow::Error;
 use colored::Colorize;
@@ -997,7 +997,7 @@ impl Output for CliOutput {
     }
 
     fn print_allocations(&self, mut allocations: Vec<Allocation>) {
-        let format_time = |time: Option<SystemTime>| match time {
+        let format_time = |time: Option<AbsoluteTime>| match time {
             Some(time) => format_systemtime(time).cell(),
             None => "".cell(),
         };
@@ -1161,19 +1161,19 @@ impl Output for CliOutput {
 }
 
 struct AllocationTimes {
-    queued_at: SystemTime,
-    started_at: Option<SystemTime>,
-    finished_at: Option<SystemTime>,
+    queued_at: AbsoluteTime,
+    started_at: Option<AbsoluteTime>,
+    finished_at: Option<AbsoluteTime>,
 }
 
 impl AllocationTimes {
-    fn get_queued_at(&self) -> SystemTime {
+    fn get_queued_at(&self) -> AbsoluteTime {
         self.queued_at
     }
-    fn get_started_at(&self) -> Option<SystemTime> {
+    fn get_started_at(&self) -> Option<AbsoluteTime> {
         self.started_at
     }
-    fn get_finished_at(&self) -> Option<SystemTime> {
+    fn get_finished_at(&self) -> Option<AbsoluteTime> {
         self.finished_at
     }
 }
@@ -1560,8 +1560,8 @@ fn format_task_duration(start: Option<DateTime<Utc>>, end: Option<DateTime<Utc>>
     }
 }
 
-fn format_systemtime(time: SystemTime) -> impl Display {
-    let datetime: DateTime<Local> = time.into();
+fn format_systemtime(time: AbsoluteTime) -> impl Display {
+    let datetime: DateTime<Local> = time.inner().into();
     datetime.format("%d.%m.%Y %H:%M:%S")
 }
 

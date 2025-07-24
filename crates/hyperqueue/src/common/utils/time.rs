@@ -1,7 +1,8 @@
+use std::fmt::{Debug, Formatter};
 use std::time::{Duration, SystemTime};
 
 use anyhow::anyhow;
-use chrono::TimeZone;
+use chrono::{DateTime, TimeZone, Utc};
 use chumsky::Parser;
 use chumsky::prelude::just;
 
@@ -48,6 +49,39 @@ fn parse_hms_time_inner() -> impl CharParser<Duration> {
 /// Individual time values may be zero padded.
 pub fn parse_hms_time(input: &str) -> anyhow::Result<Duration> {
     all_consuming(parse_hms_time_inner()).parse_text(input)
+}
+
+/// Wrapper around `SystemTime` that pretty-prints itself using RFC3339 format
+/// (e.g. `2018-02-14T00:28:07Z`) in its `Debug` implementation.
+#[derive(Copy, Clone, serde::Serialize, serde::Deserialize)]
+pub struct AbsoluteTime(SystemTime);
+
+impl AbsoluteTime {
+    pub fn now() -> Self {
+        Self(SystemTime::now())
+    }
+
+    pub fn inner(&self) -> SystemTime {
+        self.0
+    }
+}
+
+impl From<SystemTime> for AbsoluteTime {
+    fn from(value: SystemTime) -> Self {
+        Self(value)
+    }
+}
+
+impl From<AbsoluteTime> for DateTime<Utc> {
+    fn from(value: AbsoluteTime) -> Self {
+        value.inner().into()
+    }
+}
+
+impl Debug for AbsoluteTime {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", humantime::format_rfc3339(self.0))
+    }
 }
 
 #[cfg(not(test))]

@@ -173,13 +173,13 @@ fn parse_slurm_status(items: Map<&str, &str>) -> AutoAllocResult<AllocationExter
             if finished {
                 AllocationExternalStatus::Finished {
                     // TODO: handle case where the allocation didn't start at all
-                    started_at: Some(started_at),
-                    finished_at,
+                    started_at: Some(started_at.into()),
+                    finished_at: finished_at.into(),
                 }
             } else {
                 AllocationExternalStatus::Failed {
-                    started_at: Some(started_at),
-                    finished_at,
+                    started_at: Some(started_at.into()),
+                    finished_at: finished_at.into(),
                 }
             }
         }

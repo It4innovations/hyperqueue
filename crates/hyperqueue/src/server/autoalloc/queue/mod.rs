@@ -3,13 +3,14 @@ pub mod pbs;
 pub mod slurm;
 
 use crate::common::manager::info::ManagerType;
+use crate::common::utils::time::AbsoluteTime;
 use crate::server::autoalloc::state::AllocationId;
 use crate::server::autoalloc::{Allocation, AutoAllocResult, QueueId};
 use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 use tako::Map;
 use tako::resources::ResourceDescriptor;
 
@@ -124,12 +125,12 @@ pub enum AllocationExternalStatus {
     Queued,
     Running,
     Finished {
-        started_at: Option<SystemTime>,
-        finished_at: SystemTime,
+        started_at: Option<AbsoluteTime>,
+        finished_at: AbsoluteTime,
     },
     Failed {
-        started_at: Option<SystemTime>,
-        finished_at: SystemTime,
+        started_at: Option<AbsoluteTime>,
+        finished_at: AbsoluteTime,
     },
 }
 
