@@ -70,6 +70,7 @@ pub struct TaskExplainOpts {
 
 #[derive(clap::Parser)]
 pub struct NotifyOpts {
+    /// Message attached to the notification. Maximal size: 1024B.
     pub message: BString,
 }
 

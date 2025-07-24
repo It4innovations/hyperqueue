@@ -126,6 +126,75 @@ async fn stream_events<
     log::debug!("Event streaming completed")
 }
 
+async fn start_streaming<
+    Tx: Sink<ToClientMessage, Error = tako::Error> + Unpin + 'static,
+    Rx: Stream<Item = tako::Result<FromClientMessage>> + Unpin,
+>(
+    mut tx: Tx,
+    mut rx: Rx,
+    state_ref: StateRef,
+    senders: &Senders,
+    stream_events: StreamEvents,
+) where
+    Tx::Error: Debug,
+{
+    let StreamEvents {
+        past_events,
+        live_events,
+        enable_worker_overviews,
+        job_filter,
+        allow_notify,
+    } = stream_events;
+    let enable_worker_overviews = enable_worker_overviews;
+    if enable_worker_overviews {
+        senders.server_control.add_worker_overview_listener();
+    }
+    log::debug!("Start streaming events to client");
+    if !live_events && !past_events {
+        return;
+    }
+
+    // Job filter is now implemented only for live events
+    assert!(job_filter.is_none() || !past_events);
+
+    /* We create two event queues, one for historic events and one for live events
+    So while historic events are loaded from the file and streamed, live events are already
+    collected and sent immediately once the historic events are sent */
+    let (tx1, rx1) = mpsc::unbounded_channel::<Event>();
+    let live = if live_events {
+        let (tx2, rx2) = mpsc::unbounded_channel::<Event>();
+        let filter = EventFilter::new(job_filter, allow_notify);
+        let listener_id = senders.events.register_listener(filter, tx2);
+        Some((rx2, listener_id))
+    } else {
+        None
+    };
+
+    // If we use a journal, we can replay historical events from it.
+    // If not, we can at least try to reconstruct a few basic events
+    // based on the current state.
+    if past_events {
+        if senders.events.is_journal_enabled() {
+            senders.events.start_journal_replay(tx1);
+        } else if let Err(e) = reconstruct_historical_events(state_ref, tx1) {
+            log::error!("Cannot reconstruct historical state: {e:?}");
+        }
+        stream_history_events(&mut tx, rx1).await;
+    }
+
+    if let Some((rx2, listener_id)) = live {
+        if past_events {
+            let _ = tx.send(ToClientMessage::EventLiveBoundary).await;
+        }
+        crate::server::client::stream_events(&mut tx, &mut rx, rx2).await;
+        senders.events.unregister_listener(listener_id);
+    }
+
+    if enable_worker_overviews {
+        senders.server_control.remove_worker_overview_listener();
+    }
+}
+
 pub async fn client_rpc_loop<
     Tx: Sink<ToClientMessage, Error = tako::Error> + Unpin + 'static,
     Rx: Stream<Item = tako::Result<FromClientMessage>> + Unpin,
@@ -171,8 +240,13 @@ pub async fn client_rpc_loop<
                         autoalloc::handle_autoalloc_message(&server_dir, senders, msg).await
                     }
                     FromClientMessage::WaitForJobs(msg) => {
-                        handle_wait_for_jobs_message(&state_ref, msg.selector, msg.wait_for_close)
-                            .await
+                        handle_wait_for_jobs_message(
+                            &state_ref,
+                            senders,
+                            msg.selector,
+                            msg.wait_for_close,
+                        )
+                        .await
                     }
                     FromClientMessage::OpenJob(job_description) => {
                         handle_open_job(&state_ref, senders, job_description)
@@ -180,61 +254,8 @@ pub async fn client_rpc_loop<
                     FromClientMessage::CloseJob(msg) => {
                         handle_job_close(&state_ref, senders, &msg.selector).await
                     }
-                    FromClientMessage::StreamEvents(StreamEvents {
-                        past_events,
-                        live_events,
-                        enable_worker_overviews,
-                        job_filter,
-                        allow_notify,
-                    }) => {
-                        let enable_worker_overviews = enable_worker_overviews;
-                        if enable_worker_overviews {
-                            senders.server_control.add_worker_overview_listener();
-                        }
-                        log::debug!("Start streaming events to client");
-                        if !live_events && !past_events {
-                            break;
-                        }
-
-                        // Job filter is now implemented only for live events
-                        assert!(job_filter.is_none() || !past_events);
-
-                        /* We create two event queues, one for historic events and one for live events
-                        So while historic events are loaded from the file and streamed, live events are already
-                        collected and sent immediately once the historic events are sent */
-                        let (tx1, rx1) = mpsc::unbounded_channel::<Event>();
-                        let live = if live_events {
-                            let (tx2, rx2) = mpsc::unbounded_channel::<Event>();
-                            let filter = EventFilter::new(job_filter, allow_notify);
-                            let listener_id = senders.events.register_listener(filter, tx2);
-                            Some((rx2, listener_id))
-                        } else {
-                            None
-                        };
-
-                        // If we use a journal, we can replay historical events from it.
-                        // If not, we can at least try to reconstruct a few basic events
-                        // based on the current state.
-                        if past_events {
-                            if senders.events.is_journal_enabled() {
-                                senders.events.start_journal_replay(tx1);
-                            } else if let Err(e) = reconstruct_historical_events(state_ref, tx1) {
-                                log::error!("Cannot reconstruct historical state: {e:?}");
-                            }
-                            stream_history_events(&mut tx, rx1).await;
-                        }
-
-                        if let Some((rx2, listener_id)) = live {
-                            if past_events {
-                                let _ = tx.send(ToClientMessage::EventLiveBoundary).await;
-                            }
-                            stream_events(&mut tx, &mut rx, rx2).await;
-                            senders.events.unregister_listener(listener_id);
-                        }
-
-                        if enable_worker_overviews {
-                            senders.server_control.remove_worker_overview_listener();
-                        }
+                    FromClientMessage::StreamEvents(msg) => {
+                        start_streaming(tx, rx, state_ref, senders, msg).await;
                         break;
                     }
                     FromClientMessage::ServerInfo => {
@@ -464,6 +485,7 @@ async fn handle_prune_journal(state_ref: &StateRef, senders: &Senders) -> ToClie
 /// failing or being canceled).
 async fn handle_wait_for_jobs_message(
     state_ref: &StateRef,
+    senders: &Senders,
     selector: IdSelector,
     wait_for_close: bool,
 ) -> ToClientMessage {
@@ -477,44 +499,53 @@ async fn handle_wait_for_jobs_message(
         }
     };
 
-    let (receivers, mut response) = {
+    let (remaining, mut response) = {
         let mut state = state_ref.get_mut();
-        let job_ids: Vec<JobId> = get_job_ids(&state, &selector);
-
         let mut response = WaitForJobsResponse::default();
-        let mut receivers = vec![];
+        let mut job_ids: Vec<JobId> = get_job_ids(&state, &selector);
 
-        for job_id in job_ids {
-            match state.get_job_mut(job_id) {
-                Some(job) => {
-                    if job.has_no_active_tasks() && !(wait_for_close && job.is_open()) {
-                        update_counters(&mut response, &job.counters);
-                    } else {
-                        let rx = job.subscribe_to_completion(wait_for_close);
-                        receivers.push(rx);
-                    }
+        job_ids.retain(|job_id| match state.get_job_mut(*job_id) {
+            Some(job) => {
+                if job.has_no_active_tasks() && !(wait_for_close && job.is_open()) {
+                    update_counters(&mut response, &job.counters);
+                    false
+                } else {
+                    true
                 }
-                None => response.invalid += 1,
             }
-        }
-        (receivers, response)
+            None => {
+                response.invalid += 1;
+                false
+            }
+        });
+        (job_ids, response)
     };
 
-    let results = futures::future::join_all(receivers).await;
-    let state = state_ref.get();
-
-    for result in results {
-        match result {
-            Ok(job_id) => {
-                match state.get_job(job_id) {
-                    Some(job) => update_counters(&mut response, &job.counters),
-                    None => continue,
-                };
+    if !remaining.is_empty() {
+        let mut task_set = Set::from_iter(remaining.into_iter());
+        let filter = EventFilter::new(Some(task_set.clone()), false);
+        let (sender, mut receiver) = mpsc::unbounded_channel();
+        senders.events.register_listener(filter, sender);
+        loop {
+            let event = receiver.recv().await.unwrap();
+            let job_id = match event.payload {
+                EventPayload::JobCompleted(job_id) => job_id,
+                EventPayload::JobClose(_) => continue,
+                _ => {
+                    unreachable!()
+                }
+            };
+            if task_set.remove(&job_id) {
+                let state = state_ref.get();
+                if let Some(job) = state.get_job(job_id) {
+                    update_counters(&mut response, &job.counters);
+                }
+                if task_set.is_empty() {
+                    break;
+                }
             }
-            Err(err) => log::error!("Error while waiting on job(s): {err:?}"),
-        };
+        }
     }
-
     ToClientMessage::WaitForJobsResponse(response)
 }
 
@@ -668,7 +699,7 @@ async fn handle_job_close(
         .map(|job_id| {
             let response = if let Some(job) = state.get_job_mut(job_id) {
                 if job.is_open() {
-                    job.close();
+                    job.close(senders);
                     job.check_termination(senders, now);
                     CloseJobResponse::Closed
                 } else {
