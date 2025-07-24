@@ -2382,7 +2382,7 @@ mod tests {
         queue.add_allocation(Allocation::new(
             id.to_string(),
             worker_count,
-            PathBuf::new(),
+            PathBuf::new().into(),
         ));
     }
 
@@ -2502,7 +2502,7 @@ mod tests {
                 *s += 1;
                 Ok(AllocationSubmissionResult::new(
                     Ok(id.to_string()),
-                    Default::default(),
+                    PathBuf::default().into(),
                 ))
             },
             move |_, _| async move { Ok(Some(AllocationExternalStatus::Queued)) },
@@ -2519,7 +2519,7 @@ mod tests {
 
                 Ok(AllocationSubmissionResult::new(
                     Err(anyhow::anyhow!("failure")),
-                    dir,
+                    dir.into(),
                 ))
             },
             move |_, _| async move { Ok(Some(AllocationExternalStatus::Queued)) },
@@ -2542,14 +2542,17 @@ mod tests {
                 if state.allocation_will_fail {
                     Ok(AllocationSubmissionResult::new(
                         AutoAllocResult::Err(anyhow!("Fail")),
-                        dir,
+                        dir.into(),
                     ))
                 } else {
                     let spawned = &mut state.spawned_allocations;
                     let id = spawned.len();
                     spawned.insert(id.to_string());
 
-                    Ok(AllocationSubmissionResult::new(Ok(id.to_string()), dir))
+                    Ok(AllocationSubmissionResult::new(
+                        Ok(id.to_string()),
+                        dir.into(),
+                    ))
                 }
             },
             move |state, id| async move {

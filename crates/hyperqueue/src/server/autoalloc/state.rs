@@ -121,7 +121,7 @@ impl AutoAllocState {
     }
     #[cfg(test)]
     pub fn set_inactive_allocation_directories(&mut self, dirs: VecDeque<PathBuf>) {
-        self.inactive_allocation_directories = dirs;
+        self.inactive_allocation_directories = dirs.into_iter().map(|d| d.into()).collect();
     }
 }
 
@@ -539,6 +539,7 @@ mod tests {
         Allocation, AutoAllocResult, QueueId, QueueInfo, QueueParameters,
     };
     use std::future::Future;
+    use std::path::PathBuf;
     use std::pin::Pin;
     use std::time::Duration;
 
@@ -596,8 +597,14 @@ mod tests {
             ),
             None,
         );
-        state.add_allocation(Allocation::new("1".to_string(), 1, Default::default()), id);
-        state.add_allocation(Allocation::new("2".to_string(), 1, Default::default()), id);
+        state.add_allocation(
+            Allocation::new("1".to_string(), 1, PathBuf::default().into()),
+            id,
+        );
+        state.add_allocation(
+            Allocation::new("2".to_string(), 1, PathBuf::default().into()),
+            id,
+        );
         assert_eq!(state.allocation_to_queue.len(), 2);
         state.remove_queue(id);
         assert_eq!(state.allocation_to_queue.len(), 0);
