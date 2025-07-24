@@ -46,8 +46,11 @@ pub async fn preload_dashboard_events(
             // Start streaming events
             connection
                 .send(FromClientMessage::StreamEvents(StreamEvents {
+                    past_events: true,
                     live_events: true,
                     enable_worker_overviews: true,
+                    job_filter: None,
+                    allow_notify: true,
                 }))
                 .await?;
 
