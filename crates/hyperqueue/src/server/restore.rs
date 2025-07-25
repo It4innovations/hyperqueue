@@ -374,7 +374,7 @@ impl StateRestorer {
                 EventPayload::JobClose(job_id) => {
                     self.jobs.get_mut(&job_id).unwrap().is_open = false;
                 }
-                EventPayload::TaskNotify(_) => {}
+                EventPayload::TaskNotify(_) | EventPayload::JobIdle(_) => {}
             }
         }
         if event_reader.contains_partial_data() {
