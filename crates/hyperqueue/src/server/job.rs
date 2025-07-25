@@ -105,11 +105,6 @@ impl JobTaskCounters {
     }
 }
 
-pub struct JobCompletionCallback {
-    callback: oneshot::Sender<JobId>,
-    wait_for_close: bool,
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SubmittedJobDescription {
     submitted_at: DateTime<Utc>,
@@ -148,10 +143,6 @@ pub struct Job {
 
     pub submission_date: DateTime<Utc>,
     pub completion_date: Option<DateTime<Utc>>,
-
-    /// Holds channels that will receive information about the job after the it finishes in any way.
-    /// You can subscribe to the completion message with [`Self::subscribe_to_completion`].
-    completion_callbacks: Vec<JobCompletionCallback>,
 }
 
 impl Job {
@@ -165,7 +156,6 @@ impl Job {
             is_open,
             submission_date: Utc::now(),
             completion_date: None,
-            completion_callbacks: Default::default(),
         }
     }
 
@@ -313,22 +303,7 @@ impl Job {
         if self.has_no_active_tasks() {
             if self.is_open {
                 senders.events.on_job_idle(self.job_id, now);
-                let callbacks = std::mem::take(&mut self.completion_callbacks);
-                self.completion_callbacks = callbacks
-                    .into_iter()
-                    .filter_map(|c| {
-                        if !c.wait_for_close {
-                            c.callback.send(self.job_id).ok();
-                            None
-                        } else {
-                            Some(c)
-                        }
-                    })
-                    .collect();
             } else {
-                for handler in self.completion_callbacks.drain(..) {
-                    handler.callback.send(self.job_id).ok();
-                }
                 self.completion_date = Some(now);
                 senders.events.on_job_completed(self.job_id, now);
             }
@@ -437,18 +412,6 @@ impl Job {
         self.counters.n_canceled_tasks += task_ids.len() as JobTaskCount;
         senders.events.on_task_canceled(task_ids, now);
         self.check_termination(senders, now);
-    }
-
-    /// Subscribes to the completion event of this job.
-    /// When the job finishes in any way (completion, failure, cancellation), the channel will
-    /// receive a single message.
-    pub fn subscribe_to_completion(&mut self, wait_for_close: bool) -> oneshot::Receiver<JobId> {
-        let (tx, rx) = oneshot::channel();
-        self.completion_callbacks.push(JobCompletionCallback {
-            callback: tx,
-            wait_for_close,
-        });
-        rx
     }
 
     pub fn attach_submit(&mut self, description: SubmittedJobDescription) {
