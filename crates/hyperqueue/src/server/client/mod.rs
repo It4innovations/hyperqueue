@@ -9,9 +9,9 @@ use std::time::Instant;
 use tako::{Set, TaskGroup, TaskId};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc::UnboundedSender;
-use tokio::sync::{Notify, mpsc};
+use tokio::sync::{mpsc, Notify};
 
-use crate::client::status::{Status, job_status};
+use crate::client::status::{job_status, Status};
 use crate::common::serverdir::ServerDir;
 use crate::server::event::Event;
 use crate::server::job::{JobTaskCounters, JobTaskState};
@@ -29,10 +29,10 @@ pub mod autoalloc;
 mod submit;
 
 use crate::common::serialization::Serialized;
-use crate::server::Senders;
 use crate::server::client::submit::{handle_open_job, handle_task_explain};
 use crate::server::event::payload::EventPayload;
 use crate::server::event::streamer::EventFilter;
+use crate::server::Senders;
 pub(crate) use submit::{submit_job_desc, validate_submit};
 
 pub async fn handle_client_connections(
@@ -530,15 +530,15 @@ async fn handle_wait_for_jobs_message(
             let event = receiver.recv().await.unwrap();
             let job_id = match event.payload {
                 EventPayload::JobCompleted(job_id) => job_id,
-                EventPayload::JobClose(_) => continue,
-                _ => {
-                    unreachable!()
-                }
+                EventPayload::JobIdle(job_id) if !wait_for_close => job_id,
+                _ => continue,
             };
             if task_set.remove(&job_id) {
                 let state = state_ref.get();
                 if let Some(job) = state.get_job(job_id) {
                     update_counters(&mut response, &job.counters);
+                } else {
+                    response.invalid += 1;
                 }
                 if task_set.is_empty() {
                     break;

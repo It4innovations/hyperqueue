@@ -1,8 +1,8 @@
 use crate::common::serialization::Serialized;
 use crate::server::autoalloc::{AllocationId, QueueId, QueueParameters};
-use crate::server::event::Event;
 use crate::server::event::journal::{EventStreamMessage, EventStreamSender};
 use crate::server::event::payload::{EventPayload, TaskNotification};
+use crate::server::event::Event;
 use crate::transfer::messages::{JobDescription, SubmitRequest};
 use bstr::BString;
 use chrono::{DateTime, Utc};
@@ -12,6 +12,7 @@ use tako::gateway::LostWorkerReason;
 use tako::worker::{WorkerConfiguration, WorkerOverview};
 use tako::{InstanceId, JobId, Set, TaskId, WorkerId, WrappedRcRefCell};
 use tokio::sync::{mpsc, oneshot};
+use tokio::time::Instant;
 
 struct EventListener {
     filter: EventFilter,
@@ -47,7 +48,8 @@ impl EventFilter {
             match payload {
                 EventPayload::JobCompleted(job_id)
                 | EventPayload::JobOpen(job_id, _)
-                | EventPayload::JobClose(job_id) => jobs.contains(job_id),
+                | EventPayload::JobClose(job_id)
+                | EventPayload::JobIdle(job_id) => jobs.contains(job_id),
                 EventPayload::TaskNotify(notify) => {
                     self.notify && jobs.contains(&notify.task_id.job_id())
                 }
@@ -307,6 +309,14 @@ impl EventStreamer {
                 message,
             }),
             None,
+            ForwardMode::Stream,
+        );
+    }
+
+    pub fn on_job_idle(&self, job_id: JobId, now: DateTime<Utc>) {
+        self.send_event(
+            EventPayload::JobIdle(job_id),
+            Some(now),
             ForwardMode::Stream,
         );
     }
