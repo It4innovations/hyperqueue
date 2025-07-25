@@ -8,7 +8,7 @@ use smallvec::SmallVec;
 use std::sync::Arc;
 use tako::gateway::LostWorkerReason;
 use tako::worker::{WorkerConfiguration, WorkerOverview};
-use tako::{InstanceId, TaskId, static_assert_size};
+use tako::{static_assert_size, InstanceId, TaskId};
 use tako::{JobId, WorkerId};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -33,6 +33,9 @@ pub enum EventPayload {
     JobCompleted(JobId),
     JobOpen(JobId, JobDescription),
     JobClose(JobId),
+    /// An open job completed all its tasks (but cannot be marked as completed
+    /// because it is open) (EPHEMERAL - not stored in the journal)
+    JobIdle(JobId),
     /// Task has started to execute on some worker
     TaskStarted {
         task_id: TaskId,
@@ -73,7 +76,7 @@ pub enum EventPayload {
     /// Server is stopped
     ServerStop,
 
-    /// Notification from task (not stored in journal)
+    /// Task notification from a task (EPHEMERAL - not stored in the journal)
     TaskNotify(TaskNotification),
 }
 
