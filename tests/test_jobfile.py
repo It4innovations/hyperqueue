@@ -21,13 +21,14 @@ command = ["sleep", "0"]
 
 
 def test_job_file_submit_maximal(hq_env: HqEnv, tmp_path):
+    # This test does not set "stream", to avoid redirecting outputs.
+    # This is tested separately in test_job_file_stream
     hq_env.start_server()
     hq_env.start_workers(3, cpus=4, args=["--resource", "gpus=[0,1]"])
     os.mkdir("output")
     tmp_path.joinpath("job.toml").write_text(
         """
 name = "test-job"
-stream = "output"
 max_fails = 11
 
 [[task]]
@@ -421,3 +422,21 @@ command = ["sleep", "0"]
 
     table = hq_env.command(["job", "info", "1"], as_table=True)
     table.check_row_value("Tasks", "4; Ids: 1,3-5")
+
+
+def test_job_file_stream(hq_env: HqEnv, tmp_path):
+    hq_env.start_server()
+    hq_env.start_worker()
+    tmp_path.joinpath("job.toml").write_text(
+        """
+stream = "output"
+
+[[task]]
+id = 1
+command = ["bash", "-c", "echo 'Hello'"]
+"""
+    )
+    hq_env.command(["job", "submit-file", "job.toml"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+    result = hq_env.command(["output-log", "output", "cat", "1", "stdout"])
+    assert result == "Hello\n"
