@@ -33,7 +33,7 @@ enum AutoAllocCommand {
     /// Display allocations of the specified allocation queue
     Info(AllocationInfoOpts),
     /// Display stdout/stderr of the specified allocation
-    Cat(CatAllocationOpts),
+    Log(LogAllocationOpts),
     /// Add a new allocation queue
     Add(AddQueueOpts),
     /// Pause an existing allocation queue
@@ -49,7 +49,7 @@ enum AutoAllocCommand {
 }
 
 #[derive(Parser)]
-struct CatAllocationOpts {
+struct LogAllocationOpts {
     /// Allocation ID
     allocation: AllocationId,
 
@@ -244,7 +244,7 @@ pub async fn command_autoalloc(
         AutoAllocCommand::Info(opts) => {
             print_allocations(gsettings, session, opts).await?;
         }
-        AutoAllocCommand::Cat(opts) => {
+        AutoAllocCommand::Log(opts) => {
             print_allocation_output(gsettings, session, opts).await?;
         }
         AutoAllocCommand::Remove(opts) => {
@@ -266,7 +266,7 @@ pub async fn command_autoalloc(
 async fn print_allocation_output(
     gsettings: &GlobalSettings,
     mut session: ClientSession,
-    opts: CatAllocationOpts,
+    opts: LogAllocationOpts,
 ) -> anyhow::Result<()> {
     let message = FromClientMessage::AutoAlloc(AutoAllocRequest::GetAllocationInfo {
         allocation_id: opts.allocation,
