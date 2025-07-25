@@ -1,9 +1,11 @@
 use crate::client::output::json::format_datetime;
-use crate::server::event::Event;
 use crate::server::event::payload::EventPayload;
+
+use crate::server::event::Event;
 use crate::transfer::messages::{
     JobSubmitDescription, JobTaskDescription, SubmitRequest, TaskDescription,
 };
+
 use serde_json::json;
 use tako::worker::WorkerOverview;
 
@@ -161,6 +163,11 @@ fn format_payload(event: EventPayload) -> serde_json::Value {
                 "task_id": notify.task_id,
                 "worker_id": notify.worker_id,
                 "message": notify.message,
+            })
+        }
+        EventPayload::JobIdle(job_id) => {
+            json!({
+                "job_id": job_id,
             })
         }
     }

@@ -312,6 +312,7 @@ impl Job {
     pub fn check_termination(&mut self, senders: &Senders, now: DateTime<Utc>) {
         if self.has_no_active_tasks() {
             if self.is_open {
+                senders.events.on_job_idle(self.job_id, now);
                 let callbacks = std::mem::take(&mut self.completion_callbacks);
                 self.completion_callbacks = callbacks
                     .into_iter()
@@ -456,31 +457,29 @@ impl Job {
                 self.tasks.reserve(ids.id_count() as usize);
                 ids.iter().for_each(|task_id| {
                     let task_id = JobTaskId::new(task_id);
-                    assert!(
-                        self.tasks
-                            .insert(
-                                task_id,
-                                JobTaskInfo {
-                                    state: JobTaskState::Waiting,
-                                },
-                            )
-                            .is_none()
-                    );
+                    assert!(self
+                        .tasks
+                        .insert(
+                            task_id,
+                            JobTaskInfo {
+                                state: JobTaskState::Waiting,
+                            },
+                        )
+                        .is_none());
                 })
             }
             JobTaskDescription::Graph { tasks } => {
                 self.tasks.reserve(tasks.len());
                 tasks.iter().for_each(|task| {
-                    assert!(
-                        self.tasks
-                            .insert(
-                                task.id,
-                                JobTaskInfo {
-                                    state: JobTaskState::Waiting,
-                                },
-                            )
-                            .is_none()
-                    );
+                    assert!(self
+                        .tasks
+                        .insert(
+                            task.id,
+                            JobTaskInfo {
+                                state: JobTaskState::Waiting,
+                            },
+                        )
+                        .is_none());
                 })
             }
         };
