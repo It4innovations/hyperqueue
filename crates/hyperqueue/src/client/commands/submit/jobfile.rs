@@ -31,10 +31,10 @@ pub struct JobSubmitFileOpts {
     job: Option<JobId>,
 }
 
-fn create_stdio(def: Option<StdioDefInput>, default: &str, is_log: bool) -> StdioDef {
+fn create_stdio(def: Option<StdioDefInput>, default: &str, has_streaming: bool) -> StdioDef {
     match def {
         None => {
-            if is_log {
+            if has_streaming {
                 StdioDef::Pipe
             } else {
                 StdioDef::File {
@@ -54,14 +54,14 @@ fn create_stdio(def: Option<StdioDefInput>, default: &str, is_log: bool) -> Stdi
     }
 }
 
-fn build_task_description(cfg: TaskConfigDef) -> TaskDescription {
+fn build_task_description(cfg: TaskConfigDef, has_streaming: bool) -> TaskDescription {
     TaskDescription {
         kind: TaskKind::ExternalProgram(TaskKindProgram {
             program: ProgramDefinition {
                 args: cfg.command.into_iter().map(|x| x.into()).collect(),
                 env: cfg.env,
-                stdout: create_stdio(cfg.stdout, DEFAULT_STDOUT_PATH, false),
-                stderr: create_stdio(cfg.stderr, DEFAULT_STDERR_PATH, false),
+                stdout: create_stdio(cfg.stdout, DEFAULT_STDOUT_PATH, has_streaming),
+                stderr: create_stdio(cfg.stderr, DEFAULT_STDERR_PATH, has_streaming),
                 stdin: cfg.stdin.map(|s| s.as_bytes().into()).unwrap_or_default(),
                 cwd: cfg.cwd.map(|x| x.into()).unwrap_or_else(get_current_dir),
             },
@@ -89,6 +89,7 @@ fn build_task(
     tdef: TaskDef,
     max_id: &mut JobTaskId,
     data_flags: TaskDataFlags,
+    has_streaming: bool,
 ) -> TaskWithDependencies {
     let id = tdef.id.unwrap_or_else(|| {
         *max_id = JobTaskId::new(max_id.as_num() + 1);
@@ -97,13 +98,13 @@ fn build_task(
     TaskWithDependencies {
         id,
         data_flags,
-        task_desc: build_task_description(tdef.config),
+        task_desc: build_task_description(tdef.config, has_streaming),
         task_deps: tdef.deps,
         data_deps: tdef.data_deps,
     }
 }
 
-fn build_job_desc_array(array: ArrayDef) -> JobTaskDescription {
+fn build_job_desc_array(array: ArrayDef, has_streaming: bool) -> JobTaskDescription {
     let ids = array
         .ids
         .unwrap_or_else(|| IntArray::from_range(0, array.entries.len() as JobTaskCount));
@@ -121,13 +122,14 @@ fn build_job_desc_array(array: ArrayDef) -> JobTaskDescription {
     JobTaskDescription::Array {
         ids,
         entries,
-        task_desc: build_task_description(array.config),
+        task_desc: build_task_description(array.config, has_streaming),
     }
 }
 
 fn build_job_desc_individual_tasks(
     tasks: Vec<TaskDef>,
     data_flags: TaskDataFlags,
+    has_streaming: bool,
 ) -> crate::Result<JobTaskDescription> {
     let mut max_id: JobTaskId = tasks
         .iter()
@@ -143,7 +145,7 @@ fn build_job_desc_individual_tasks(
     let mut in_degrees = Map::new();
     let mut consumers: Map<JobTaskId, Vec<_>> = Map::new();
     for task in tasks {
-        let t = build_task(task, &mut max_id, data_flags);
+        let t = build_task(task, &mut max_id, data_flags, has_streaming);
         if in_degrees.insert(t.id, t.task_deps.len()).is_some() {
             return Err(crate::Error::GenericError(format!(
                 "Task {} is defined multiple times",
@@ -190,13 +192,13 @@ fn build_job_desc_individual_tasks(
 
 fn build_job_submit(jdef: JobDef, job_id: Option<JobId>) -> crate::Result<SubmitRequest> {
     let task_desc = if let Some(array) = jdef.array {
-        build_job_desc_array(array)
+        build_job_desc_array(array, jdef.stream.is_some())
     } else {
         let mut data_flags = TaskDataFlags::empty();
         if jdef.data_layer {
             data_flags.insert(TaskDataFlags::ENABLE_DATA_LAYER);
         }
-        build_job_desc_individual_tasks(jdef.tasks, data_flags)?
+        build_job_desc_individual_tasks(jdef.tasks, data_flags, jdef.stream.is_some())?
     };
     Ok(SubmitRequest {
         job_desc: JobDescription {

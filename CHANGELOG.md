@@ -25,6 +25,7 @@
 
 * Fixed the issue of possible ignoring idle timeout when time request is used.
 * Worker process terminated because of idle timeout now returns zero exit code.
+* Fixes broken streaming when job file is used.
 
 ## 0.23.0
 
