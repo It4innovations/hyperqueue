@@ -16,6 +16,7 @@ use tako::resources::{
 use tako::{Set, format_comma_delimited};
 
 use crate::common::format::human_size;
+use crate::common::manager::info::ManagerInfo;
 use crate::common::parser::{NomResult, consume_all, p_u32};
 
 pub fn detect_cpus() -> anyhow::Result<ResourceDescriptorKind> {
@@ -94,6 +95,7 @@ pub fn prune_hyper_threading(
 /// Also returns the detected GPU families.
 pub fn detect_additional_resources(
     items: &mut Vec<ResourceDescriptorItem>,
+    manager_info: Option<&ManagerInfo>,
 ) -> anyhow::Result<Set<GpuFamily>> {
     let mut gpu_families = Set::new();
     let has_resource =
@@ -124,17 +126,22 @@ pub fn detect_additional_resources(
     }
 
     if !has_resource(items, MEM_RESOURCE_NAME) {
-        if let Ok(mem) = read_linux_memory() {
+        // Note that memory sizes are always in mibibytes
+        if let Some(mem) = manager_info.and_then(|i| i.max_memory_mb) {
+            items.push(ResourceDescriptorItem {
+                name: MEM_RESOURCE_NAME.to_string(),
+                kind: ResourceDescriptorKind::Sum {
+                    size: ResourceAmount::new(mem.try_into()?, 0),
+                },
+            });
+        } else if let Ok(mem) = read_linux_memory() {
             log::info!("Detected {mem}B of memory ({})", human_size(mem));
             let units = mem / (1024 * 1024);
             let fractions = ((mem % (1024 * 1024)) * FRACTIONS_PER_UNIT as u64) / (1024 * 1024);
             items.push(ResourceDescriptorItem {
                 name: MEM_RESOURCE_NAME.to_string(),
                 kind: ResourceDescriptorKind::Sum {
-                    size: ResourceAmount::new(
-                        units.try_into().unwrap(),
-                        fractions as ResourceFractions,
-                    ),
+                    size: ResourceAmount::new(units.try_into()?, fractions as ResourceFractions),
                 },
             });
         }

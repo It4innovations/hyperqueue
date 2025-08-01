@@ -295,9 +295,11 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
         cpus.kind = prune_hyper_threading(&cpus.kind)?;
     }
 
+    let manager_info = gather_manager_info(manager)?;
+
     let mut gpu_families = Set::new();
     if !no_detect_resources {
-        gpu_families = detect_additional_resources(&mut resources)?;
+        gpu_families = detect_additional_resources(&mut resources, manager_info.as_ref())?;
     }
     for gpu_environment in GPU_ENVIRONMENTS {
         if resources
@@ -324,7 +326,6 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
         work_dir.unwrap_or_else(|| tmpdir.join("work"))
     };
 
-    let manager_info = gather_manager_info(manager)?;
     let mut extra = Map::new();
 
     if let Some(manager_info) = &manager_info {
@@ -372,7 +373,7 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
     })
 }
 
-fn gather_manager_info(opts: ManagerOpts) -> anyhow::Result<Option<ManagerInfo>> {
+pub fn gather_manager_info(opts: ManagerOpts) -> anyhow::Result<Option<ManagerInfo>> {
     match opts {
         ManagerOpts::Detect => {
             log::debug!("Trying to detect manager");
