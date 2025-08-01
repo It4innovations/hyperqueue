@@ -1,5 +1,8 @@
 import time
 
+from .autoalloc.utils import wait_for_alloc
+from .autoalloc.mock.manager import default_job_id
+from .utils import wait_for_worker_state
 from .test_events import read_events
 from .utils.cmd import python
 from .autoalloc.mock.mock import MockJobManager
@@ -240,6 +243,36 @@ def test_restore_queues(hq_env: HqEnv, tmp_path, flavor: ManagerFlavor):
 
         alloc_list4 = hq_env.command(["--output-mode=json", "alloc", "list"], as_json=True)
         assert alloc_list3 == alloc_list4
+
+
+@all_flavors
+def test_restore_queue_worker_resources(hq_env: HqEnv, tmp_path, flavor: ManagerFlavor):
+    journal_path = os.path.join(tmp_path, "my.journal")
+    hq_env.start_server(args=["--journal", journal_path])
+
+    with MockJobManager(hq_env, flavor.default_handler()) as manager:
+        add_queue(
+            hq_env,
+            manager=flavor.manager_type(),
+        )
+        hq_env.command(["submit", "ls"])
+
+        job_id = default_job_id(0)
+        wait_for_alloc(hq_env, "QUEUED", job_id)
+
+        manager.handler.add_worker(hq_env, job_id)
+        wait_for_worker_state(hq_env, [1], "RUNNING")
+
+        alloc_list = hq_env.command(["--output-mode=json", "alloc", "list"], as_json=True)
+        worker_resources = alloc_list[0]["known_worker_resources"]
+        assert worker_resources is not None
+
+        hq_env.stop_server()
+        hq_env.start_server(args=["--journal", journal_path])
+
+        alloc_list2 = hq_env.command(["--output-mode=json", "alloc", "list"], as_json=True)
+        current_worker_resources = alloc_list2[0]["known_worker_resources"]
+        assert worker_resources == current_worker_resources
 
 
 def test_restore_open_job_more_jobs(hq_env: HqEnv, tmp_path):
