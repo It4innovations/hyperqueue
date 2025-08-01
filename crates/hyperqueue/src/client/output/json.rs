@@ -462,6 +462,7 @@ fn format_autoalloc_queue(id: QueueId, descriptor: QueueData) -> serde_json::Val
         name,
         manager_type,
         state,
+        known_worker_resources,
     } = descriptor;
 
     let manager = FormattedManagerType(manager_type);
@@ -476,8 +477,10 @@ fn format_autoalloc_queue(id: QueueId, descriptor: QueueData) -> serde_json::Val
         "timelimit": format_duration(params.timelimit),
         "max_worker_count": params.max_worker_count,
         "worker_args": params.worker_args,
+        "known_worker_resources": known_worker_resources.map(|res| format_resource_descriptor(&res))
     })
 }
+
 fn format_allocation(allocation: Allocation) -> serde_json::Value {
     let Allocation {
         id,
