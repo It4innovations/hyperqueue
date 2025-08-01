@@ -17,6 +17,7 @@ use tako::gateway::{
     WorkerRuntimeInfo,
 };
 use tako::program::ProgramDefinition;
+use tako::resources::ResourceDescriptor;
 use tako::server::TaskExplanation;
 use tako::worker::WorkerConfiguration;
 use tako::{JobId, JobTaskCount, JobTaskId, Map, TaskId, WorkerId};
@@ -498,6 +499,7 @@ pub struct QueueData {
     pub name: Option<String>,
     pub manager_type: ManagerType,
     pub state: QueueState,
+    pub known_worker_resources: Option<ResourceDescriptor>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]

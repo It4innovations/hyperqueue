@@ -961,6 +961,7 @@ impl Output for CliOutput {
                     name,
                     manager_type,
                     state,
+                    known_worker_resources,
                 } = data;
 
                 vec![
@@ -975,6 +976,10 @@ impl Output for CliOutput {
                     params.max_worker_count.unwrap_or_default().cell(),
                     format_duration(params.timelimit).to_string().cell(),
                     manager_type.cell(),
+                    known_worker_resources
+                        .map(|res| resources_summary(&res, false))
+                        .unwrap_or_else(|| "<unknown>".to_string())
+                        .cell(),
                     name.unwrap_or_default().cell(),
                     params.additional_args.join(",").cell(),
                 ]
@@ -989,6 +994,7 @@ impl Output for CliOutput {
             "Max worker count".cell().bold(true),
             "Timelimit".cell().bold(true),
             "Manager".cell().bold(true),
+            "Worker resources".cell().bold(true),
             "Name".cell().bold(true),
             "Args".cell().bold(true),
         ];

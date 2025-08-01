@@ -254,6 +254,7 @@ async fn handle_message(
                                 AllocationQueueState::Active => QueueState::Active,
                                 AllocationQueueState::Paused => QueueState::Paused,
                             },
+                            known_worker_resources: queue.get_worker_resources().cloned(),
                         },
                     )
                 })
