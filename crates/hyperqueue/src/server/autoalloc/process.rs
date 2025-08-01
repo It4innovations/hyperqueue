@@ -2378,6 +2378,7 @@ mod tests {
                 manager: ManagerType::Slurm,
                 allocation_id: value.to_string(),
                 time_limit: None,
+                max_memory_mb: None,
             }
         }
     }

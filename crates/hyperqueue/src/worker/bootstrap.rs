@@ -160,11 +160,12 @@ pub fn try_get_pbs_info() -> anyhow::Result<ManagerInfo> {
 
     log::info!("PBS environment detected");
 
-    Ok(ManagerInfo::new(
-        ManagerType::Pbs,
-        manager_job_id,
+    Ok(ManagerInfo {
+        manager: ManagerType::Pbs,
+        allocation_id: manager_job_id,
         time_limit,
-    ))
+        max_memory_mb: None,
+    })
 }
 
 pub fn try_get_slurm_info() -> anyhow::Result<ManagerInfo> {
@@ -179,11 +180,16 @@ pub fn try_get_slurm_info() -> anyhow::Result<ManagerInfo> {
     let duration = slurm::get_remaining_timelimit(&manager_job_id)
         .expect("Could not get remaining time from scontrol");
 
+    let max_memory_mb = std::env::var("SLURM_MEM_PER_NODE")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok());
+
     log::info!("SLURM environment detected");
 
-    Ok(ManagerInfo::new(
-        ManagerType::Slurm,
-        manager_job_id,
-        Some(duration),
-    ))
+    Ok(ManagerInfo {
+        manager: ManagerType::Slurm,
+        allocation_id: manager_job_id,
+        time_limit: Some(duration),
+        max_memory_mb,
+    })
 }

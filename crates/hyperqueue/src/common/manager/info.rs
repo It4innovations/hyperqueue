@@ -26,16 +26,8 @@ pub struct ManagerInfo {
     pub allocation_id: String,
     /// Time that remains until the job ends
     pub time_limit: Option<Duration>,
-}
-
-impl ManagerInfo {
-    pub fn new(manager: ManagerType, job_id: String, time_limit: Option<Duration>) -> Self {
-        Self {
-            manager,
-            allocation_id: job_id,
-            time_limit,
-        }
-    }
+    /// Maximum number of allowed memory that can be used on the node.
+    pub max_memory_mb: Option<u64>,
 }
 
 pub trait GetManagerInfo {
