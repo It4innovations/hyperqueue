@@ -6,6 +6,7 @@ use crate::common::serverdir::{
 };
 use crate::common::utils::network::get_hostname;
 use crate::common::utils::time::parse_hms_or_human_time;
+use crate::rpc_call;
 use crate::server::bootstrap::{
     ServerConfig, generate_server_uid, get_client_session, init_hq_server,
 };
@@ -68,6 +69,8 @@ pub enum ServerCommand {
     Info(ServerInfoOpts),
     /// Generate an access file without starting the server
     GenerateAccess(GenerateAccessOpts),
+    /// Dump internal scheduler info into a file
+    DebugDump(DebugDumpOpts),
 }
 
 #[derive(Parser)]
@@ -132,12 +135,19 @@ pub struct ServerStopOpts {}
 #[derive(Parser)]
 pub struct ServerInfoOpts {}
 
+#[derive(Parser)]
+pub struct DebugDumpOpts {
+    /// Path where dump is stored
+    path: PathBuf,
+}
+
 pub async fn command_server(gsettings: &GlobalSettings, opts: ServerOpts) -> anyhow::Result<()> {
     match opts.subcmd {
         ServerCommand::Start(opts) => start_server(gsettings, opts).await,
         ServerCommand::Stop(opts) => stop_server(gsettings, opts).await,
         ServerCommand::Info(opts) => command_server_info(gsettings, opts).await,
         ServerCommand::GenerateAccess(opts) => command_server_generate_access(gsettings, opts),
+        ServerCommand::DebugDump(opts) => debug_dump(gsettings, opts).await,
     }
 }
 
@@ -197,6 +207,15 @@ async fn start_server(gsettings: &GlobalSettings, opts: ServerStartOpts) -> anyh
     };
 
     init_hq_server(gsettings, server_cfg).await
+}
+
+async fn debug_dump(gsettings: &GlobalSettings, opts: DebugDumpOpts) -> anyhow::Result<()> {
+    let mut session = get_client_session(gsettings.server_directory()).await?;
+    log::info!("Dumping server state ...");
+    let message = FromClientMessage::ServerDebugDump(opts.path);
+    rpc_call!(session.connection(), message, ToClientMessage::Finished => ()).await?;
+    log::info!("Dump finished");
+    Ok(())
 }
 
 async fn stop_server(gsettings: &GlobalSettings, _opts: ServerStopOpts) -> anyhow::Result<()> {

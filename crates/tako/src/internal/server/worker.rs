@@ -12,6 +12,7 @@ use crate::internal::server::taskmap::TaskMap;
 use crate::internal::server::workerload::{ResourceRequestLowerBound, WorkerLoad, WorkerResources};
 use crate::internal::worker::configuration::WorkerConfiguration;
 use crate::{TaskId, WorkerId};
+use serde_json::json;
 use std::time::{Duration, Instant};
 
 bitflags::bitflags! {
@@ -294,9 +295,7 @@ impl Worker {
     pub fn has_time_to_run_for_rqv(&self, rqv: &ResourceRequestVariants, now: Instant) -> bool {
         self.has_time_to_run(rqv.min_time(), now)
     }
-}
 
-impl Worker {
     pub fn new(
         id: WorkerId,
         configuration: WorkerConfiguration,
@@ -318,5 +317,24 @@ impl Worker {
             mn_task: None,
             idle_timestamp: now,
         }
+    }
+
+    pub(crate) fn dump(&self, now: Instant) -> serde_json::Value {
+        json! ({
+            "id": self.id,
+            "sn_tasks": self.sn_tasks,
+            "sn_load": self.sn_load.dump(),
+            "flags": self.flags.bits(),
+            "termination_time": self.termination_time.map(|x| x - now),
+            "mn_task": self.mn_task.as_ref().map(|t| {
+                json!({
+                    "task_id": t.task_id,
+                    "reservation_only": t.reservation_only,
+                })
+            }),
+            "idle_timestamp": now - self.idle_timestamp,
+            "last_heartbeat": now - self.last_heartbeat,
+            "configuration": self.configuration,
+        })
     }
 }

@@ -7,6 +7,7 @@ use crate::internal::common::resources::{
 };
 use crate::internal::messages::worker::WorkerResourceCounts;
 use crate::{Map, Set, TaskId};
+use serde_json::json;
 use std::ops::Deref;
 
 // WorkerResources are transformed information from ResourceDescriptor
@@ -137,6 +138,12 @@ impl WorkerResources {
             .min()
             .unwrap_or(0)
     }
+
+    pub fn dump(&self) -> serde_json::Value {
+        json!({
+            "n_resources": self.n_resources.iter().map(|x| x.total_fractions()).collect::<Vec<_>>(),
+        })
+    }
 }
 
 // This represents a current worker load from server perspective
@@ -167,6 +174,14 @@ impl WorkerLoad {
         for r in rq.entries() {
             self.n_resources[r.resource_id] += r.request.amount(wr.n_resources[r.resource_id]);
         }
+    }
+
+    pub(crate) fn dump(&self) -> serde_json::Value {
+        json!({
+            "n_resources": self.n_resources.iter().map(|x| x.total_fractions()).collect::<Vec<_>>(),
+            "non_first_rq": self.non_first_rq.iter().map(|(k, v)| (k.to_string(), *v)).collect::<Vec<_>>(),
+            "round_robin_counter": self.round_robin_counter,
+        })
     }
 
     pub(crate) fn add_request(

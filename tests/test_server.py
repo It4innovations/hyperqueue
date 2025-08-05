@@ -249,3 +249,12 @@ def test_generate_partial_access_hosts(hq_env: HqEnv):
     schema.validate(access)
 
     hq_env.start_server(args=["--access-file=myaccess.json"])
+
+
+def test_server_debug_dump(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["submit", "--array=1-3", "sleep", "1"])
+    hq_env.command(["server", "debug-dump", "out.json"])
+    with open("out.json") as f:
+        result = json.loads(f.read())
+    assert "tako" in result

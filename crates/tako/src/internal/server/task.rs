@@ -1,3 +1,4 @@
+use serde_json::json;
 use std::fmt;
 use std::rc::Rc;
 use std::time::Duration;
@@ -45,6 +46,37 @@ impl fmt::Debug for TaskRuntimeState {
     }
 }
 
+impl TaskRuntimeState {
+    fn dump(&self) -> serde_json::Value {
+        match self {
+            Self::Waiting(info) => json!({
+                "state": "Waiting",
+                "unfinished_deps": info.unfinished_deps,
+            }),
+            Self::Assigned(w_id) => json!({
+                "state": "Assigned",
+                "worker_id": w_id,
+            }),
+            Self::Stealing(from_w, to_w) => json!({
+                "state": "Stealing",
+                "from_worker": from_w,
+                "to_worker": to_w,
+            }),
+            Self::Running { worker_id, .. } => json!({
+                "state": "Running",
+                "worker_id": worker_id,
+            }),
+            Self::RunningMultiNode(ws) => json!({
+                "state": "RunningMultiNode",
+                "worker_ids": ws,
+            }),
+            Self::Finished => json!({
+                "state": "Finished",
+            }),
+        }
+    }
+}
+
 bitflags::bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct TaskFlags: u32 {
@@ -64,6 +96,18 @@ pub struct TaskConfiguration {
     pub crash_limit: CrashLimit,
     pub data_flags: TaskDataFlags,
     pub body: Box<[u8]>,
+}
+
+impl TaskConfiguration {
+    pub fn dump(&self) -> serde_json::Value {
+        json!({
+            "resources": self.resources,
+            "user_priority": self.user_priority,
+            "time_limit": self.time_limit,
+            "crash_limit": self.crash_limit,
+            "body_len": self.body.len(),
+        })
+    }
 }
 
 #[cfg_attr(test, derive(Eq, PartialEq))]
@@ -92,6 +136,20 @@ impl fmt::Debug for Task {
 }
 
 impl Task {
+    pub fn dump(&self) -> serde_json::Value {
+        json!({
+            "id": self.id.to_string(),
+            "state": self.state.dump(),
+            "consumers": self.consumers,
+            "task_deps": self.task_deps,
+            "flags": self.flags.bits(),
+            "scheduler_priority": self.scheduler_priority,
+            "instance_id": self.instance_id,
+            "crash_counter": self.crash_counter,
+            "configuration": self.configuration.dump(),
+        })
+    }
+
     pub fn new(
         id: TaskId,
         task_deps: ThinVec<TaskId>,

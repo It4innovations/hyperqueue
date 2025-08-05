@@ -1,8 +1,7 @@
+use chrono::{DateTime, Utc};
 use std::borrow::Cow;
 use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
-
-use chrono::{DateTime, Utc};
 use tako::gateway::{
     EntryType, SharedTaskConfiguration, TaskConfiguration, TaskDataFlags, TaskSubmit,
 };

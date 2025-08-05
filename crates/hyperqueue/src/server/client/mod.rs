@@ -1,9 +1,11 @@
 use chrono::Utc;
-use std::fmt::Debug;
-use std::sync::Arc;
-
 use futures::{Sink, SinkExt, Stream, StreamExt};
 use orion::kdf::SecretKey;
+use serde_json::json;
+use std::fmt::Debug;
+use std::path::Path;
+use std::sync::Arc;
+use std::time::Instant;
 use tako::{Set, TaskGroup, TaskId};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc::UnboundedSender;
@@ -232,6 +234,7 @@ pub async fn client_rpc_loop<
                     FromClientMessage::TaskExplain(request) => {
                         handle_task_explain(&state_ref, senders, request)
                     }
+                    FromClientMessage::ServerDebugDump(path) => handle_server_dump(senders, &path),
                 };
                 if let Err(error) = tx.send(response).await {
                     log::error!("Cannot reply to client: {error:?}");
@@ -749,4 +752,16 @@ fn handle_worker_info(
             None
         })
     }))
+}
+
+pub(crate) fn handle_server_dump(senders: &Senders, path: &Path) -> ToClientMessage {
+    let now = Instant::now();
+    let tako = senders.server_control.debug_dump(now);
+    let value = json!({
+        "tako": tako,
+    });
+    if let Err(e) = std::fs::write(path, serde_json::to_string(&value).unwrap()) {
+        return ToClientMessage::Error(format!("Could not write debug dump: {e}"));
+    }
+    ToClientMessage::Finished
 }
