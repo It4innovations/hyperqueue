@@ -81,6 +81,13 @@ impl MultiNodeQueue {
     pub fn is_sleeping(&self, rq: &ResourceRequest) -> bool {
         self.queues.get(rq).unwrap().sleeping
     }
+
+    pub fn dump(&self) -> serde_json::Value {
+        serde_json::json!({
+            "queues": self.queues.iter().map(|(k, v)| (k, v.queue.len() as u32)).collect::<Vec<_>>(),
+            "requests": self.requests,
+        })
+    }
 }
 
 enum TaskFindWorkersResult {

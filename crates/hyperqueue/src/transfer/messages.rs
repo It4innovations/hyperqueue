@@ -41,6 +41,7 @@ pub enum FromClientMessage {
     OpenJob(JobDescription),
     CloseJob(CloseJobRequest),
     TaskExplain(TaskExplainRequest),
+    ServerDebugDump(PathBuf),
 
     // This command switches the connection into streaming connection,
     // it will no longer reacts to any other client messages

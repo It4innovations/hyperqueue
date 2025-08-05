@@ -197,6 +197,11 @@ impl ServerRef {
                 .broadcast_worker_message(&ToWorkerMessage::SetOverviewIntervalOverride(None));
         }
     }
+
+    pub fn debug_dump(&self, now: Instant) -> serde_json::Value {
+        let core = self.core_ref.get();
+        core.dump(now)
+    }
 }
 
 #[allow(clippy::too_many_arguments)]

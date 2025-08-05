@@ -1,7 +1,5 @@
 use std::sync::Arc;
-use std::time::Duration;
-
-use orion::aead::SecretKey;
+use std::time::{Duration, Instant};
 
 use crate::internal::common::resources::map::{ResourceIdAllocator, ResourceMap};
 use crate::internal::common::resources::{ResourceId, ResourceRequestVariants};
@@ -17,6 +15,8 @@ use crate::internal::server::workergroup::WorkerGroup;
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::server::workermap::WorkerMap;
 use crate::{Map, TaskId, WorkerId};
+use orion::aead::SecretKey;
+use serde_json::json;
 
 pub(crate) type CustomConnectionHandler = Box<dyn Fn(ConnectionDescriptor)>;
 
@@ -528,6 +528,21 @@ impl Core {
         self.single_node_ready_to_assign.shrink_to_fit();
         self.sleeping_sn_tasks.shrink_to_fit();
         self.multi_node_queue.shrink_to_fit();
+    }
+
+    pub fn dump(&self, now: Instant) -> serde_json::Value {
+        json!({
+            "workers": self.workers.values().map(|w| w.dump(now)).collect::<Vec<_>>(),
+            "worker_groups": self.worker_groups.iter().map(|(k, v)|
+                json!({"name": k,
+                       "workers": v.worker_ids().collect::<Vec<_>>(),
+                })).collect::<Vec<_>>(),
+            "tasks": self.tasks.tasks().map(|t| t.dump()).collect::<Vec<_>>(),
+            "parked_resources": self.parked_resources.iter().map(|r| r.dump()).collect::<Vec<_>>(),
+            "sn_ready_to_assign": self.single_node_ready_to_assign,
+            "mn_queue": self.multi_node_queue.dump(),
+            "sleeping_sn_tasks": self.sleeping_sn_tasks,
+        })
     }
 }
 
