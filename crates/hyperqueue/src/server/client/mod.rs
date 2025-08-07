@@ -9,9 +9,9 @@ use std::time::Instant;
 use tako::{Set, TaskGroup, TaskId};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc::UnboundedSender;
-use tokio::sync::{mpsc, Notify};
+use tokio::sync::{Notify, mpsc};
 
-use crate::client::status::{job_status, Status};
+use crate::client::status::{Status, job_status};
 use crate::common::serverdir::ServerDir;
 use crate::server::event::Event;
 use crate::server::job::{JobTaskCounters, JobTaskState};
@@ -29,10 +29,10 @@ pub mod autoalloc;
 mod submit;
 
 use crate::common::serialization::Serialized;
+use crate::server::Senders;
 use crate::server::client::submit::{handle_open_job, handle_task_explain};
 use crate::server::event::payload::EventPayload;
 use crate::server::event::streamer::EventFilter;
-use crate::server::Senders;
 pub(crate) use submit::{submit_job_desc, validate_submit};
 
 pub async fn handle_client_connections(
@@ -135,6 +135,7 @@ async fn start_streaming<
     state_ref: StateRef,
     senders: &Senders,
     stream_events: StreamEvents,
+    extra_message: Option<ToClientMessage>,
 ) where
     Tx::Error: Debug,
 {
@@ -160,7 +161,6 @@ async fn start_streaming<
     /* We create two event queues, one for historic events and one for live events
     So while historic events are loaded from the file and streamed, live events are already
     collected and sent immediately once the historic events are sent */
-    let (tx1, rx1) = mpsc::unbounded_channel::<Event>();
     let live = if live_events {
         let (tx2, rx2) = mpsc::unbounded_channel::<Event>();
         let filter = EventFilter::new(job_filter, allow_notify);
@@ -170,10 +170,15 @@ async fn start_streaming<
         None
     };
 
+    if let Some(msg) = extra_message {
+        let _ = tx.send(msg).await;
+    }
+
     // If we use a journal, we can replay historical events from it.
     // If not, we can at least try to reconstruct a few basic events
     // based on the current state.
     if past_events {
+        let (tx1, rx1) = mpsc::unbounded_channel::<Event>();
         if senders.events.is_journal_enabled() {
             senders.events.start_journal_replay(tx1);
         } else if let Err(e) = reconstruct_historical_events(state_ref, tx1) {
@@ -212,8 +217,21 @@ pub async fn client_rpc_loop<
         match message_result {
             Ok(message) => {
                 let response = match message {
-                    FromClientMessage::Submit(msg) => {
-                        submit::handle_submit(&state_ref, senders, msg)
+                    FromClientMessage::Submit(msg, stream_opts) => {
+                        let response = submit::handle_submit(&state_ref, senders, msg);
+                        if let Some(stream_opts) = stream_opts {
+                            start_streaming(
+                                tx,
+                                rx,
+                                state_ref,
+                                senders,
+                                stream_opts,
+                                Some(response),
+                            )
+                            .await;
+                            break;
+                        }
+                        response
                     }
                     FromClientMessage::JobInfo(msg) => compute_job_info(&state_ref, &msg.selector),
                     FromClientMessage::Stop => {
@@ -255,7 +273,7 @@ pub async fn client_rpc_loop<
                         handle_job_close(&state_ref, senders, &msg.selector).await
                     }
                     FromClientMessage::StreamEvents(msg) => {
-                        start_streaming(tx, rx, state_ref, senders, msg).await;
+                        start_streaming(tx, rx, state_ref, senders, msg, None).await;
                         break;
                     }
                     FromClientMessage::ServerInfo => {
