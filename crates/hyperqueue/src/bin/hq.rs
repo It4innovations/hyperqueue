@@ -43,9 +43,7 @@ use hyperqueue::common::cli::{
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::common::utils::fs::absolute_path;
 use hyperqueue::server::bootstrap::get_client_session;
-use hyperqueue::transfer::messages::{
-    FromClientMessage, IdSelector, JobInfoRequest, ToClientMessage,
-};
+use hyperqueue::transfer::messages::{FromClientMessage, JobInfoRequest, ToClientMessage};
 use hyperqueue::worker::hwdetect::{
     detect_additional_resources, detect_cpus, prune_hyper_threading,
 };
@@ -106,13 +104,6 @@ async fn command_job_summary(gsettings: &GlobalSettings) -> anyhow::Result<()> {
 }
 
 async fn command_job_detail(gsettings: &GlobalSettings, opts: JobInfoOpts) -> anyhow::Result<()> {
-    if matches!(opts.selector, IdSelector::All) {
-        log::warn!(
-            "Job detail doesn't support the `all` selector, did you mean to use `hq job list --all`?"
-        );
-        return Ok(());
-    }
-
     let mut session = get_client_session(gsettings.server_directory()).await?;
     output_job_detail(gsettings, &mut session, opts.selector).await
 }

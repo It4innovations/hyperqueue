@@ -38,7 +38,6 @@ would stop workers with IDs `1`, `3`, `5`, `6`, `7` and `8`.
 - `hq submit --array=<selector>`
 - `hq worker stop <selector>`
 - `hq job info <selector>`
-    - does not support `all` (use `hq job list` instead)
 - `hq job cancel <selector>`
 - `hq job wait <selector>`
 - `hq job progress <selector>`
