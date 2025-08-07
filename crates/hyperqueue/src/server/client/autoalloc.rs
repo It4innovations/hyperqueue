@@ -2,7 +2,8 @@ use crate::common::serverdir::ServerDir;
 use crate::server::Senders;
 use crate::server::autoalloc::try_submit_allocation;
 use crate::transfer::messages::{
-    AutoAllocListQueuesResponse, AutoAllocRequest, AutoAllocResponse, ToClientMessage,
+    AutoAllocListQueuesResponse, AutoAllocRequest, AutoAllocResponse, QueueCreateResponse,
+    ToClientMessage,
 };
 
 pub async fn handle_autoalloc_message(
@@ -32,7 +33,11 @@ pub async fn handle_autoalloc_message(
         } => {
             if dry_run {
                 if let Err(e) = try_submit_allocation(parameters.clone()).await {
-                    return ToClientMessage::Error(e.to_string());
+                    return ToClientMessage::AutoAllocResponse(
+                        AutoAllocResponse::QueueCreateResponse(QueueCreateResponse::DryRunFailed(
+                            e.to_string(),
+                        )),
+                    );
                 }
             }
 
@@ -41,9 +46,9 @@ pub async fn handle_autoalloc_message(
                     .autoalloc
                     .add_queue(server_dir.directory(), parameters, None, None);
             match result.await {
-                Ok(queue_id) => {
-                    ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueueCreated(queue_id))
-                }
+                Ok(queue_id) => ToClientMessage::AutoAllocResponse(
+                    AutoAllocResponse::QueueCreateResponse(QueueCreateResponse::Created(queue_id)),
+                ),
                 Err(error) => ToClientMessage::Error(error.to_string()),
             }
         }

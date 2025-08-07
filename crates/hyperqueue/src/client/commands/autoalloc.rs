@@ -14,7 +14,7 @@ use crate::server::autoalloc::{
 use crate::server::bootstrap::get_client_session;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
-    AutoAllocRequest, AutoAllocResponse, FromClientMessage, ToClientMessage,
+    AutoAllocRequest, AutoAllocResponse, FromClientMessage, QueueCreateResponse, ToClientMessage,
 };
 use clap::Parser;
 use humantime::format_duration;
@@ -467,19 +467,27 @@ async fn add_queue(mut session: ClientSession, opts: AddQueueOpts) -> anyhow::Re
         dry_run,
     });
 
-    let queue_id = rpc_call!(session.connection(), message,
-        ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueueCreated(id)) => id
+    let response = rpc_call!(session.connection(), message,
+        ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueueCreateResponse(response)) => response
     )
     .await?;
 
-    if dry_run {
-        log::info!(
-            "A trial allocation was submitted successfully. It was immediately canceled to avoid \
-wasting resources."
-        );
+    match response {
+        QueueCreateResponse::Created(queue_id) => {
+            if dry_run {
+                log::info!(
+                    "A trial allocation was submitted successfully. It was immediately canceled to avoid wasting resources."
+                );
+            }
+
+            log::info!("Allocation queue {queue_id} successfully created");
+        }
+        QueueCreateResponse::DryRunFailed(error) => {
+            log::error!("Dry-run (test allocation submission) has failed");
+            return Err(anyhow::anyhow!("{error}"));
+        }
     }
 
-    log::info!("Allocation queue {queue_id} successfully created");
     Ok(())
 }
 
