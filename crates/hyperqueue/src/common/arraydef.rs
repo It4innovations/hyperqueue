@@ -58,7 +58,7 @@ impl IntArray {
         let mut ranges: Vec<IntRange> = Vec::new();
         let mut last_id = None;
         for id in ids {
-            debug_assert!(last_id.map(|last_id| last_id < id).unwrap_or(true));
+            assert!(last_id.map(|last_id| last_id < id).unwrap_or(true));
             if last_id.map(|last_id| last_id + 1 == id).unwrap_or(false) {
                 ranges.last_mut().unwrap().count += 1;
             } else {
