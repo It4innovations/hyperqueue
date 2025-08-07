@@ -127,6 +127,28 @@ The [`hq journal prune`](cli:hq.journal.prune) command removes all completed job
 
 The [`hq journal flush`](cli:hq.journal.flush) command will force the server to flush the journal, so that the latest state of affairs is persisted to disk. It is mainly useful for testing or if you are going to run `hq journal export` while a server is running (however, it is usually better to use `hq journal stream`).
 
+## Waiting for server availability
+
+If you need to wait for a server to become available (for example when coordinating server startup in scripts), 
+you can use the [`hq server wait`](cli:hq.server.wait) command:
+
+```bash
+$ hq server wait
+```
+
+This command will repeatedly attempt to connect to the server (every 5 seconds) until it succeeds or until a timeout 
+is reached. By default, it will wait for up to 5 minutes, but you can specify a custom timeout[^1]:
+
+```bash
+# Wait for up to 2 minutes
+$ hq server wait --timeout 2m
+```
+
+[^1]: You can use various [shortcuts](../cli/shortcuts.md#duration) for the timeout duration.
+
+This is particularly useful in deployment scripts where you start a server and then need to ensure it's ready before 
+proceeding with other operations like connecting workers or submitting jobs.
+
 ## Stopping the server
 
 You can stop a running server with the [`hq server stop`](cli:hq.server.stop) command:
