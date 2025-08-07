@@ -190,7 +190,7 @@ pub enum StringPart<'a> {
     Placeholder(&'a str),
 }
 
-fn parse_placeholder(data: &str) -> NomResult<&str> {
+fn parse_placeholder(data: &str) -> NomResult<'_, &str> {
     delimited(tag("%{"), take_until("}"), tag("}"))(data)
 }
 
@@ -216,7 +216,7 @@ pub fn has_placeholders(data: &str) -> bool {
 ///     StringPart::Verbatim("c"),
 /// ]);
 /// ```
-pub fn parse_resolvable_string(data: &str) -> Vec<StringPart> {
+pub fn parse_resolvable_string(data: &str) -> Vec<StringPart<'_>> {
     let mut parts = vec![];
     let mut input = data;
     let mut start = 0;

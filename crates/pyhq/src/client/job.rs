@@ -20,16 +20,16 @@ use pyo3::exceptions::PyException;
 use pyo3::prelude::PyAnyMethods;
 use pyo3::types::PyTuple;
 use pyo3::{Bound, IntoPyObject, PyAny, PyResult, Python};
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+use tako::JobTaskCount;
 use tako::gateway::{
     CrashLimit, ResourceRequestEntries, ResourceRequestEntry, ResourceRequestVariants,
     TaskDataFlags,
 };
 use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
 use tako::resources::{AllocationRequest, NumOfNodes, ResourceAmount};
-use tako::{JobTaskCount, Set};
 
 #[derive(Debug, FromPyObject)]
 enum AllocationValue {
