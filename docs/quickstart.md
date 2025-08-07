@@ -30,3 +30,11 @@ Run each of the following three commands in separate terminals.
 
 That's it! For a more in-depth explanation of how HyperQueue works and what it can do, check
 the [Deployment](deployment/index.md) and [Jobs](jobs/jobs.md) sections.
+
+## Terminal demo
+
+Here is a small demo of HyperQueue being used to run a few hundred commands (tasks), while scaling up and down based on the number of connected workers:
+
+<div style="display: flex; justify-content: center;">
+  <img src="../imgs/hq-terminal.gif">
+</div>
