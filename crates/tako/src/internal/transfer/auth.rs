@@ -97,7 +97,7 @@ impl Authenticator {
         match &mut (message.mode, &self.secret_key) {
             (AuthenticationMode::NoAuth, None) => Ok(AuthenticationResponse::NoAuth),
             (AuthenticationMode::Encryption(msg), Some(key)) => {
-                log::debug!("Worker authorization started");
+                log::trace!("Peer authorization started");
                 if msg.challenge.len() != CHALLENGE_LENGTH {
                     return self._make_error(format!(
                         "Invalid length of challenge ({})",
@@ -144,11 +144,11 @@ impl Authenticator {
                 return Err(format!("Received authentication error: {}", error.message).into());
             }
             (AuthenticationResponse::NoAuth, None) => {
-                log::debug!("Empty authentication finished");
+                log::trace!("Empty authentication finished");
                 None
             }
             (AuthenticationResponse::Encryption(response), Some(key)) => {
-                log::debug!("Challenge verification started");
+                log::trace!("Challenge verification started");
                 let remote_nonce =
                     &Nonce::from_slice(&response.nonce).map_err(|_| "Invalid nonce")?;
                 let mut opener =
@@ -164,7 +164,7 @@ impl Authenticator {
                 if tag != StreamTag::Message || opened_challenge != expected_response {
                     return Err("Received challenge does not match.".into());
                 }
-                log::debug!("Challenge verification finished");
+                log::trace!("Challenge verification finished");
                 Some(opener)
             }
             (_, _) => {
