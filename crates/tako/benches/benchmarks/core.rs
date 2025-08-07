@@ -1,5 +1,6 @@
 use criterion::measurement::WallTime;
-use criterion::{BatchSize, BenchmarkGroup, BenchmarkId, Criterion, black_box};
+use criterion::{BatchSize, BenchmarkGroup, BenchmarkId, Criterion};
+use std::hint::black_box;
 use tako::Set;
 use tako::TaskId;
 use tako::internal::server::core::Core;

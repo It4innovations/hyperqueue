@@ -204,6 +204,14 @@ that node. You can use it e.g. to clean up a previously initialized environment 
     The execution of this command is best-effort! It is not guaranteed that the command will always be executed. For example,
     PBS/Slurm can kill the allocation without giving HQ a chance to run the command.
 
+#### Worker wrap command
+
+- Format: `--worker-wrap-cmd <cmds>`
+
+Specifies a string that will be prepended before the command used to start a worker on a node inside an allocation.
+
+For example, if you specify `--worker-wrap-cmd "podman run"`, each worker will be started using `podman run hq worker start ...`.
+
 #### Worker time limit
 
 - Format[^1]: `--worker-time-limit <duration>`

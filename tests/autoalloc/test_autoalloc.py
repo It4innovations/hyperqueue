@@ -629,3 +629,24 @@ def test_slurm_allocation_name(hq_env: HqEnv):
         check_name(handler.get_script_path(), "foo-1")
         handler.add_worker(hq_env, default_job_id())
         check_name(handler.get_script_path(), "foo-2")
+
+
+@all_flavors
+def test_worker_wrap_cmd(hq_env: HqEnv, flavor: ManagerFlavor):
+    manager = ExtractSubmitScriptPath(flavor.create_adapter())
+
+    with MockJobManager(hq_env, manager):
+        start_server_with_quick_refresh(hq_env)
+        prepare_tasks(hq_env)
+
+        add_queue(
+            hq_env,
+            manager=flavor.manager_type(),
+            wrap_cmd="podman run myimage",
+        )
+
+        script = manager.get_script_path()
+        assert normalize_output(hq_env, flavor.manager_type(), get_exec_line(script)) == snapshot(
+            'RUST_LOG=tako=trace,hyperqueue=trace podman run myimage <hq-binary> worker start --idle-timeout "5m" --manager'
+            ' "<manager>" --server-dir "<server-dir>/001" --on-server-lost "finish-running" --time-limit "1h"'
+        )

@@ -158,8 +158,14 @@ pub fn build_worker_args(
         write!(env, "RUST_LOG={log_env} ").unwrap();
     }
 
+    let wrap_cmd = params
+        .worker_wrap_cmd
+        .as_deref()
+        .map(|cmd| format!("{} ", cmd.trim()))
+        .unwrap_or_default();
+
     let mut args = format!(
-        "{env}{hq} worker start --idle-timeout \"{idle_timeout}\" --manager \"{manager}\" --server-dir \"{server_dir}\"",
+        "{env}{wrap_cmd}{hq} worker start --idle-timeout \"{idle_timeout}\" --manager \"{manager}\" --server-dir \"{server_dir}\"",
         hq = hq_path.display(),
         server_dir = server_dir.display()
     );
@@ -171,7 +177,7 @@ pub fn build_worker_args(
     args
 }
 
-pub fn wrap_worker_cmd(
+pub fn add_start_stop_worker_commands(
     mut worker_cmd: String,
     worker_start_cmd: Option<&str>,
     worker_stop_cmd: Option<&str>,
@@ -189,13 +195,13 @@ pub fn wrap_worker_cmd(
 #[cfg(test)]
 mod tests {
     use crate::common::utils::fs::normalize_exe_path;
-    use crate::server::autoalloc::queue::common::wrap_worker_cmd;
+    use crate::server::autoalloc::queue::common::add_start_stop_worker_commands;
     use std::path::PathBuf;
 
     #[test]
     fn wrap_cmd_noop() {
         assert_eq!(
-            wrap_worker_cmd("foo".to_string(), None, None),
+            add_start_stop_worker_commands("foo".to_string(), None, None),
             "foo".to_string()
         );
     }
@@ -203,7 +209,7 @@ mod tests {
     #[test]
     fn wrap_cmd_start() {
         assert_eq!(
-            wrap_worker_cmd("foo bar".to_string(), Some("init.sh"), None),
+            add_start_stop_worker_commands("foo bar".to_string(), Some("init.sh"), None),
             "init.sh && foo bar".to_string()
         );
     }
@@ -211,7 +217,7 @@ mod tests {
     #[test]
     fn wrap_cmd_stop() {
         assert_eq!(
-            wrap_worker_cmd("foo bar".to_string(), None, Some("unload.sh")),
+            add_start_stop_worker_commands("foo bar".to_string(), None, Some("unload.sh")),
             "foo bar; unload.sh".to_string()
         );
     }
@@ -219,7 +225,11 @@ mod tests {
     #[test]
     fn wrap_cmd_start_stop() {
         assert_eq!(
-            wrap_worker_cmd("foo bar".to_string(), Some("init.sh"), Some("unload.sh")),
+            add_start_stop_worker_commands(
+                "foo bar".to_string(),
+                Some("init.sh"),
+                Some("unload.sh")
+            ),
             "init.sh && foo bar; unload.sh".to_string()
         );
     }

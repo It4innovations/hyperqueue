@@ -11,8 +11,8 @@ use crate::common::manager::info::ManagerType;
 use crate::common::manager::pbs::{format_pbs_duration, parse_pbs_datetime};
 use crate::common::utils::time::local_to_system_time;
 use crate::server::autoalloc::queue::common::{
-    ExternalHandler, build_worker_args, check_command_output, create_allocation_dir,
-    create_command, format_allocation_name, submit_script, wrap_worker_cmd,
+    ExternalHandler, add_start_stop_worker_commands, build_worker_args, check_command_output,
+    create_allocation_dir, create_command, format_allocation_name, submit_script,
 };
 use crate::server::autoalloc::queue::{
     AllocationExternalStatus, AllocationStatusMap, AllocationSubmissionResult, QueueHandler,
@@ -55,7 +55,7 @@ impl QueueHandler for PbsHandler {
             )?;
             let worker_args =
                 build_worker_args(&hq_path, ManagerType::Pbs, &server_directory, &params);
-            let worker_args = wrap_worker_cmd(
+            let worker_args = add_start_stop_worker_commands(
                 worker_args,
                 params.worker_start_cmd.as_deref(),
                 params.worker_stop_cmd.as_deref(),

@@ -18,10 +18,12 @@
 * New policy `tight` (and `tight!`) that is the original implementation of `compact`.
   The policy `compact` now behaves as is described in the section "Changes".
 * Resource policy `compact!` is now allowed to take fractional resource request.
-* There is a new command `hq alloc cat <alloc-id> <stdout/stderr>`, which can be used
+* New command `hq alloc cat <alloc-id> <stdout/stderr>`, which can be used
   to debug the output of allocations submitted by the automatic allocator.
-* There is a new command `hq server wait` that repeatedly tries to connect to a server with a configurable timeout.
+* New command `hq server wait` that repeatedly tries to connect to a server with a configurable timeout.
   This is useful for deployment scripts that need to wait for server availability.
+* New `hq alloc add` parameter called `--wrap-worker-cmd`. It can be used to start
+  workers on allocated nodes using some wrapping mechanism (e.g. Podman).
 
 ### Fixes
 
