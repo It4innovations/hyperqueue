@@ -1079,12 +1079,12 @@ impl Output for CliOutput {
                     .color(colored::Color::Red)
             )
         }
-        let runnable_worker_ids = explanation
+        let mut runnable_worker_ids: Vec<u32> = explanation
             .workers
             .iter()
             .filter(|&w| w.is_enabled())
             .map(|w| w.worker_id.as_num())
-            .collect_vec();
+            .collect();
         if runnable_worker_ids.is_empty() {
             println!(
                 "There is {} where the task can run.",
@@ -1092,6 +1092,7 @@ impl Output for CliOutput {
             );
         } else {
             let count = runnable_worker_ids.len();
+            runnable_worker_ids.sort();
             let ids = IntArray::from_sorted_ids(runnable_worker_ids.into_iter());
             println!(
                 "The task can run on {} {}: {}",
