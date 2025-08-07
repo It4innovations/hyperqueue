@@ -750,7 +750,7 @@ pub(crate) async fn send_submit_request(
     progress: bool,
 ) -> anyhow::Result<()> {
     let job_id = request.job_id.unwrap_or_else(|| JobId::new(0));
-    let message = FromClientMessage::Submit(request);
+    let message = FromClientMessage::Submit(request, None);
 
     let response =
         rpc_call!(session.connection(), message, ToClientMessage::SubmitResponse(r) => r).await?;
