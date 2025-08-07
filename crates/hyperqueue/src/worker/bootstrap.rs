@@ -177,8 +177,13 @@ pub fn try_get_slurm_info() -> anyhow::Result<ManagerInfo> {
             anyhow!("SLURM_JOB_ID/SLURM_JOBID not found. The process is not running under SLURM")
         })?;
 
-    let duration = slurm::get_remaining_timelimit(&manager_job_id)
-        .expect("Could not get remaining time from scontrol");
+    let time_limit = match slurm::get_remaining_timelimit(&manager_job_id) {
+        Ok(duration) => Some(duration),
+        Err(error) => {
+            log::warn!("Cannot get remaining worker timelimit from Slurm: {error:?}");
+            None
+        }
+    };
 
     let max_memory_mb = std::env::var("SLURM_MEM_PER_NODE")
         .ok()
@@ -189,7 +194,7 @@ pub fn try_get_slurm_info() -> anyhow::Result<ManagerInfo> {
     Ok(ManagerInfo {
         manager: ManagerType::Slurm,
         allocation_id: manager_job_id,
-        time_limit: Some(duration),
+        time_limit,
         max_memory_mb,
     })
 }

@@ -1,5 +1,6 @@
 use crate::common::manager::common::format_duration;
 use crate::common::utils::time::parse_hms_time;
+use anyhow::Context;
 use std::process::Command;
 use std::time::Duration;
 use tako::Map;
@@ -32,13 +33,15 @@ pub fn parse_remaining_timelimit(output: &str) -> anyhow::Result<Duration> {
         items
             .get("RunTime")
             .ok_or_else(|| anyhow::anyhow!("RunTime entry not found"))?,
-    )?;
+    )
+    .context("Cannot parse Slurm runtime")?;
 
     let time_limit = parse_slurm_duration(
         items
             .get("TimeLimit")
             .ok_or_else(|| anyhow::anyhow!("TimeLimit entry not found"))?,
-    )?;
+    )
+    .context("Cannot parse Slurm timelimit")?;
 
     if time_limit < run_time {
         anyhow::bail!("Slurm: TimeLimit is smaller than RunTime");
