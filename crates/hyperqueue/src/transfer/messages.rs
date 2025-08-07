@@ -472,8 +472,14 @@ pub struct WorkerInfoResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub enum QueueCreateResponse {
+    Created(QueueId),
+    DryRunFailed(String),
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub enum AutoAllocResponse {
-    QueueCreated(QueueId),
+    QueueCreateResponse(QueueCreateResponse),
     QueueRemoved(QueueId),
     QueuePaused(QueueId),
     QueueResumed(QueueId),
