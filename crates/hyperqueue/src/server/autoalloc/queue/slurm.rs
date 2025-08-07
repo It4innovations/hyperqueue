@@ -14,8 +14,8 @@ use crate::common::manager::slurm::{
 };
 use crate::common::utils::time::local_to_system_time;
 use crate::server::autoalloc::queue::common::{
-    ExternalHandler, build_worker_args, create_allocation_dir, create_command,
-    format_allocation_name, submit_script, wrap_worker_cmd,
+    ExternalHandler, add_start_stop_worker_commands, build_worker_args, create_allocation_dir,
+    create_command, format_allocation_name, submit_script,
 };
 use crate::server::autoalloc::queue::{
     AllocationExternalStatus, AllocationStatusMap, AllocationSubmissionResult, QueueHandler,
@@ -59,7 +59,7 @@ impl QueueHandler for SlurmHandler {
 
             let worker_args =
                 build_worker_args(&hq_path, ManagerType::Slurm, &server_directory, &params);
-            let worker_args = wrap_worker_cmd(
+            let worker_args = add_start_stop_worker_commands(
                 worker_args,
                 params.worker_start_cmd.as_deref(),
                 params.worker_stop_cmd.as_deref(),

@@ -37,6 +37,7 @@ def add_queue(
     dry_run=False,
     start_cmd: Optional[str] = None,
     stop_cmd: Optional[str] = None,
+    wrap_cmd: Optional[str] = None,
     **kwargs,
 ) -> str:
     args = ["alloc", "add", manager]
@@ -60,6 +61,8 @@ def add_queue(
         args.extend(["--worker-start-cmd", start_cmd])
     if stop_cmd is not None:
         args.extend(["--worker-stop-cmd", stop_cmd])
+    if wrap_cmd is not None:
+        args.extend(["--worker-wrap-cmd", wrap_cmd])
     if additional_worker_args is not None:
         args.extend(additional_worker_args)
     if additional_args is not None:

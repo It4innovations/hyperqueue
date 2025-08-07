@@ -589,6 +589,7 @@ mod tests {
                     additional_args: vec![],
                     worker_start_cmd: None,
                     worker_stop_cmd: None,
+                    worker_wrap_cmd: None,
                     cli_resource_descriptor: None,
                     worker_args: vec![],
                     idle_timeout: None,

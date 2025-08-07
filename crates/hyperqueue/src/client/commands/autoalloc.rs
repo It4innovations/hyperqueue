@@ -149,6 +149,17 @@ struct SharedQueueOpts {
     #[arg(long)]
     worker_stop_cmd: Option<String>,
 
+    /// A command that will be prepended before arguments required for starting a worker
+    ///
+    /// Normally, the worker is started with `hq worker start ...`
+    /// If you specify e.g. `--worker-wrap-cmd foo bar --arg=1`, the worker will be started using
+    /// `foo bar --arg=1 hq worker start`.
+    ///
+    /// Note that if multiple workers are started in an allocation (on multiple nodes), then the
+    /// provided wrapping command will be executed on each node.
+    #[arg(long)]
+    worker_wrap_cmd: Option<String>,
+
     #[arg(
         long,
         value_parser = parse_hms_or_human_time,
@@ -290,6 +301,7 @@ fn args_to_params(manager: ManagerType, args: SharedQueueOpts) -> anyhow::Result
         worker_args,
         worker_start_cmd,
         worker_stop_cmd,
+        worker_wrap_cmd,
         worker_time_limit,
         min_utilization,
         additional_args,
@@ -398,6 +410,7 @@ wasted allocation duration."
         additional_args,
         worker_start_cmd,
         worker_stop_cmd,
+        worker_wrap_cmd,
         max_worker_count,
         worker_args,
         idle_timeout,
