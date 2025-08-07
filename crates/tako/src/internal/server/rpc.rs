@@ -122,7 +122,7 @@ async fn worker_rpc_loop(
     );
 
     let heartbeat_interval = msg.configuration.heartbeat_interval;
-    log::debug!("Worker heartbeat: {heartbeat_interval:?}");
+    log::debug!("Worker heartbeat interval: {heartbeat_interval:?}");
     // Sanity that interval is not too small
     assert!(heartbeat_interval.as_millis() > 150);
 
@@ -318,7 +318,7 @@ pub(crate) async fn worker_receive_loop<
             }
             FromWorkerMessage::Heartbeat => {
                 if let Some(worker) = core.get_worker_mut(worker_id) {
-                    log::debug!("Heartbeat received, worker={worker_id}");
+                    log::trace!("Heartbeat received, worker={worker_id}");
                     worker.last_heartbeat = Instant::now();
                 };
             }
