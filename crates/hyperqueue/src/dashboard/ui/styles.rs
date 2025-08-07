@@ -35,7 +35,7 @@ pub fn table_block_with_title(title: Line) -> Block {
         .title(title)
 }
 
-pub fn style_column_headers(cells: Vec<&str>) -> Row {
+pub fn style_column_headers(cells: Vec<&str>) -> Row<'_> {
     Row::new(cells).style(
         Style::default()
             .fg(Color::Yellow)

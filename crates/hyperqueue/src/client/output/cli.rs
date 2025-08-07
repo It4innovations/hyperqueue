@@ -1,6 +1,5 @@
 use cli_table::format::{Justify, Separator};
 use cli_table::{Cell, CellStruct, Color, ColorChoice, Style, Table, TableStruct, print_stdout};
-use itertools::Itertools;
 
 use std::fmt::{Display, Write};
 

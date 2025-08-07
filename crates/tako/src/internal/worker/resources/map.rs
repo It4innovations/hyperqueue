@@ -42,7 +42,7 @@ impl ResourceLabelMap {
         Self { resources }
     }
 
-    pub fn get_label(&self, resource: ResourceId, index: ResourceIndex) -> Cow<str> {
+    pub fn get_label(&self, resource: ResourceId, index: ResourceIndex) -> Cow<'_, str> {
         self.resources
             .get(resource)
             .and_then(|map| map.get(&index).map(|label| label.into()))
