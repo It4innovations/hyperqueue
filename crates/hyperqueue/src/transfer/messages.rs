@@ -27,7 +27,11 @@ use tako::{JobId, JobTaskCount, JobTaskId, Map, Set, TaskId, WorkerId};
 #[allow(clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, Debug)]
 pub enum FromClientMessage {
-    Submit(SubmitRequest),
+    /// If set second item is set, the server immediately starts to event streaming.
+    /// Streamed events are automatically filtered only for the submitted job.
+    /// It is basically as sending Submit and StreamEvents, but it is done atomically,
+    /// so no is lost messages.
+    Submit(SubmitRequest, Option<StreamEvents>),
     Cancel(CancelRequest),
     ForgetJob(ForgetJobRequest),
     JobDetail(JobDetailRequest),

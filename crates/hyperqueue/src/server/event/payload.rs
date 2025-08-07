@@ -8,7 +8,7 @@ use smallvec::SmallVec;
 use std::sync::Arc;
 use tako::gateway::LostWorkerReason;
 use tako::worker::{WorkerConfiguration, WorkerOverview};
-use tako::{static_assert_size, InstanceId, TaskId};
+use tako::{InstanceId, TaskId, static_assert_size};
 use tako::{JobId, WorkerId};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
