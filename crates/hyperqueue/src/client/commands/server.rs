@@ -13,6 +13,7 @@ use crate::server::bootstrap::{
 use crate::transfer::auth::generate_key;
 use crate::transfer::messages::{FromClientMessage, ToClientMessage};
 use clap::Parser;
+use humantime::format_duration;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -71,6 +72,8 @@ pub enum ServerCommand {
     GenerateAccess(GenerateAccessOpts),
     /// Dump internal scheduler info into a file
     DebugDump(DebugDumpOpts),
+    /// Wait until the server becomes available
+    Wait(WaitOpts),
 }
 
 #[derive(Parser)]
@@ -141,6 +144,20 @@ pub struct DebugDumpOpts {
     path: PathBuf,
 }
 
+#[derive(Parser)]
+pub struct WaitOpts {
+    /// Timeout after which to stop trying to connect.
+    ///
+    /// If we cannot connect until the timeout expires, the wait command will fail.
+    #[arg(
+        long,
+        value_parser = parse_hms_or_human_time,
+        default_value = "5m",
+        help = duration_doc!("Timeout after which to stop trying to connect.")
+    )]
+    timeout: Duration,
+}
+
 pub async fn command_server(gsettings: &GlobalSettings, opts: ServerOpts) -> anyhow::Result<()> {
     match opts.subcmd {
         ServerCommand::Start(opts) => start_server(gsettings, opts).await,
@@ -148,6 +165,7 @@ pub async fn command_server(gsettings: &GlobalSettings, opts: ServerOpts) -> any
         ServerCommand::Info(opts) => command_server_info(gsettings, opts).await,
         ServerCommand::GenerateAccess(opts) => command_server_generate_access(gsettings, opts),
         ServerCommand::DebugDump(opts) => debug_dump(gsettings, opts).await,
+        ServerCommand::Wait(opts) => wait_for_server(gsettings, opts).await,
     }
 }
 
@@ -281,4 +299,41 @@ fn command_server_generate_access(
         store_access_record(&worker_record, path)?;
     }
     Ok(())
+}
+
+async fn wait_for_server(gsettings: &GlobalSettings, opts: WaitOpts) -> anyhow::Result<()> {
+    let retry_interval = Duration::from_secs(5);
+
+    log::info!(
+        "Waiting for server to become available (timeout: {})...",
+        format_duration(opts.timeout)
+    );
+
+    let result = tokio::time::timeout(opts.timeout, async {
+        loop {
+            match get_client_session(gsettings.server_directory()).await {
+                Ok(_session) => {
+                    log::info!("Successfully connected to server");
+                    break;
+                }
+                Err(_) => {
+                    log::debug!(
+                        "Server not yet available, retrying in {}s...",
+                        retry_interval.as_secs()
+                    );
+                    tokio::time::sleep(retry_interval).await;
+                }
+            }
+        }
+    })
+    .await;
+
+    match result {
+        Ok(()) => Ok(()),
+        Err(_) => Err(anyhow::anyhow!(
+            "Timeout after {}: Could not connect to server at `{}`. Make sure that the server is running.",
+            format_duration(opts.timeout),
+            gsettings.server_directory().display()
+        )),
+    }
 }

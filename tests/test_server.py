@@ -4,6 +4,7 @@ import random
 import signal
 import socket
 import subprocess
+import time
 from typing import List
 
 import pytest
@@ -258,3 +259,52 @@ def test_server_debug_dump(hq_env: HqEnv):
     with open("out.json") as f:
         result = json.loads(f.read())
     assert "tako" in result
+
+
+def test_server_wait_timeout_no_server(hq_env: HqEnv, tmp_path):
+    """Test that 'hq server wait' times out when no server is running"""
+    start_time = time.time()
+
+    with pytest.raises(Exception, match=r"Timeout after 2s.*Could not connect to server"):
+        hq_env.command(["server", "wait", "--timeout", "2s", "--server-dir", str(tmp_path)], use_server_dir=False)
+
+    elapsed = time.time() - start_time
+
+    # Should timeout after roughly 2 seconds (allow some tolerance)
+    assert 1.5 < elapsed < 4.0
+
+
+def test_server_wait_success_immediate(hq_env: HqEnv):
+    """Test that 'hq server wait' succeeds immediately when server is already running"""
+    hq_env.start_server()
+
+    start_time = time.time()
+    hq_env.command(["server", "wait", "--timeout", "5s"])
+    elapsed = time.time() - start_time
+
+    # Should succeed quickly (less than 5s timeout)
+    assert elapsed < 4.0
+
+
+def test_server_wait_success_delayed(hq_env: HqEnv, tmp_path):
+    """Test that 'hq server wait' succeeds when server starts during the wait period"""
+
+    def delayed_server_start():
+        time.sleep(2)
+        hq_env.start_server(server_dir=str(tmp_path))
+
+    import threading
+
+    server_thread = threading.Thread(target=delayed_server_start)
+
+    start_time = time.time()
+    server_thread.start()
+
+    # Should succeed when server starts after ~2s
+    hq_env.command(["server", "wait", "--timeout", "10s", "--server-dir", str(tmp_path)], use_server_dir=False)
+    elapsed = time.time() - start_time
+
+    server_thread.join()
+
+    # Should complete after roughly 2-3 seconds (when server becomes available)
+    assert 1 < elapsed < 6.0

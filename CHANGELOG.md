@@ -20,6 +20,8 @@
 * Resource policy `compact!` is now allowed to take fractional resource request.
 * There is a new command `hq alloc cat <alloc-id> <stdout/stderr>`, which can be used
   to debug the output of allocations submitted by the automatic allocator.
+* There is a new command `hq server wait` that repeatedly tries to connect to a server with a configurable timeout.
+  This is useful for deployment scripts that need to wait for server availability.
 
 ### Fixes
 
