@@ -20,16 +20,16 @@ use pyo3::exceptions::PyException;
 use pyo3::prelude::PyAnyMethods;
 use pyo3::types::PyTuple;
 use pyo3::{Bound, IntoPyObject, PyAny, PyResult, Python};
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+use tako::JobTaskCount;
 use tako::gateway::{
     CrashLimit, ResourceRequestEntries, ResourceRequestEntry, ResourceRequestVariants,
     TaskDataFlags,
 };
 use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
 use tako::resources::{AllocationRequest, NumOfNodes, ResourceAmount};
-use tako::{JobTaskCount, Set};
 
 #[derive(Debug, FromPyObject)]
 enum AllocationValue {
@@ -259,7 +259,7 @@ pub fn wait_for_jobs_impl(
     callback: &Bound<'_, PyAny>,
 ) -> PyResult<Vec<PyJobId>> {
     run_future(async move {
-        let mut remaining_job_ids: Set<PyJobId> = job_ids.iter().copied().collect();
+        let mut remaining_job_ids: BTreeSet<PyJobId> = job_ids.iter().copied().collect();
 
         let mut ctx = borrow_mut!(py, ctx);
         let mut response: JobInfoResponse;
@@ -338,9 +338,10 @@ fn stdio_to_string(stdio: StdioDef) -> Option<String> {
 pub fn get_failed_tasks_impl(
     py: Python,
     ctx: ClientContextPtr,
-    job_ids: Vec<PyJobId>,
+    mut job_ids: Vec<PyJobId>,
 ) -> PyResult<FailedTaskMap> {
     run_future(async move {
+        job_ids.sort();
         let message = FromClientMessage::JobDetail(JobDetailRequest {
             job_id_selector: IdSelector::Specific(IntArray::from_sorted_ids(job_ids.into_iter())),
             task_selector: Some(TaskSelector {

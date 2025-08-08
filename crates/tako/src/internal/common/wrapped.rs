@@ -44,14 +44,14 @@ impl<T: ?Sized> WrappedRcRefCell<T> {
     /// Return a immutable reference to contents. Panics whenever `RefCell::borrow()` would.
     #[inline]
     #[track_caller]
-    pub fn get(&self) -> Ref<T> {
+    pub fn get(&self) -> Ref<'_, T> {
         self.inner.deref().borrow()
     }
 
     /// Return a mutable reference to contents. Panics whenever `RefCell::borrow_mut()` would.
     #[inline]
     #[track_caller]
-    pub fn get_mut(&self) -> RefMut<T> {
+    pub fn get_mut(&self) -> RefMut<'_, T> {
         self.inner.deref().borrow_mut()
     }
 

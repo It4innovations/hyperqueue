@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 /// Return the input string with an added "s" at the end if `count` is larger than one and non-zero.
-pub fn pluralize(value: &str, count: usize) -> Cow<str> {
+pub fn pluralize(value: &str, count: usize) -> Cow<'_, str> {
     if count == 1 {
         Cow::Borrowed(value)
     } else {
@@ -21,7 +21,7 @@ pub fn select_plural<'a>(single: &'a str, other: &'a str, count: usize) -> Cow<'
 /// Truncates the middle of a string so that it's total length doesn't exceed `length`.
 /// The returned string will never exceed `length`.
 /// `length` has to be at least five, otherwise there wouldn't be space for `...`.
-pub fn truncate_middle(value: &str, length: usize) -> Cow<str> {
+pub fn truncate_middle(value: &str, length: usize) -> Cow<'_, str> {
     assert!(length >= 5);
 
     if value.len() <= length {

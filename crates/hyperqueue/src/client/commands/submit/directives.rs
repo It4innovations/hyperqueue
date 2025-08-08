@@ -19,7 +19,7 @@ use crate::common::utils::fs::read_at_most;
 
 const MAX_PREFIX_OF_SUBMIT_SCRIPT: usize = 32 * 1024; // 32KiB
 
-fn p_double_quoted(input: &str) -> NomResult<&str> {
+fn p_double_quoted(input: &str) -> NomResult<'_, &str> {
     preceded(
         char('"'),
         cut(terminated(
@@ -29,7 +29,7 @@ fn p_double_quoted(input: &str) -> NomResult<&str> {
     )(input)
 }
 
-fn p_arg(input: &str) -> NomResult<String> {
+fn p_arg(input: &str) -> NomResult<'_, String> {
     alt((
         map(p_double_quoted, |s| s.to_string()),
         map(

@@ -215,7 +215,7 @@ where
     map_parse_result(all_consuming(f)(input).map(|r| r.1), input)
 }
 
-fn p_integer_string(input: &str) -> NomResult<String> {
+fn p_integer_string(input: &str) -> NomResult<'_, String> {
     let parser = tuple((
         satisfy(|c| c.is_dec_digit()),
         many0(satisfy(|c| c.is_dec_digit() || c == '_')),
@@ -228,14 +228,14 @@ fn p_integer_string(input: &str) -> NomResult<String> {
 }
 
 /// Parse 4 byte integer.
-pub fn p_u32(input: &str) -> NomResult<u32> {
+pub fn p_u32(input: &str) -> NomResult<'_, u32> {
     map_res(p_integer_string, |number| number.parse())
         .context(CONTEXT_INTEGER)
         .parse(input)
 }
 
 /// Parse 8 byte integer
-pub fn p_u64(input: &str) -> NomResult<u64> {
+pub fn p_u64(input: &str) -> NomResult<'_, u64> {
     map_res(p_integer_string, |number| number.parse())
         .context(CONTEXT_INTEGER)
         .parse(input)

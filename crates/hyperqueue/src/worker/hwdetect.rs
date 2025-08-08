@@ -248,7 +248,7 @@ fn read_linux_thread_siblings(cpu_id: &ResourceLabel) -> anyhow::Result<Vec<Reso
         .map(|indices| indices.into_iter().map(|i| i.to_string()).collect())
 }
 
-fn p_cpu_range(input: &str) -> NomResult<Vec<ResourceIndex>> {
+fn p_cpu_range(input: &str) -> NomResult<'_, Vec<ResourceIndex>> {
     map_res(
         tuple((
             terminated(p_u32, space0),
@@ -262,7 +262,7 @@ fn p_cpu_range(input: &str) -> NomResult<Vec<ResourceIndex>> {
     .parse(input)
 }
 
-fn p_cpu_ranges(input: &str) -> NomResult<Vec<ResourceIndex>> {
+fn p_cpu_ranges(input: &str) -> NomResult<'_, Vec<ResourceIndex>> {
     separated_list1(terminated(tag(","), space0), p_cpu_range)(input)
         .map(|(a, b)| (a, b.into_iter().flatten().collect()))
 }

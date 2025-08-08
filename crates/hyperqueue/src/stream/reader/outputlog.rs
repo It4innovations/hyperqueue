@@ -211,7 +211,7 @@ impl OutputLog {
         Ok(index)
     }
 
-    fn check_header(file: &mut BufReader<File>) -> anyhow::Result<StreamFileHeader> {
+    fn check_header(file: &mut BufReader<File>) -> anyhow::Result<StreamFileHeader<'_>> {
         let mut header = [0u8; STREAM_FILE_HEADER.len()];
         file.read_exact(&mut header)?;
         if header != STREAM_FILE_HEADER {
