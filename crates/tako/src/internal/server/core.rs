@@ -164,6 +164,14 @@ impl Core {
         self.sleeping_sn_tasks.push(task_id);
     }
 
+    pub fn add_sleeping_sn_tasks(&mut self, task_ids: Vec<TaskId>) {
+        if self.sleeping_sn_tasks.is_empty() {
+            self.sleeping_sn_tasks = task_ids;
+        } else {
+            self.sleeping_sn_tasks.extend(task_ids);
+        }
+    }
+
     pub fn sleeping_sn_tasks(&self) -> &[TaskId] {
         &self.sleeping_sn_tasks
     }

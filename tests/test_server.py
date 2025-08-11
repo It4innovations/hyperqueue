@@ -11,7 +11,7 @@ import pytest
 from schema import Schema
 
 from .conftest import HqEnv
-from .utils import parse_table
+from .utils import parse_table, wait_for_job_state
 from .utils.io import find_free_port
 from .utils.table import Table
 
@@ -45,6 +45,25 @@ def test_server_worker_port(hq_env: HqEnv):
     port = str(find_free_port())
     table = start_server_get_output(hq_env, ["--worker-port", port])
     table.check_row_value("Worker port", port)
+
+
+def test_server_compact_scheduling(hq_env: HqEnv):
+    hq_env.start_server()
+
+    count = 8
+    for i in range(1, count + 1):
+        hq_env.start_workers(1, cpus=4)
+        hq_env.command(["submit", "sleep", "3"])
+
+    wait_for_job_state(hq_env, list(range(1, count + 1)), "FINISHED")
+
+    workers = set()
+    for i in range(1, count + 1):
+        table = hq_env.command(["job", "info", str(i)], as_table=True)
+        worker = table.get_row_value("Workers")
+        assert worker
+        workers.add(worker)
+    assert len(workers) == 2
 
 
 def test_version_mismatch(hq_env: HqEnv):

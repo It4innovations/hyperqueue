@@ -491,6 +491,7 @@ fn test_generic_resource_assign2() {
         rt.new_task(TaskBuilder::new(i).add_resource(2, 2));
     }
     rt.schedule();
+
     assert_eq!(
         rt.core()
             .get_worker_by_id(101.into())

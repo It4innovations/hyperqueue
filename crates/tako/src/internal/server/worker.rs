@@ -193,6 +193,17 @@ impl Worker {
             .have_immediate_resources_for_rqv(rqv, &self.resources)
     }
 
+    pub fn have_immediate_resources_for_rqv_now(
+        &self,
+        rqv: &ResourceRequestVariants,
+        now: Instant,
+    ) -> bool {
+        self.has_time_to_run_for_rqv(rqv, now)
+            && self
+                .sn_load
+                .have_immediate_resources_for_rqv(rqv, &self.resources)
+    }
+
     pub fn have_immediate_resources_for_lb(&self, rrb: &ResourceRequestLowerBound) -> bool {
         self.sn_load
             .have_immediate_resources_for_lb(rrb, &self.resources)
