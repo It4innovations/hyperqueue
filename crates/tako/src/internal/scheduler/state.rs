@@ -1,3 +1,4 @@
+use std::cell::{RefCell, RefMut};
 use std::cmp::Reverse;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -21,16 +22,13 @@ use crate::{TaskId, WorkerId};
 const LONG_DURATION: std::time::Duration = std::time::Duration::from_secs(365 * 24 * 60 * 60);
 
 // Knobs
-const MAX_TASKS_FOR_TRY_PREV_WORKER_HEURISTICS: usize = 300;
+const MAX_TASKS_FOR_IMMEDIATE_RUN_CHECK: usize = 600;
 
 pub struct SchedulerState {
     // Which tasks has modified state, this map holds the original state
     dirty_tasks: Map<TaskId, TaskRuntimeState>,
 
-    /// Use in choose_worker_for_task to reuse allocated buffer
-    tmp_workers: Vec<WorkerId>,
-
-    choose_counter: usize,
+    last_idx: usize,
     now: std::time::Instant,
 }
 
@@ -74,77 +72,100 @@ impl SchedulerState {
     pub fn new(now: std::time::Instant) -> Self {
         SchedulerState {
             dirty_tasks: Map::new(),
-            choose_counter: 0,
-            tmp_workers: Vec::new(),
             now,
-        }
-    }
-
-    fn get_last(&mut self) -> Option<WorkerId> {
-        if !self.tmp_workers.is_empty() {
-            Some(self.tmp_workers[self.choose_counter % self.tmp_workers.len()])
-        } else {
-            None
-        }
-    }
-
-    fn pick_worker(&mut self) -> Option<WorkerId> {
-        match self.tmp_workers.len() {
-            1 => Some(*self.tmp_workers.first().unwrap()),
-            0 => None,
-            n => {
-                self.choose_counter += 1;
-                let worker_id = self.tmp_workers[self.choose_counter % n];
-                Some(worker_id)
-            }
+            last_idx: 0,
         }
     }
 
     /// Selects a worker that is able to execute the given task.
     /// If no worker is available, returns `None`.
-    fn choose_worker_for_task(
+    fn choose_worker_for_task<'a>(
         &mut self,
         task: &Task,
-        worker_map: &Map<WorkerId, Worker>,
+        workers: &'a [RefCell<&'a mut Worker>],
         dataobj_map: &DataObjectMap,
-        try_prev_worker: bool, // Enable heuristics that tries to fit tasks on fewer workers
-    ) -> Option<WorkerId> {
-        // Fast path
-        if try_prev_worker && task.data_deps.is_empty() {
-            // Note: We are *not* using "is_capable_to_run" but "have_immediate_resources_for_rq",
-            // because we want to enable fast path only if task can be directly executed
-            // We want to avoid creation of overloaded
-            if let Some(worker_id) = self.get_last() {
-                let worker = &worker_map[&worker_id];
-                if worker.has_time_to_run_for_rqv(&task.configuration.resources, self.now)
-                    && worker.have_immediate_resources_for_rqv(&task.configuration.resources)
+        try_immediate_check: bool,
+    ) -> Option<RefMut<'a, &'a mut Worker>> {
+        let no_data_deps = task.data_deps.is_empty();
+        if no_data_deps && try_immediate_check {
+            if workers[self.last_idx]
+                .borrow_mut()
+                .have_immediate_resources_for_rqv_now(&task.configuration.resources, self.now)
+            {
+                return Some(workers[self.last_idx].borrow_mut());
+            }
+            for (idx, worker) in workers.iter().enumerate() {
+                if idx == self.last_idx {
+                    continue;
+                }
+                if worker
+                    .borrow()
+                    .have_immediate_resources_for_rqv_now(&task.configuration.resources, self.now)
                 {
-                    log::debug!(
-                        "Worker was chosen on try_prev_worker heuristics for task {}: {worker_id}",
-                        task.id
-                    );
-                    return Some(worker_id);
+                    self.last_idx = idx;
+                    return Some(worker.borrow_mut());
                 }
             }
         }
+        let start_idx = self.last_idx + 1;
+        if no_data_deps {
+            for (idx, worker) in workers[start_idx..].iter().enumerate() {
+                if worker
+                    .borrow()
+                    .is_capable_to_run_rqv(&task.configuration.resources, self.now)
+                {
+                    self.last_idx = idx + start_idx;
+                    return Some(worker.borrow_mut());
+                }
+            }
+            for (idx, worker) in workers[..start_idx].iter().enumerate() {
+                if worker
+                    .borrow()
+                    .is_capable_to_run_rqv(&task.configuration.resources, self.now)
+                {
+                    self.last_idx = idx;
+                    return Some(worker.borrow_mut());
+                }
+            }
+            None
+        } else {
+            let mut best_worker = None;
+            let mut best_cost = u64::MAX;
+            let mut best_idx = 0;
 
-        self.tmp_workers.clear(); // This has to be called AFTER fast path
-        let mut best_cost = u64::MAX;
-        for worker in worker_map.values() {
-            if !worker.is_capable_to_run_rqv(&task.configuration.resources, self.now) {
-                continue;
-            }
-            let cost = compute_transfer_cost(dataobj_map, task, worker.id);
-            if cost > best_cost {
-                continue;
-            }
-            if cost < best_cost {
+            for (idx, worker) in workers[start_idx..].iter().enumerate() {
+                let worker = worker.borrow_mut();
+                if !worker.is_capable_to_run_rqv(&task.configuration.resources, self.now) {
+                    continue;
+                }
+                let cost = compute_transfer_cost(dataobj_map, task, worker.id);
+                if cost >= best_cost {
+                    continue;
+                }
                 best_cost = cost;
-                self.tmp_workers.clear();
+                best_worker = Some(worker);
+                best_idx = start_idx + idx;
             }
-            self.tmp_workers.push(worker.id)
+            for (idx, worker) in workers[..start_idx].iter().enumerate() {
+                let worker = worker.borrow_mut();
+                if !worker.is_capable_to_run_rqv(&task.configuration.resources, self.now) {
+                    continue;
+                }
+                let cost = compute_transfer_cost(dataobj_map, task, worker.id);
+                if cost >= best_cost {
+                    continue;
+                }
+                best_cost = cost;
+                best_worker = Some(worker);
+                best_idx = idx;
+            }
+            if let Some(worker) = best_worker {
+                self.last_idx = best_idx;
+                Some(worker)
+            } else {
+                None
+            }
         }
-        self.pick_worker()
     }
 
     #[cfg(test)]
@@ -258,44 +279,20 @@ impl SchedulerState {
         self.dirty_tasks.entry(task.id).or_insert(old_state);
     }
 
-    pub fn assign(&mut self, core: &mut Core, task_id: TaskId, worker_id: WorkerId) {
-        {
-            let (tasks, workers) = core.split_tasks_workers_mut();
-            let task = tasks.get_task(task_id);
-            let assigned_worker = task.get_assigned_worker();
-            if let Some(w_id) = assigned_worker {
-                log::debug!(
-                    "Changing assignment of task={} from worker={} to worker={}",
-                    task.id,
-                    w_id,
-                    worker_id
-                );
-                assert_ne!(w_id, worker_id);
-                workers.get_worker_mut(w_id).remove_sn_task(task);
-            } else {
-                log::debug!(
-                    "Fresh assignment of task={} to worker={}",
-                    task.id,
-                    worker_id
-                );
-            }
-            (task.task_deps.clone(), assigned_worker)
-        };
-
-        let (tasks, workers) = core.split_tasks_workers_mut();
-        let task = tasks.get_task_mut(task_id);
-        workers.get_worker_mut(worker_id).insert_sn_task(task);
+    // This function assumes that potential removal of an assigned is already done
+    fn assign_into(&mut self, task: &mut Task, worker: &mut Worker) {
+        worker.insert_sn_task(task);
         let new_state = match task.state {
-            TaskRuntimeState::Waiting(_) => TaskRuntimeState::Assigned(worker_id),
+            TaskRuntimeState::Waiting(_) => TaskRuntimeState::Assigned(worker.id),
             TaskRuntimeState::Assigned(old_w) => {
                 if task.is_fresh() {
-                    TaskRuntimeState::Assigned(worker_id)
+                    TaskRuntimeState::Assigned(worker.id)
                 } else {
-                    TaskRuntimeState::Stealing(old_w, Some(worker_id))
+                    TaskRuntimeState::Stealing(old_w, Some(worker.id))
                 }
             }
             TaskRuntimeState::Stealing(from_w, _) => {
-                TaskRuntimeState::Stealing(from_w, Some(worker_id))
+                TaskRuntimeState::Stealing(from_w, Some(worker.id))
             }
             TaskRuntimeState::Running { .. }
             | TaskRuntimeState::RunningMultiNode(_)
@@ -305,6 +302,29 @@ impl SchedulerState {
         };
         let old_state = std::mem::replace(&mut task.state, new_state);
         self.dirty_tasks.entry(task.id).or_insert(old_state);
+    }
+
+    pub fn assign(&mut self, core: &mut Core, task_id: TaskId, worker_id: WorkerId) {
+        let (tasks, workers) = core.split_tasks_workers_mut();
+        let task = tasks.get_task_mut(task_id);
+        let assigned_worker = task.get_assigned_worker();
+        if let Some(w_id) = assigned_worker {
+            log::debug!(
+                "Changing assignment of task={} from worker={} to worker={}",
+                task.id,
+                w_id,
+                worker_id
+            );
+            assert_ne!(w_id, worker_id);
+            workers.get_worker_mut(w_id).remove_sn_task(task);
+        } else {
+            log::debug!(
+                "Fresh assignment of task={} to worker={}",
+                task.id,
+                worker_id
+            );
+        }
+        self.assign_into(task, workers.get_worker_mut(worker_id));
     }
 
     // fn assign_multi_node_task(
@@ -359,47 +379,45 @@ impl SchedulerState {
         self.try_start_multinode_tasks(core);
 
         let ready_tasks = core.take_single_node_ready_to_assign();
+        let mut sleeping_tasks = Vec::new();
         if !ready_tasks.is_empty() {
-            let has_parked_resources = core.has_parked_resources();
-            for (idx, task_id) in ready_tasks.into_iter().enumerate() {
-                let worker_id = {
-                    if has_parked_resources {
-                        let wakeup = if let Some(task) = core.find_task(task_id) {
-                            core.check_parked_resources(&task.configuration.resources)
-                        } else {
-                            continue;
-                        };
-                        if wakeup {
-                            core.wakeup_parked_resources()
-                        }
-                    }
-
-                    if let Some(task) = core.find_task(task_id) {
-                        self.choose_worker_for_task(
-                            task,
-                            core.get_worker_map(),
-                            core.dataobj_map(),
-                            idx < MAX_TASKS_FOR_TRY_PREV_WORKER_HEURISTICS,
-                        )
-                    } else {
+            if core.has_parked_resources() {
+                for task_id in &ready_tasks {
+                    let Some(task) = core.find_task(*task_id) else {
                         continue;
+                    };
+                    if core.check_parked_resources(&task.configuration.resources) {
+                        core.wakeup_parked_resources();
+                        break;
                     }
+                }
+            }
+            let (tasks, workers, dataobjs) = core.split_tasks_workers_dataobjs_mut();
+            let mut workers = workers
+                .values_mut()
+                .filter(|w| !w.is_parked())
+                .map(RefCell::new)
+                .collect::<Vec<_>>();
+            workers.sort_unstable_by_key(|w| w.borrow().id);
+            self.last_idx %= workers.len();
+            for (idx, task_id) in ready_tasks.into_iter().enumerate() {
+                let Some(task) = tasks.find_task_mut(task_id) else {
+                    continue;
                 };
-                if let Some(worker_id) = worker_id {
-                    debug_assert!(
-                        core.get_worker_map()
-                            .get_worker(worker_id)
-                            .is_capable_to_run_rqv(
-                                &core.get_task(task_id).configuration.resources,
-                                self.now
-                            )
-                    );
-                    self.assign(core, task_id, worker_id);
+                if let Some(mut worker) = self.choose_worker_for_task(
+                    task,
+                    &workers,
+                    dataobjs,
+                    idx < MAX_TASKS_FOR_IMMEDIATE_RUN_CHECK,
+                ) {
+                    self.assign_into(task, &mut worker);
                 } else {
-                    core.add_sleeping_sn_task(task_id);
+                    sleeping_tasks.push(task_id);
                 }
             }
         }
+
+        core.add_sleeping_sn_tasks(sleeping_tasks);
 
         let has_underload_workers = core
             .get_workers()
