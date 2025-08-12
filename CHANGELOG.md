@@ -24,6 +24,8 @@
   This is useful for deployment scripts that need to wait for server availability.
 * New `hq alloc add` parameter called `--wrap-worker-cmd`. It can be used to start
   workers on allocated nodes using some wrapping mechanism (e.g. Podman).
+* The scheduler has better compacting behavior when there are small number of tasks
+  and workers appearing/disappering
 
 ### Fixes
 
