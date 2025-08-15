@@ -1,11 +1,12 @@
 use crate::internal::common::Set;
 use crate::internal::common::resources::{
-    ResourceAmount, ResourceIndex, ResourceLabel, ResourceUnits,
+    ResourceAmount, ResourceGroupIdx, ResourceIndex, ResourceLabel, ResourceUnits,
 };
 use crate::internal::common::utils::has_unique_elements;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Formatter};
 
+use crate::define_id_type;
 use crate::resources::CPU_RESOURCE_NAME;
 use thiserror::Error;
 
@@ -239,26 +240,44 @@ impl Debug for ResourceDescriptorItem {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
+//#[cfg_attr(test, derive(PartialEq, Eq))]
+pub struct ResourceDescriptorCouplingItem {
+    pub resource1_idx: u8,
+    pub group1_idx: ResourceGroupIdx,
+    pub resource2_idx: u8,
+    pub group2_idx: ResourceGroupIdx,
+    pub weight: u16,
+}
+
+impl ResourceDescriptorCouplingItem {
+    pub fn normalize(&mut self) {
+        if self.resource1_idx > self.resource2_idx {
+            std::mem::swap(&mut self.resource1_idx, &mut self.resource2_idx);
+            std::mem::swap(&mut self.group1_idx, &mut self.group2_idx);
+        }
+    }
+}
+
 /// Define names of coupled resources
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct ResourceDescriptorCoupling {
-    pub names: Vec<String>,
+    // Index into resources, group_index, index into resources, group_index weight
+    pub weights: Vec<ResourceDescriptorCouplingItem>,
 }
 
 /// Most precise description of request provided by a worker (without time resource)
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ResourceDescriptor {
     pub resources: Vec<ResourceDescriptorItem>,
-    pub coupling: Option<ResourceDescriptorCoupling>,
+    pub coupling: ResourceDescriptorCoupling,
 }
 
 impl ResourceDescriptor {
     pub fn new(
         mut resources: Vec<ResourceDescriptorItem>,
-        coupling: Option<ResourceDescriptorCoupling>,
+        coupling: ResourceDescriptorCoupling,
     ) -> Self {
-        resources.sort_by(|x, y| x.name.cmp(&y.name));
-
         ResourceDescriptor {
             resources,
             coupling,
@@ -275,7 +294,7 @@ impl ResourceDescriptor {
                 name: CPU_RESOURCE_NAME.to_string(),
                 kind: ResourceDescriptorKind::regular_sockets(n_sockets, n_cpus_per_socket),
             }],
-            None,
+            Default::default(),
         )
     }
 
@@ -301,26 +320,46 @@ impl ResourceDescriptor {
         if !has_cpus && needs_cpus {
             return Err("Resource 'cpus' is missing".into());
         }
-        if let Some(coupling) = &self.coupling {
-            if coupling.names.len() < 2 {
-                return Err("Invalid number of coupled resources".into());
-            }
-            let mut group_size = None;
-            for name in &coupling.names {
-                if let Some(r) = self.resources.iter().find(|r| &r.name == name) {
-                    if let Some(g) = &group_size {
-                        if *g != r.kind.n_groups() {
-                            return Err(
-                                "Coupled resources needs to have the same number of groups".into(),
-                            );
-                        }
-                    } else {
-                        group_size = Some(r.kind.n_groups())
-                    }
-                } else {
-                    return Err(format!("Coupling of unknown resource: '{name}'").into());
+
+        if !self.coupling.weights.is_empty() {
+            for pair in self.coupling.weights.windows(2) {
+                if pair[0].resource1_idx == pair[1].resource1_idx
+                    && pair[0].group1_idx == pair[1].group1_idx
+                    && pair[0].resource2_idx == pair[1].resource2_idx
+                    && pair[0].group2_idx == pair[1].group2_idx
+                {
+                    return Err("Repeated coupling definition".into());
+                }
+                if pair[0].resource1_idx > pair[1].resource1_idx || pair[0] >= pair[1] {
+                    return Err("Coupling is not normalized".into());
                 }
             }
+            for w in &self.coupling.weights {
+                self.validate_coupling_item(w.resource1_idx, w.group1_idx)?;
+                self.validate_coupling_item(w.resource2_idx, w.group2_idx)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn validate_coupling_item(
+        &self,
+        resource_idx: u8,
+        group_idx: ResourceGroupIdx,
+    ) -> crate::Result<()> {
+        if let Some(r) = self.resources.get(resource_idx as usize) {
+            let n = r.kind.n_groups();
+            if n == 1 {
+                return Err(format!("Resource '{}' has only a single group", r.name).into());
+            }
+            if group_idx.0 as usize >= n {
+                return Err(
+                    format!("Invalid group id {} for resource '{}'", group_idx.0, r.name).into(),
+                );
+            }
+        } else {
+            return Err("Invalid resource".into());
         }
         Ok(())
     }
