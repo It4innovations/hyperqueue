@@ -40,6 +40,9 @@ pub struct JobCancelOpts {
     /// Select job(s) to cancel
     #[arg(value_parser = parse_last_all_range)]
     pub selector: IdSelector,
+    /// Message attached to cancelled task
+    #[arg(long)]
+    pub message: Option<String>,
 }
 
 #[derive(Parser)]
@@ -245,10 +248,11 @@ pub async fn cancel_job(
     _gsettings: &GlobalSettings,
     session: &mut ClientSession,
     selector: IdSelector,
+    message: String,
 ) -> anyhow::Result<()> {
     let mut responses = rpc_call!(session.connection(), FromClientMessage::Cancel(CancelRequest {
          selector,
-    }), ToClientMessage::CancelJobResponse(r) => r)
+    message,}), ToClientMessage::CancelJobResponse(r) => r)
     .await?;
     responses.sort_unstable_by_key(|x| x.0);
 

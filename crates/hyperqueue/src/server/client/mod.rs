@@ -4,6 +4,7 @@ use orion::kdf::SecretKey;
 use serde_json::json;
 use std::fmt::Debug;
 use std::path::Path;
+use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Instant;
 use tako::{Set, TaskGroup, TaskId};
@@ -158,7 +159,7 @@ pub async fn client_rpc_loop<
                         handle_worker_stop(&state_ref, senders, msg.selector)
                     }
                     FromClientMessage::Cancel(msg) => {
-                        handle_job_cancel(&state_ref, senders, &msg.selector).await
+                        handle_job_cancel(&state_ref, senders, &msg.selector, msg.message).await
                     }
                     FromClientMessage::ForgetJob(msg) => {
                         handle_job_forget(&state_ref, senders, &msg.selector, msg.filter)
@@ -358,7 +359,11 @@ fn reconstruct_historical_events(
                         },
                     ));
                 }
-                JobTaskState::Canceled { cancelled_date, .. } => {
+                JobTaskState::Canceled {
+                    cancelled_date,
+                    message,
+                    ..
+                } => {
                     if let Some(task_ids) = events.last_mut().and_then(|e| {
                         if let EventPayload::TasksCanceled { task_ids, .. } = &mut e.payload {
                             (e.time == *cancelled_date).then_some(task_ids)
@@ -372,6 +377,7 @@ fn reconstruct_historical_events(
                             *cancelled_date,
                             EventPayload::TasksCanceled {
                                 task_ids: vec![TaskId::new(job.job_id, *id)],
+                                message: message.clone(),
                             },
                         ));
                     }
@@ -606,6 +612,7 @@ async fn handle_job_cancel(
     state_ref: &StateRef,
     senders: &Senders,
     selector: &IdSelector,
+    message: String,
 ) -> ToClientMessage {
     let job_ids: Vec<JobId> = match selector {
         IdSelector::All => state_ref
@@ -619,9 +626,10 @@ async fn handle_job_cancel(
         IdSelector::Specific(array) => array.iter().map(|id| id.into()).collect(),
     };
 
+    let message = Rc::new(message);
     let mut responses: Vec<(JobId, CancelJobResponse)> = Vec::new();
     for job_id in job_ids {
-        let response = cancel_job(state_ref, senders, job_id).await;
+        let response = cancel_job(state_ref, senders, job_id, message.clone()).await;
         responses.push((job_id, response));
     }
 
@@ -666,7 +674,12 @@ async fn handle_job_close(
     ToClientMessage::CloseJobResponse(responses)
 }
 
-async fn cancel_job(state_ref: &StateRef, senders: &Senders, job_id: JobId) -> CancelJobResponse {
+async fn cancel_job(
+    state_ref: &StateRef,
+    senders: &Senders,
+    job_id: JobId,
+    message: Rc<String>,
+) -> CancelJobResponse {
     let task_ids = match state_ref.get().get_job(job_id) {
         None => {
             return CancelJobResponse::InvalidJob;
@@ -689,7 +702,7 @@ async fn cancel_job(state_ref: &StateRef, senders: &Senders, job_id: JobId) -> C
             .iter()
             .map(|task_id| task_id.job_task_id())
             .collect();
-        job.set_cancel_state(task_ids, senders);
+        job.set_cancel_state(task_ids, message, senders);
         CancelJobResponse::Canceled(job_task_ids, already_finished)
     } else {
         CancelJobResponse::Canceled(vec![], 0)

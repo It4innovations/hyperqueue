@@ -1521,6 +1521,7 @@ fn get_task_time(state: &JobTaskState) -> (Option<DateTime<Utc>>, Option<DateTim
         JobTaskState::Canceled {
             started_data: Some(started_data),
             cancelled_date,
+            ..
         } => (Some(started_data.start_date), Some(*cancelled_date)),
         JobTaskState::Running { started_data, .. } => (Some(started_data.start_date), None),
         JobTaskState::Finished {
@@ -1536,6 +1537,7 @@ fn get_task_time(state: &JobTaskState) -> (Option<DateTime<Utc>>, Option<DateTim
         JobTaskState::Canceled {
             started_data: None,
             cancelled_date: _,
+            ..
         }
         | JobTaskState::Failed {
             started_data: None, ..

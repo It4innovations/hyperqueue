@@ -4,6 +4,8 @@ use crate::server::autoalloc::{AllocationId, QueueParameters};
 use crate::transfer::messages::{JobDescription, SubmitRequest};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
+use std::rc::Rc;
+use std::sync::Arc;
 use tako::gateway::LostWorkerReason;
 use tako::worker::{WorkerConfiguration, WorkerOverview};
 use tako::{InstanceId, TaskId, static_assert_size};
@@ -49,6 +51,7 @@ pub enum EventPayload {
     /// Tasks has been canceled; for performance and correctness reason, this even is batched.
     TasksCanceled {
         task_ids: Vec<TaskId>,
+        message: Arc<String>,
     },
     /// New allocation queue has been created
     AllocationQueueCreated(QueueId, Box<QueueParameters>),

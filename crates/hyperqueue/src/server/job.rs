@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::rc::Rc;
 
 use crate::client::status::get_task_status;
 use crate::server::Senders;
@@ -42,6 +43,7 @@ pub enum JobTaskState {
     Canceled {
         started_data: Option<StartedTaskData>,
         cancelled_date: DateTime<Utc>,
+        message: Arc<String>,
     },
 }
 
@@ -406,7 +408,12 @@ impl Job {
         task_id
     }
 
-    pub fn set_cancel_state(&mut self, task_ids: Vec<TaskId>, senders: &Senders) {
+    pub fn set_cancel_state(
+        &mut self,
+        task_ids: Vec<TaskId>,
+        message: Rc<String>,
+        senders: &Senders,
+    ) {
         if task_ids.is_empty() {
             return;
         }
@@ -419,6 +426,7 @@ impl Job {
                     task.state = JobTaskState::Canceled {
                         started_data: Some(started_data.clone()),
                         cancelled_date: now,
+                        message: message.clone(),
                     };
                     self.counters.n_running_tasks -= 1;
                 }
@@ -426,6 +434,7 @@ impl Job {
                     task.state = JobTaskState::Canceled {
                         started_data: None,
                         cancelled_date: now,
+                        message: message.clone(),
                     };
                 }
                 state => panic!("Invalid job state that is being canceled: {task_id:?} {state:?}"),

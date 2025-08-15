@@ -237,6 +237,7 @@ pub struct TaskSelector {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CancelRequest {
     pub selector: IdSelector,
+    pub message: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
