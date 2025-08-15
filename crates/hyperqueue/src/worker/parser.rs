@@ -4,12 +4,12 @@ use chumsky::text::TextParser;
 use chumsky::{Error, Parser};
 use itertools::Itertools;
 use tako::resources::{
-    DescriptorError, ResourceDescriptorCoupling, ResourceDescriptorItem, ResourceDescriptorKind,
-    ResourceUnits,
+    DescriptorError, ResourceDescriptorCoupling, ResourceDescriptorCouplingItem,
+    ResourceDescriptorItem, ResourceDescriptorKind, ResourceGroupIdx, ResourceUnits,
 };
 
 use crate::common::parser2::{
-    CharParser, ParseError, all_consuming, parse_exact_string, parse_resource_amount, parse_u32,
+    all_consuming, parse_exact_string, parse_resource_amount, parse_u32, CharParser, ParseError,
 };
 
 pub fn parse_cpu_definition(input: &str) -> anyhow::Result<ResourceDescriptorKind> {
@@ -208,12 +208,56 @@ pub fn parse_resource_definition(input: &str) -> anyhow::Result<ResourceDescript
     all_consuming(parse_resource_definition_inner()).parse_text(input)
 }
 
-pub fn parse_resource_coupling(input: &str) -> anyhow::Result<ResourceDescriptorCoupling> {
-    let names = input.split(",").map(|s| s.trim().to_string()).collect_vec();
-    if names.len() < 2 {
-        bail!("Resource coupling needs at least two resource names separated by commas");
-    }
-    Ok(ResourceDescriptorCoupling { names })
+fn parse_resource_coupling_group(
+    input: &str,
+    resources: &[ResourceDescriptorItem],
+) -> anyhow::Result<(u8, ResourceGroupIdx)> {
+    let Some(input) = input.strip_suffix(']') else {
+        return Err(anyhow::anyhow!("Missing ']'"));
+    };
+    let Some((left, right)) = input.split_once('[') else {
+        return Err(anyhow::anyhow!("Missing '['"));
+    };
+    let Some(resource_idx) = resources.iter().position(|r| r.name == left) else {
+        return Err(anyhow::anyhow!("Resource not found: {left}"));
+    };
+    let Ok(group_idx) = right.parse::<u8>() else {
+        return Err(anyhow::anyhow!("Invalid group index: {right}"));
+    };
+    Ok((resource_idx as u8, group_idx.into()))
+}
+
+pub fn parse_resource_coupling(
+    input: &str,
+    resources: &[ResourceDescriptorItem],
+) -> anyhow::Result<ResourceDescriptorCoupling> {
+    let weights = input
+        .split(",")
+        .map(|s| {
+            let s = s.trim();
+            let (rs, weight) = (if let Some((rs, ws)) = s.split_once('=') {
+                let Ok(w) = ws.parse() else {
+                    return Err(anyhow::anyhow!("Invalid weight: {ws}"));
+                };
+                anyhow::Ok((rs, w))
+            } else {
+                anyhow::Ok((s, 256))
+            })?;
+            let Some((left, right)) = rs.split_once(':') else {
+                return Err(anyhow::anyhow!("Missing ':'"));
+            };
+            let (resource1_idx, group1_idx) = parse_resource_coupling_group(left, resources)?;
+            let (resource2_idx, group2_idx) = parse_resource_coupling_group(right, resources)?;
+            Ok(ResourceDescriptorCouplingItem {
+                resource1_idx,
+                group1_idx,
+                resource2_idx,
+                group2_idx,
+                weight,
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(ResourceDescriptorCoupling { weights })
 }
 
 #[cfg(test)]
@@ -601,6 +645,35 @@ mod test {
                |
                --- Unexpected end of input
         "###);
+    }
+
+    #[test]
+    fn test_parse_resource_coupling() {
+        let resources = vec![
+            ResourceDescriptorItem {
+                name: "foo".to_string(),
+                kind: ResourceDescriptorKind::Groups { groups: vec![] },
+            },
+            ResourceDescriptorItem {
+                name: "bar".to_string(),
+                kind: ResourceDescriptorKind::Groups { groups: vec![] },
+            },
+            ResourceDescriptorItem {
+                name: "baz".to_string(),
+                kind: ResourceDescriptorKind::Groups { groups: vec![] },
+            },
+        ];
+        let r = parse_resource_coupling("foo[0]:bar[1]", &resources).unwrap();
+        assert_eq!(
+            r.weights,
+            vec![ResourceDescriptorCouplingItem {
+                resource1_idx: 0,
+                group1_idx: 0.into(),
+                resource2_idx: 1,
+                group2_idx: 0.into(),
+                weight: 256,
+            },]
+        )
     }
 
     fn check_item(

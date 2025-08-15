@@ -8,7 +8,8 @@ use crate::define_id_type;
 use crate::internal::common::index::IndexVec;
 pub use allocation::{Allocation, ResourceAllocation};
 pub use descriptor::{
-    ResourceDescriptor, ResourceDescriptorCoupling, ResourceDescriptorItem, ResourceDescriptorKind,
+    ResourceDescriptor, ResourceDescriptorCoupling, ResourceDescriptorCouplingItem,
+    ResourceDescriptorItem, ResourceDescriptorKind,
 };
 pub use map::{
     AMD_GPU_RESOURCE_NAME, CPU_RESOURCE_ID, CPU_RESOURCE_NAME, MEM_RESOURCE_NAME,
@@ -28,6 +29,9 @@ define_id_type!(ResourceId, u32);
 
 // Represents an index within a single generic resource (e.g. GPU with ID 1).
 define_id_type!(ResourceIndex, u32);
+
+// Represents an index within a single generic resource (e.g. GPU with ID 1).
+define_id_type!(ResourceGroupIdx, u8);
 
 // Represents a label of an individual resource provided by a worker
 pub type ResourceLabel = String;

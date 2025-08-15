@@ -1,11 +1,12 @@
 use crate::internal::common::resources::{
-    ResourceAmount, ResourceIndex, ResourceLabel, ResourceUnits,
+    ResourceAmount, ResourceGroupIdx, ResourceIndex, ResourceLabel, ResourceUnits,
 };
 use crate::internal::common::utils::has_unique_elements;
 use crate::internal::common::Set;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Formatter};
 
+use crate::define_id_type;
 use crate::resources::CPU_RESOURCE_NAME;
 use thiserror::Error;
 
@@ -237,10 +238,21 @@ impl Debug for ResourceDescriptorItem {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
+//#[cfg_attr(test, derive(PartialEq, Eq))]
+pub struct ResourceDescriptorCouplingItem {
+    pub resource1_idx: u8,
+    pub group1_idx: ResourceGroupIdx,
+    pub resource2_idx: u8,
+    pub group2_idx: ResourceGroupIdx,
+    pub weight: u16,
+}
+
 /// Define names of coupled resources
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct ResourceDescriptorCoupling {
-    pub weights: Vec<(u8, u8, u16)>,
+    // Index into resources, group_index, index into resources, group_index weight
+    pub weights: Vec<ResourceDescriptorCouplingItem>,
 }
 
 /// Most precise description of request provided by a worker (without time resource)

@@ -103,9 +103,9 @@ pub struct SharedWorkerStartOpts {
     /// Resource coupling
     ///
     /// Examples:{n}
-    /// - `--coupling cpus,gpus"
-    #[arg(long, value_parser = passthrough_parser(parse_resource_coupling))]
-    pub coupling: Option<PassThroughArgument<ResourceDescriptorCoupling>>,
+    /// - `--coupling TODO"
+    #[arg(long)]
+    pub coupling: Option<String>,
 
     #[clap(long)]
     /// Disables auto-detection of resources
@@ -317,7 +317,10 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
             );
         }
     }
-    let coupling = coupling.map(|x| x.into_parsed_arg()).unwrap_or_default();
+    let coupling = coupling
+        .map(|x| parse_resource_coupling(&x, &resources))
+        .transpose()?
+        .unwrap_or_default();
     let resources = ResourceDescriptor::new(resources, coupling);
     resources.validate(true)?;
 

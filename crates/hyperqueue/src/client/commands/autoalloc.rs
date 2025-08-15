@@ -369,10 +369,7 @@ wasted allocation duration."
         ]);
     }
     if let Some(arg) = coupling {
-        worker_args.extend([
-            "--coupling".to_string(),
-            format!("\"{}\"", arg.into_original_input()),
-        ])
+        worker_args.extend(["--coupling".to_string(), format!("\"{}\"", arg)])
     }
     if let Some(group) = group {
         worker_args.extend(["--group".to_string(), group]);
