@@ -1689,14 +1689,6 @@ fn resources_summary(resources: &ResourceDescriptor, multiline: bool) -> String 
             special_format(descriptor).unwrap_or_else(|| resource_summary_kind(&descriptor.kind))
         )
         .unwrap();
-        if multiline
-            && resources
-                .coupling
-                .as_ref()
-                .is_some_and(|c| c.names.contains(&descriptor.name))
-        {
-            result.push_str(" [coupled]");
-        }
         first = false;
     }
     result
@@ -1762,7 +1754,7 @@ mod tests {
                 name: "cpus".into(),
                 kind: ResourceDescriptorKind::simple_indices(1),
             }],
-            None,
+            Default::default(),
         );
         assert_eq!(resources_summary(&d, false), "cpus 1");
 
@@ -1771,7 +1763,7 @@ mod tests {
                 name: "cpus".into(),
                 kind: ResourceDescriptorKind::simple_indices(5),
             }],
-            None,
+            Default::default(),
         );
         assert_eq!(resources_summary(&d, true), "cpus: 5");
 
@@ -1804,7 +1796,7 @@ mod tests {
                     ]),
                 },
             ],
-            None,
+            Default::default(),
         );
         assert_eq!(
             resources_summary(&d, true),
@@ -1823,7 +1815,7 @@ mod tests {
                 name: "cpus".into(),
                 kind: ResourceDescriptorKind::simple_indices(1),
             }],
-            None,
+            Default::default(),
         );
         assert_eq!(resources_full_describe(&d), "cpus: [0]");
 
@@ -1845,7 +1837,7 @@ mod tests {
                     kind: res_kind_sum(1234),
                 },
             ],
-            None,
+            Default::default(),
         );
         assert_eq!(
             resources_full_describe(&d),
@@ -1860,7 +1852,7 @@ mod tests {
                 name: MEM_RESOURCE_NAME.into(),
                 kind: res_kind_sum(4 * 1024 + 123),
             }],
-            None,
+            Default::default(),
         );
         assert_eq!(resources_summary(&d, false), "mem 4.12 GiB");
     }

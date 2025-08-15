@@ -59,12 +59,13 @@ impl ResourceAllocator {
 
         for item in &desc.resources {
             let idx = resource_map.get_index(&item.name).unwrap();
-            let is_coupled = desc
-                .coupling
-                .as_ref()
-                .map(|c| c.names.contains(&item.name))
-                .unwrap_or(false);
-            pools[idx] = ResourcePool::new(&item.kind, idx, label_map, is_coupled);
+            todo!();
+            /*let is_coupled = desc
+            .coupling
+            .as_ref()
+            .map(|c| c.names.contains(&item.name))
+            .unwrap_or(false);
+            pools[idx] = ResourcePool::new(&item.kind, idx, label_map, is_coupled);*/
         }
 
         let free_resources = ConciseFreeResources::new(
@@ -75,7 +76,8 @@ impl ResourceAllocator {
                 .into(),
         );
 
-        let couplings = desc.coupling.as_ref().map(|c| ResourceCoupling {
+        todo!();
+        /*let couplings = desc.coupling.as_ref().map(|c| ResourceCoupling {
             resources: c
                 .names
                 .iter()
@@ -86,11 +88,12 @@ impl ResourceAllocator {
             .as_ref()
             .and_then(|c| c.resources.first().map(|r| pools[*r].n_groups()))
             .unwrap_or(0);
+         */
         ResourceAllocator {
             pools,
             free_resources,
             remaining_time: None,
-            coupling_n_group_size,
+            coupling_n_group_size: todo!(),
             blocked_requests: Vec::new(),
             higher_priority_blocked_requests: 0,
             running_tasks: Vec::new(),
