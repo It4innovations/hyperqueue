@@ -1,8 +1,8 @@
-use crate::internal::common::Set;
 use crate::internal::common::resources::{
     ResourceAmount, ResourceIndex, ResourceLabel, ResourceUnits,
 };
 use crate::internal::common::utils::has_unique_elements;
+use crate::internal::common::Set;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Formatter};
 
@@ -148,11 +148,9 @@ impl ResourceDescriptorKind {
             ResourceDescriptorKind::List { values } => vec![values.clone()],
             ResourceDescriptorKind::Groups { groups } => groups.clone(),
             ResourceDescriptorKind::Range { start, end } => {
-                vec![
-                    (start.as_num()..=end.as_num())
-                        .map(|v| v.to_string())
-                        .collect::<Vec<_>>(),
-                ]
+                vec![(start.as_num()..=end.as_num())
+                    .map(|v| v.to_string())
+                    .collect::<Vec<_>>()]
             }
             ResourceDescriptorKind::Sum { .. } => Vec::new(),
         }
@@ -242,7 +240,7 @@ impl Debug for ResourceDescriptorItem {
 /// Define names of coupled resources
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ResourceDescriptorCoupling {
-    pub names: Vec<String>,
+    pub weights: Vec<(u8, u8, u16)>,
 }
 
 /// Most precise description of request provided by a worker (without time resource)
