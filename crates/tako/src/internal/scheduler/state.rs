@@ -22,6 +22,11 @@ use crate::{TaskId, WorkerId};
 const LONG_DURATION: std::time::Duration = std::time::Duration::from_secs(365 * 24 * 60 * 60);
 
 // Knobs
+/// If there is at most `MAX_TASKS_FOR_IMMEDIATE_RUN_CHECK` fresh incoming tasks,
+/// then try compat task on workers (it tests that task may immediately run)
+/// If there are more tasks, skip this test and assumes that we are
+/// going to overload workers anyway.
+/// Ideally, it should depend on the number of workers and their resources.
 const MAX_TASKS_FOR_IMMEDIATE_RUN_CHECK: usize = 600;
 
 pub struct SchedulerState {
