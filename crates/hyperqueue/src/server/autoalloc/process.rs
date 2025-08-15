@@ -3,9 +3,9 @@ use crate::common::rpc::RpcReceiver;
 use crate::common::utils::time::AbsoluteTime;
 use crate::get_or_return;
 use crate::server::autoalloc::config::{
-    MAX_QUEUED_STATUS_ERROR_COUNT, MAX_RUNNING_STATUS_ERROR_COUNT, MAX_SUBMISSION_FAILS,
-    SUBMISSION_DELAYS, get_allocation_refresh_interval, get_allocation_schedule_tick_interval,
-    get_max_allocation_schedule_delay, max_allocation_fails,
+    get_allocation_refresh_interval, get_allocation_schedule_tick_interval,
+    get_max_allocation_schedule_delay, max_allocation_fails, MAX_QUEUED_STATUS_ERROR_COUNT,
+    MAX_RUNNING_STATUS_ERROR_COUNT, MAX_SUBMISSION_FAILS, SUBMISSION_DELAYS,
 };
 use crate::server::autoalloc::queue::pbs::PbsHandler;
 use crate::server::autoalloc::queue::slurm::SlurmHandler;
@@ -25,9 +25,9 @@ use futures::future::join_all;
 use std::future::Future;
 use std::path::PathBuf;
 use std::time::Instant;
-use tako::WorkerId;
 use tako::control::{ServerRef, WorkerTypeQuery};
 use tako::resources::ResourceDescriptor;
+use tako::WorkerId;
 use tako::{Map, Set};
 use tempfile::TempDir;
 
@@ -415,7 +415,7 @@ fn create_queue_worker_query(queue: &AllocationQueue) -> WorkerTypeQuery {
             (resources.clone(), true)
         } else {
             // Otherwise we cannot assume anything about the worker
-            (ResourceDescriptor::new(vec![], None), true)
+            (ResourceDescriptor::new(vec![], Default::default()), true)
         }
     };
 
@@ -1248,8 +1248,8 @@ mod tests {
     use crate::common::rpc::ResponseToken;
     use crate::common::utils::time::mock_time::MockTime;
     use crate::server::autoalloc::process::{
-        AutoallocSenders, QueryResponse, compute_submission_permit, do_periodic_update,
-        handle_message, perform_submits,
+        compute_submission_permit, do_periodic_update, handle_message, perform_submits,
+        AutoallocSenders, QueryResponse,
     };
     use crate::server::autoalloc::queue::{
         AllocationExternalStatus, AllocationStatusMap, AllocationSubmissionResult, QueueHandler,
@@ -1267,20 +1267,20 @@ mod tests {
     use anyhow::anyhow;
     use derive_builder::Builder;
     use log::LevelFilter;
-    use tako::WorkerId;
     use tako::gateway::LostWorkerReason;
     use tako::resources::ResourceDescriptor;
     use tako::tests::integration::utils::api::wait_for_worker_connected;
     use tako::tests::integration::utils::server::{
-        ServerConfigBuilder, ServerHandle, run_server_test,
+        run_server_test, ServerConfigBuilder, ServerHandle,
     };
     use tako::tests::integration::utils::task::{
-        GraphBuilder, ResourceRequestConfigBuilder, TaskConfigBuilder, simple_args,
+        simple_args, GraphBuilder, ResourceRequestConfigBuilder, TaskConfigBuilder,
     };
     use tako::tests::integration::utils::worker::{
-        WorkerConfigBuilder, create_worker_configuration,
+        create_worker_configuration, WorkerConfigBuilder,
     };
     use tako::worker::WorkerConfiguration;
+    use tako::WorkerId;
     use tako::{Map, Set, WrappedRcRefCell};
     use tempfile::TempDir;
 
@@ -1500,11 +1500,9 @@ mod tests {
 
             let allocations = ctx.get_allocations(queue_id);
             assert_eq!(allocations.len(), 4);
-            assert!(
-                allocations
-                    .iter()
-                    .all(|alloc| alloc.target_worker_count == 2)
-            );
+            assert!(allocations
+                .iter()
+                .all(|alloc| alloc.target_worker_count == 2));
         })
         .await;
     }
@@ -1527,11 +1525,9 @@ mod tests {
             let allocations = ctx.get_allocations(queue_id);
             // Create only a single "probe" conservative allocation
             assert_eq!(allocations.len(), 1);
-            assert!(
-                allocations
-                    .iter()
-                    .all(|alloc| alloc.target_worker_count == 1)
-            );
+            assert!(allocations
+                .iter()
+                .all(|alloc| alloc.target_worker_count == 1));
         })
         .await;
     }
@@ -1656,11 +1652,10 @@ mod tests {
             ctx.start_worker(WorkerConfigBuilder::default(), "foo")
                 .await;
 
-            assert!(
-                ctx.get_allocations(queue_id)
-                    .iter()
-                    .all(|alloc| !alloc.is_running())
-            );
+            assert!(ctx
+                .get_allocations(queue_id)
+                .iter()
+                .all(|alloc| !alloc.is_running()));
         })
         .await;
     }
@@ -2421,14 +2416,14 @@ mod tests {
     }
 
     impl<
-        State: 'static,
-        ScheduleFn: 'static + Fn(WrappedRcRefCell<State>, u64) -> ScheduleFnFut,
-        ScheduleFnFut: Future<Output = AutoAllocResult<AllocationSubmissionResult>>,
-        StatusFn: 'static + Fn(WrappedRcRefCell<State>, AllocationId) -> StatusFnFut,
-        StatusFnFut: Future<Output = AutoAllocResult<Option<AllocationExternalStatus>>>,
-        RemoveFn: 'static + Fn(WrappedRcRefCell<State>, AllocationId) -> RemoveFnFut,
-        RemoveFnFut: Future<Output = AutoAllocResult<()>>,
-    > Handler<ScheduleFn, StatusFn, RemoveFn, State>
+            State: 'static,
+            ScheduleFn: 'static + Fn(WrappedRcRefCell<State>, u64) -> ScheduleFnFut,
+            ScheduleFnFut: Future<Output = AutoAllocResult<AllocationSubmissionResult>>,
+            StatusFn: 'static + Fn(WrappedRcRefCell<State>, AllocationId) -> StatusFnFut,
+            StatusFnFut: Future<Output = AutoAllocResult<Option<AllocationExternalStatus>>>,
+            RemoveFn: 'static + Fn(WrappedRcRefCell<State>, AllocationId) -> RemoveFnFut,
+            RemoveFnFut: Future<Output = AutoAllocResult<()>>,
+        > Handler<ScheduleFn, StatusFn, RemoveFn, State>
     {
         fn create(
             custom_state: WrappedRcRefCell<State>,
@@ -2446,14 +2441,14 @@ mod tests {
     }
 
     impl<
-        State: 'static,
-        ScheduleFn: 'static + Fn(WrappedRcRefCell<State>, u64) -> ScheduleFnFut,
-        ScheduleFnFut: Future<Output = AutoAllocResult<AllocationSubmissionResult>>,
-        StatusFn: 'static + Fn(WrappedRcRefCell<State>, AllocationId) -> StatusFnFut,
-        StatusFnFut: Future<Output = AutoAllocResult<Option<AllocationExternalStatus>>>,
-        RemoveFn: 'static + Fn(WrappedRcRefCell<State>, AllocationId) -> RemoveFnFut,
-        RemoveFnFut: Future<Output = AutoAllocResult<()>>,
-    > QueueHandler for Handler<ScheduleFn, StatusFn, RemoveFn, State>
+            State: 'static,
+            ScheduleFn: 'static + Fn(WrappedRcRefCell<State>, u64) -> ScheduleFnFut,
+            ScheduleFnFut: Future<Output = AutoAllocResult<AllocationSubmissionResult>>,
+            StatusFn: 'static + Fn(WrappedRcRefCell<State>, AllocationId) -> StatusFnFut,
+            StatusFnFut: Future<Output = AutoAllocResult<Option<AllocationExternalStatus>>>,
+            RemoveFn: 'static + Fn(WrappedRcRefCell<State>, AllocationId) -> RemoveFnFut,
+            RemoveFnFut: Future<Output = AutoAllocResult<()>>,
+        > QueueHandler for Handler<ScheduleFn, StatusFn, RemoveFn, State>
     {
         fn submit_allocation(
             &mut self,

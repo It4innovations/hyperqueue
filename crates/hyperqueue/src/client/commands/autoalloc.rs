@@ -18,7 +18,7 @@ use crate::transfer::messages::{
 };
 use clap::Parser;
 use humantime::format_duration;
-use tako::resources::{CPU_RESOURCE_NAME, ResourceDescriptor, ResourceDescriptorItem};
+use tako::resources::{ResourceDescriptor, ResourceDescriptorItem, CPU_RESOURCE_NAME};
 
 #[derive(Parser)]
 pub struct AutoAllocOpts {
@@ -437,7 +437,7 @@ fn construct_resources_from_cli(args: &SharedWorkerStartOpts) -> Option<Resource
         }
     };
 
-    let resources = ResourceDescriptor::new(resources, None);
+    let resources = ResourceDescriptor::new(resources, Default::default());
     resources.validate(true).ok()?;
     Some(resources)
 }

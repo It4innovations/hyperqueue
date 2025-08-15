@@ -238,7 +238,7 @@ impl Debug for ResourceDescriptorItem {
 }
 
 /// Define names of coupled resources
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct ResourceDescriptorCoupling {
     pub weights: Vec<(u8, u8, u16)>,
 }
@@ -247,13 +247,13 @@ pub struct ResourceDescriptorCoupling {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ResourceDescriptor {
     pub resources: Vec<ResourceDescriptorItem>,
-    pub coupling: Option<ResourceDescriptorCoupling>,
+    pub coupling: ResourceDescriptorCoupling,
 }
 
 impl ResourceDescriptor {
     pub fn new(
         mut resources: Vec<ResourceDescriptorItem>,
-        coupling: Option<ResourceDescriptorCoupling>,
+        coupling: ResourceDescriptorCoupling,
     ) -> Self {
         resources.sort_by(|x, y| x.name.cmp(&y.name));
 
@@ -273,7 +273,7 @@ impl ResourceDescriptor {
                 name: CPU_RESOURCE_NAME.to_string(),
                 kind: ResourceDescriptorKind::regular_sockets(n_sockets, n_cpus_per_socket),
             }],
-            None,
+            Default::default(),
         )
     }
 
@@ -299,7 +299,8 @@ impl ResourceDescriptor {
         if !has_cpus && needs_cpus {
             return Err("Resource 'cpus' is missing".into());
         }
-        if let Some(coupling) = &self.coupling {
+        todo!();
+        /*if let Some(coupling) = &self.coupling {
             if coupling.names.len() < 2 {
                 return Err("Invalid number of coupled resources".into());
             }
@@ -319,7 +320,7 @@ impl ResourceDescriptor {
                     return Err(format!("Coupling of unknown resource: '{name}'").into());
                 }
             }
-        }
+        }*/
         Ok(())
     }
 }
