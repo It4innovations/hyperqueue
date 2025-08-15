@@ -636,12 +636,6 @@ fn test_generic_resource_balance2() {
     );
     rt.schedule();
 
-    /*dbg!(rt
-    .core()
-    .get_worker_by_id_or_panic(102.into())
-    .sn_tasks()
-    .len());*/
-
     assert_eq!(
         rt.core()
             .get_worker_by_id_or_panic(100.into())

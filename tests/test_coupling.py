@@ -9,13 +9,23 @@ from .conftest import HqEnv
 def test_coupling_invalid_inputs(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker(
-        args=["--coupling", "cpus"],
-        expect_fail="Resource coupling needs at least two resource names separated by commas",
+        args=["--coupling", "foo[0]:goo[1]"],
+        expect_fail="Resource not found: foo",
     )
-    hq_env.start_worker(args=["--coupling", "cpus,xxx"], expect_fail="Coupling of unknown resource: 'xxx'")
     hq_env.start_worker(
-        args=["--resource", "xxx=[1,2,3]", "--resource", "yyy=[[1,2,3], [10,11]]", "--coupling", "xxx,yyy"],
-        expect_fail="Coupled resources needs to have the same number of groups",
+        args=["--resource", "xxx=[1,2,3]", "--resource", "yyy=[[1,2,3], [10,11]]", "--coupling", "xxx[0]:yyy[0]"],
+        expect_fail="Resource 'xxx' has only a single group",
+    )
+    hq_env.start_worker(
+        args=[
+            "--resource",
+            "xxx=[[1,2,3], [10, 20, 30]]",
+            "--resource",
+            "yyy=[[1,2,3], [10,11]]",
+            "--coupling",
+            "xxx[0]:yyy[3]",
+        ],
+        expect_fail="Invalid group id 3 for resource 'yyy'",
     )
 
 
