@@ -1,4 +1,3 @@
-use std::cell::{RefCell, RefMut};
 use std::cmp::Reverse;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -87,59 +86,49 @@ impl SchedulerState {
     fn choose_worker_for_task<'a>(
         &mut self,
         task: &Task,
-        workers: &'a [RefCell<&'a mut Worker>],
+        workers: &'a [&'a mut Worker],
         dataobj_map: &DataObjectMap,
         try_immediate_check: bool,
-    ) -> Option<RefMut<'a, &'a mut Worker>> {
+    ) -> Option<usize> {
         let no_data_deps = task.data_deps.is_empty();
         if no_data_deps && try_immediate_check {
             if workers[self.last_idx]
-                .borrow_mut()
                 .have_immediate_resources_for_rqv_now(&task.configuration.resources, self.now)
             {
-                return Some(workers[self.last_idx].borrow_mut());
+                return Some(self.last_idx);
             }
             for (idx, worker) in workers.iter().enumerate() {
                 if idx == self.last_idx {
                     continue;
                 }
                 if worker
-                    .borrow()
                     .have_immediate_resources_for_rqv_now(&task.configuration.resources, self.now)
                 {
                     self.last_idx = idx;
-                    return Some(worker.borrow_mut());
+                    return Some(self.last_idx);
                 }
             }
         }
         let start_idx = self.last_idx + 1;
         if no_data_deps {
             for (idx, worker) in workers[start_idx..].iter().enumerate() {
-                if worker
-                    .borrow()
-                    .is_capable_to_run_rqv(&task.configuration.resources, self.now)
-                {
+                if worker.is_capable_to_run_rqv(&task.configuration.resources, self.now) {
                     self.last_idx = idx + start_idx;
-                    return Some(worker.borrow_mut());
+                    return Some(self.last_idx);
                 }
             }
             for (idx, worker) in workers[..start_idx].iter().enumerate() {
-                if worker
-                    .borrow()
-                    .is_capable_to_run_rqv(&task.configuration.resources, self.now)
-                {
+                if worker.is_capable_to_run_rqv(&task.configuration.resources, self.now) {
                     self.last_idx = idx;
-                    return Some(worker.borrow_mut());
+                    return Some(self.last_idx);
                 }
             }
             None
         } else {
-            let mut best_worker = None;
             let mut best_cost = u64::MAX;
-            let mut best_idx = 0;
+            let mut best_idx = None;
 
             for (idx, worker) in workers[start_idx..].iter().enumerate() {
-                let worker = worker.borrow_mut();
                 if !worker.is_capable_to_run_rqv(&task.configuration.resources, self.now) {
                     continue;
                 }
@@ -148,11 +137,9 @@ impl SchedulerState {
                     continue;
                 }
                 best_cost = cost;
-                best_worker = Some(worker);
-                best_idx = start_idx + idx;
+                best_idx = Some(start_idx + idx);
             }
             for (idx, worker) in workers[..start_idx].iter().enumerate() {
-                let worker = worker.borrow_mut();
                 if !worker.is_capable_to_run_rqv(&task.configuration.resources, self.now) {
                     continue;
                 }
@@ -161,12 +148,11 @@ impl SchedulerState {
                     continue;
                 }
                 best_cost = cost;
-                best_worker = Some(worker);
-                best_idx = idx;
+                best_idx = Some(idx);
             }
-            if let Some(worker) = best_worker {
+            if let Some(best_idx) = best_idx {
                 self.last_idx = best_idx;
-                Some(worker)
+                Some(self.last_idx)
             } else {
                 None
             }
@@ -401,21 +387,20 @@ impl SchedulerState {
             let mut workers = workers
                 .values_mut()
                 .filter(|w| !w.is_parked())
-                .map(RefCell::new)
                 .collect::<Vec<_>>();
-            workers.sort_unstable_by_key(|w| w.borrow().id);
+            workers.sort_unstable_by_key(|w| w.id);
             self.last_idx %= workers.len();
             for (idx, task_id) in ready_tasks.into_iter().enumerate() {
                 let Some(task) = tasks.find_task_mut(task_id) else {
                     continue;
                 };
-                if let Some(mut worker) = self.choose_worker_for_task(
+                if let Some(worker) = self.choose_worker_for_task(
                     task,
                     &workers,
                     dataobjs,
                     idx < MAX_TASKS_FOR_IMMEDIATE_RUN_CHECK,
                 ) {
-                    self.assign_into(task, &mut worker);
+                    self.assign_into(task, workers[worker]);
                 } else {
                     sleeping_tasks.push(task_id);
                 }
