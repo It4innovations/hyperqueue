@@ -7,7 +7,6 @@ use crate::internal::worker::resources::map::ResourceLabelMap;
 use crate::resources::{AllocationRequest, ResourceAllocation, ResourceFractions, ResourceUnits};
 use crate::{Map, Set};
 
-use crate::internal::worker::resources::groups::find_compact_groups;
 use smallvec::{SmallVec, smallvec};
 
 #[derive(Debug)]
@@ -23,8 +22,6 @@ pub(crate) struct GroupsResourcePool {
     indices: Vec<Vec<ResourceIndex>>,
     fractions: Vec<Map<ResourceIndex, ResourceFractions>>,
     min_group_size: ResourceAmount,
-    is_coupled: bool,
-    //reverse_map: Map<ResourceIndex, usize>,
 }
 
 impl GroupsResourcePool {
@@ -38,10 +35,6 @@ impl GroupsResourcePool {
                     f.values().max().copied().unwrap_or(0),
                 )
             })
-    }
-
-    pub fn is_coupled(&self) -> bool {
-        self.is_coupled
     }
 
     pub fn n_groups(&self) -> usize {
@@ -74,7 +67,6 @@ impl ResourcePool {
         kind: &ResourceDescriptorKind,
         resource_id: ResourceId,
         label_map: &ResourceLabelMap,
-        is_coupled: bool,
     ) -> Self {
         match kind {
             ResourceDescriptorKind::List { values } => ResourcePool::Indices(IndicesResourcePool {
@@ -117,7 +109,6 @@ impl ResourcePool {
                             .unwrap_or(1),
                     ),
                     fractions: groups.iter().map(|_| Map::new()).collect(),
-                    is_coupled,
                 })
             }
             ResourceDescriptorKind::Range { start, end } => {
@@ -466,6 +457,13 @@ impl ResourcePool {
             ResourcePool::Groups(pool) => {
                 match policy {
                     AllocationRequest::Compact(amount)
+                    | AllocationRequest::ForceCompact(amount)
+                    | AllocationRequest::Tight(amount)
+                    | AllocationRequest::ForceTight(amount) => {
+                        // This should be unreachable as this is always claimed via coupled solver
+                        unreachable!()
+                    }
+                    /*AllocationRequest::Compact(amount)
                     | AllocationRequest::ForceCompact(amount) => {
                         // We do not need to distinguish between force compact and compact
                         // because we already know that allocation is possible
@@ -483,7 +481,7 @@ impl ResourcePool {
                             *amount,
                             Self::claim_compact_from_groups(*amount, pool, Some(&group_set)),
                         )
-                    }
+                    }*/
                     AllocationRequest::Scatter(amount) => (
                         *amount,
                         Self::claim_scatter_from_groups(*amount, pool, None),

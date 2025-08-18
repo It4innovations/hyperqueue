@@ -1,114 +1,164 @@
+use crate::internal::common::resources::ResourceId;
 use crate::internal::worker::resources::concise::{ConciseFreeResources, ConciseResourceState};
 use crate::internal::worker::resources::pool::{FAST_MAX_COUPLED_RESOURCES, FAST_MAX_GROUPS};
-use crate::resources::{AllocationRequest, ResourceAmount};
+use crate::resources::{AllocationRequest, FRACTIONS_PER_UNIT, ResourceAmount, ResourceGroupIdx};
+use highs::{HighsModelStatus, Sense};
 use smallvec::SmallVec;
-use std::cmp::Reverse;
 
-struct GroupMinimizationState {
-    remaining: ResourceAmount,
+pub(crate) struct CouplingWeightItem {
+    pub(crate) resource1: ResourceId,
+    pub(crate) group1: ResourceGroupIdx,
+    pub(crate) resource2: ResourceId,
+    pub(crate) group2: ResourceGroupIdx,
+    pub(crate) weight: f64,
+}
+
+struct GroupMinimizationRequest {
+    request: ResourceAmount,
     group_amounts: SmallVec<[ResourceAmount; FAST_MAX_GROUPS]>,
+    resource_id: ResourceId,
 }
 
-type GroupSet = SmallVec<[usize; 2]>;
+type GroupIndices = SmallVec<[usize; 2]>;
+type SelectedGroups = SmallVec<[GroupIndices; FAST_MAX_COUPLED_RESOURCES]>;
 
-fn group_minimizer(n_groups: usize, states: &mut [GroupMinimizationState]) -> Option<GroupSet> {
-    let mut result: GroupSet = SmallVec::new();
-    loop {
-        if let Some(group_idx) = (0..n_groups)
-            .filter(|group_idx| {
-                states
-                    .iter()
-                    .all(|s| s.group_amounts[*group_idx] >= s.remaining)
-            })
-            .min_by_key(|group_idx| {
-                (
-                    states
-                        .iter()
-                        .map(|s| s.group_amounts[*group_idx] - s.remaining)
-                        .min()
-                        .unwrap_or(ResourceAmount::ZERO),
-                    states
-                        .iter()
-                        .map(|s| s.group_amounts[*group_idx] - s.remaining)
-                        .sum::<ResourceAmount>(),
-                )
-            })
-        {
-            result.push(group_idx);
-            break;
-        } else {
-            let group_idx = (0..n_groups)
-                .filter(|group_idx| {
-                    states
-                        .iter()
-                        .any(|s| !s.group_amounts[*group_idx].is_zero() && !s.remaining.is_zero())
-                })
-                .min_by_key(|group_idx| {
-                    (
-                        Reverse(
-                            states
-                                .iter()
-                                .map(|s| s.group_amounts[*group_idx].min(s.remaining))
-                                .sum::<ResourceAmount>(),
-                        ),
-                        states
-                            .iter()
-                            .map(|s| s.group_amounts[*group_idx].saturating_sub(s.remaining))
-                            .min()
-                            .unwrap_or(ResourceAmount::ZERO),
-                        states
-                            .iter()
-                            .map(|s| s.group_amounts[*group_idx].saturating_sub(s.remaining))
-                            .sum::<ResourceAmount>(),
-                    )
-                })?;
-            for state in states.iter_mut() {
-                let (r_units, r_fractions) = state.remaining.split();
-                let amount = &mut state.group_amounts[group_idx];
-                let (a_units, a_fractions) = amount.split();
-                let t_units = r_units.min(a_units);
-                let t_fractions = if a_fractions < r_fractions {
-                    0
-                } else {
-                    r_fractions
-                };
-                let target = ResourceAmount::new(t_units, t_fractions);
-                state.remaining -= target;
-                *amount = ResourceAmount::ZERO;
-            }
-            result.push(group_idx);
-        }
-    }
-    Some(result)
-}
+/*
+   This is the main solver for the NUMA aware scheduling. It find the optimal solution
+   wrt minimizing the total number of groups & respecting weights between groups.
 
-pub fn find_coupled_groups(
-    n_groups: usize,
+   Note that the solver does not select specific indices nor the number of indices that would be taken
+   from each group. It is done later and depends on the allocation strategy. Here we just find
+   which groups we will consider later.
+
+   It solves the following MLP problem:
+
+    Consts:
+    * f_i_j = number of whole free indices in resource group j of resource i
+    * g_i_j = number of biggest free fraction resources indices in resource group j of resource i
+    * w_i1_ji_i2_j2 = weight between resource group j1 of resource i1 and group j2 of resource i2
+    * r_i = number of whole indices in request for resource i
+    * z_i = fractional part of request for resource i
+
+    Variables:
+    * v_i_j = 1 iff group j of resources i has to chosen; 0 means that is not chosen
+    * u_i1_ji_i2_j2 exists if there is weight w_i1_ji_i2_j2 and both v_i1_j1 is and v_i2_j2 is set to 1.
+
+    Conditions:
+
+    # Cannot se u to 1 if both connected vs are not selected.
+    u_i1_ji_i2_j2 <= v_i1_j1
+    u_i1_ji_i2_j2 <= v_i1_j1
+
+    # Selected groups have enough whole resources
+    f_i_0 * u_i_0 + f_i_1 * u_i_1 ... >= r_i
+
+    # Selected groups have enough fractional resources
+    # It is tricky here as we want to select fractional resources from only a single group
+    if z_i > 0:
+        (f_i_0 + (1 if z_i < g_i_0 else 0)) * u_i_0 + (f_i_1 + (1 if z_i < g_i_1 else 0) * u_i_1 ... >= r_i + 1
+
+    Optimized expression (maximization)
+
+    for valid i, j: (-1024 + (g_i_j * 16 if z_i < g_i_j else 0) * v_i_j
+    + for each valid i1,j2,i2,j2: w_i1_ji_i2_j2 * u_i1_ji_i2_j2 ...
+
+    (Note:  (g_i_j * 16 if z_i < g_i_j else 0) serves to select the biggest free fraction if available))
+*/
+pub fn group_solver(
     free: &ConciseFreeResources,
     entries: &[&crate::resources::ResourceAllocRequest],
-) -> Option<GroupSet> {
-    let mut states = entries
+    weights: &[CouplingWeightItem],
+) -> Option<(SelectedGroups, f64)> {
+    let mut pb = highs::RowProblem::new();
+    let vars: SmallVec<[SmallVec<_>; FAST_MAX_COUPLED_RESOURCES]> = entries
         .iter()
-        .map(|e| {
-            let remaining = e.request.amount_or_none_if_all().unwrap();
-            GroupMinimizationState {
-                remaining,
-                group_amounts: free.get(e.resource_id).amount_max_per_group().collect(),
+        .map(|entry| {
+            let (units, fractions) = entry.request.amount_or_none_if_all().unwrap().split();
+            let r = free.get(entry.resource_id);
+            if fractions == 0 {
+                let vs = (0..r.n_groups())
+                    .map(|_| pb.add_integer_column(-1024.0, 0..=1))
+                    .collect::<SmallVec<[highs::Col; FAST_MAX_GROUPS]>>();
+                pb.add_row(
+                    units..,
+                    vs.iter()
+                        .zip(r.units_per_group())
+                        .map(|(v, u)| (*v, u as f64)),
+                );
+                vs
+            } else {
+                let amounts: SmallVec<[_; FAST_MAX_GROUPS]> = r.amount_max_per_group().collect();
+                let mut need_second_check = false;
+                let vs: SmallVec<[highs::Col; FAST_MAX_GROUPS]> = amounts
+                    .iter()
+                    .map(|(_, f)| {
+                        if *f >= fractions {
+                            need_second_check = true;
+                            pb.add_integer_column(
+                                -1024.0 + (*f as f64 / (FRACTIONS_PER_UNIT as f64 / 16.0)),
+                                0..=1,
+                            )
+                        } else {
+                            pb.add_integer_column(-1024.0, 0..=1)
+                        }
+                    })
+                    .collect();
+                pb.add_row(
+                    (units + 1)..,
+                    vs.iter()
+                        .zip(amounts.iter())
+                        .map(|(v, (u, f))| (*v, if *f >= fractions { u + 1 } else { *u } as f64)),
+                );
+                if units > 0 && need_second_check {
+                    pb.add_row(
+                        units..,
+                        vs.iter()
+                            .zip(r.units_per_group())
+                            .map(|(v, u)| (*v, u as f64)),
+                    );
+                }
+                vs
             }
         })
-        .collect::<SmallVec<[GroupMinimizationState; FAST_MAX_COUPLED_RESOURCES]>>();
-    group_minimizer(n_groups, &mut states)
-}
+        .collect();
+    for w in weights {
+        let Some(r1) = entries.iter().position(|e| e.resource_id == w.resource1) else {
+            continue;
+        };
+        let Some(r2) = entries.iter().position(|e| e.resource_id == w.resource2) else {
+            continue;
+        };
+        let v1 = vars[r1][w.group1.as_num() as usize];
+        let v2 = vars[r2][w.group2.as_num() as usize];
+        let v3 = pb.add_column(w.weight, 0..=1);
+        pb.add_row(0.., &[(v1, 1.0), (v3, -1.0)]);
+        pb.add_row(0.., &[(v2, 1.0), (v3, -1.0)]);
+    }
 
-pub fn find_compact_groups(
-    n_groups: usize,
-    free: &ConciseResourceState,
-    policy: &AllocationRequest,
-) -> Option<GroupSet> {
-    let remaining = policy.amount_or_none_if_all().unwrap();
-    let mut states = [GroupMinimizationState {
-        remaining,
-        group_amounts: free.amount_max_per_group().collect(),
-    }];
-    group_minimizer(n_groups, &mut states)
+    let solved_model = pb.optimise(Sense::Maximise).solve();
+    if !matches!(solved_model.status(), HighsModelStatus::Optimal) {
+        return None;
+    }
+    let objective_value = solved_model.objective_value();
+    let solution = solved_model.get_solution();
+    let columns = solution.columns();
+    let mut index = 0;
+
+    Some((
+        entries
+            .iter()
+            .map(|entry| {
+                let r = free.get(entry.resource_id);
+                let n = r.n_groups();
+                let g = (&columns[index..index + n])
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, v)| (*v > 0.5).then_some(i))
+                    .collect();
+                index += n;
+                g
+            })
+            .collect(),
+        objective_value,
+    ))
 }

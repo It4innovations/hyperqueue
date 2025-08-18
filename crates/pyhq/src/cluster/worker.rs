@@ -44,7 +44,7 @@ impl RunningWorker {
                             end: ResourceIndex::new((cores - 1) as u32),
                         },
                     }],
-                    None,
+                    Default::default(),
                 ),
                 listen_address: Default::default(),
                 hostname: get_hostname(None),
