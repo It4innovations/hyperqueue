@@ -132,11 +132,15 @@ impl ConciseResourceState {
         ResourceAmount::new(units, fractions)
     }
 
-    pub fn amount_max_per_group(&self) -> impl Iterator<Item = ResourceAmount> {
+    pub fn amount_max_per_group(&self) -> impl Iterator<Item = (ResourceUnits, ResourceFractions)> {
         self.free.iter().map(|g| {
             let fractions = g.fractions.values().copied().max().unwrap_or(0);
-            ResourceAmount::new(g.units, fractions)
+            (g.units, fractions)
         })
+    }
+
+    pub fn units_per_group(&self) -> impl Iterator<Item = ResourceUnits> {
+        self.free.iter().map(|g| g.units)
     }
 
     #[cfg(test)]

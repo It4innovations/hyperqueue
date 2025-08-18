@@ -33,13 +33,22 @@ def test_coupling_output(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker(
         cpus="[[1, 2, 3], [4, 5, 6]]",
-        args=["--coupling=cpus,foo", "--resource=ddd=sum(123)", "--resource=foo=[[10,20,30],[40,50,60]]"],
+        args=[
+            "--coupling=cpus[0]:foo[0],cpus[1]:foo[1]",
+            "--resource=ddd=sum(123)",
+            "--resource=foo=[[10,20,30],[40,50,60]]",
+        ],
     )
     table = hq_env.command(["worker", "info", "1"], as_table=True)
     table.check_row_value("Resources", "cpus: 2x3 [coupled]\nddd: 123\nfoo: 2x3 [coupled]")
 
     result = hq_env.command(["--output-mode=json", "worker", "info", "1"], as_json=True)
-    assert result["configuration"]["resources"]["coupling"] == {"names": ["cpus", "foo"]}
+    assert result["configuration"]["resources"]["coupling"] == {
+        "weights": [
+            {"group1_idx": 0, "group2_idx": 0, "resource1_idx": 0, "resource2_idx": 2, "weight": 256},
+            {"group1_idx": 1, "group2_idx": 1, "resource1_idx": 0, "resource2_idx": 2, "weight": 256},
+        ]
+    }
 
 
 def test_coupling_alloc1(hq_env: HqEnv):
@@ -69,7 +78,11 @@ def test_coupling_alloc1(hq_env: HqEnv):
 
     hq_env.start_worker(
         cpus="[[1, 2, 3], [4, 5, 6]]",
-        args=["--coupling=cpus,foo", "--resource=ddd=sum(123)", "--resource=foo=[[10,20,30,40],[50,60,70,80]]"],
+        args=[
+            "--coupling=cpus[0]:foo[0],cpus[1]:foo[1]",
+            "--resource=ddd=sum(123)",
+            "--resource=foo=[[10,20,30,40],[50,60,70,80]]",
+        ],
     )
 
     wait_for_job_state(hq_env, [1, 2], "FINISHED")
@@ -116,7 +129,11 @@ def test_coupling_alloc2(hq_env: HqEnv):
 
     hq_env.start_worker(
         cpus="[[1, 2, 3], [10, 11, 12], [21, 22, 23]]",
-        args=["--coupling=cpus,foo", "--resource=ddd=sum(123)", "--resource=foo=[[1, 2, 3],[10, 11, 12],[20, 21, 23]]"],
+        args=[
+            "--coupling=cpus[0]:foo[0],cpus[1]:foo[1],cpus[2]:foo[2]",
+            "--resource=ddd=sum(123)",
+            "--resource=foo=[[1, 2, 3],[10, 11, 12],[20, 21, 23]]",
+        ],
     )
 
     wait_for_job_state(hq_env, 1, "FINISHED")
@@ -150,15 +167,15 @@ def test_coupling_combined(hq_env: HqEnv):
 
     hq_env.start_worker(
         cpus="[[1, 2, 3, 4], [11, 12, 13, 14], [21, 22, 23, 24]]",
-        args=["--resource=foo=[[1, 2],[10,11],[22,21]]", "--coupling=cpus,foo"],
+        args=["--resource=foo=[[1, 2],[10,11],[22,21]]", "--coupling=cpus[0]:foo[0],cpus[1]:foo[1],cpus[2]:foo[2]"],
     )
 
     for i, (cpus, foos, expect) in enumerate(
         [
             ("6 tight", "2 tight", ([2, 4], [2])),
             ("6 scatter", "2 scatter", ([2, 2, 2], [1, 1])),
-            ("6 compact", "2 compact", ([3, 3], [1, 1])),
-            ("6 tight", "2 compact", ([2, 4], [1, 1])),
+            ("6 compact", "2 compact", ([3, 3], [2])),
+            ("6 tight", "2 compact", ([2, 4], [2])),
             ("6 compact", "2 tight", ([3, 3], [2])),
             ("6 scatter", "2 tight", ([2, 2, 2], [2])),
             ("6 scatter", "2 compact", ([2, 2, 2], [2])),

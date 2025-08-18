@@ -45,7 +45,7 @@ def test_print_worker_info(hq_env: HqEnv):
                 "hostname": "worker1",
                 "idle_timeout": None,
                 "listen_address": str,
-                "resources": {"resources": RESOURCE_DESCRIPTOR_SCHEMA, "coupling": None},
+                "resources": {"resources": RESOURCE_DESCRIPTOR_SCHEMA, "coupling": {"weights": list}},
                 "time_limit": None,
                 "work_dir": str,
                 "group": str,
@@ -273,7 +273,7 @@ def test_print_hw(hq_env: HqEnv):
     hq_env.start_server()
     output = parse_json_output(hq_env, ["--output-mode=json", "worker", "hwdetect"])
 
-    schema = Schema({"resources": RESOURCE_DESCRIPTOR_SCHEMA, "coupling": None})
+    schema = Schema({"resources": RESOURCE_DESCRIPTOR_SCHEMA, "coupling": {"weights": list}})
     schema.validate(output)
 
 

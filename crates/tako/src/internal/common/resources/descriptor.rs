@@ -266,6 +266,26 @@ pub struct ResourceDescriptorCoupling {
     pub weights: Vec<ResourceDescriptorCouplingItem>,
 }
 
+#[cfg(test)]
+impl ResourceDescriptorCoupling {
+    pub fn add(
+        &mut self,
+        resource1_idx: u8,
+        group1_idx: u8,
+        resource2_idx: u8,
+        group2_idx: u8,
+        weight: u16,
+    ) {
+        self.weights.push(ResourceDescriptorCouplingItem {
+            resource1_idx,
+            group1_idx: group1_idx.into(),
+            resource2_idx,
+            group2_idx: group2_idx.into(),
+            weight,
+        });
+    }
+}
+
 /// Most precise description of request provided by a worker (without time resource)
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ResourceDescriptor {
