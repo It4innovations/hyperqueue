@@ -1,10 +1,10 @@
 use crate::internal::common::resources::{
     ResourceDescriptor, ResourceRequest, ResourceRequestVariants,
 };
-use crate::internal::tests::utils::resources::{ResBuilder, ra_builder};
-use crate::internal::tests::utils::resources::{ResourceRequestBuilder, cpus_compact};
+use crate::internal::tests::utils::resources::{cpus_compact, ResourceRequestBuilder};
+use crate::internal::tests::utils::resources::{ra_builder, ResBuilder};
 use crate::internal::worker::rqueue::ResourceWaitQueue;
-use crate::internal::worker::test_util::{WorkerTaskBuilder, worker_task};
+use crate::internal::worker::test_util::{worker_task, WorkerTaskBuilder};
 use std::ops::Deref;
 use std::time::Duration;
 
@@ -606,7 +606,7 @@ impl From<Vec<ResourceDescriptorItem>> for ResourceDescriptor {
     fn from(value: Vec<ResourceDescriptorItem>) -> Self {
         Self {
             resources: value,
-            coupling: None,
+            coupling: Default::default(),
         }
     }
 }

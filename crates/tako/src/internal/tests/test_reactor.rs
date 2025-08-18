@@ -11,8 +11,8 @@ use crate::internal::messages::worker::{StealResponse, StealResponseMsg};
 use crate::internal::scheduler::state::SchedulerState;
 use crate::internal::server::core::Core;
 use crate::internal::server::reactor::{
-    T_LEVEL_WEIGHT, on_cancel_tasks, on_new_tasks, on_new_worker, on_remove_worker,
-    on_steal_response, on_task_error, on_task_finished, on_task_running,
+    on_cancel_tasks, on_new_tasks, on_new_worker, on_remove_worker, on_steal_response,
+    on_task_error, on_task_finished, on_task_running, T_LEVEL_WEIGHT,
 };
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::worker::Worker;
@@ -24,12 +24,12 @@ use crate::internal::tests::utils::schedule::{
 };
 use crate::internal::tests::utils::shared::{res_kind_groups, res_kind_sum};
 use crate::internal::tests::utils::sorted_vec;
-use crate::internal::tests::utils::task::{TaskBuilder, task, task_running_msg, task_with_deps};
+use crate::internal::tests::utils::task::{task, task_running_msg, task_with_deps, TaskBuilder};
 use crate::internal::tests::utils::workflows::{submit_example_1, submit_example_3};
 use crate::internal::tests::utils::{env, schedule};
 use crate::internal::worker::configuration::{
-    DEFAULT_MAX_DOWNLOAD_TRIES, DEFAULT_MAX_PARALLEL_DOWNLOADS,
-    DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES, OverviewConfiguration,
+    OverviewConfiguration, DEFAULT_MAX_DOWNLOAD_TRIES, DEFAULT_MAX_PARALLEL_DOWNLOADS,
+    DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES,
 };
 use crate::resources::{ResourceAmount, ResourceDescriptorItem, ResourceMap};
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
@@ -102,7 +102,7 @@ fn test_worker_add() {
                     kind: res_kind_sum(100_000_000),
                 },
             ],
-            None,
+            Default::default(),
         ),
         listen_address: "test2:123".into(),
         hostname: "test2".to_string(),
@@ -715,12 +715,11 @@ fn test_task_mn_fail() {
     comm.emptiness_check();
     assert!(core.find_task(1.into()).is_none());
     for w in &[100, 101, 102, 103] {
-        assert!(
-            core.get_worker_map()
-                .get_worker((*w).into())
-                .mn_task()
-                .is_none()
-        );
+        assert!(core
+            .get_worker_map()
+            .get_worker((*w).into())
+            .mn_task()
+            .is_none());
     }
 }
 

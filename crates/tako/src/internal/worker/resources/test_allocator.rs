@@ -1,6 +1,6 @@
 use crate::internal::common::resources::descriptor::{ResourceDescriptor, ResourceDescriptorKind};
 use crate::internal::common::resources::{Allocation, ResourceId, ResourceRequestVariants};
-use crate::internal::tests::utils::resources::{ResBuilder, cpus_compact};
+use crate::internal::tests::utils::resources::{cpus_compact, ResBuilder};
 use crate::internal::tests::utils::shared::res_allocator_from_descriptor;
 use crate::internal::tests::utils::sorted_vec;
 use crate::internal::worker::resources::allocator::ResourceAllocator;
@@ -52,7 +52,7 @@ pub fn simple_descriptor(
             name: "cpus".to_string(),
             kind: ResourceDescriptorKind::regular_sockets(n_sockets, socket_size),
         }],
-        None,
+        Default::default(),
     )
 }
 
@@ -83,7 +83,7 @@ fn simple_allocator(
             }
         })
         .collect();
-    let descriptor = ResourceDescriptor::new(ds, None);
+    let descriptor = ResourceDescriptor::new(ds, Default::default());
 
     let mut ac = res_allocator_from_descriptor(descriptor);
     for r in running {
@@ -123,28 +123,24 @@ fn test_compute_blocking_level() {
             &ResourceDescriptorKind::simple_indices(3),
             0.into(),
             &Default::default(),
-            false,
         ),
         ResourcePool::new(
             &ResourceDescriptorKind::simple_indices(3),
             0.into(),
             &Default::default(),
-            false,
         ),
     ];
     let free = ConciseFreeResources::new_simple(&[1, 2]);
     let rq = ResBuilder::default().add(0, 3).add(1, 1).finish();
 
     assert!(ResourceAllocator::compute_witness(&pools, &free, &rq, [].iter()).is_none());
-    assert!(
-        ResourceAllocator::compute_witness(
-            &pools,
-            &free,
-            &rq,
-            [Rc::new(Allocation::new_simple(&[1]))].iter()
-        )
-        .is_none()
-    );
+    assert!(ResourceAllocator::compute_witness(
+        &pools,
+        &free,
+        &rq,
+        [Rc::new(Allocation::new_simple(&[1]))].iter()
+    )
+    .is_none());
     assert_eq!(
         ResourceAllocator::compute_witness(
             &pools,
@@ -658,7 +654,7 @@ fn test_pool_generic_resources() {
                 kind: ResourceDescriptorKind::simple_indices(2),
             },
         ],
-        None,
+        Default::default(),
     );
     let mut allocator = test_allocator(&descriptor);
 
@@ -754,7 +750,7 @@ fn test_allocator_sum_max_fractions() {
                 size: ResourceAmount::new(0, 300),
             },
         }],
-        None,
+        Default::default(),
     );
     let mut allocator = test_allocator(&descriptor);
     allocator.reset_temporaries(None);
@@ -997,7 +993,7 @@ fn test_allocator_sum_fractions() {
                 size: ResourceAmount::new_units(2),
             },
         }],
-        None,
+        Default::default(),
     );
     let mut allocator = test_allocator(&descriptor);
     allocator.reset_temporaries(None);
@@ -1078,9 +1074,9 @@ fn test_coupling1() {
                     kind: ResourceDescriptorKind::regular_sockets(4, 4),
                 },
             ],
-            Some(ResourceDescriptorCoupling {
-                names: vec!["cpus".to_string(), "gpus".to_string()],
-            }),
+            todo!(), /*Some(ResourceDescriptorCoupling {
+                         names: vec!["cpus".to_string(), "gpus".to_string()],
+                     })*/
         );
 
         let mut allocator = test_allocator(&descriptor);
@@ -1117,9 +1113,9 @@ fn descriptor_cpus_gpus(
                 kind: ResourceDescriptorKind::regular_sockets(n_sockets, socket_size2),
             },
         ],
-        coupled.then(|| ResourceDescriptorCoupling {
-            names: vec!["cpus".to_string(), "gpus".to_string()],
-        }),
+        todo!(), /*coupled.then(|| ResourceDescriptorCoupling {
+                     names: vec!["cpus".to_string(), "gpus".to_string()],
+                 })*/
     )
 }
 

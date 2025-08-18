@@ -1,85 +1,26 @@
+use crate::internal::common::resources::ResourceId;
 use crate::internal::worker::resources::concise::{ConciseFreeResources, ConciseResourceState};
 use crate::internal::worker::resources::pool::{FAST_MAX_COUPLED_RESOURCES, FAST_MAX_GROUPS};
-use crate::resources::{AllocationRequest, ResourceAmount};
+use crate::resources::{AllocationRequest, ResourceAmount, ResourceGroupIdx};
 use smallvec::SmallVec;
-use std::cmp::Reverse;
+
+pub(crate) struct CouplingWeightItem {
+    pub(crate) resource1: ResourceId,
+    pub(crate) group1: ResourceGroupIdx,
+    pub(crate) resource2: ResourceId,
+    pub(crate) group2: ResourceGroupIdx,
+    pub(crate) weight: u16,
+}
 
 struct GroupMinimizationState {
-    remaining: ResourceAmount,
+    request: ResourceAmount,
     group_amounts: SmallVec<[ResourceAmount; FAST_MAX_GROUPS]>,
 }
 
 type GroupSet = SmallVec<[usize; 2]>;
 
-fn group_minimizer(n_groups: usize, states: &mut [GroupMinimizationState]) -> Option<GroupSet> {
-    let mut result: GroupSet = SmallVec::new();
-    loop {
-        if let Some(group_idx) = (0..n_groups)
-            .filter(|group_idx| {
-                states
-                    .iter()
-                    .all(|s| s.group_amounts[*group_idx] >= s.remaining)
-            })
-            .min_by_key(|group_idx| {
-                (
-                    states
-                        .iter()
-                        .map(|s| s.group_amounts[*group_idx] - s.remaining)
-                        .min()
-                        .unwrap_or(ResourceAmount::ZERO),
-                    states
-                        .iter()
-                        .map(|s| s.group_amounts[*group_idx] - s.remaining)
-                        .sum::<ResourceAmount>(),
-                )
-            })
-        {
-            result.push(group_idx);
-            break;
-        } else {
-            let group_idx = (0..n_groups)
-                .filter(|group_idx| {
-                    states
-                        .iter()
-                        .any(|s| !s.group_amounts[*group_idx].is_zero() && !s.remaining.is_zero())
-                })
-                .min_by_key(|group_idx| {
-                    (
-                        Reverse(
-                            states
-                                .iter()
-                                .map(|s| s.group_amounts[*group_idx].min(s.remaining))
-                                .sum::<ResourceAmount>(),
-                        ),
-                        states
-                            .iter()
-                            .map(|s| s.group_amounts[*group_idx].saturating_sub(s.remaining))
-                            .min()
-                            .unwrap_or(ResourceAmount::ZERO),
-                        states
-                            .iter()
-                            .map(|s| s.group_amounts[*group_idx].saturating_sub(s.remaining))
-                            .sum::<ResourceAmount>(),
-                    )
-                })?;
-            for state in states.iter_mut() {
-                let (r_units, r_fractions) = state.remaining.split();
-                let amount = &mut state.group_amounts[group_idx];
-                let (a_units, a_fractions) = amount.split();
-                let t_units = r_units.min(a_units);
-                let t_fractions = if a_fractions < r_fractions {
-                    0
-                } else {
-                    r_fractions
-                };
-                let target = ResourceAmount::new(t_units, t_fractions);
-                state.remaining -= target;
-                *amount = ResourceAmount::ZERO;
-            }
-            result.push(group_idx);
-        }
-    }
-    Some(result)
+fn group_solver(states: &mut [GroupMinimizationState]) -> Option<GroupSet> {
+    todo!()
 }
 
 pub fn find_coupled_groups(
@@ -92,12 +33,12 @@ pub fn find_coupled_groups(
         .map(|e| {
             let remaining = e.request.amount_or_none_if_all().unwrap();
             GroupMinimizationState {
-                remaining,
+                request: remaining,
                 group_amounts: free.get(e.resource_id).amount_max_per_group().collect(),
             }
         })
         .collect::<SmallVec<[GroupMinimizationState; FAST_MAX_COUPLED_RESOURCES]>>();
-    group_minimizer(n_groups, &mut states)
+    group_solver(n_groups, &mut states)
 }
 
 pub fn find_compact_groups(
@@ -107,8 +48,8 @@ pub fn find_compact_groups(
 ) -> Option<GroupSet> {
     let remaining = policy.amount_or_none_if_all().unwrap();
     let mut states = [GroupMinimizationState {
-        remaining,
+        request: remaining,
         group_amounts: free.amount_max_per_group().collect(),
     }];
-    group_minimizer(n_groups, &mut states)
+    group_solver(n_groups, &mut states)
 }

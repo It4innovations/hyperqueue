@@ -4,9 +4,11 @@ use crate::internal::common::resources::request::{
 use crate::internal::common::resources::{ResourceId, ResourceVec};
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::resources::concise::{ConciseFreeResources, ConciseResourceState};
-use crate::internal::worker::resources::groups::{find_compact_groups, find_coupled_groups};
+use crate::internal::worker::resources::groups::{
+    find_compact_groups, find_coupled_groups, CouplingWeightItem,
+};
 use crate::internal::worker::resources::map::ResourceLabelMap;
-use crate::internal::worker::resources::pool::{FAST_MAX_COUPLED_RESOURCES, ResourcePool};
+use crate::internal::worker::resources::pool::{ResourcePool, FAST_MAX_COUPLED_RESOURCES};
 use crate::resources::{Allocation, ResourceAmount, ResourceDescriptor, ResourceMap};
 use smallvec::SmallVec;
 use std::rc::Rc;
@@ -20,7 +22,7 @@ pub struct ResourceAllocator {
     pub(super) pools: ResourceVec<ResourcePool>,
     pub(super) free_resources: ConciseFreeResources,
     pub(super) remaining_time: Option<Duration>,
-    coupling_n_group_size: usize,
+    pub(super) coupling_weights: Vec<CouplingWeightItem>,
     blocked_requests: Vec<BlockedRequest>,
     higher_priority_blocked_requests: usize,
     pub(super) running_tasks: Vec<Rc<Allocation>>, // TODO: Rework on multiset?
@@ -58,13 +60,7 @@ impl ResourceAllocator {
 
         for item in &desc.resources {
             let idx = resource_map.get_index(&item.name).unwrap();
-            todo!();
-            /*let is_coupled = desc
-            .coupling
-            .as_ref()
-            .map(|c| c.names.contains(&item.name))
-            .unwrap_or(false);
-            pools[idx] = ResourcePool::new(&item.kind, idx, label_map, is_coupled);*/
+            pools[idx] = ResourcePool::new(&item.kind, idx, label_map);
         }
 
         let free_resources = ConciseFreeResources::new(
@@ -75,24 +71,32 @@ impl ResourceAllocator {
                 .into(),
         );
 
-        todo!();
-        /*let couplings = desc.coupling.as_ref().map(|c| ResourceCoupling {
-            resources: c
-                .names
-                .iter()
-                .map(|name| resource_map.get_index(name).unwrap())
-                .collect(),
-        });
-        let coupling_n_group_size = couplings
-            .as_ref()
-            .and_then(|c| c.resources.first().map(|r| pools[*r].n_groups()))
-            .unwrap_or(0);
-         */
+        let coupling_weights = desc
+            .coupling
+            .weights
+            .iter()
+            .map(|w| {
+                let resource1 = resource_map
+                    .get_index(&desc.resources[w.resource1_idx as usize].name)
+                    .unwrap();
+                let resource2 = resource_map
+                    .get_index(&desc.resources[w.resource2_idx as usize].name)
+                    .unwrap();
+                CouplingWeightItem {
+                    resource1,
+                    group1: w.group1_idx,
+                    resource2,
+                    group2: w.group2_idx,
+                    weight: w.weight,
+                }
+            })
+            .collect();
+
         ResourceAllocator {
             pools,
             free_resources,
+            coupling_weights,
             remaining_time: None,
-            coupling_n_group_size: todo!(),
             blocked_requests: Vec::new(),
             higher_priority_blocked_requests: 0,
             running_tasks: Vec::new(),
@@ -196,8 +200,8 @@ impl ResourceAllocator {
             let Some(pool) = pools.get(entry.resource_id.as_usize()) else {
                 return false;
             };
-            if let ResourcePool::Groups(g) = pool {
-                if g.is_coupled() && entry.request.is_relevant_for_coupling() {
+            if let ResourcePool::Groups(_) = pool {
+                if entry.request.is_relevant_for_coupling() {
                     coupling.push(entry);
                 }
             }
@@ -307,8 +311,8 @@ impl ResourceAllocator {
             SmallVec::new();
         for entry in request.entries() {
             let pool = self.pools.get_mut(entry.resource_id.as_usize()).unwrap();
-            if let ResourcePool::Groups(g) = pool {
-                if g.is_coupled() && entry.request.is_relevant_for_coupling() {
+            if let ResourcePool::Groups(_) = pool {
+                if entry.request.is_relevant_for_coupling() {
                     coupling.push(entry);
                     continue;
                 }
