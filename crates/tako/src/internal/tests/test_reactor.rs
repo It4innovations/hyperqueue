@@ -102,7 +102,7 @@ fn test_worker_add() {
                     kind: res_kind_sum(100_000_000),
                 },
             ],
-            None,
+            Default::default(),
         ),
         listen_address: "test2:123".into(),
         hostname: "test2".to_string(),
