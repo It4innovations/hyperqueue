@@ -33,7 +33,7 @@ pub struct ResourceAllocator {
 #[derive(Debug)]
 struct BlockedRequest {
     request: ResourceRequest,
-    /// Reachable state of free resources AFTER some of currently running tasks is finished AND
+    /// Reachable state of free resources AFTER some of the currently running tasks is finished AND
     /// this resource request is enabled
     witnesses: Vec<ConciseFreeResources>,
 }
@@ -87,7 +87,7 @@ impl ResourceAllocator {
                     group1: w.group1_idx,
                     resource2,
                     group2: w.group2_idx,
-                    weight: w.weight,
+                    weight: w.weight as f64,
                 }
             })
             .collect();
@@ -326,15 +326,15 @@ impl ResourceAllocator {
         if coupling.is_empty() {
             return allocation;
         }
-        let group_set =
-            find_coupled_groups(self.coupling_n_group_size, &self.free_resources, &coupling)
-                .unwrap();
+        // let group_set =
+        //     find_coupled_groups(self.coupling_n_group_size, &self.free_resources, &coupling)
+        //         .unwrap();
         for entry in coupling {
             allocation.add_resource_allocation(
                 self.pools[entry.resource_id].claim_resources_with_group_mask(
                     entry.resource_id,
                     &entry.request,
-                    &group_set,
+                    &[todo!()],
                 ),
             )
         }
