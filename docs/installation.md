@@ -5,8 +5,7 @@ The easiest way to install **HyperQueue** is to download and unpack the prebuilt
 
     !!! info "Target architecture"
     
-        Make sure to choose the correct binary for your architecture. Currently, we provide prebuilt binaries for `x86-64`
-        and `PowerPC` architectures.
+        Make sure to choose the correct binary for your architecture. Currently, we provide prebuilt binaries for `x86-64`, `AArch64` (ARM) and `PowerPC` architectures.
 
 2. Unpack the downloaded archive:
 
