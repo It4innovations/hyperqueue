@@ -24,6 +24,8 @@ This image shows how HyperQueue can work on a distributed cluster that uses Slur
 
 <img src="docs/imgs/architecture-bg.png" width="500" alt="Architecture of HyperQueue deployed on a Slurm/PBS cluster" />
 
+You can find a talk from the e-INFRA conference that describes the basics of HyperQueue [here](https://youtu.be/wIxgKOAM0NE?list=PLvwguJ6ySH1cANA1cRZzJDSS8UH-ef0Xn&t=9692).
+
 ## Demo
 This demo shows simple usage of HyperQueue to execute a few hundred commands (tasks), with dynamic scaling both up and down based on the number of connected workers.
 
