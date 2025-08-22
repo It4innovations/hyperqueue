@@ -140,9 +140,10 @@ fn test_no_deps_distribute_with_balance() {
     let mut finish_all = |core: &mut Core, msgs, worker_id| {
         for m in msgs {
             match m {
-                ToWorkerMessage::ComputeTask(cm) => {
-                    assert!(active_ids.remove(&cm.id));
-                    finish_on_worker(core, cm.id, worker_id);
+                ToWorkerMessage::ComputeTasks(cm) => {
+                    assert_eq!(cm.tasks.len(), 0);
+                    assert!(active_ids.remove(&cm.tasks[0].id));
+                    finish_on_worker(core, cm.tasks[0].id, worker_id);
                 }
                 _ => unreachable!(),
             };

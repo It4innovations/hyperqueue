@@ -19,7 +19,7 @@ pub fn create_task(id: TaskId) -> Task {
         time_limit: None,
         crash_limit: CrashLimit::default(),
         data_flags: TaskDataFlags::empty(),
-        body: Box::new([]),
+        body: Rc::new([]),
     };
     Task::new(
         id,

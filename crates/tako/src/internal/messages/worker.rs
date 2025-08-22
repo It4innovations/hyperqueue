@@ -7,7 +7,6 @@ use crate::resources::ResourceFractions;
 use crate::task::SerializedTaskContext;
 use crate::{InstanceId, Priority};
 use crate::{TaskId, WorkerId};
-use bstr::ByteSlice;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use std::rc::Rc;
