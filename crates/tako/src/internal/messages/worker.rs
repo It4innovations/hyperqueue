@@ -23,25 +23,33 @@ pub struct WorkerRegistrationResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct ComputeTaskMsg {
+pub struct ComputeTaskSeparateData {
+    /// Index into shared data stored in [ComputeTasksMsg].
+    pub shared_index: usize,
     pub id: TaskId,
-
     pub instance_id: InstanceId,
-
-    pub user_priority: Priority,
     pub scheduler_priority: Priority,
+    pub node_list: Vec<WorkerId>,
+    pub data_deps: Vec<DataObjectId>,
+    // TODO: do not take this as shared data
+    pub entry: Option<EntryType>,
+}
 
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+pub struct ComputeTaskSharedData {
+    pub user_priority: Priority,
     pub resources: crate::internal::common::resources::ResourceRequestVariants,
     pub time_limit: Option<Duration>,
-    pub node_list: Vec<WorkerId>,
-
-    pub data_deps: Vec<DataObjectId>,
     pub data_flags: TaskDataFlags,
-
     #[serde(with = "serde_bytes")]
     pub body: Box<[u8]>,
+}
 
-    pub entry: Option<EntryType>,
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ComputeTasksMsg {
+    pub tasks: Vec<ComputeTaskSeparateData>,
+    /// Data that is between multiple instances of tasks from `self.tasks`.
+    pub shared_data: Vec<ComputeTaskSharedData>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -68,7 +76,7 @@ pub struct TaskIdMsg {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ToWorkerMessage {
-    ComputeTask(ComputeTaskMsg),
+    ComputeTasks(ComputeTasksMsg),
     StealTasks(TaskIdsMsg),
     CancelTasks(TaskIdsMsg),
     NewWorker(NewWorkerMsg),

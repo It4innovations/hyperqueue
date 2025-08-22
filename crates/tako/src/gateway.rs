@@ -88,15 +88,14 @@ impl ResourceRequestVariants {
 }
 
 bitflags::bitflags! {
-    #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-    #[cfg_attr(test, derive(Eq, PartialEq))]
+    #[derive(Default, Debug, Copy, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
     #[serde(transparent)]
     pub struct TaskDataFlags: u32 {
         const ENABLE_DATA_LAYER = 0b00000001;
     }
 }
 
-#[derive(Deserialize, Serialize, Debug, Eq, PartialEq, Clone, Copy)]
+#[derive(Deserialize, Serialize, Debug, Eq, PartialEq, Hash, Clone, Copy)]
 pub enum CrashLimit {
     NeverRestart,
     MaxCrashes(u16),

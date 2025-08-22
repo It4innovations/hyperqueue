@@ -11,7 +11,7 @@ use crate::internal::scheduler::multinode::MultiNodeAllocator;
 use crate::internal::server::comm::{Comm, CommSender, CommSenderRef};
 use crate::internal::server::core::{Core, CoreRef};
 use crate::internal::server::dataobjmap::DataObjectMap;
-use crate::internal::server::task::{Task, TaskRuntimeState};
+use crate::internal::server::task::{ComputeTasksBuilder, Task, TaskRuntimeState};
 use crate::internal::server::worker::Worker;
 use crate::internal::server::workerload::ResourceRequestLowerBound;
 use crate::internal::server::workermap::WorkerMap;
@@ -197,7 +197,7 @@ impl SchedulerState {
                 (TaskRuntimeState::RunningMultiNode(worker_ids), TaskRuntimeState::Waiting(_)) => {
                     comm.send_worker_message(
                         worker_ids[0],
-                        &task.make_compute_message(worker_ids.clone()),
+                        &ComputeTasksBuilder::single_task(task, worker_ids.clone()),
                     );
                     for worker_id in &worker_ids[1..] {
                         let worker = worker_map.get_worker_mut(*worker_id);
@@ -226,6 +226,7 @@ impl SchedulerState {
 
         let (task_map, worker_map) = core.split_tasks_workers_mut();
         for (worker_id, mut task_ids) in task_computes {
+            let mut task_msg_builder = ComputeTasksBuilder::default();
             task_ids.sort_by_cached_key(|&task_id| {
                 let task = task_map.get_task(task_id);
                 Reverse((task.configuration.user_priority, task.scheduler_priority))
@@ -233,8 +234,9 @@ impl SchedulerState {
             for task_id in task_ids {
                 let task = task_map.get_task_mut(task_id);
                 task.set_fresh_flag(false);
-                comm.send_worker_message(worker_id, &task.make_compute_message(Vec::new()));
+                task_msg_builder.add_task(task, Vec::new());
             }
+            comm.send_worker_message(worker_id, &task_msg_builder.build());
         }
 
         // Try unreserve workers

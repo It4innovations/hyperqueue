@@ -4,14 +4,16 @@ use std::rc::Rc;
 use std::time::Duration;
 use thin_vec::ThinVec;
 
-use crate::WorkerId;
 use crate::internal::common::Set;
 use crate::internal::common::stablemap::ExtractKey;
+use crate::{Map, WorkerId};
 
 use crate::gateway::{CrashLimit, EntryType, TaskDataFlags};
 use crate::internal::datasrv::dataobj::DataObjectId;
 
-use crate::internal::messages::worker::{ComputeTaskMsg, ToWorkerMessage};
+use crate::internal::messages::worker::{
+    ComputeTaskSeparateData, ComputeTaskSharedData, ComputeTasksMsg, ToWorkerMessage,
+};
 use crate::internal::server::taskmap::TaskMap;
 use crate::{InstanceId, Priority};
 use crate::{TaskId, static_assert_size};
@@ -87,15 +89,18 @@ bitflags::bitflags! {
     }
 }
 
-#[derive(Debug)]
-#[cfg_attr(test, derive(Eq, PartialEq))]
+#[derive(Debug, Eq, PartialEq, Hash)]
 pub struct TaskConfiguration {
+    // Try to keep the fields ordered in a way so that the chance for finding a different field
+    // between two different task configurations is as high as possible.
+    // In other words, task configuration fields that are the same between most tasks should be
+    // ordered last.
     pub resources: crate::internal::common::resources::ResourceRequestVariants,
+    pub body: Box<[u8]>,
     pub user_priority: Priority,
     pub time_limit: Option<Duration>,
     pub crash_limit: CrashLimit,
     pub data_flags: TaskDataFlags,
-    pub body: Box<[u8]>,
 }
 
 impl TaskConfiguration {
@@ -284,22 +289,6 @@ impl Task {
         }
     }
 
-    pub(crate) fn make_compute_message(&self, node_list: Vec<WorkerId>) -> ToWorkerMessage {
-        ToWorkerMessage::ComputeTask(ComputeTaskMsg {
-            id: self.id,
-            instance_id: self.instance_id,
-            user_priority: self.configuration.user_priority,
-            scheduler_priority: self.scheduler_priority,
-            resources: self.configuration.resources.clone(),
-            time_limit: self.configuration.time_limit,
-            node_list,
-            data_deps: self.data_deps.iter().copied().collect(),
-            data_flags: self.configuration.data_flags,
-            body: self.configuration.body.clone(),
-            entry: self.entry.clone(),
-        })
-    }
-
     pub(crate) fn mn_placement(&self) -> Option<&[WorkerId]> {
         match &self.state {
             TaskRuntimeState::RunningMultiNode(ws) => Some(ws),
@@ -381,6 +370,62 @@ impl ExtractKey<TaskId> for Task {
     #[inline]
     fn extract_key(&self) -> TaskId {
         self.id
+    }
+}
+
+/// Builder for [ToWorkerMessage::ComputeTasks], which tries to shared common data between
+/// task instances to reduce network bandwidth.
+#[derive(Default)]
+pub struct ComputeTasksBuilder {
+    tasks: Vec<ComputeTaskSeparateData>,
+    // TODO: if we ensured that we intern all known task configurations in memory, and they have
+    // a unique allocation, we could compare the configs here based on just pointer address, not
+    // the contents of `TaskConfiguration`.
+    configuration_index: Map<Rc<TaskConfiguration>, usize>,
+    shared_data: Vec<ComputeTaskSharedData>,
+}
+
+impl ComputeTasksBuilder {
+    pub fn single_task(task: &Task, node_list: Vec<WorkerId>) -> ToWorkerMessage {
+        let mut builder = Self::default();
+        builder.add_task(task, node_list);
+        builder.build()
+    }
+
+    pub fn add_task(&mut self, task: &Task, node_list: Vec<WorkerId>) {
+        let conf = &task.configuration;
+        let shared_index = *self
+            .configuration_index
+            .entry(conf.clone())
+            .or_insert_with(|| {
+                let shared = ComputeTaskSharedData {
+                    user_priority: conf.user_priority,
+                    resources: conf.resources.clone(),
+                    time_limit: conf.time_limit,
+                    data_flags: conf.data_flags,
+                    body: conf.body.clone(),
+                };
+                let index = self.shared_data.len();
+                self.shared_data.push(shared);
+                index
+            });
+        self.tasks.push(ComputeTaskSeparateData {
+            shared_index,
+            id: task.id,
+            instance_id: task.instance_id,
+            scheduler_priority: task.scheduler_priority,
+            node_list,
+            data_deps: task.data_deps.iter().copied().collect(),
+            entry: task.entry.clone(),
+        });
+    }
+
+    pub fn build(self) -> ToWorkerMessage {
+        let msg = ComputeTasksMsg {
+            tasks: self.tasks,
+            shared_data: self.shared_data,
+        };
+        ToWorkerMessage::ComputeTasks(msg)
     }
 }
 

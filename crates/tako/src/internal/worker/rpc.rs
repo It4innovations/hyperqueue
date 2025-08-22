@@ -370,25 +370,37 @@ async fn heartbeat_process(heartbeat_interval: Duration, state_ref: WrappedRcRef
 
 pub(crate) fn process_worker_message(state: &mut WorkerState, message: ToWorkerMessage) -> bool {
     match message {
-        ToWorkerMessage::ComputeTask(msg) => {
-            log::debug!("Task assigned: {}", msg.id);
-            let task_state = TaskState::Waiting(if msg.data_deps.is_empty() {
-                0
-            } else {
-                let mut waiting: u32 = 0;
-                msg.data_deps.iter().for_each(|data_id| {
-                    if !state.data_storage.has_object(*data_id) {
-                        waiting += 1;
-                        state.download_object(
-                            *data_id,
-                            msg.id,
-                            (msg.user_priority, msg.scheduler_priority),
-                        )
-                    }
+        ToWorkerMessage::ComputeTasks(mut msg) => {
+            let task_count = msg.tasks.len();
+            for (index, task) in msg.tasks.into_iter().enumerate() {
+                let shared = &msg.shared_data[task.shared_index];
+                log::debug!("Task assigned: {}", task.id);
+                let task_state = TaskState::Waiting(if task.data_deps.is_empty() {
+                    0
+                } else {
+                    let mut waiting: u32 = 0;
+                    task.data_deps.iter().for_each(|data_id| {
+                        if !state.data_storage.has_object(*data_id) {
+                            waiting += 1;
+                            state.download_object(
+                                *data_id,
+                                task.id,
+                                (shared.user_priority, task.scheduler_priority),
+                            )
+                        }
+                    });
+                    waiting
                 });
-                waiting
-            });
-            state.add_task(Task::new(msg, task_state));
+                // If we're handling the last task, steal the shared data instead of cloning it.
+                // This optimization helps to avoid cloning the shared data unnecessarily if we
+                // handle only a single task.
+                let shared = if index == task_count - 1 {
+                    std::mem::take(&mut msg.shared_data[task.shared_index])
+                } else {
+                    shared.clone()
+                };
+                state.add_task(Task::new(task, shared, task_state));
+            }
         }
         ToWorkerMessage::StealTasks(msg) => {
             log::debug!("Steal {} attempts", msg.ids.len());

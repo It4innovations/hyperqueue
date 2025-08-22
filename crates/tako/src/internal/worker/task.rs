@@ -2,7 +2,9 @@ use crate::datasrv::DataObjectId;
 use crate::gateway::{EntryType, TaskDataFlags};
 use crate::internal::common::resources::Allocation;
 use crate::internal::common::stablemap::ExtractKey;
-use crate::internal::messages::worker::{ComputeTaskMsg, TaskOutput};
+use crate::internal::messages::worker::{
+    ComputeTaskSeparateData, ComputeTaskSharedData, TaskOutput,
+};
 use crate::internal::worker::task_comm::RunningTaskComm;
 use crate::{InstanceId, Priority, TaskId, WorkerId};
 use std::rc::Rc;
@@ -36,19 +38,23 @@ pub struct Task {
 }
 
 impl Task {
-    pub fn new(message: ComputeTaskMsg, task_state: TaskState) -> Self {
+    pub fn new(
+        task: ComputeTaskSeparateData,
+        shared: ComputeTaskSharedData,
+        task_state: TaskState,
+    ) -> Self {
         Self {
             state: task_state,
-            id: message.id,
-            priority: (message.user_priority, message.scheduler_priority),
-            instance_id: message.instance_id,
-            resources: message.resources,
-            time_limit: message.time_limit,
-            body: message.body,
-            entry: message.entry,
-            node_list: message.node_list,
-            data_deps: (!message.data_deps.is_empty()).then(|| Rc::new(message.data_deps)),
-            data_flags: message.data_flags,
+            id: task.id,
+            priority: (shared.user_priority, task.scheduler_priority),
+            instance_id: task.instance_id,
+            resources: shared.resources,
+            time_limit: shared.time_limit,
+            body: shared.body,
+            entry: task.entry,
+            node_list: task.node_list,
+            data_deps: (!task.data_deps.is_empty()).then(|| Rc::new(task.data_deps)),
+            data_flags: shared.data_flags,
         }
     }
 

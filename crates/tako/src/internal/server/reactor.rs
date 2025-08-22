@@ -9,7 +9,7 @@ use crate::internal::messages::worker::{
 use crate::internal::server::comm::Comm;
 use crate::internal::server::core::Core;
 use crate::internal::server::dataobj::{DataObjectHandle, ObjsToRemoveFromWorkers, RefCount};
-use crate::internal::server::task::WaitingInfo;
+use crate::internal::server::task::{ComputeTasksBuilder, WaitingInfo};
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::worker::Worker;
 use crate::internal::server::workermap::WorkerMap;
@@ -417,7 +417,10 @@ pub(crate) fn on_steal_response(
                     log::debug!("Task stealing was successful task={task_id}");
                     if let Some(w_id) = to_worker_id {
                         let task = core.get_task(task_id);
-                        comm.send_worker_message(w_id, &task.make_compute_message(Vec::new()));
+                        comm.send_worker_message(
+                            w_id,
+                            &ComputeTasksBuilder::single_task(task, Vec::new()),
+                        );
                         TaskRuntimeState::Assigned(w_id)
                     } else {
                         comm.ask_for_scheduling();

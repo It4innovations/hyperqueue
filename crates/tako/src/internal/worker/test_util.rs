@@ -60,7 +60,7 @@ impl WorkerTaskBuilder {
         });
 
         Task::new(
-            ComputeTaskMsg {
+            ComputeTasksMsg {
                 id: self.task_id,
                 instance_id: self.instance_id,
                 user_priority: self.user_priority,
