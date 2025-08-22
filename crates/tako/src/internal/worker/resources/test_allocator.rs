@@ -11,6 +11,7 @@ use crate::resources::{
     ResourceIndex, ResourceUnits,
 };
 
+use crate::internal::worker::resources::groups::CouplingWeightItem;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -1058,7 +1059,11 @@ fn test_allocator_sum_fractions() {
 
 #[test]
 fn test_coupling1() {
-    for i in [0, 1, 2] {
+    for i in 0..=2 {
+        let mut coupling = ResourceDescriptorCoupling::default();
+        for j in 0..4 {
+            coupling.add(0, j, 2, j, 256);
+        }
         let descriptor = ResourceDescriptor::new(
             vec![
                 ResourceDescriptorItem {
@@ -1074,9 +1079,7 @@ fn test_coupling1() {
                     kind: ResourceDescriptorKind::regular_sockets(4, 4),
                 },
             ],
-            todo!(), /*Some(ResourceDescriptorCoupling {
-                         names: vec!["cpus".to_string(), "gpus".to_string()],
-                     })*/
+            coupling,
         );
 
         let mut allocator = test_allocator(&descriptor);
@@ -1102,6 +1105,12 @@ fn descriptor_cpus_gpus(
     socket_size2: u32,
     coupled: bool,
 ) -> ResourceDescriptor {
+    let mut coupling = ResourceDescriptorCoupling::default();
+    if coupled {
+        for j in 0..n_sockets as u8 {
+            coupling.add(0, j, 1, j, 256);
+        }
+    }
     ResourceDescriptor::new(
         vec![
             ResourceDescriptorItem {
@@ -1113,9 +1122,7 @@ fn descriptor_cpus_gpus(
                 kind: ResourceDescriptorKind::regular_sockets(n_sockets, socket_size2),
             },
         ],
-        todo!(), /*coupled.then(|| ResourceDescriptorCoupling {
-                     names: vec!["cpus".to_string(), "gpus".to_string()],
-                 })*/
+        coupling,
     )
 }
 
@@ -1125,17 +1132,22 @@ fn test_coupling2() {
     let mut allocator = test_allocator(&descriptor);
     let rq1 = cpus_compact(4).add(1, 3).finish_v();
     let (al1, _) = allocator.try_allocate(&rq1).unwrap();
+    allocator.validate();
     let s1 = allocator.get_sockets(&al1, 0);
     let s2 = allocator.get_sockets(&al1, 1);
-    assert_eq!(s1.len(), 2);
-    assert_eq!(s1, s2);
+    assert_eq!(s1.len(), 1);
+    assert_eq!(s2.len(), 2);
+    let mut f = false;
+    for s in s2 {
+        f |= s == s1[0];
+    }
+    assert!(f);
     let g0 = al1.get_groups(0);
-    assert_eq!(g0.len(), 2);
-    assert!(g0.values().all(|x| *x == 2));
+    assert_eq!(g0.len(), 1);
+    assert!(g0.values().all(|x| *x == 4));
     let g1 = al1.get_groups(1);
     let v: Vec<_> = g1.values().copied().collect();
     assert_eq!(sorted_vec(v), vec![1, 2]);
-    allocator.validate();
 }
 
 #[test]

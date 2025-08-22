@@ -19,13 +19,14 @@ struct GroupMinimizationRequest {
     resource_id: ResourceId,
 }
 
-type GroupSet = SmallVec<[usize; 2]>;
+type GroupIndices = SmallVec<[usize; 2]>;
+type SelectedGroups = SmallVec<[GroupIndices; FAST_MAX_GROUPS]>;
 
-fn group_solver(
+pub fn group_solver(
     free: &ConciseFreeResources,
     entries: &[&crate::resources::ResourceAllocRequest],
     weights: &[CouplingWeightItem],
-) -> Option<GroupSet> {
+) -> Option<SelectedGroups> {
     let mut pb = highs::RowProblem::new();
     let vars: SmallVec<[SmallVec<_>; FAST_MAX_GROUPS]> = entries
         .iter()
@@ -34,10 +35,7 @@ fn group_solver(
             assert_eq!(fractions, 0);
             let r = free.get(entry.resource_id);
             let vs: SmallVec<[highs::Col; FAST_MAX_COUPLED_RESOURCES]> = (0..r.n_groups())
-                .map(|_| {
-                    let var = pb.add_integer_column(-1024.0, 0..=1);
-                    var
-                })
+                .map(|_| pb.add_integer_column(-1024.0, 0..=1))
                 .collect();
             pb.add_row(
                 units..,
@@ -59,7 +57,7 @@ fn group_solver(
         };
         let v1 = vars[r1][w.group1.as_num() as usize];
         let v2 = vars[r2][w.group2.as_num() as usize];
-        let v3 = pb.add_integer_column(w.weight, 0..=1);
+        let v3 = pb.add_column(w.weight, 0..=1);
         pb.add_row(0.., &[(v1, 1.0), (v3, -1.0)]);
         pb.add_row(0.., &[(v2, 1.0), (v3, -1.0)]);
     }
@@ -68,40 +66,57 @@ fn group_solver(
     if !matches!(solved_model.status(), HighsModelStatus::Optimal) {
         return None;
     }
-    let solution = solved_model.get_solution().columns();
+    let solution = solved_model.get_solution();
+    let columns = solution.columns();
+    let mut index = 0;
 
-    todo!()
+    Some(
+        entries
+            .iter()
+            .map(|entry| {
+                let r = free.get(entry.resource_id);
+                let n = r.n_groups();
+                let g = (&columns[index..index + n])
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, v)| (*v > 0.5).then_some(i))
+                    .collect();
+                index += n;
+                g
+            })
+            .collect(),
+    )
 }
 
-pub fn find_coupled_groups(
-    n_groups: usize,
-    free: &ConciseFreeResources,
-    entries: &[&crate::resources::ResourceAllocRequest],
-) -> Option<GroupSet> {
-    let mut states = entries
-        .iter()
-        .map(|e| {
-            let remaining = e.request.amount_or_none_if_all().unwrap();
-            GroupMinimizationRequest {
-                request: remaining,
-                group_amounts: free.get(e.resource_id).amount_max_per_group().collect(),
-            }
-        })
-        .collect::<SmallVec<[GroupMinimizationRequest; FAST_MAX_COUPLED_RESOURCES]>>();
-    todo!()
-    //group_solver(n_groups, &mut states)
-}
-
-pub fn find_compact_groups(
-    n_groups: usize,
-    free: &ConciseResourceState,
-    policy: &AllocationRequest,
-) -> Option<GroupSet> {
-    let remaining = policy.amount_or_none_if_all().unwrap();
-    let mut states = [GroupMinimizationRequest {
-        request: remaining,
-        group_amounts: free.amount_max_per_group().collect(),
-    }];
-    todo!();
-    //group_solver(n_groups, &mut states)
-}
+// pub fn find_coupled_groups(
+//     n_groups: usize,
+//     free: &ConciseFreeResources,
+//     entries: &[&crate::resources::ResourceAllocRequest],
+// ) -> Option<GroupIndices> {
+//     let mut states = entries
+//         .iter()
+//         .map(|e| {
+//             let remaining = e.request.amount_or_none_if_all().unwrap();
+//             GroupMinimizationRequest {
+//                 request: remaining,
+//                 group_amounts: free.get(e.resource_id).amount_max_per_group().collect(),
+//             }
+//         })
+//         .collect::<SmallVec<[GroupMinimizationRequest; FAST_MAX_COUPLED_RESOURCES]>>();
+//     todo!()
+//     //group_solver(n_groups, &mut states)
+// }
+//
+// pub fn find_compact_groups(
+//     n_groups: usize,
+//     free: &ConciseResourceState,
+//     policy: &AllocationRequest,
+// ) -> Option<GroupIndices> {
+//     let remaining = policy.amount_or_none_if_all().unwrap();
+//     let mut states = [GroupMinimizationRequest {
+//         request: remaining,
+//         group_amounts: free.amount_max_per_group().collect(),
+//     }];
+//     todo!();
+//     //group_solver(n_groups, &mut states)
+// }

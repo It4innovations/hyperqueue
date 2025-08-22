@@ -1,8 +1,8 @@
-use crate::internal::common::Set;
 use crate::internal::common::resources::{
     ResourceAmount, ResourceGroupIdx, ResourceIndex, ResourceLabel, ResourceUnits,
 };
 use crate::internal::common::utils::has_unique_elements;
+use crate::internal::common::Set;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Formatter};
 
@@ -149,11 +149,9 @@ impl ResourceDescriptorKind {
             ResourceDescriptorKind::List { values } => vec![values.clone()],
             ResourceDescriptorKind::Groups { groups } => groups.clone(),
             ResourceDescriptorKind::Range { start, end } => {
-                vec![
-                    (start.as_num()..=end.as_num())
-                        .map(|v| v.to_string())
-                        .collect::<Vec<_>>(),
-                ]
+                vec![(start.as_num()..=end.as_num())
+                    .map(|v| v.to_string())
+                    .collect::<Vec<_>>()]
             }
             ResourceDescriptorKind::Sum { .. } => Vec::new(),
         }
@@ -264,6 +262,26 @@ impl ResourceDescriptorCouplingItem {
 pub struct ResourceDescriptorCoupling {
     // Index into resources, group_index, index into resources, group_index weight
     pub weights: Vec<ResourceDescriptorCouplingItem>,
+}
+
+#[cfg(test)]
+impl ResourceDescriptorCoupling {
+    pub fn add(
+        &mut self,
+        resource1_idx: u8,
+        group1_idx: u8,
+        resource2_idx: u8,
+        group2_idx: u8,
+        weight: u16,
+    ) {
+        self.weights.push(ResourceDescriptorCouplingItem {
+            resource1_idx,
+            group1_idx: group1_idx.into(),
+            resource2_idx,
+            group2_idx: group2_idx.into(),
+            weight,
+        });
+    }
 }
 
 /// Most precise description of request provided by a worker (without time resource)

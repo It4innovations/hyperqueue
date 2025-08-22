@@ -4,9 +4,7 @@ use crate::internal::common::resources::request::{
 use crate::internal::common::resources::{ResourceId, ResourceVec};
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::resources::concise::{ConciseFreeResources, ConciseResourceState};
-use crate::internal::worker::resources::groups::{
-    find_compact_groups, find_coupled_groups, CouplingWeightItem,
-};
+use crate::internal::worker::resources::groups::{group_solver, CouplingWeightItem};
 use crate::internal::worker::resources::map::ResourceLabelMap;
 use crate::internal::worker::resources::pool::{ResourcePool, FAST_MAX_COUPLED_RESOURCES};
 use crate::resources::{Allocation, ResourceAmount, ResourceDescriptor, ResourceMap};
@@ -161,10 +159,11 @@ impl ResourceAllocator {
                 if free.n_groups() < socket_count {
                     return false;
                 }
-                let Some(groups) = find_compact_groups(pool.n_groups(), free, request) else {
-                    return false;
-                };
-                groups.len() <= socket_count
+                todo!()
+                // let Some(groups) = find_compact_groups(pool.n_groups(), free, request) else {
+                //     return false;
+                // };
+                // groups.len() <= socket_count
             }
             AllocationRequest::All => max_alloc == pool.full_size(),
         }
@@ -209,13 +208,14 @@ impl ResourceAllocator {
         }) {
             return false;
         }
-        if coupling.len() <= 1 || coupling.iter().all(|entry| !entry.request.is_forced()) {
+        if coupling.iter().all(|entry| !entry.request.is_forced()) {
             return true;
         }
-        let Some(groups) = find_coupled_groups(
-            pools[request.entries()[0].resource_id.as_usize()].n_groups(),
+        todo!()
+        /*let Some(groups) = group_solver(
             free,
             &coupling,
+
         ) else {
             return false;
         };
@@ -234,7 +234,7 @@ impl ResourceAllocator {
             let units = amount.whole_units();
             let socket_count = (((units - 1) / pool.min_group_size()) as usize) + 1;
             groups.len() <= socket_count
-        })
+        })*/
     }
 
     fn compute_witnesses(
@@ -329,12 +329,13 @@ impl ResourceAllocator {
         // let group_set =
         //     find_coupled_groups(self.coupling_n_group_size, &self.free_resources, &coupling)
         //         .unwrap();
-        for entry in coupling {
+        let groups = group_solver(&self.free_resources, &coupling, &self.coupling_weights).unwrap();
+        for (entry, group_set) in coupling.into_iter().zip(groups.into_iter()) {
             allocation.add_resource_allocation(
                 self.pools[entry.resource_id].claim_resources_with_group_mask(
                     entry.resource_id,
                     &entry.request,
-                    &[todo!()],
+                    &group_set,
                 ),
             )
         }

@@ -7,7 +7,6 @@ use crate::internal::worker::resources::map::ResourceLabelMap;
 use crate::resources::{AllocationRequest, ResourceAllocation, ResourceFractions, ResourceUnits};
 use crate::{Map, Set};
 
-use crate::internal::worker::resources::groups::find_compact_groups;
 use smallvec::{smallvec, SmallVec};
 
 #[derive(Debug)]
@@ -458,6 +457,13 @@ impl ResourcePool {
             ResourcePool::Groups(pool) => {
                 match policy {
                     AllocationRequest::Compact(amount)
+                    | AllocationRequest::ForceCompact(amount)
+                    | AllocationRequest::Tight(amount)
+                    | AllocationRequest::ForceTight(amount) => {
+                        // This should be unreachable as this is always claimed via coupled solver
+                        unreachable!()
+                    }
+                    /*AllocationRequest::Compact(amount)
                     | AllocationRequest::ForceCompact(amount) => {
                         // We do not need to distinguish between force compact and compact
                         // because we already know that allocation is possible
@@ -475,7 +481,7 @@ impl ResourcePool {
                             *amount,
                             Self::claim_compact_from_groups(*amount, pool, Some(&group_set)),
                         )
-                    }
+                    }*/
                     AllocationRequest::Scatter(amount) => (
                         *amount,
                         Self::claim_scatter_from_groups(*amount, pool, None),
