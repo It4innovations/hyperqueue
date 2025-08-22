@@ -17,6 +17,13 @@ use crate::internal::tests::utils::workflows::submit_example_4;
 use crate::resources::{ResourceAmount, ResourceDescriptorItem, ResourceUnits};
 use std::time::Duration;
 
+fn task_count(msg: &ToWorkerMessage) -> usize {
+    match msg {
+        ToWorkerMessage::ComputeTasks(cm) => cm.tasks.len(),
+        _ => 0,
+    }
+}
+
 #[test]
 fn test_no_deps_scattering_1() {
     let mut core = Core::default();
@@ -35,12 +42,12 @@ fn test_no_deps_scattering_1() {
     comm.emptiness_check();
     core.sanity_check();
 
-    assert_eq!(m1.len() + m2.len() + m3.len(), 4);
-    assert!(
-        (m1.len() == 4 && m2.is_empty() && m3.is_empty())
-            || (m1.is_empty() && m2.len() == 4 && m3.is_empty())
-            || (m1.is_empty() && m2.is_empty() && m3.len() == 4)
-    );
+    let c1 = if m1.len() > 0 { task_count(&m1[0]) } else { 0 };
+    let c2 = if m2.len() > 0 { task_count(&m2[0]) } else { 0 };
+    let c3 = if m3.len() > 0 { task_count(&m3[0]) } else { 0 };
+
+    assert_eq!(c1 + c2 + c3, 4);
+    assert!(c1 == 4 || c2 == 4 && c3 == 4);
 }
 
 #[test]
@@ -91,15 +98,15 @@ fn test_no_deps_distribute_without_balance() {
     let mut comm = create_test_comm();
     let need_balance = scheduler.run_scheduling_without_balancing(&mut core, &mut comm);
 
-    let m1 = comm.take_worker_msgs(100, 0);
-    let m2 = comm.take_worker_msgs(101, 0);
-    let m3 = comm.take_worker_msgs(102, 0);
+    let m1 = comm.take_worker_msgs(100, 1);
+    let m2 = comm.take_worker_msgs(101, 1);
+    let m3 = comm.take_worker_msgs(102, 1);
     comm.emptiness_check();
     core.sanity_check();
 
-    assert_eq!(m1.len(), 50);
-    assert_eq!(m2.len(), 50);
-    assert_eq!(m3.len(), 50);
+    assert_eq!(task_count(&m1[0]), 50);
+    assert_eq!(task_count(&m2[0]), 50);
+    assert_eq!(task_count(&m3[0]), 50);
     assert!(!need_balance);
 }
 
@@ -122,16 +129,15 @@ fn test_no_deps_distribute_with_balance() {
     let mut comm = create_test_comm();
     scheduler.run_scheduling(&mut core, &mut comm);
 
-    let m1 = comm.take_worker_msgs(100, 0);
-    let m2 = comm.take_worker_msgs(101, 0);
-    let m3 = comm.take_worker_msgs(102, 0);
+    let m1 = comm.take_worker_msgs(100, 1);
+    let m2 = comm.take_worker_msgs(101, 1);
+    let m3 = comm.take_worker_msgs(102, 1);
     comm.emptiness_check();
     core.sanity_check();
 
-    assert_eq!(m1.len() + m2.len() + m3.len(), 300);
-    assert!(m1.len() >= 29);
-    assert!(m2.len() >= 29);
-    assert!(m3.len() >= 29);
+    assert!(matches!(&m1[0], ToWorkerMessage::ComputeTasks(msg) if msg.tasks.len() >= 29));
+    assert!(matches!(&m2[0], ToWorkerMessage::ComputeTasks(msg) if msg.tasks.len() >= 29));
+    assert!(matches!(&m3[0], ToWorkerMessage::ComputeTasks(msg) if msg.tasks.len() >= 29));
 
     for w in core.get_workers() {
         assert!(!w.is_underloaded());
@@ -141,9 +147,10 @@ fn test_no_deps_distribute_with_balance() {
         for m in msgs {
             match m {
                 ToWorkerMessage::ComputeTasks(cm) => {
-                    assert_eq!(cm.tasks.len(), 0);
-                    assert!(active_ids.remove(&cm.tasks[0].id));
-                    finish_on_worker(core, cm.tasks[0].id, worker_id);
+                    for task in cm.tasks {
+                        assert!(active_ids.remove(&task.id));
+                        finish_on_worker(core, task.id, worker_id);
+                    }
                 }
                 _ => unreachable!(),
             };

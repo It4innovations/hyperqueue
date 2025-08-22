@@ -283,20 +283,15 @@ fn test_assignments_and_finish() {
     check_worker_tasks_exact(&core, 101, &[id2]);
     check_worker_tasks_exact(&core, 102, &[]);
 
-    let msgs = comm.take_worker_msgs(100, 2);
+    let msgs = comm.take_worker_msgs(100, 1);
+    dbg!(&msgs[0]);
     assert!(matches!(
         &msgs[0],
         ToWorkerMessage::ComputeTasks(ComputeTasksMsg {
             tasks,
             shared_data
-        }) if tasks[0].id.job_task_id().as_num() == 11 && shared_data[0].user_priority == 12
-    ));
-    assert!(matches!(
-        &msgs[1],
-        ToWorkerMessage::ComputeTasks(ComputeTasksMsg {
-            tasks,
-            ..
-        }) if tasks[0].id.job_task_id().as_num() == 15 && tasks[0].scheduler_priority == 0
+        }) if tasks.len() == 2 && tasks[0].id.job_task_id().as_num() == 11 && shared_data[0].user_priority == 12 &&
+              tasks[1].id.job_task_id().as_num() == 15 && tasks[0].shared_index == 0 && tasks[1].shared_index == 1 && shared_data[1].user_priority == 0
     ));
     let msgs = comm.take_worker_msgs(101, 1);
     assert!(matches!(
