@@ -40,10 +40,10 @@ fn get_worker_status(ws: &[WorkerId], worker_id: WorkerId) -> WorkerStatus {
 fn check_worker_status_change(s1: WorkerStatus, s2: WorkerStatus, ms: &[ToWorkerMessage]) {
     match (s1, s2) {
         (WorkerStatus::Root, WorkerStatus::Root) | (WorkerStatus::None, WorkerStatus::Root) => {
-            assert!(matches!(ms, &[ToWorkerMessage::ComputeTask(_)]))
+            assert!(matches!(ms, &[ToWorkerMessage::ComputeTasks(_)]))
         }
         (WorkerStatus::NonRoot, WorkerStatus::Root) => {
-            assert!(matches!(ms, &[ToWorkerMessage::ComputeTask(_),]))
+            assert!(matches!(ms, &[ToWorkerMessage::ComputeTasks(_),]))
         }
         (WorkerStatus::NonRoot, WorkerStatus::None) => {
             assert!(matches!(ms, &[]))
@@ -83,8 +83,8 @@ fn test_schedule_mn_simple() {
     let test_mn_task = |task: &Task, comm: &mut TestComm| -> Vec<WorkerId> {
         let ws = task.mn_placement().unwrap().to_vec();
         assert_eq!(ws.len(), 2);
-        if let ToWorkerMessage::ComputeTask(m) = &comm.take_worker_msgs(ws[0], 1)[0] {
-            assert_eq!(&m.node_list, &ws);
+        if let ToWorkerMessage::ComputeTasks(m) = &comm.take_worker_msgs(ws[0], 1)[0] {
+            assert_eq!(&m.tasks[0].node_list, &ws);
         } else {
             unreachable!()
         }
@@ -140,7 +140,7 @@ fn test_schedule_mn_reserve() {
     let ws1 = core.get_task(1.into()).mn_placement().unwrap().to_vec();
     assert!(matches!(
         comm.take_worker_msgs(ws1[0], 1)[0],
-        ToWorkerMessage::ComputeTask(_)
+        ToWorkerMessage::ComputeTasks(_)
     ));
     assert!(!core.get_worker_by_id_or_panic(ws1[0]).is_reserved());
     assert!(core.get_worker_by_id_or_panic(ws1[1]).is_reserved());

@@ -2,7 +2,7 @@ use crate::datasrv::DataObjectId;
 use crate::gateway::TaskDataFlags;
 use crate::internal::common::Map;
 use crate::internal::common::resources::{Allocation, ResourceRequest, ResourceRequestVariants};
-use crate::internal::messages::worker::ComputeTaskMsg;
+use crate::internal::messages::worker::{ComputeTaskSeparateData, ComputeTaskSharedData};
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::tests::utils::resources::cpus_compact;
 use crate::internal::worker::rqueue::ResourceWaitQueue;
@@ -60,18 +60,21 @@ impl WorkerTaskBuilder {
         });
 
         Task::new(
-            ComputeTasksMsg {
+            ComputeTaskSeparateData {
+                shared_index: 0,
                 id: self.task_id,
                 instance_id: self.instance_id,
-                user_priority: self.user_priority,
                 scheduler_priority: self.server_priority,
-                resources,
-                time_limit: None,
                 node_list: vec![],
                 data_deps: self.data_deps,
+                entry: None,
+            },
+            ComputeTaskSharedData {
+                user_priority: self.user_priority,
+                resources,
+                time_limit: None,
                 data_flags: self.data_flags,
                 body: Default::default(),
-                entry: None,
             },
             self.task_state,
         )

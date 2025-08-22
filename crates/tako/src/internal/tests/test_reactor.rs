@@ -5,7 +5,7 @@ use crate::gateway::LostWorkerReason;
 use crate::internal::common::resources::ResourceDescriptor;
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{
-    ComputeTaskMsg, NewWorkerMsg, TaskFinishedMsg, TaskIdsMsg, TaskOutput, ToWorkerMessage,
+    ComputeTasksMsg, NewWorkerMsg, TaskFinishedMsg, TaskIdsMsg, TaskOutput, ToWorkerMessage,
 };
 use crate::internal::messages::worker::{StealResponse, StealResponseMsg};
 use crate::internal::scheduler::state::SchedulerState;
@@ -285,28 +285,26 @@ fn test_assignments_and_finish() {
 
     let msgs = comm.take_worker_msgs(100, 2);
     assert!(matches!(
-        msgs[0],
-        ToWorkerMessage::ComputeTask(ComputeTaskMsg {
-            id,
-            user_priority: 12,
-            ..
-        }) if id.job_task_id().as_num() == 11
+        &msgs[0],
+        ToWorkerMessage::ComputeTasks(ComputeTasksMsg {
+            tasks,
+            shared_data
+        }) if tasks[0].id.job_task_id().as_num() == 11 && shared_data[0].user_priority == 12
     ));
     assert!(matches!(
-        msgs[1],
-        ToWorkerMessage::ComputeTask(ComputeTaskMsg {
-            id,
-            scheduler_priority: 0,
+        &msgs[1],
+        ToWorkerMessage::ComputeTasks(ComputeTasksMsg {
+            tasks,
             ..
-        }) if id.job_task_id().as_num() == 15
+        }) if tasks[0].id.job_task_id().as_num() == 15 && tasks[0].scheduler_priority == 0
     ));
     let msgs = comm.take_worker_msgs(101, 1);
     assert!(matches!(
-        msgs[0],
-        ToWorkerMessage::ComputeTask(ComputeTaskMsg {
-            id,
+        &msgs[0],
+        ToWorkerMessage::ComputeTasks(ComputeTasksMsg {
+            tasks,
             ..
-        }) if id.job_task_id().as_num() == 12
+        }) if tasks[0].id.job_task_id().as_num() == 12
     ));
     comm.emptiness_check();
 
@@ -352,11 +350,11 @@ fn test_assignments_and_finish() {
 
     let msgs = comm.take_worker_msgs(101, 1);
     assert!(matches!(
-        msgs[0],
-        ToWorkerMessage::ComputeTask(ComputeTaskMsg {
-            id,
+        &msgs[0],
+        ToWorkerMessage::ComputeTasks(ComputeTasksMsg {
+            tasks,
             ..
-        }) if id.job_task_id().as_num() == 13
+        }) if tasks[0].id.job_task_id().as_num() == 13
     ));
 
     assert_eq!(comm.client.take_task_finished(1)[0], TaskId::new_test(11));
@@ -469,8 +467,8 @@ fn test_steal_tasks_ok() {
     let msgs = comm.take_worker_msgs(100, 1);
     assert!(matches!(
         &msgs[0],
-        ToWorkerMessage::ComputeTask(ComputeTaskMsg { id, .. })
-        if id.job_task_id().as_num() == 13
+        ToWorkerMessage::ComputeTasks(ComputeTasksMsg { tasks, .. })
+        if tasks[0].id.job_task_id().as_num() == 13
     ));
     comm.emptiness_check();
     core.sanity_check();

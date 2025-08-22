@@ -6,7 +6,7 @@ use criterion::{BatchSize, BenchmarkGroup, BenchmarkId, Criterion};
 use smallvec::smallvec;
 use tako::TaskId;
 use tako::gateway::TaskDataFlags;
-use tako::internal::messages::worker::ComputeTaskMsg;
+use tako::internal::messages::worker::{ComputeTaskSeparateData, ComputeTaskSharedData};
 use tako::internal::tests::utils::shared::res_allocator_from_descriptor;
 use tako::internal::worker::comm::WorkerComm;
 use tako::internal::worker::rqueue::ResourceWaitQueue;
@@ -58,18 +58,21 @@ fn create_worker_state() -> WorkerStateRef {
 
 fn create_worker_task(id: u32) -> Task {
     Task::new(
-        ComputeTaskMsg {
+        ComputeTaskSeparateData {
+            shared_index: 0,
             id: TaskId::new_test(id),
             instance_id: Default::default(),
-            user_priority: 0,
             scheduler_priority: 0,
-            resources: Default::default(),
-            time_limit: None,
             node_list: vec![],
             data_deps: vec![],
+            entry: None,
+        },
+        ComputeTaskSharedData {
+            user_priority: 0,
+            resources: Default::default(),
+            time_limit: None,
             data_flags: TaskDataFlags::empty(),
             body: Default::default(),
-            entry: None,
         },
         TaskState::Waiting(0),
     )

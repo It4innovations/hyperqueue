@@ -1,7 +1,8 @@
 use crate::gateway::TaskDataFlags;
 use crate::internal::common::resources::ResourceRequestVariants;
 use crate::internal::messages::worker::{
-    ComputeTaskMsg, NewWorkerMsg, ToWorkerMessage, WorkerResourceCounts,
+    ComputeTaskSeparateData, ComputeTaskSharedData, ComputeTasksMsg, NewWorkerMsg, ToWorkerMessage,
+    WorkerResourceCounts,
 };
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::tests::utils::resources::{ResourceRequestBuilder, ra_builder};
@@ -77,19 +78,24 @@ fn create_test_worker_state(config: WorkerConfiguration) -> WorkerStateRef {
     )
 }
 
-fn create_dummy_compute_msg(task_id: TaskId) -> ComputeTaskMsg {
-    ComputeTaskMsg {
-        id: task_id,
-        instance_id: Default::default(),
-        user_priority: 0,
-        scheduler_priority: 0,
-        resources: Default::default(),
-        time_limit: None,
-        node_list: vec![],
-        data_deps: vec![],
-        data_flags: TaskDataFlags::empty(),
-        body: Default::default(),
-        entry: None,
+fn create_dummy_compute_msg(task_id: TaskId) -> ComputeTasksMsg {
+    ComputeTasksMsg {
+        tasks: vec![ComputeTaskSeparateData {
+            shared_index: 0,
+            id: task_id,
+            instance_id: Default::default(),
+            scheduler_priority: 0,
+            node_list: vec![],
+            data_deps: vec![],
+            entry: None,
+        }],
+        shared_data: vec![ComputeTaskSharedData {
+            user_priority: 0,
+            resources: Default::default(),
+            time_limit: None,
+            data_flags: TaskDataFlags::empty(),
+            body: Default::default(),
+        }],
     }
 }
 
@@ -105,9 +111,9 @@ fn test_worker_start_task() {
     });
     let rq = ResourceRequest::new(0, TimeRequest::default(), entries);*/
     let rq = ResourceRequestBuilder::default().cpus(3).finish_v();
-    msg.resources = rq.clone();
+    msg.shared_data[0].resources = rq.clone();
     let mut state = state_ref.get_mut();
-    process_worker_message(&mut state, ToWorkerMessage::ComputeTask(msg));
+    process_worker_message(&mut state, ToWorkerMessage::ComputeTasks(msg));
     let comm = state.comm().test();
     comm.check_start_task_notifications(1);
     comm.check_emptiness();
@@ -127,9 +133,9 @@ fn test_worker_start_task_resource_variants() {
     let rq1 = ResourceRequestBuilder::default().cpus(2).add(1, 1).finish();
     let rq2 = ResourceRequestBuilder::default().cpus(4).finish();
     let rq = ResourceRequestVariants::new(smallvec![rq1.clone(), rq2.clone()]);
-    msg.resources = rq.clone();
+    msg.shared_data[0].resources = rq.clone();
     let mut state = state_ref.get_mut();
-    process_worker_message(&mut state, ToWorkerMessage::ComputeTask(msg));
+    process_worker_message(&mut state, ToWorkerMessage::ComputeTasks(msg));
     let comm = state.comm().test();
     comm.check_start_task_notifications(1);
     comm.check_emptiness();
