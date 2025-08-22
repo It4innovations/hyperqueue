@@ -5,6 +5,7 @@ use crate::{InstanceId, Map, Priority, TaskId};
 use serde::{Deserialize, Serialize};
 use smallvec::{SmallVec, smallvec};
 use std::fmt::{Display, Formatter};
+use std::rc::Rc;
 use std::time::Duration;
 use thin_vec::ThinVec;
 
@@ -132,7 +133,7 @@ pub struct SharedTaskConfiguration {
 
     pub data_flags: TaskDataFlags,
 
-    pub body: Box<[u8]>,
+    pub body: Rc<[u8]>,
 }
 
 pub type EntryType = ThinVec<u8>;

@@ -7,8 +7,10 @@ use crate::resources::ResourceFractions;
 use crate::task::SerializedTaskContext;
 use crate::{InstanceId, Priority};
 use crate::{TaskId, WorkerId};
+use bstr::ByteSlice;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
+use std::rc::Rc;
 use std::time::Duration;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -31,7 +33,6 @@ pub struct ComputeTaskSeparateData {
     pub scheduler_priority: Priority,
     pub node_list: Vec<WorkerId>,
     pub data_deps: Vec<DataObjectId>,
-    // TODO: do not take this as shared data
     pub entry: Option<EntryType>,
 }
 
@@ -41,8 +42,7 @@ pub struct ComputeTaskSharedData {
     pub resources: crate::internal::common::resources::ResourceRequestVariants,
     pub time_limit: Option<Duration>,
     pub data_flags: TaskDataFlags,
-    #[serde(with = "serde_bytes")]
-    pub body: Box<[u8]>,
+    pub body: Rc<[u8]>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

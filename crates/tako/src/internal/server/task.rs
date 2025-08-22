@@ -96,7 +96,8 @@ pub struct TaskConfiguration {
     // In other words, task configuration fields that are the same between most tasks should be
     // ordered last.
     pub resources: crate::internal::common::resources::ResourceRequestVariants,
-    pub body: Box<[u8]>,
+    // Use Rc to avoid cloning the data when we serialize them
+    pub body: Rc<[u8]>,
     pub user_priority: Priority,
     pub time_limit: Option<Duration>,
     pub crash_limit: CrashLimit,
@@ -378,9 +379,9 @@ impl ExtractKey<TaskId> for Task {
 #[derive(Default)]
 pub struct ComputeTasksBuilder {
     tasks: Vec<ComputeTaskSeparateData>,
-    // TODO: if we ensured that we intern all known task configurations in memory, and they have
-    // a unique allocation, we could compare the configs here based on just pointer address, not
-    // the contents of `TaskConfiguration`.
+    // TODO: if we could ensure that we intern all known task configurations in memory, and they
+    // have a unique allocation, we could compare the configs here based on just pointer address,
+    // not the contents of `TaskConfiguration`.
     configuration_index: Map<Rc<TaskConfiguration>, usize>,
     shared_data: Vec<ComputeTaskSharedData>,
 }

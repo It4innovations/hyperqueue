@@ -125,7 +125,7 @@ pub fn build_task_def_from_config(
         priority: 0,
         crash_limit: CrashLimit::default(),
         data_flags: TaskDataFlags::empty(),
-        body: body.into_boxed_slice(),
+        body: body.into(),
     };
     (
         TaskConfiguration {

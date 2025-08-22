@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use std::borrow::Cow;
 use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
+use std::rc::Rc;
 use tako::gateway::{
     EntryType, SharedTaskConfiguration, TaskConfiguration, TaskDataFlags, TaskSubmit,
 };
@@ -332,16 +333,14 @@ fn serialize_task_body(
     task_desc: &TaskDescription,
     submit_dir: &PathBuf,
     stream_path: Option<&PathBuf>,
-) -> Box<[u8]> {
+) -> Rc<[u8]> {
     let body_msg = TaskBuildDescription {
         task_kind: Cow::Borrowed(&task_desc.kind),
         submit_dir: Cow::Borrowed(submit_dir),
         stream_path: stream_path.map(Cow::Borrowed),
     };
     let body = tako::comm::serialize(&body_msg).expect("Could not serialize task body");
-    // Make sure that `into_boxed_slice` is a no-op.
-    debug_assert_eq!(body.capacity(), body.len());
-    body.into_boxed_slice()
+    body.into()
 }
 
 fn build_tasks_array(

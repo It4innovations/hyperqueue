@@ -29,7 +29,7 @@ pub struct Task {
 
     pub resources: crate::internal::common::resources::ResourceRequestVariants,
     pub time_limit: Option<Duration>,
-    pub body: Box<[u8]>,
+    pub body: Rc<[u8]>,
     pub entry: Option<EntryType>,
     pub node_list: Vec<WorkerId>, // Filled in multi-node tasks; otherwise empty
 
