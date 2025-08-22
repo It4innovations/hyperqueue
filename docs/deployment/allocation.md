@@ -326,7 +326,7 @@ parameters as [`hq alloc add`](cli:hq.alloc.add.pbs), which it will use to immed
 any encountered errors.
 
 ```bash
-$ hq alloc dry-run pbs --timelimit 2h -- q qexp -A Project1
+$ hq alloc dry-run pbs --time-limit 2h -- q qexp -A Project1
 ```
 
 If the allocation was submitted successfully, it will be canceled immediately to avoid wasting resources.
