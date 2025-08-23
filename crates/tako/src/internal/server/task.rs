@@ -15,7 +15,6 @@ use crate::internal::messages::worker::{
     ComputeTaskSeparateData, ComputeTaskSharedData, ComputeTasksMsg, ToWorkerMessage,
 };
 use crate::internal::server::taskmap::TaskMap;
-use crate::resources::ResourceRequest;
 use crate::{InstanceId, Priority};
 use crate::{TaskId, static_assert_size};
 
@@ -484,29 +483,28 @@ fn estimate_task_data_size(data: &ComputeTaskSeparateData) -> usize {
 
     // We cound each field separately, because if we just used size_of on the whole struct, it would
     // count internal field of Vecs, which are not serialized.
-    size_of_val(&shared_index)
-        + size_of_val(&id)
-        + size_of_val(&instance_id)
-        + size_of_val(&scheduler_priority)
-        + node_list.len()
-        + size_of::<WorkerId>()
-        + data_deps.len() * size_of::<DataObjectId>()
+    size_of_val(shared_index)
+        + size_of_val(id)
+        + size_of_val(instance_id)
+        + size_of_val(scheduler_priority)
+        + size_of_val(node_list.as_slice())
+        + size_of_val(data_deps.as_slice())
         + entry.as_ref().map(|e| e.len()).unwrap_or_default()
 }
 
 /// Estimate how much data it will take to serialize this shared task data
 fn estimate_shared_data_size(data: &ComputeTaskSharedData) -> usize {
     let ComputeTaskSharedData {
-        user_priority: _,
+        user_priority,
         resources,
-        time_limit: _,
-        data_flags: _,
+        time_limit,
+        data_flags,
         body,
     } = data;
-    // Here we don't care about the precise estimation of the fields so much, as they should be
-    // amortized. The main thing is the size of he body.
-    size_of::<ComputeTaskSharedData>()
-        + resources.requests().len() * size_of::<ResourceRequest>()
+    size_of_val(user_priority)
+        + size_of_val(resources.requests())
+        + size_of_val(time_limit)
+        + size_of_val(data_flags)
         + body.len()
 }
 
