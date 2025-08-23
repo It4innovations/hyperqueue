@@ -6,7 +6,7 @@ use thin_vec::ThinVec;
 
 use crate::internal::common::Set;
 use crate::internal::common::stablemap::ExtractKey;
-use crate::{Map, WorkerId};
+use crate::{MAX_FRAME_SIZE, Map, WorkerId};
 
 use crate::gateway::{CrashLimit, EntryType, TaskDataFlags};
 use crate::internal::datasrv::dataobj::DataObjectId;
@@ -15,6 +15,7 @@ use crate::internal::messages::worker::{
     ComputeTaskSeparateData, ComputeTaskSharedData, ComputeTasksMsg, ToWorkerMessage,
 };
 use crate::internal::server::taskmap::TaskMap;
+use crate::resources::ResourceRequest;
 use crate::{InstanceId, Priority};
 use crate::{TaskId, static_assert_size};
 
@@ -374,8 +375,13 @@ impl ExtractKey<TaskId> for Task {
     }
 }
 
+/// Maximum size of data that we are willing to put into a single packet.
+const MAX_TASK_MSG_SIZE: usize = MAX_FRAME_SIZE / 4;
+
 /// Builder for [ToWorkerMessage::ComputeTasks], which tries to shared common data between
 /// task instances to reduce network bandwidth.
+///
+/// The builder also handles fragmentation, if it receives too much data for a single packet
 #[derive(Default)]
 pub struct ComputeTasksBuilder {
     tasks: Vec<ComputeTaskSeparateData>,
@@ -384,16 +390,23 @@ pub struct ComputeTasksBuilder {
     // not the contents of `TaskConfiguration`.
     configuration_index: Map<Rc<TaskConfiguration>, usize>,
     shared_data: Vec<ComputeTaskSharedData>,
+    estimated_size: usize,
 }
 
 impl ComputeTasksBuilder {
     pub fn single_task(task: &Task, node_list: Vec<WorkerId>) -> ToWorkerMessage {
+        // TODO: optimize this
         let mut builder = Self::default();
-        builder.add_task(task, node_list);
-        builder.build()
+        if let Some(msg) = builder.add_task(task, node_list) {
+            msg
+        } else {
+            builder.into_last_message().unwrap()
+        }
     }
 
-    pub fn add_task(&mut self, task: &Task, node_list: Vec<WorkerId>) {
+    /// Adds a task to the builder, and optionally generate a message if it has reached size limits.
+    #[must_use]
+    pub fn add_task(&mut self, task: &Task, node_list: Vec<WorkerId>) -> Option<ToWorkerMessage> {
         let conf = &task.configuration;
         let shared_index = *self
             .configuration_index
@@ -407,10 +420,12 @@ impl ComputeTasksBuilder {
                     body: conf.body.clone(),
                 };
                 let index = self.shared_data.len();
+                self.estimated_size += estimate_shared_data_size(&shared);
                 self.shared_data.push(shared);
                 index
             });
-        self.tasks.push(ComputeTaskSeparateData {
+
+        let task_data = ComputeTaskSeparateData {
             shared_index,
             id: task.id,
             instance_id: task.instance_id,
@@ -418,16 +433,81 @@ impl ComputeTasksBuilder {
             node_list,
             data_deps: task.data_deps.iter().copied().collect(),
             entry: task.entry.clone(),
-        });
+        };
+        self.estimated_size += estimate_task_data_size(&task_data);
+        self.tasks.push(task_data);
+
+        self.create_message_on_overflow()
     }
 
-    pub fn build(self) -> ToWorkerMessage {
-        let msg = ComputeTasksMsg {
-            tasks: self.tasks,
-            shared_data: self.shared_data,
-        };
-        ToWorkerMessage::ComputeTasks(msg)
+    /// If there are any pending task data, materialize them into a new ComputeTasks message
+    /// and push it into `self.messages`. Also resets any internal auxiliary data.
+    fn create_message_on_overflow(&mut self) -> Option<ToWorkerMessage> {
+        if self.estimated_size > MAX_TASK_MSG_SIZE {
+            let msg = ComputeTasksMsg {
+                tasks: std::mem::take(&mut self.tasks),
+                shared_data: std::mem::take(&mut self.shared_data),
+            };
+            self.configuration_index.clear();
+            self.estimated_size = 0;
+            Some(ToWorkerMessage::ComputeTasks(msg))
+        } else {
+            None
+        }
     }
+
+    /// If there are any tasks in this builder, generate a message
+    pub fn into_last_message(self) -> Option<ToWorkerMessage> {
+        if !self.tasks.is_empty() {
+            let msg = ComputeTasksMsg {
+                tasks: self.tasks,
+                shared_data: self.shared_data,
+            };
+            Some(ToWorkerMessage::ComputeTasks(msg))
+        } else {
+            None
+        }
+    }
+}
+
+/// Estimate how much data it will take to serialize this task data
+fn estimate_task_data_size(data: &ComputeTaskSeparateData) -> usize {
+    let ComputeTaskSeparateData {
+        shared_index,
+        id,
+        instance_id,
+        scheduler_priority,
+        node_list,
+        data_deps,
+        entry,
+    } = data;
+
+    // We cound each field separately, because if we just used size_of on the whole struct, it would
+    // count internal field of Vecs, which are not serialized.
+    size_of_val(&shared_index)
+        + size_of_val(&id)
+        + size_of_val(&instance_id)
+        + size_of_val(&scheduler_priority)
+        + node_list.len()
+        + size_of::<WorkerId>()
+        + data_deps.len() * size_of::<DataObjectId>()
+        + entry.as_ref().map(|e| e.len()).unwrap_or_default()
+}
+
+/// Estimate how much data it will take to serialize this shared task data
+fn estimate_shared_data_size(data: &ComputeTaskSharedData) -> usize {
+    let ComputeTaskSharedData {
+        user_priority: _,
+        resources,
+        time_limit: _,
+        data_flags: _,
+        body,
+    } = data;
+    // Here we don't care about the precise estimation of the fields so much, as they should be
+    // amortized. The main thing is the size of he body.
+    size_of::<ComputeTaskSharedData>()
+        + resources.requests().len() * size_of::<ResourceRequest>()
+        + body.len()
 }
 
 #[cfg(test)]
