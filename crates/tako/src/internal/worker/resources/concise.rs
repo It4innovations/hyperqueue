@@ -1,9 +1,9 @@
-use crate::Map;
 use crate::internal::common::resources::amount::FRACTIONS_PER_UNIT;
 use crate::internal::common::resources::{ResourceId, ResourceVec};
 use crate::resources::{
     Allocation, ResourceAllocation, ResourceAmount, ResourceFractions, ResourceIndex, ResourceUnits,
 };
+use crate::Map;
 use smallvec::SmallVec;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -132,11 +132,15 @@ impl ConciseResourceState {
         ResourceAmount::new(units, fractions)
     }
 
-    pub fn amount_max_per_group(&self) -> impl Iterator<Item = ResourceAmount> {
+    pub fn amount_max_per_group(&self) -> impl Iterator<Item = (ResourceUnits, ResourceFractions)> {
         self.free.iter().map(|g| {
             let fractions = g.fractions.values().copied().max().unwrap_or(0);
-            ResourceAmount::new(g.units, fractions)
+            (g.units, fractions)
         })
+    }
+
+    pub fn units_per_group(&self) -> impl Iterator<Item = ResourceUnits> {
+        self.free.iter().map(|g| g.units)
     }
 
     #[cfg(test)]
@@ -202,11 +206,11 @@ impl ConciseFreeResources {
 
 #[cfg(test)]
 mod tests {
-    use crate::Map;
     use crate::internal::worker::resources::concise::{
         ConciseFreeResources, ConciseResourceGroup, ConciseResourceState,
     };
     use crate::resources::ResourceUnits;
+    use crate::Map;
 
     impl ConciseFreeResources {
         pub fn new_simple(counts: &[ResourceUnits]) -> Self {

@@ -137,38 +137,6 @@ impl ResourceAllocator {
         self.higher_priority_blocked_requests = self.blocked_requests.len();
     }
 
-    fn has_resources_for_entry(
-        pool: &ResourcePool,
-        free: &ConciseResourceState,
-        request: &AllocationRequest,
-    ) -> bool {
-        let max_alloc = free.amount_max_alloc();
-        match &request {
-            AllocationRequest::Compact(amount)
-            | AllocationRequest::Tight(amount)
-            | AllocationRequest::Scatter(amount) => *amount <= max_alloc,
-            AllocationRequest::ForceCompact(amount) | AllocationRequest::ForceTight(amount) => {
-                if amount.is_zero() {
-                    return true;
-                }
-                if *amount > max_alloc {
-                    return false;
-                }
-                let units = amount.whole_units();
-                let socket_count = (((units - 1) / pool.min_group_size()) as usize) + 1;
-                if free.n_groups() < socket_count {
-                    return false;
-                }
-                todo!()
-                // let Some(groups) = find_compact_groups(pool.n_groups(), free, request) else {
-                //     return false;
-                // };
-                // groups.len() <= socket_count
-            }
-            AllocationRequest::All => max_alloc == pool.full_size(),
-        }
-    }
-
     pub(super) fn compute_witness<'b>(
         pools: &[ResourcePool],
         free: &ConciseFreeResources,
@@ -189,6 +157,7 @@ impl ResourceAllocator {
     }
 
     fn has_resources_for_request(
+        &self,
         pools: &[ResourcePool],
         free: &ConciseFreeResources,
         request: &ResourceRequest,
@@ -204,13 +173,25 @@ impl ResourceAllocator {
                     coupling.push(entry);
                 }
             }
-            Self::has_resources_for_entry(pool, free.get(entry.resource_id), &entry.request)
+            let max_alloc = free.get(entry.resource_id).amount_max_alloc();
+            match &entry.request {
+                AllocationRequest::Compact(amount)
+                | AllocationRequest::Tight(amount)
+                | AllocationRequest::Scatter(amount)
+                | AllocationRequest::ForceCompact(amount)
+                | AllocationRequest::ForceTight(amount) => *amount <= max_alloc,
+                AllocationRequest::All => max_alloc == pool.full_size(),
+            }
         }) {
             return false;
         }
         if coupling.iter().all(|entry| !entry.request.is_forced()) {
             return true;
         }
+        let Some((_, objective_value)) = group_solver(&free, &coupling, &self.coupling_weights)
+        else {
+            return false;
+        };
         todo!()
         /*let Some(groups) = group_solver(
             free,
@@ -326,10 +307,8 @@ impl ResourceAllocator {
         if coupling.is_empty() {
             return allocation;
         }
-        // let group_set =
-        //     find_coupled_groups(self.coupling_n_group_size, &self.free_resources, &coupling)
-        //         .unwrap();
-        let groups = group_solver(&self.free_resources, &coupling, &self.coupling_weights).unwrap();
+        let (groups, _) =
+            group_solver(&self.free_resources, &coupling, &self.coupling_weights).unwrap();
         for (entry, group_set) in coupling.into_iter().zip(groups.into_iter()) {
             allocation.add_resource_allocation(
                 self.pools[entry.resource_id].claim_resources_with_group_mask(

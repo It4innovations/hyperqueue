@@ -1,7 +1,7 @@
 use crate::internal::common::resources::ResourceId;
 use crate::internal::worker::resources::concise::{ConciseFreeResources, ConciseResourceState};
 use crate::internal::worker::resources::pool::{FAST_MAX_COUPLED_RESOURCES, FAST_MAX_GROUPS};
-use crate::resources::{AllocationRequest, ResourceAmount, ResourceGroupIdx};
+use crate::resources::{AllocationRequest, ResourceAmount, ResourceGroupIdx, FRACTIONS_PER_UNIT};
 use highs::{HighsModelStatus, Sense};
 use smallvec::SmallVec;
 
@@ -20,32 +20,63 @@ struct GroupMinimizationRequest {
 }
 
 type GroupIndices = SmallVec<[usize; 2]>;
-type SelectedGroups = SmallVec<[GroupIndices; FAST_MAX_GROUPS]>;
+type SelectedGroups = SmallVec<[GroupIndices; FAST_MAX_COUPLED_RESOURCES]>;
 
 pub fn group_solver(
     free: &ConciseFreeResources,
     entries: &[&crate::resources::ResourceAllocRequest],
     weights: &[CouplingWeightItem],
-) -> Option<SelectedGroups> {
+) -> Option<(SelectedGroups, f64)> {
     let mut pb = highs::RowProblem::new();
-    let vars: SmallVec<[SmallVec<_>; FAST_MAX_GROUPS]> = entries
+    let vars: SmallVec<[SmallVec<_>; FAST_MAX_COUPLED_RESOURCES]> = entries
         .iter()
         .map(|entry| {
             let (units, fractions) = entry.request.amount_or_none_if_all().unwrap().split();
-            assert_eq!(fractions, 0);
             let r = free.get(entry.resource_id);
-            let vs: SmallVec<[highs::Col; FAST_MAX_COUPLED_RESOURCES]> = (0..r.n_groups())
-                .map(|_| pb.add_integer_column(-1024.0, 0..=1))
-                .collect();
-            pb.add_row(
-                units..,
-                vs.iter().zip(r.amount_max_per_group()).map(|(v, a)| {
-                    let (u, f) = a.split();
-                    assert_eq!(f, 0);
-                    (*v, u as f64)
-                }),
-            );
-            vs
+            if fractions == 0 {
+                let vs = (0..r.n_groups())
+                    .map(|_| pb.add_integer_column(-1024.0, 0..=1))
+                    .collect::<SmallVec<[highs::Col; FAST_MAX_GROUPS]>>();
+                pb.add_row(
+                    units..,
+                    vs.iter()
+                        .zip(r.units_per_group())
+                        .map(|(v, u)| (*v, u as f64)),
+                );
+                vs
+            } else {
+                let amounts: SmallVec<[_; FAST_MAX_GROUPS]> = r.amount_max_per_group().collect();
+                let mut need_second_check = false;
+                let vs: SmallVec<[highs::Col; FAST_MAX_GROUPS]> = amounts
+                    .iter()
+                    .map(|(_, f)| {
+                        if *f >= fractions {
+                            need_second_check = true;
+                            pb.add_integer_column(
+                                -1024.0 + (*f as f64 / (FRACTIONS_PER_UNIT as f64 / 16.0)),
+                                0..=1,
+                            )
+                        } else {
+                            pb.add_integer_column(-1024.0, 0..=1)
+                        }
+                    })
+                    .collect();
+                pb.add_row(
+                    (units + 1)..,
+                    vs.iter()
+                        .zip(amounts.iter())
+                        .map(|(v, (u, f))| (*v, if *f >= fractions { u + 1 } else { *u } as f64)),
+                );
+                if units > 0 && need_second_check {
+                    pb.add_row(
+                        units..,
+                        vs.iter()
+                            .zip(r.units_per_group())
+                            .map(|(v, u)| (*v, u as f64)),
+                    );
+                }
+                vs
+            }
         })
         .collect();
     for w in weights {
@@ -66,11 +97,12 @@ pub fn group_solver(
     if !matches!(solved_model.status(), HighsModelStatus::Optimal) {
         return None;
     }
+    let objective_value = solved_model.objective_value();
     let solution = solved_model.get_solution();
     let columns = solution.columns();
     let mut index = 0;
 
-    Some(
+    Some((
         entries
             .iter()
             .map(|entry| {
@@ -85,38 +117,6 @@ pub fn group_solver(
                 g
             })
             .collect(),
-    )
+        objective_value,
+    ))
 }
-
-// pub fn find_coupled_groups(
-//     n_groups: usize,
-//     free: &ConciseFreeResources,
-//     entries: &[&crate::resources::ResourceAllocRequest],
-// ) -> Option<GroupIndices> {
-//     let mut states = entries
-//         .iter()
-//         .map(|e| {
-//             let remaining = e.request.amount_or_none_if_all().unwrap();
-//             GroupMinimizationRequest {
-//                 request: remaining,
-//                 group_amounts: free.get(e.resource_id).amount_max_per_group().collect(),
-//             }
-//         })
-//         .collect::<SmallVec<[GroupMinimizationRequest; FAST_MAX_COUPLED_RESOURCES]>>();
-//     todo!()
-//     //group_solver(n_groups, &mut states)
-// }
-//
-// pub fn find_compact_groups(
-//     n_groups: usize,
-//     free: &ConciseResourceState,
-//     policy: &AllocationRequest,
-// ) -> Option<GroupIndices> {
-//     let remaining = policy.amount_or_none_if_all().unwrap();
-//     let mut states = [GroupMinimizationRequest {
-//         request: remaining,
-//         group_amounts: free.amount_max_per_group().collect(),
-//     }];
-//     todo!();
-//     //group_solver(n_groups, &mut states)
-// }
