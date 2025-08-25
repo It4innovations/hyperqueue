@@ -9,6 +9,7 @@ use crate::internal::worker::resources::map::ResourceLabelMap;
 use crate::internal::worker::resources::pool::{ResourcePool, FAST_MAX_COUPLED_RESOURCES};
 use crate::resources::{Allocation, ResourceAmount, ResourceDescriptor, ResourceMap};
 use smallvec::SmallVec;
+use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -16,11 +17,21 @@ pub(crate) struct ResourceCoupling {
     resources: Vec<ResourceId>,
 }
 
+pub(crate) struct AllocatorStaticInfo {
+    pub(super) coupling_weights: Vec<CouplingWeightItem>,
+    /// This stores optimal objective values for each request containing ForceCompact/ForceTight requests
+    /// If we can find a solution that is currently best but not with an objective value larger than this value,
+    /// then ForceCompact/ForceTight requests are not considered enabled.
+    pub(super) optional_objectives: RefCell<crate::Map<ResourceRequest, f64>>,
+    /// Concise resource representation of all resources used for computing optimal objective values
+    pub(super) all_resources: ConciseFreeResources,
+}
+
 pub struct ResourceAllocator {
     pub(super) pools: ResourceVec<ResourcePool>,
     pub(super) free_resources: ConciseFreeResources,
     pub(super) remaining_time: Option<Duration>,
-    pub(super) coupling_weights: Vec<CouplingWeightItem>,
+    pub(super) static_info: AllocatorStaticInfo,
     blocked_requests: Vec<BlockedRequest>,
     higher_priority_blocked_requests: usize,
     pub(super) running_tasks: Vec<Rc<Allocation>>, // TODO: Rework on multiset?
@@ -90,10 +101,16 @@ impl ResourceAllocator {
             })
             .collect();
 
+        let static_info = AllocatorStaticInfo {
+            coupling_weights,
+            optional_objectives: RefCell::new(Default::default()),
+            all_resources: free_resources.clone(),
+        };
+
         ResourceAllocator {
             pools,
             free_resources,
-            coupling_weights,
+            static_info,
             remaining_time: None,
             blocked_requests: Vec::new(),
             higher_priority_blocked_requests: 0,
@@ -142,14 +159,15 @@ impl ResourceAllocator {
         free: &ConciseFreeResources,
         request: &ResourceRequest,
         running: impl Iterator<Item = &'b Rc<Allocation>>,
+        static_info: &AllocatorStaticInfo,
     ) -> Option<ConciseFreeResources> {
         let mut free = free.clone();
-        if Self::has_resources_for_request(pools, &free, request) {
+        if Self::has_resources_for_request(pools, &free, request, static_info) {
             return Some(free);
         }
         for running_request in running {
             free.add(running_request);
-            if Self::has_resources_for_request(pools, &free, request) {
+            if Self::has_resources_for_request(pools, &free, request, static_info) {
                 return Some(free);
             }
         }
@@ -157,10 +175,10 @@ impl ResourceAllocator {
     }
 
     fn has_resources_for_request(
-        &self,
         pools: &[ResourcePool],
         free: &ConciseFreeResources,
         request: &ResourceRequest,
+        static_info: &AllocatorStaticInfo,
     ) -> bool {
         let mut coupling: SmallVec<[&ResourceAllocRequest; FAST_MAX_COUPLED_RESOURCES]> =
             SmallVec::new();
@@ -188,34 +206,27 @@ impl ResourceAllocator {
         if coupling.iter().all(|entry| !entry.request.is_forced()) {
             return true;
         }
-        let Some((_, objective_value)) = group_solver(&free, &coupling, &self.coupling_weights)
+        let Some((_, objective_value)) =
+            group_solver(&free, &coupling, &static_info.coupling_weights)
         else {
             return false;
         };
-        todo!()
-        /*let Some(groups) = group_solver(
-            free,
-            &coupling,
-
-        ) else {
-            return false;
+        dbg!(objective_value);
+        let mut optimal_costs = static_info.optional_objectives.borrow_mut();
+        let optimal_const = if let Some(cost) = optimal_costs.get(request) {
+            *cost
+        } else {
+            let (_, mut cost) = group_solver(
+                &static_info.all_resources,
+                &coupling,
+                &static_info.coupling_weights,
+            )
+            .unwrap();
+            cost -= 0.1;
+            optimal_costs.insert(request.clone(), cost);
+            cost
         };
-        coupling.iter().all(|entry| {
-            let amount = match entry.request {
-                AllocationRequest::ForceCompact(amount) | AllocationRequest::ForceTight(amount) => {
-                    amount
-                }
-                AllocationRequest::Compact(_)
-                | AllocationRequest::Tight(_)
-                | AllocationRequest::Scatter(_)
-                | AllocationRequest::All => return true,
-            };
-            let pool = &pools[entry.resource_id.as_usize()];
-            pool.min_group_size();
-            let units = amount.whole_units();
-            let socket_count = (((units - 1) / pool.min_group_size()) as usize) + 1;
-            groups.len() <= socket_count
-        })*/
+        objective_value >= optimal_const
     }
 
     fn compute_witnesses(
@@ -223,15 +234,23 @@ impl ResourceAllocator {
         free_resources: &ConciseFreeResources,
         running: &mut [Rc<Allocation>],
         request: &ResourceRequest,
+        static_info: &AllocatorStaticInfo,
     ) -> Vec<ConciseFreeResources> {
         let mut witnesses: Vec<ConciseFreeResources> =
             Vec::with_capacity(2 * free_resources.n_resources());
 
         let compute_witnesses = |witnesses: &mut Vec<ConciseFreeResources>,
                                  running: &[Rc<Allocation>]| {
-            let w = Self::compute_witness(pools, free_resources, request, running.iter());
+            let w =
+                Self::compute_witness(pools, free_resources, request, running.iter(), static_info);
             witnesses.push(w.unwrap());
-            let w = Self::compute_witness(pools, free_resources, request, running.iter().rev());
+            let w = Self::compute_witness(
+                pools,
+                free_resources,
+                request,
+                running.iter().rev(),
+                static_info,
+            );
             witnesses.push(w.unwrap());
         };
 
@@ -262,12 +281,18 @@ impl ResourceAllocator {
                     &self.free_resources,
                     self.running_tasks.as_mut_slice(),
                     &blocked.request,
+                    &self.static_info,
                 )
             }
             for witness in &blocked.witnesses {
                 let mut free = witness.clone();
                 free.remove(allocation);
-                if !Self::has_resources_for_request(&self.pools, &free, &blocked.request) {
+                if !Self::has_resources_for_request(
+                    &self.pools,
+                    &free,
+                    &blocked.request,
+                    &self.static_info,
+                ) {
                     return false;
                 }
             }
@@ -307,8 +332,12 @@ impl ResourceAllocator {
         if coupling.is_empty() {
             return allocation;
         }
-        let (groups, _) =
-            group_solver(&self.free_resources, &coupling, &self.coupling_weights).unwrap();
+        let (groups, _) = group_solver(
+            &self.free_resources,
+            &coupling,
+            &self.static_info.coupling_weights,
+        )
+        .unwrap();
         for (entry, group_set) in coupling.into_iter().zip(groups.into_iter()) {
             allocation.add_resource_allocation(
                 self.pools[entry.resource_id].claim_resources_with_group_mask(
@@ -336,7 +365,12 @@ impl ResourceAllocator {
             return None;
         }
 
-        if !Self::has_resources_for_request(&self.pools, &self.free_resources, request) {
+        if !Self::has_resources_for_request(
+            &self.pools,
+            &self.free_resources,
+            request,
+            &self.static_info,
+        ) {
             self.new_blocked_request(request);
             return None;
         }
