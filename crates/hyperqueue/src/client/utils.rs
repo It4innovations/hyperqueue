@@ -39,7 +39,7 @@ impl<Arg> PassThroughArgument<Arg> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PassthroughParser<Parser>(Parser);
 
 /// Creates a new parser that passed the original value through, while checking that `Arg`

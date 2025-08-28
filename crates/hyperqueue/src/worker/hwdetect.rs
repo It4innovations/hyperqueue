@@ -6,6 +6,10 @@ use nom::multi::{many1, separated_list1};
 use nom::sequence::{preceded, terminated, tuple};
 use nom_supreme::tag::complete::tag;
 
+use crate::client::commands::worker::{ResourceDetectComponent, ResourceDetectComponents};
+use crate::common::format::human_size;
+use crate::common::manager::info::ManagerInfo;
+use crate::common::parser::{NomResult, consume_all, p_u32};
 use tako::hwstats::GpuFamily;
 use tako::internal::has_unique_elements;
 use tako::resources::{
@@ -14,10 +18,6 @@ use tako::resources::{
     ResourceIndex, ResourceLabel,
 };
 use tako::{Set, format_comma_delimited};
-
-use crate::common::format::human_size;
-use crate::common::manager::info::ManagerInfo;
-use crate::common::parser::{NomResult, consume_all, p_u32};
 
 pub fn detect_cpus() -> anyhow::Result<ResourceDescriptorKind> {
     read_linux_numa()
@@ -95,18 +95,30 @@ pub fn prune_hyper_threading(
 /// Also returns the detected GPU families.
 pub fn detect_additional_resources(
     items: &mut Vec<ResourceDescriptorItem>,
+    detect_resources: &ResourceDetectComponents,
     manager_info: Option<&ManagerInfo>,
 ) -> anyhow::Result<Set<GpuFamily>> {
     let mut gpu_families = Set::new();
     let has_resource =
         |items: &[ResourceDescriptorItem], name: &str| items.iter().any(|x| x.name == name);
 
-    let detected_gpus = detect_gpus_from_env();
-    if detected_gpus.is_empty() && !has_resource(items, NVIDIA_GPU_RESOURCE_NAME) {
+    let mut gpu_envs = vec![];
+    if detect_resources.has(ResourceDetectComponent::GpusNvidia) {
+        gpu_envs.push(NVIDIA_GPU_ENVIRONMENT);
+    }
+    if detect_resources.has(ResourceDetectComponent::GpusAmd) {
+        gpu_envs.push(AMD_GPU_ENVIRONMENT);
+    }
+
+    let detected_gpus = detect_gpus_from_env(&gpu_envs);
+    if detected_gpus.is_empty()
+        && !has_resource(items, NVIDIA_GPU_RESOURCE_NAME)
+        && detect_resources.has(ResourceDetectComponent::GpusNvidia)
+    {
         if let Ok(count) = read_nvidia_linux_gpu_count() {
             if count > 0 {
                 gpu_families.insert(GpuFamily::Nvidia);
-                log::info!("Detected {count} GPUs from procs");
+                log::info!("Detected {count} NVIDIA GPUs from procs");
                 items.push(ResourceDescriptorItem {
                     name: NVIDIA_GPU_RESOURCE_NAME.to_string(),
                     kind: ResourceDescriptorKind::simple_indices(count as u32),
@@ -125,7 +137,9 @@ pub fn detect_additional_resources(
         }
     }
 
-    if !has_resource(items, MEM_RESOURCE_NAME) {
+    if !has_resource(items, MEM_RESOURCE_NAME)
+        && detect_resources.has(ResourceDetectComponent::Memory)
+    {
         // Note that memory sizes are always in mibibytes
         if let Some(mem) = manager_info.and_then(|i| i.max_memory_mb) {
             items.push(ResourceDescriptorItem {
@@ -150,6 +164,7 @@ pub fn detect_additional_resources(
 }
 
 /// GPU resource that can be detected from an environment variable.
+#[derive(Copy, Clone)]
 pub struct GpuEnvironmentRecord {
     env_var: &'static str,
     pub resource_name: &'static str,
@@ -166,18 +181,20 @@ impl GpuEnvironmentRecord {
     }
 }
 
-pub const GPU_ENVIRONMENTS: &[GpuEnvironmentRecord; 2] = &[
-    GpuEnvironmentRecord::new(
-        "CUDA_VISIBLE_DEVICES",
-        NVIDIA_GPU_RESOURCE_NAME,
-        GpuFamily::Nvidia,
-    ),
-    GpuEnvironmentRecord::new(
-        "ROCR_VISIBLE_DEVICES",
-        AMD_GPU_RESOURCE_NAME,
-        GpuFamily::Amd,
-    ),
-];
+const NVIDIA_GPU_ENVIRONMENT: GpuEnvironmentRecord = GpuEnvironmentRecord::new(
+    "CUDA_VISIBLE_DEVICES",
+    NVIDIA_GPU_RESOURCE_NAME,
+    GpuFamily::Nvidia,
+);
+
+const AMD_GPU_ENVIRONMENT: GpuEnvironmentRecord = GpuEnvironmentRecord::new(
+    "ROCR_VISIBLE_DEVICES",
+    AMD_GPU_RESOURCE_NAME,
+    GpuFamily::Amd,
+);
+
+pub const GPU_ENVIRONMENTS: &[GpuEnvironmentRecord; 2] =
+    &[NVIDIA_GPU_ENVIRONMENT, AMD_GPU_ENVIRONMENT];
 
 struct DetectedGpu {
     resource_name: &'static str,
@@ -186,9 +203,9 @@ struct DetectedGpu {
 }
 
 /// Tries to detect available GPUs from one of the `GPU_ENV_KEYS` environment variables.
-fn detect_gpus_from_env() -> Vec<DetectedGpu> {
+fn detect_gpus_from_env(records: &[GpuEnvironmentRecord]) -> Vec<DetectedGpu> {
     let mut gpus = Vec::new();
-    for gpu_env in GPU_ENVIRONMENTS {
+    for gpu_env in records {
         if let Ok(devices_str) = std::env::var(gpu_env.env_var) {
             if let Ok(devices) = parse_comma_separated_values(&devices_str) {
                 log::info!(

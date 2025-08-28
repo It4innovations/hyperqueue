@@ -1,6 +1,7 @@
 import collections
 import multiprocessing
 import time
+from typing import Any, Dict
 
 import pytest
 
@@ -368,6 +369,43 @@ def test_worker_detect_respect_cpu_mask(hq_env: HqEnv):
     hq_env.start_server()
     resources = hq_env.command(["worker", "hwdetect"], cmd_prefix=["taskset", "-c", "1"])
     assert "cpus: [1]" in resources
+
+
+def test_worker_no_detect_cpus_error(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(
+        cpus=None, expect_fail="You have to specify --cpus explicitly when opting out of CPU automatic detection"
+    )
+
+
+def get_worker_resources(hq_env: HqEnv, id=1) -> Dict[str, Any]:
+    resources = hq_env.command(["worker", "info", str(id), "--output-mode", "json"], as_json=True)
+    resources = resources["configuration"]["resources"]["resources"]
+    return {r["name"]: r for r in resources}
+
+
+def test_worker_detect_mem(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(detect_resources="cpus,mem")
+    assert "mem" in get_worker_resources(hq_env)
+
+
+def test_worker_no_detect_mem(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(detect_resources="cpus")
+    assert "mem" not in get_worker_resources(hq_env)
+
+
+def test_worker_detect_gpus(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(detect_resources="cpus,gpus/nvidia", env={"CUDA_VISIBLE_DEVICES": "1"})
+    assert "gpus/nvidia" in get_worker_resources(hq_env)
+
+
+def test_worker_no_detect_gpus(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(detect_resources="cpus", env={"CUDA_VISIBLE_DEVICES": "1"})
+    assert "gpus/nvidia" not in get_worker_resources(hq_env)
 
 
 def test_task_info_resources(hq_env: HqEnv):

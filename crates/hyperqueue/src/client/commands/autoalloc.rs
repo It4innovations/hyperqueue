@@ -342,7 +342,7 @@ wasted allocation duration."
         resource,
         coupling,
         group,
-        no_detect_resources,
+        detect_resources,
         no_hyper_threading,
         idle_timeout,
         overview_interval,
@@ -380,8 +380,11 @@ wasted allocation duration."
     if no_hyper_threading {
         worker_args.push("--no-hyper-threading".to_string());
     }
-    if no_detect_resources {
-        worker_args.push("--no-detect-resources".to_string());
+    if let Some(detect_resources) = detect_resources {
+        worker_args.extend([
+            "--detect-resources".to_string(),
+            detect_resources.into_original_input(),
+        ]);
     }
     if let Some(overview_interval) = overview_interval {
         worker_args.extend([
