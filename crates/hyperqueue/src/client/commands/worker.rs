@@ -369,14 +369,12 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
         None => {
             let kind = if let Some(cpus) = cpus {
                 cpus.into_parsed_arg()
+            } else if detect_resources.has(ResourceDetectComponent::Cpus) {
+                detect_cpus()?
             } else {
-                if detect_resources.has(ResourceDetectComponent::Cpus) {
-                    detect_cpus()?
-                } else {
-                    return Err(anyhow::anyhow!(
-                        "You have to specify --cpus explicitly when opting out of CPU automatic detection"
-                    ));
-                }
+                return Err(anyhow::anyhow!(
+                    "You have to specify --cpus explicitly when opting out of CPU automatic detection"
+                ));
             };
             resources.push(ResourceDescriptorItem {
                 name: CPU_RESOURCE_NAME.to_string(),
