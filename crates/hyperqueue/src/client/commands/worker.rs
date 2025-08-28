@@ -1,18 +1,22 @@
 use crate::client::commands::duration_doc;
 use anyhow::{Context, bail};
 use chrono::Utc;
+use clap::builder::{PossibleValue, TypedValueParser};
+use std::collections::HashSet;
+use std::ffi::OsStr;
 use std::fmt::{Display, Formatter};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
+use tako::Map;
 use tako::resources::{
     CPU_RESOURCE_NAME, ResourceDescriptor, ResourceDescriptorCoupling, ResourceDescriptorItem,
     ResourceDescriptorKind,
 };
 use tako::worker::{ServerLostPolicy, WorkerConfiguration};
-use tako::{Map, Set};
 
-use clap::Parser;
+use clap::error::ErrorKind;
+use clap::{Arg, Error, Parser, ValueEnum};
 use tako::hwstats::GpuFamily;
 use tako::internal::worker::configuration::OverviewConfiguration;
 use tempfile::TempDir;
@@ -107,12 +111,15 @@ pub struct SharedWorkerStartOpts {
     #[arg(long, value_parser = passthrough_parser(parse_resource_coupling))]
     pub coupling: Option<PassThroughArgument<ResourceDescriptorCoupling>>,
 
-    #[clap(long)]
-    /// Disables auto-detection of resources
-    #[arg(long = "no-detect-resources")]
-    pub no_detect_resources: bool,
+    /// Determines which resources on the worker node will be automatically detected by HyperQueue.
+    ///
+    /// Except for `all` and `none`, you can combine multiple resources with
+    /// a comma, e.g. `--detect-resources=cpus,mem,gpus/nvidia`.
+    ///
+    /// Note that if CPU auto-detection is turned off, you will need to provide `--cpus` explicitly.
+    #[arg(long = "detect-resources", value_parser = passthrough_parser(DetectResourcesParser))]
+    pub detect_resources: Option<PassThroughArgument<ResourceDetectComponents>>,
 
-    #[clap(long)]
     /// Ignores hyper-threading while detecting CPU cores
     #[arg(long = "no-hyper-threading")]
     pub no_hyper_threading: bool,
@@ -135,6 +142,94 @@ pub struct SharedWorkerStartOpts {
     /// size.
     #[arg(long, value_parser = passthrough_parser(parse_human_time))]
     pub overview_interval: Option<PassThroughArgument<Duration>>,
+}
+
+/// Parses resource detection options (all, none or a comma-separated list of
+/// [ResourceDetectComponent] values.
+#[derive(Clone, Debug)]
+pub struct DetectResourcesParser;
+
+impl TypedValueParser for DetectResourcesParser {
+    type Value = ResourceDetectComponents;
+
+    fn parse_ref(
+        &self,
+        cmd: &clap::Command,
+        _arg: Option<&Arg>,
+        value: &OsStr,
+    ) -> Result<Self::Value, Error> {
+        let value = value.to_string_lossy();
+        let value = value.as_ref();
+        match value {
+            "all" => Ok(ResourceDetectComponents::All),
+            "none" => Ok(ResourceDetectComponents::None),
+            values => {
+                let mut parsed = HashSet::new();
+                for value in values.split(",") {
+                    match ResourceDetectComponent::from_str(value, false) {
+                        Ok(component) => {
+                            parsed.insert(component);
+                        }
+                        Err(error) => {
+                            let error = Error::raw(ErrorKind::InvalidValue, error);
+                            return Err(error.format(&mut cmd.clone()));
+                        }
+                    }
+                }
+                let mut parsed = parsed.into_iter().collect::<Vec<_>>();
+                parsed.sort();
+                Ok(ResourceDetectComponents::Selected(parsed))
+            }
+        }
+    }
+
+    fn possible_values(&self) -> Option<Box<dyn Iterator<Item = PossibleValue> + '_>> {
+        let values = ResourceDetectComponent::value_variants()
+            .iter()
+            .filter_map(|v| v.to_possible_value());
+        Some(Box::new(
+            [
+                PossibleValue::new("all").help("Detect all known resources"),
+                PossibleValue::new("none").help("Do not detect any resources"),
+            ]
+            .into_iter()
+            .chain(values),
+        ))
+    }
+}
+
+/// A single resource type that can be detected from the worker environment
+#[derive(Debug, Clone, clap::ValueEnum, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ResourceDetectComponent {
+    /// Detect CPUs
+    Cpus,
+    /// Detect memory
+    #[value(name = "mem")]
+    Memory,
+    /// Detect NVIDIA GPUs
+    #[value(name = "gpus/nvidia")]
+    GpusNvidia,
+    /// Detect AMD ROC GPUs
+    #[value(name = "gpus/amd")]
+    GpusAmd,
+}
+
+#[derive(Clone, Debug, Default)]
+pub enum ResourceDetectComponents {
+    #[default]
+    All,
+    None,
+    Selected(Vec<ResourceDetectComponent>),
+}
+
+impl ResourceDetectComponents {
+    pub fn has(&self, component: ResourceDetectComponent) -> bool {
+        match self {
+            ResourceDetectComponents::All => true,
+            ResourceDetectComponents::None => false,
+            ResourceDetectComponents::Selected(selected) => selected.contains(&component),
+        }
+    }
 }
 
 #[derive(Parser)]
@@ -232,7 +327,7 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
                 resource,
                 coupling,
                 group,
-                no_detect_resources,
+                detect_resources: detect_resources_cli,
                 no_hyper_threading,
                 idle_timeout,
                 overview_interval,
@@ -247,6 +342,11 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
         max_download_tries,
         wait_between_download_tries,
     } = opts;
+
+    let detect_resources = detect_resources_cli
+        .clone()
+        .map(|p| p.into_parsed_arg())
+        .unwrap_or_default();
 
     if max_download_tries == 0 {
         bail!("--max-download-tries cannot be zero");
@@ -270,7 +370,13 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
             let kind = if let Some(cpus) = cpus {
                 cpus.into_parsed_arg()
             } else {
-                detect_cpus()?
+                if detect_resources.has(ResourceDetectComponent::Cpus) {
+                    detect_cpus()?
+                } else {
+                    return Err(anyhow::anyhow!(
+                        "You have to specify --cpus explicitly when opting out of CPU automatic detection"
+                    ));
+                }
             };
             resources.push(ResourceDescriptorItem {
                 name: CPU_RESOURCE_NAME.to_string(),
@@ -297,10 +403,8 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
 
     let manager_info = gather_manager_info(manager)?;
 
-    let mut gpu_families = Set::new();
-    if !no_detect_resources {
-        gpu_families = detect_additional_resources(&mut resources, manager_info.as_ref())?;
-    }
+    let mut gpu_families =
+        detect_additional_resources(&mut resources, &detect_resources, manager_info.as_ref())?;
     for gpu_environment in GPU_ENVIRONMENTS {
         if resources
             .iter()

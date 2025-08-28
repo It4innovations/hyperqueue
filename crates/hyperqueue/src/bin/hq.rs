@@ -20,8 +20,9 @@ use hyperqueue::client::commands::submit::{
 };
 use hyperqueue::client::commands::wait::{wait_for_jobs, wait_for_jobs_with_progress};
 use hyperqueue::client::commands::worker::{
-    ManagerOpts, WorkerFilter, WorkerStartOpts, deploy_ssh_workers, gather_manager_info,
-    get_worker_info, get_worker_list, start_hq_worker, stop_worker, wait_for_workers,
+    ManagerOpts, ResourceDetectComponents, WorkerFilter, WorkerStartOpts, deploy_ssh_workers,
+    gather_manager_info, get_worker_info, get_worker_list, start_hq_worker, stop_worker,
+    wait_for_workers,
 };
 use hyperqueue::client::default_server_directory_path;
 use hyperqueue::client::globalsettings::GlobalSettings;
@@ -279,6 +280,7 @@ fn command_worker_hwdetect(gsettings: &GlobalSettings, opts: HwDetectOpts) -> an
     }];
     detect_additional_resources(
         &mut resources,
+        &ResourceDetectComponents::All,
         gather_manager_info(ManagerOpts::Detect)?.as_ref(),
     )?;
     gsettings
