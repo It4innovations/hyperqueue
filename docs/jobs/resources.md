@@ -113,25 +113,31 @@ The following resources are detected automatically if a resource of a given name
     - AMD GPUs are stored under the resource name `gpus/amd`. These GPUs are detected from the environment
       variable `ROCR_VISIBLE_DEVICES`.
 
-  You can set these environment variables when starting a worker to override the list of available GPUs:
+    You can set these environment variables when starting a worker to override the list of available GPUs:
 
     ```bash
     $ CUDA_VISIBLE_DEVICES=2,3 hq worker start
     # The worker will have resource gpus/nvidia=[2,3]
     ```
 
-* RAM of the node is detected as resource "mem" in megabytes; i.e. `--resource mem=100` asks for 100 MiBs of the memory.
+* RAM of the node is detected as resource "mem" in megabytes.
 
-If you want to see how your system is seen by a worker without actually starting it,
-you can start:
+If you want to see which specific resource values would be detected by a worker (without actually starting it),
+you can use the [`hq worker hwdetect`](cli:hq.worker.hwdetect) command:
 
 ```bash
 $ hq worker hwdetect
 ```
 
-The automatic detection of resources can be disabled by argument ``--no-detect-resources`` in ``hq worker start ...``.
-It disables detection of resources other than "cpus";
-if resource "cpus" are not explicitly defined, it will always be detected.
+#### Configuring automatic detection
+
+You can affect which kinds of resources are automatically detected using the `--detect-resources` argument of [`hq worker start`](cli:hq.worker.start):
+
+- The default value is `all`, which will detect all default resources known to HyperQueue (CPUs, memory and NVIDIA/AMD GPUs).
+- You can opt out of automatic detection by passing `none`: `--detect-resources=none`.
+    - Note that if you opt out of detecting CPU cores, you will need to specify CPUs explicitly using `--cpus` or `--resource cpus`.
+- You can specify a comma-separated list of things that should be detected, e.g. `--detect-resources=cpus,mem,gpus/nvidia`.
+    - This can be useful to opt out of detection of invalid resources e.g. on clusters that set environment variables even for hardware that is not present (e.g. they set `ROCM_VISIBLE_DEVICES` even if no AMD GPUs are present).
 
 ## Resource request
 

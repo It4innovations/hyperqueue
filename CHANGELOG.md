@@ -1,11 +1,10 @@
 ## Unreleased
 
-### Changes
+### Breaking changes
 
-* Allocation policy `compact` is update.
-  It still tries to find the minimal number of the resource groups,
-  but when they are found, resources are evenly taken from the minimal groups.
-  For old behavior, use new policy `tight`.
+* The `--no-detect-resources` flag of the `hq worker start` command has been removed.
+  You can now configure automatically detected resources in a granular way using the new
+  `--detect-resources` flag (see below). `--no-detect-resources` corresponds to `--detect-resources=none`.
 
 ### New features
 
@@ -24,6 +23,16 @@
   This is useful for deployment scripts that need to wait for server availability.
 * New `hq alloc add` parameter called `--wrap-worker-cmd`. It can be used to start
   workers on allocated nodes using some wrapping mechanism (e.g. Podman).
+* New flag `--detect-resources` for `hq worker start`. It can be used to configure which worker resources
+  will be automatically detected. You can e.g. say `--detect-resources=cpus,gpus/nvidia`.
+  See [documentation](https://it4innovations.github.io/hyperqueue/latest/jobs/resources) for more information.
+
+### Changes
+
+* Allocation policy `compact` was updated.
+  It still tries to find the minimal number of the resource groups,
+  but when they are found, resources are evenly taken from the minimal groups.
+  For old behavior, use new policy `tight`.
 * The scheduler has better compacting behavior when there are small number of tasks
   and workers appearing/disappering
 
