@@ -291,10 +291,22 @@ pub type AllocationId = String;
 pub struct AllocationWorkdir(PathBuf);
 
 impl AllocationWorkdir {
+    /// Path to a script that will be submitted.
+    pub fn submit_script(&self) -> PathBuf {
+        self.0.join("hq-submit.sh")
+    }
+
+    /// Path to a file that stores the job id of a submitted allocation.
+    pub fn jobid_file(&self) -> PathBuf {
+        self.0.join("jobid")
+    }
+
+    /// Path to a file that stores the standard output of the allocation.
     pub fn stdout(&self) -> PathBuf {
         self.0.join("stdout")
     }
 
+    /// Path to a file that stores the standard error output of the allocation.
     pub fn stderr(&self) -> PathBuf {
         self.0.join("stderr")
     }
