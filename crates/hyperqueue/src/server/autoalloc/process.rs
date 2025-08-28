@@ -141,9 +141,17 @@ pub async fn try_submit_allocation(params: QueueParameters) -> anyhow::Result<()
         .map_err(|e| anyhow::anyhow!("Could not submit allocation: {:?}", e))?;
 
     let working_dir = allocation.working_dir().clone();
-    let id = allocation
-        .into_id()
-        .map_err(|e| anyhow::anyhow!("Could not submit allocation: {:?}", e))?;
+    let id = match allocation.into_id() {
+        Ok(id) => id,
+        Err(error) => {
+            // Do not delete the directory to let the user inspect it for debugging
+            let _ = tmpdir.keep();
+            return Err(anyhow::anyhow!(
+                "Could not submit allocation: {error:?}\nYou can find the submitted script at {}",
+                working_dir.submit_script().display()
+            ));
+        }
+    };
     let allocation = Allocation::new(id.to_string(), worker_count as u64, working_dir);
     handler
         .remove_allocation(&allocation)

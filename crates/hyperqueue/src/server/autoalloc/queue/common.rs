@@ -10,12 +10,6 @@ use std::process::Output;
 use std::time::Duration;
 use tokio::process::Command;
 
-/// Name of a script that will be submitted to Slurm/PBS.
-const SUBMIT_SCRIPT_NAME: &str = "hq-submit.sh";
-
-/// Name of a file that will store the job id of a submitted Slurm/PBS allocation.
-const JOBID_FILE_NAME: &str = "jobid";
-
 pub struct ExternalHandler {
     pub server_directory: PathBuf,
     pub hq_path: PathBuf,
@@ -81,8 +75,7 @@ pub async fn submit_script<F>(
 where
     F: FnOnce(&str) -> AutoAllocResult<AllocationId>,
 {
-    let directory = directory.as_ref();
-    let script_path = directory.join(SUBMIT_SCRIPT_NAME);
+    let script_path = directory.submit_script();
     let script_path = script_path.to_str().unwrap();
 
     std::fs::write(script_path, script)
@@ -91,7 +84,7 @@ where
     let arguments = vec![program, script_path];
 
     log::debug!("Running command `{}`", arguments.join(" "));
-    let mut command = create_command(arguments, directory);
+    let mut command = create_command(arguments, directory.as_ref());
 
     let output = command
         .output()
@@ -108,7 +101,7 @@ where
     let job_id = get_job_id(output)?;
 
     // Write the job id to the allocation directory as a debug information
-    std::fs::write(directory.join(JOBID_FILE_NAME), &job_id)?;
+    std::fs::write(directory.jobid_file(), &job_id)?;
 
     Ok(job_id)
 }
