@@ -77,3 +77,67 @@ def test_long_running_task(hq_env: HqEnv):
     hq_env.start_worker()
     hq_env.command(["submit", "sleep", "20"])
     wait_for_job_state(hq_env, 1, "FINISHED", timeout_s=30)
+
+
+def test_task_workdir_basic(hq_env: HqEnv):
+    """Test basic task workdir functionality."""
+    hq_env.start_server()
+    hq_env.start_worker()
+
+    hq_env.command(["submit", "--array=1-3", "--", "echo", "test"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    # Test single task workdir
+    output = hq_env.command(["task", "workdir", "1", "2"])
+    assert "Job 1:" in output
+    assert "Task 2:" in output
+
+    # Test multiple tasks workdir
+    output = hq_env.command(["task", "workdir", "1", "1-3"])
+    assert "Job 1:" in output
+    assert "Task 1:" in output
+    assert "Task 2:" in output
+    assert "Task 3:" in output
+
+
+def test_task_workdir_json_output(hq_env: HqEnv):
+    """Test task workdir JSON output."""
+    hq_env.start_server()
+    hq_env.start_worker()
+
+    hq_env.command(["submit", "--array=1-2", "--", "echo", "test"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    output = hq_env.command(["task", "workdir", "1", "1-2", "--output-mode", "json"])
+    import json
+
+    data = json.loads(output)
+
+    assert isinstance(data, list)
+    assert len(data) == 1
+    assert data[0]["job_id"] == 1
+    assert "tasks" in data[0]
+    assert "1" in data[0]["tasks"]
+    assert "2" in data[0]["tasks"]
+
+
+def test_task_workdir_integration_with_task_info(hq_env: HqEnv):
+    """Test that task workdir is consistent with task info."""
+    hq_env.start_server()
+    hq_env.start_worker()
+
+    hq_env.command(["submit", "--array=1-2", "--", "echo", "test"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    # Get workdir for task
+    workdir_output = hq_env.command(["task", "workdir", "1", "1"])
+
+    # Get task info
+    info_output = hq_env.command(["task", "info", "1", "1"])
+
+    # Both should reference working directories
+    import os
+
+    current_dir = os.getcwd()
+    assert current_dir in workdir_output
+    assert current_dir in info_output

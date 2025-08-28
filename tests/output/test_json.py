@@ -289,3 +289,76 @@ def test_print_job_summary(hq_env: HqEnv):
         }
     )
     schema.validate(output)
+
+
+def test_print_job_workdir_json(hq_env: HqEnv):
+    """Test job workdir JSON output format."""
+    hq_env.start_server()
+    hq_env.start_worker()
+
+    hq_env.command(["submit", "--", "echo", "test"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    output = parse_json_output(hq_env, ["--output-mode=json", "job", "workdir", "1"])
+
+    # Validate JSON schema
+    schema = Schema([{"job_id": int, "workdirs": [str]}])
+    schema.validate(output)
+
+    # Verify content
+    assert len(output) == 1
+    assert output[0]["job_id"] == 1
+    assert len(output[0]["workdirs"]) >= 1
+
+
+def test_print_job_workdir_multiple_jobs_json(hq_env: HqEnv):
+    """Test job workdir JSON output with multiple jobs."""
+    hq_env.start_server()
+    hq_env.start_worker()
+
+    hq_env.command(["submit", "--", "echo", "test1"])
+    hq_env.command(["submit", "--", "echo", "test2"])
+    wait_for_job_state(hq_env, [1, 2], "FINISHED")
+
+    output = parse_json_output(hq_env, ["--output-mode=json", "job", "workdir", "1-2"])
+
+    # Validate JSON schema
+    schema = Schema([{"job_id": int, "workdirs": [str]}])
+    schema.validate(output)
+
+    # Verify content
+    assert len(output) == 2
+    job_ids = [job["job_id"] for job in output]
+    assert 1 in job_ids
+    assert 2 in job_ids
+
+
+def test_print_task_workdir_json(hq_env: HqEnv):
+    """Test task workdir JSON output format."""
+    hq_env.start_server()
+    hq_env.start_worker()
+
+    hq_env.command(["submit", "--array=1-3", "--", "echo", "test"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    output = parse_json_output(hq_env, ["--output-mode=json", "task", "workdir", "1", "1-2"])
+
+    # Validate JSON schema
+    schema = Schema(
+        [
+            {
+                "job_id": int,
+                "tasks": {str: str},  # task_id -> workdir
+            }
+        ]
+    )
+    schema.validate(output)
+
+    # Verify content
+    assert len(output) == 1
+    assert output[0]["job_id"] == 1
+    tasks = output[0]["tasks"]
+    assert "1" in tasks
+    assert "2" in tasks
+    assert isinstance(tasks["1"], str)
+    assert isinstance(tasks["2"], str)
