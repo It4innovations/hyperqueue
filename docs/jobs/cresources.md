@@ -188,6 +188,7 @@ detect the partitioning into sockets (NUMA configuration). In most cases, it sho
 If you want to see how will a HQ worker see your CPU configuration without actually starting the worker,
 you can use the [`hq worker hwdetect`](cli:hq.worker.hwdetect) command, which will print the detected CPU configuration.
 
+You can find out how to modify or disable automatic detection of resources [here](resources.md#configuring-automatic-detection).
 
 ### Manual specification of CPU configuration
 
