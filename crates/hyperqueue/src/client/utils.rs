@@ -1,4 +1,4 @@
-use clap::builder::TypedValueParser;
+use clap::builder::{PossibleValue, TypedValueParser};
 use clap::{Command, Error};
 use std::ffi::OsStr;
 
@@ -40,15 +40,19 @@ impl<Arg> PassThroughArgument<Arg> {
 }
 
 #[derive(Clone)]
-pub struct PassthroughParser<Arg>(fn(&str) -> anyhow::Result<Arg>);
+pub struct PassthroughParser<Parser>(Parser);
 
 /// Creates a new parser that passed the original value through, while checking that `Arg`
 /// can be parsed successfully.
-pub fn passthrough_parser<Arg>(parser: fn(&str) -> anyhow::Result<Arg>) -> PassthroughParser<Arg> {
+pub fn passthrough_parser<Parser: TypedValueParser>(parser: Parser) -> PassthroughParser<Parser> {
     PassthroughParser(parser)
 }
 
-impl<Arg: Clone + Sync + Send + 'static> TypedValueParser for PassthroughParser<Arg> {
+impl<Parser, Arg> TypedValueParser for PassthroughParser<Parser>
+where
+    Parser: TypedValueParser<Value = Arg>,
+    Arg: Clone + Sync + Send + 'static,
+{
     type Value = PassThroughArgument<Arg>;
 
     fn parse_ref(
@@ -60,5 +64,9 @@ impl<Arg: Clone + Sync + Send + 'static> TypedValueParser for PassthroughParser<
         self.0
             .parse_ref(cmd, arg, value)
             .map(|parsed| PassThroughArgument(value.to_string_lossy().to_string(), parsed))
+    }
+
+    fn possible_values(&self) -> Option<Box<dyn Iterator<Item = PossibleValue> + '_>> {
+        self.0.possible_values()
     }
 }
