@@ -8,13 +8,9 @@
 
 ### New features
 
-* Implement resource "coupling".
-  You may specify that some resources are coupled, e.g. cpus and gpus.
-  That means that cpus are gpus are organized in numa nodes, and allocation strategy
-  will respect that, i.e., it tries to find cpus and gpus from the same numa nodes.
-  Note: The current implementation does not detect coupling automatically,
-  you have to specify it manually.
 * New policy `tight` (and `tight!`) that is the original implementation of `compact`.
+  It selectes minimal number of resources groups and then tries to get maximum resources from
+  a biggest group and then maximum resources from the second biggest group, etc.
   The policy `compact` now behaves as is described in the section "Changes".
 * Resource policy `compact!` is now allowed to take fractional resource request.
 * New command `hq alloc cat <alloc-id> <stdout/stderr>`, which can be used
@@ -26,20 +22,29 @@
 * New flag `--detect-resources` for `hq worker start`. It can be used to configure which worker resources
   will be automatically detected. You can e.g. say `--detect-resources=cpus,gpus/nvidia`.
   See [documentation](https://it4innovations.github.io/hyperqueue/latest/jobs/resources) for more information.
+* The scheduler has better compacting behavior when there are small number of tasks
+  and workers appearing/disappering
+* Autoallocator keeps log file when probing allocation fails.
+* Unstable: Resource "coupling".
+  You may specify that some resources are coupled, e.g. cpus and gpus.
+  That means that cpus are gpus are organized in numa nodes, and allocation strategy
+  will respect that, i.e., it tries to find cpus and gpus from the same numa nodes.
+  Note: The current implementation does not detect coupling automatically,
+  you have to specify it manually.
 
 ### Changes
 
 * Allocation policy `compact` was updated.
   It still tries to find the minimal number of the resource groups,
-  but when they are found, resources are evenly taken from the minimal groups.
-  For old behavior, use new policy `tight`.
-* The scheduler has better compacting behavior when there are small number of tasks
-  and workers appearing/disappering
+  but when they are found, resources are evenly taken from the selected groups.
+  In rare cases when you need original behavior, use new policy `tight`.
+  It is not a breaking change, because the `compact` previously did not specified how
+  exactly will be resources taken from groups.
+* Worker process terminated because of idle timeout now returns zero exit code.
 
 ### Fixes
 
 * Fixed the issue of possible ignoring idle timeout when time request is used.
-* Worker process terminated because of idle timeout now returns zero exit code.
 * Fixes broken streaming when job file is used.
 
 ## 0.23.0
@@ -746,7 +751,7 @@ would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
   is `hq submit`, which is now a shortcut for `hq job submit`. Here is a table of changed commands:
 
   | **Previous command** | **New command**    |
-            |----------------------|--------------------|
+  |----------------------|--------------------|
   | `hq jobs`            | `hq job list`    |
   | `hq job`             | `hq job info`    |
   | `hq resubmit`        | `hq job resubmit` |
