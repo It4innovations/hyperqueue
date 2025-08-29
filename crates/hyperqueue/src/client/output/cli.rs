@@ -594,12 +594,11 @@ impl Output for CliOutput {
                 format_job_workers(&tasks, &worker_map).cell(),
             ]);
 
-            if submit_descs.len() == 1 {
-                if let JobTaskDescription::Array { task_desc, .. } =
+            if submit_descs.len() == 1
+                && let JobTaskDescription::Array { task_desc, .. } =
                     &submit_descs[0].description().task_desc
-                {
-                    self.print_job_shared_task_description(&mut rows, task_desc);
-                }
+            {
+                self.print_job_shared_task_description(&mut rows, task_desc);
             }
 
             rows.push(vec![
@@ -1664,10 +1663,10 @@ fn resource_summary_kind(kind: &ResourceDescriptorKind) -> String {
 
 fn resources_summary(resources: &ResourceDescriptor, multiline: bool) -> String {
     let special_format = |descriptor: &ResourceDescriptorItem| -> Option<String> {
-        if descriptor.name == tako::resources::MEM_RESOURCE_NAME {
-            if let ResourceDescriptorKind::Sum { size } = descriptor.kind {
-                return Some(human_mem_amount(size));
-            }
+        if descriptor.name == tako::resources::MEM_RESOURCE_NAME
+            && let ResourceDescriptorKind::Sum { size } = descriptor.kind
+        {
+            return Some(human_mem_amount(size));
         }
         None
     };

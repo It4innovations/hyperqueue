@@ -6,7 +6,6 @@ use crate::internal::common::utils::has_unique_elements;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Formatter};
 
-use crate::define_id_type;
 use crate::resources::CPU_RESOURCE_NAME;
 use thiserror::Error;
 
@@ -295,7 +294,7 @@ pub struct ResourceDescriptor {
 
 impl ResourceDescriptor {
     pub fn new(
-        mut resources: Vec<ResourceDescriptorItem>,
+        resources: Vec<ResourceDescriptorItem>,
         coupling: ResourceDescriptorCoupling,
     ) -> Self {
         ResourceDescriptor {

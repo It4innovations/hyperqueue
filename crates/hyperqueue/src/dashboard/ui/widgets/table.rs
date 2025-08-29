@@ -44,10 +44,10 @@ impl<T> StatefulTable<T> {
         // Make sure that our selection does not dangle
         if !self.has_items() {
             self.state.select(None);
-        } else if let Some(index) = self.state.selected() {
-            if index >= self.items.len() {
-                self.select_last();
-            }
+        } else if let Some(index) = self.state.selected()
+            && index >= self.items.len()
+        {
+            self.select_last();
         }
     }
 

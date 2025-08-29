@@ -1,8 +1,6 @@
-use anyhow::bail;
 use chumsky::primitive::{filter, just};
 use chumsky::text::TextParser;
 use chumsky::{Error, Parser};
-use itertools::Itertools;
 use tako::resources::{
     DescriptorError, ResourceDescriptorCoupling, ResourceDescriptorCouplingItem,
     ResourceDescriptorItem, ResourceDescriptorKind, ResourceGroupIdx, ResourceUnits,

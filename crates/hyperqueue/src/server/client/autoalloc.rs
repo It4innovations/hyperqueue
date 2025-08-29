@@ -31,14 +31,10 @@ pub async fn handle_autoalloc_message(
             parameters,
             dry_run,
         } => {
-            if dry_run {
-                if let Err(e) = try_submit_allocation(parameters.clone()).await {
-                    return ToClientMessage::AutoAllocResponse(
-                        AutoAllocResponse::QueueCreateResponse(QueueCreateResponse::DryRunFailed(
-                            e.to_string(),
-                        )),
-                    );
-                }
+            if dry_run && let Err(e) = try_submit_allocation(parameters.clone()).await {
+                return ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueueCreateResponse(
+                    QueueCreateResponse::DryRunFailed(e.to_string()),
+                ));
             }
 
             let result =
