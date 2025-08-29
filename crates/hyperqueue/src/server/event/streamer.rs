@@ -223,12 +223,11 @@ impl EventStreamer {
         inner
             .client_listeners
             .retain(|(listener, _)| listener.send(event.clone()).is_ok());
-        if let Some(ref streamer) = inner.storage_sender {
-            if matches!(forward_mode, ForwardMode::StreamAndPersist)
-                && streamer.send(EventStreamMessage::Event(event)).is_err()
-            {
-                log::error!("Event streaming queue has been closed.");
-            }
+        if let Some(ref streamer) = inner.storage_sender
+            && matches!(forward_mode, ForwardMode::StreamAndPersist)
+            && streamer.send(EventStreamMessage::Event(event)).is_err()
+        {
+            log::error!("Event streaming queue has been closed.");
         }
     }
 
@@ -252,13 +251,12 @@ impl EventStreamer {
 
     pub fn start_journal_replay(&self, history_sender: mpsc::UnboundedSender<Event>) {
         let inner = self.inner.get();
-        if let Some(ref streamer) = inner.storage_sender {
-            if streamer
+        if let Some(ref streamer) = inner.storage_sender
+            && streamer
                 .send(EventStreamMessage::ReplayJournal(history_sender))
                 .is_err()
-            {
-                log::error!("Event streaming queue has been closed.");
-            }
+        {
+            log::error!("Event streaming queue has been closed.");
         }
     }
 

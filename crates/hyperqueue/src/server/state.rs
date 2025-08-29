@@ -132,13 +132,13 @@ impl State {
         job.set_cancel_state(cancelled_tasks, senders);
         job.set_failed_state(task_id.job_task_id(), info.message, senders);
 
-        if let Some(max_fails) = &job.job_desc.max_fails {
-            if job.counters.n_failed_tasks > *max_fails {
-                log::debug!("Max task fails reached for job {}", job.job_id);
-                let task_ids = job.non_finished_task_ids();
-                job.set_cancel_state(task_ids.clone(), senders);
-                return task_ids;
-            }
+        if let Some(max_fails) = &job.job_desc.max_fails
+            && job.counters.n_failed_tasks > *max_fails
+        {
+            log::debug!("Max task fails reached for job {}", job.job_id);
+            let task_ids = job.non_finished_task_ids();
+            job.set_cancel_state(task_ids.clone(), senders);
+            return task_ids;
         }
         Vec::new()
     }

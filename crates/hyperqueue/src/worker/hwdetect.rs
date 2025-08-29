@@ -115,15 +115,15 @@ pub fn detect_additional_resources(
         && !has_resource(items, NVIDIA_GPU_RESOURCE_NAME)
         && detect_resources.has(ResourceDetectComponent::GpusNvidia)
     {
-        if let Ok(count) = read_nvidia_linux_gpu_count() {
-            if count > 0 {
-                gpu_families.insert(GpuFamily::Nvidia);
-                log::info!("Detected {count} NVIDIA GPUs from procs");
-                items.push(ResourceDescriptorItem {
-                    name: NVIDIA_GPU_RESOURCE_NAME.to_string(),
-                    kind: ResourceDescriptorKind::simple_indices(count as u32),
-                });
-            }
+        if let Ok(count) = read_nvidia_linux_gpu_count()
+            && count > 0
+        {
+            gpu_families.insert(GpuFamily::Nvidia);
+            log::info!("Detected {count} NVIDIA GPUs from procs");
+            items.push(ResourceDescriptorItem {
+                name: NVIDIA_GPU_RESOURCE_NAME.to_string(),
+                kind: ResourceDescriptorKind::simple_indices(count as u32),
+            });
         }
     } else {
         for gpu in detected_gpus {
@@ -206,27 +206,26 @@ struct DetectedGpu {
 fn detect_gpus_from_env(records: &[GpuEnvironmentRecord]) -> Vec<DetectedGpu> {
     let mut gpus = Vec::new();
     for gpu_env in records {
-        if let Ok(devices_str) = std::env::var(gpu_env.env_var) {
-            if let Ok(devices) = parse_comma_separated_values(&devices_str) {
-                log::info!(
-                    "Detected GPUs {} from `{}`",
-                    format_comma_delimited(&devices),
-                    gpu_env.env_var,
-                );
+        if let Ok(devices_str) = std::env::var(gpu_env.env_var)
+            && let Ok(devices) = parse_comma_separated_values(&devices_str)
+        {
+            log::info!(
+                "Detected GPUs {} from `{}`",
+                format_comma_delimited(&devices),
+                gpu_env.env_var,
+            );
 
-                if !has_unique_elements(&devices) {
-                    log::warn!("{} contains duplicates ({devices_str})", gpu_env.env_var);
-                    continue;
-                }
-
-                let list =
-                    ResourceDescriptorKind::list(devices).expect("List values were not unique");
-                gpus.push(DetectedGpu {
-                    resource_name: gpu_env.resource_name,
-                    resource: list,
-                    family: gpu_env.family,
-                });
+            if !has_unique_elements(&devices) {
+                log::warn!("{} contains duplicates ({devices_str})", gpu_env.env_var);
+                continue;
             }
+
+            let list = ResourceDescriptorKind::list(devices).expect("List values were not unique");
+            gpus.push(DetectedGpu {
+                resource_name: gpu_env.resource_name,
+                resource: list,
+                family: gpu_env.family,
+            });
         }
     }
     gpus

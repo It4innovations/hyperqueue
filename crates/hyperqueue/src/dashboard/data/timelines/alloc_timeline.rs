@@ -44,16 +44,16 @@ pub fn get_allocation_status(info: &AllocationInfo, time: SystemTime) -> Allocat
         return AllocationStatus::Missing;
     }
 
-    if let Some(finish_time) = info.finish_time {
-        if finish_time < time {
-            return AllocationStatus::Finished;
-        }
+    if let Some(finish_time) = info.finish_time
+        && finish_time < time
+    {
+        return AllocationStatus::Finished;
     }
 
-    if let Some(start_time) = info.start_time {
-        if start_time < time {
-            return AllocationStatus::Running;
-        }
+    if let Some(start_time) = info.start_time
+        && start_time < time
+    {
+        return AllocationStatus::Running;
     }
     AllocationStatus::Queued
 }
