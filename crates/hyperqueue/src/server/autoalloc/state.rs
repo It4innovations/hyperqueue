@@ -275,10 +275,10 @@ impl AllocationQueue {
         if self.queued_allocations().count() >= self.info.backlog() as usize {
             return false;
         }
-        if let Some(max_worker_count) = self.info.max_worker_count() {
-            if self.active_worker_count() >= max_worker_count {
-                return false;
-            }
+        if let Some(max_worker_count) = self.info.max_worker_count()
+            && self.active_worker_count() >= max_worker_count
+        {
+            return false;
         }
         true
     }
