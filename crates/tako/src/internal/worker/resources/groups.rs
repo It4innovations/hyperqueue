@@ -1,7 +1,7 @@
 use crate::internal::common::resources::ResourceId;
-use crate::internal::worker::resources::concise::{ConciseFreeResources, ConciseResourceState};
+use crate::internal::worker::resources::concise::ConciseFreeResources;
 use crate::internal::worker::resources::pool::{FAST_MAX_COUPLED_RESOURCES, FAST_MAX_GROUPS};
-use crate::resources::{AllocationRequest, FRACTIONS_PER_UNIT, ResourceAmount, ResourceGroupIdx};
+use crate::resources::{FRACTIONS_PER_UNIT, ResourceGroupIdx};
 use highs::{HighsModelStatus, Sense};
 use smallvec::SmallVec;
 
@@ -11,12 +11,6 @@ pub(crate) struct CouplingWeightItem {
     pub(crate) resource2: ResourceId,
     pub(crate) group2: ResourceGroupIdx,
     pub(crate) weight: f64,
-}
-
-struct GroupMinimizationRequest {
-    request: ResourceAmount,
-    group_amounts: SmallVec<[ResourceAmount; FAST_MAX_GROUPS]>,
-    resource_id: ResourceId,
 }
 
 type GroupIndices = SmallVec<[usize; 2]>;
@@ -131,8 +125,8 @@ pub fn group_solver(
         let v1 = vars[r1][w.group1.as_num() as usize];
         let v2 = vars[r2][w.group2.as_num() as usize];
         let v3 = pb.add_column(w.weight, 0..=1);
-        pb.add_row(0.., &[(v1, 1.0), (v3, -1.0)]);
-        pb.add_row(0.., &[(v2, 1.0), (v3, -1.0)]);
+        pb.add_row(0.., [(v1, 1.0), (v3, -1.0)]);
+        pb.add_row(0.., [(v2, 1.0), (v3, -1.0)]);
     }
 
     let solved_model = pb.optimise(Sense::Maximise).solve();
@@ -150,7 +144,7 @@ pub fn group_solver(
             .map(|entry| {
                 let r = free.get(entry.resource_id);
                 let n = r.n_groups();
-                let g = (&columns[index..index + n])
+                let g = columns[index..index + n]
                     .iter()
                     .enumerate()
                     .filter_map(|(i, v)| (*v > 0.5).then_some(i))
