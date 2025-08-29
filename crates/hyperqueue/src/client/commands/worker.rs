@@ -10,8 +10,7 @@ use std::process::Stdio;
 use std::time::Duration;
 use tako::Map;
 use tako::resources::{
-    CPU_RESOURCE_NAME, ResourceDescriptor, ResourceDescriptorCoupling, ResourceDescriptorItem,
-    ResourceDescriptorKind,
+    CPU_RESOURCE_NAME, ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind,
 };
 use tako::worker::{ServerLostPolicy, WorkerConfiguration};
 
@@ -107,9 +106,9 @@ pub struct SharedWorkerStartOpts {
     /// Resource coupling
     ///
     /// Examples:{n}
-    /// - `--coupling cpus,gpus"
-    #[arg(long, value_parser = passthrough_parser(parse_resource_coupling))]
-    pub coupling: Option<PassThroughArgument<ResourceDescriptorCoupling>>,
+    /// - `--coupling TODO"
+    #[arg(long)]
+    pub coupling: Option<String>,
 
     /// Determines which resources on the worker node will be automatically detected by HyperQueue.
     ///
@@ -419,7 +418,12 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
             );
         }
     }
-    let coupling: Option<_> = coupling.map(|x| x.into_parsed_arg());
+    // We need to finally sort resources before parsing coupling
+    resources.sort_by(|x, y| x.name.cmp(&y.name));
+    let coupling = coupling
+        .map(|x| parse_resource_coupling(&x, &resources))
+        .transpose()?
+        .unwrap_or_default();
     let resources = ResourceDescriptor::new(resources, coupling);
     resources.validate(true)?;
 

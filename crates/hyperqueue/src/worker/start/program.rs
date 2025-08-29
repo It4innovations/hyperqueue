@@ -235,10 +235,10 @@ async fn resend_stdio(
 }
 
 fn create_directory_if_needed(file: &StdioDef) -> std::io::Result<()> {
-    if let StdioDef::File { path, .. } = file {
-        if let Some(path) = path.parent() {
-            std::fs::create_dir_all(path)?;
-        }
+    if let StdioDef::File { path, .. } = file
+        && let Some(path) = path.parent()
+    {
+        std::fs::create_dir_all(path)?;
     }
     Ok(())
 }
@@ -511,10 +511,10 @@ async fn create_task_future(
     let status_to_result = |status: ExitStatus| {
         if !status.success() {
             let code = status.code().unwrap_or(-1);
-            if let Some(dir) = task_dir {
-                if let Some(e) = check_error_filename(dir) {
-                    return Err(e);
-                }
+            if let Some(dir) = task_dir
+                && let Some(e) = check_error_filename(dir)
+            {
+                return Err(e);
             }
 
             let mut error_msg = format!("Program terminated with exit code {code}.");
@@ -637,15 +637,13 @@ async fn cleanup_task_file(result: Option<&TaskResult>, stdio: &StdioDef) {
         path,
         on_close: FileOnCloseBehavior::RmIfFinished,
     } = stdio
+        && let Some(TaskResult::Finished) = result
+        && let Err(error) = tokio::fs::remove_file(&path).await
     {
-        if let Some(TaskResult::Finished) = result {
-            if let Err(error) = tokio::fs::remove_file(&path).await {
-                log::error!(
-                    "Could not delete file {} after task has been finished: {error:?}",
-                    path.display()
-                );
-            }
-        }
+        log::error!(
+            "Could not delete file {} after task has been finished: {error:?}",
+            path.display()
+        );
     }
 }
 

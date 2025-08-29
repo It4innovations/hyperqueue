@@ -165,9 +165,9 @@ fn update_task_status(
     task_status: DashboardTaskState,
     at_time: DateTime<Utc>,
 ) {
-    if let Some(job_info) = job_timeline.get_mut(&task_id.job_id()) {
-        if let Some(task_info) = job_info.job_tasks_info.get_mut(&task_id.job_task_id()) {
-            task_info.set_end_time_and_status(&at_time.into(), task_status);
-        }
+    if let Some(job_info) = job_timeline.get_mut(&task_id.job_id())
+        && let Some(task_info) = job_info.job_tasks_info.get_mut(&task_id.job_task_id())
+    {
+        task_info.set_end_time_and_status(&at_time.into(), task_status);
     }
 }

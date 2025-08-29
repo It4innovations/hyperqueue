@@ -130,10 +130,10 @@ pub(crate) fn compute_new_worker_query(
         .filter_map(|(rq, count)| {
             let n_nodes = rq.n_nodes();
             queries.iter().enumerate().find_map(|(i, worker_type)| {
-                if let Some(time_limit) = worker_type.time_limit {
-                    if rq.min_time() > time_limit {
-                        return None;
-                    }
+                if let Some(time_limit) = worker_type.time_limit
+                    && rq.min_time() > time_limit
+                {
+                    return None;
                 }
                 if worker_type.max_workers_per_allocation >= n_nodes {
                     Some(MultiNodeAllocationResponse {
