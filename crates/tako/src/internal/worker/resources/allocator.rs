@@ -4,7 +4,7 @@ use crate::internal::common::resources::request::{
 };
 use crate::internal::common::resources::{ResourceId, ResourceVec};
 use crate::internal::server::workerload::WorkerResources;
-use crate::internal::worker::resources::concise::{ConciseFreeResources, ConciseResourceState};
+use crate::internal::worker::resources::concise::ConciseFreeResources;
 use crate::internal::worker::resources::groups::{CouplingWeightItem, group_solver};
 use crate::internal::worker::resources::map::ResourceLabelMap;
 use crate::internal::worker::resources::pool::{FAST_MAX_COUPLED_RESOURCES, ResourcePool};
@@ -13,10 +13,6 @@ use smallvec::SmallVec;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
-
-pub(crate) struct ResourceCoupling {
-    resources: Vec<ResourceId>,
-}
 
 pub(crate) struct AllocatorStaticInfo {
     pub(super) coupling_weights: Vec<CouplingWeightItem>,
@@ -208,11 +204,10 @@ impl ResourceAllocator {
             return true;
         }
         let Some((_, objective_value)) =
-            group_solver(&free, &coupling, &static_info.coupling_weights)
+            group_solver(free, &coupling, &static_info.coupling_weights)
         else {
             return false;
         };
-        dbg!(objective_value);
         let mut optimal_costs = static_info.optional_objectives.borrow_mut();
         let optimal_const = if let Some(cost) = optimal_costs.get(request) {
             *cost
@@ -323,11 +318,8 @@ impl ResourceAllocator {
                 coupling.push(entry);
                 continue;
             }
-            allocation.add_resource_allocation(pool.claim_resources(
-                entry.resource_id,
-                self.free_resources.get(entry.resource_id),
-                &entry.request,
-            ))
+            allocation
+                .add_resource_allocation(pool.claim_resources(entry.resource_id, &entry.request))
         }
         if coupling.is_empty() {
             return allocation;

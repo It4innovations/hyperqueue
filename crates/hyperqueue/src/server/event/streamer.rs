@@ -354,6 +354,7 @@ impl EventStreamer {
             time: now.unwrap_or_else(Utc::now),
             payload,
         };
+
         inner.client_listeners.retain(|listener| {
             if listener.filter.check(&event.payload) {
                 listener.sender.send(event.clone()).is_ok()
@@ -361,6 +362,7 @@ impl EventStreamer {
                 true
             }
         });
+
         if let Some(ref streamer) = inner.storage_sender
             && matches!(forward_mode, ForwardMode::StreamAndPersist)
             && streamer.send(EventStreamMessage::Event(event)).is_err()
@@ -411,8 +413,8 @@ impl EventStreamer {
         let inner = self.inner.get();
         if let Some(ref streamer) = inner.storage_sender
             && streamer
-                .send(EventStreamMessage::ReplayJournal(history_sender))
-                .is_err()
+            .send(EventStreamMessage::ReplayJournal(history_sender))
+            .is_err()
         {
             log::error!("Event streaming queue has been closed.");
         }
