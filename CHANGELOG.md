@@ -1,4 +1,4 @@
-## Unreleased
+## v0.24.0
 
 ### Breaking changes
 
@@ -9,7 +9,7 @@
 ### New features
 
 * New policy `tight` (and `tight!`) that is the original implementation of `compact`.
-  It selectes minimal number of resources groups and then tries to get maximum resources from
+  It selects minimal number of resources groups and then tries to get maximum resources from
   a biggest group and then maximum resources from the second biggest group, etc.
   The policy `compact` now behaves as is described in the section "Changes".
 * Resource policy `compact!` is now allowed to take fractional resource request.
