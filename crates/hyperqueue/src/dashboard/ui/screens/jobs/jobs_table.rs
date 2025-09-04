@@ -19,9 +19,10 @@ pub struct JobsTable {
 
 impl JobsTable {
     pub fn update(&mut self, data: &DashboardData) {
-        let jobs: Vec<(JobId, &DashboardJobInfo)> = data
+        let mut jobs: Vec<(JobId, &DashboardJobInfo)> = data
             .query_jobs_created_before(data.current_time())
             .collect();
+        jobs.sort_by_key(|(id, _)| *id);
         let rows = create_rows(jobs);
         self.table.set_items(rows);
     }
