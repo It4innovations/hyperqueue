@@ -46,6 +46,7 @@
 
 * Fixed the issue of possible ignoring idle timeout when time request is used.
 * Fixes broken streaming when job file is used.
+* Fixed missing fields in export of journal into JSON
 
 ## 0.23.0
 

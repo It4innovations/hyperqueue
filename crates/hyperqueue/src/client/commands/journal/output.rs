@@ -76,12 +76,25 @@ fn format_payload(event: EventPayload) -> serde_json::Value {
                 "allocation-id": allocation_id,
             })
         }
-        EventPayload::TaskStarted { task_id, .. } => json!({
-            "type": "task-started",
-            "job": task_id.job_id(),
-            "task": task_id.job_task_id(),
-            "worker": -1
-        }),
+        EventPayload::TaskStarted {
+            task_id,
+            instance_id,
+            workers,
+        } => {
+            let mut event = json!({
+                "type": "task-started",
+                "job": task_id.job_id(),
+                "task": task_id.job_task_id(),
+                "instance": instance_id,
+            });
+            let map = event.as_object_mut().unwrap();
+            if workers.len() == 1 {
+                map.insert("worker".to_string(), json!(workers[0]));
+            } else {
+                map.insert("workers".to_string(), json!(workers));
+            }
+            event
+        }
         EventPayload::TaskFinished { task_id } => json!({
             "type": "task-finished",
             "job": task_id.job_id(),
