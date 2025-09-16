@@ -1,4 +1,3 @@
-use crate::TaskId;
 use crate::internal::common::Set;
 use crate::internal::messages::worker::{
     StealResponse, StealResponseMsg, TaskOutput, ToWorkerMessage,
@@ -15,6 +14,7 @@ use crate::internal::tests::utils::task::TaskBuilder;
 use crate::internal::tests::utils::task::task;
 use crate::internal::tests::utils::workflows::submit_example_4;
 use crate::resources::{ResourceAmount, ResourceDescriptorItem, ResourceUnits};
+use crate::{JobId, TaskId};
 use std::time::Duration;
 
 fn task_count(msg: &ToWorkerMessage) -> usize {
@@ -903,4 +903,40 @@ fn test_task_data_deps_balancing() {
             assert!(n1_count > 40);
         }
     }
+}
+
+#[test]
+fn test_resource_priority_balancing() {
+    let mut rt = TestEnv::new();
+    //                    0  1  2  3  4  5  6  7  8  9  10
+    rt.new_workers(&[4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 8]);
+
+    let job_id = JobId::new(7);
+    for i in 0..=9 {
+        rt.new_task_running(
+            TaskBuilder::new(TaskId::new(job_id, (100 * i).into())).cpus_compact(4),
+            100 + i,
+        );
+        for j in 1..(4 + i) {
+            rt.new_task_assigned(
+                TaskBuilder::new(TaskId::new(job_id, (100 * i + j).into())).cpus_compact(4),
+                100 + i,
+            );
+        }
+    }
+    for i in 1..=3 {
+        rt.new_task_assigned(
+            TaskBuilder::new(TaskId::new(JobId::new(1), i.into())).cpus_compact(4),
+            100,
+        );
+    }
+
+    rt.balance();
+    assert!(
+        rt.get_worker_tasks(110)
+            .iter()
+            .filter(|t| t.job_id() == 1.into())
+            .count()
+            >= 2
+    );
 }

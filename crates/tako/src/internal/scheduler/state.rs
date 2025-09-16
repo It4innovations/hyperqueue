@@ -500,6 +500,8 @@ impl SchedulerState {
                     );
                     (
                         u64::MAX - cost,
+                        task.configuration.user_priority,
+                        task.scheduler_priority,
                         worker
                             .resources
                             .difficulty_score_of_rqv(&task.configuration.resources),
