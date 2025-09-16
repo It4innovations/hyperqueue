@@ -180,20 +180,24 @@ impl TestEnv {
         }
     }
 
+    pub fn get_worker_tasks<W: Into<WorkerId>>(&self, worker_id: W) -> Vec<TaskId> {
+        utils::sorted_vec(
+            self.core
+                .get_worker_by_id_or_panic(worker_id.into())
+                .sn_tasks()
+                .iter()
+                .copied()
+                .collect(),
+        )
+    }
+
     pub fn check_worker_tasks<W: Into<WorkerId>, T: Into<TaskId> + Copy>(
         &self,
         worker_id: W,
         tasks: &[T],
     ) {
         let worker_id = worker_id.into();
-        let ids = utils::sorted_vec(
-            self.core
-                .get_worker_by_id_or_panic(worker_id)
-                .sn_tasks()
-                .iter()
-                .copied()
-                .collect(),
-        );
+        let ids = self.get_worker_tasks(worker_id);
         assert_eq!(
             ids,
             utils::sorted_vec(tasks.iter().map(|&id| id.into()).collect())
