@@ -1,4 +1,5 @@
 use chrono::Utc;
+use chumsky::primitive::Container;
 use futures::{Sink, SinkExt, Stream, StreamExt};
 use orion::kdf::SecretKey;
 use serde_json::json;
@@ -20,7 +21,7 @@ use crate::transfer::connection::accept_client;
 use crate::transfer::messages::{
     CancelJobResponse, CloseJobResponse, FromClientMessage, IdSelector, JobDetail,
     JobDetailResponse, JobInfoResponse, JobSubmitDescription, StopWorkerResponse, StreamEvents,
-    SubmitRequest, TaskSelector, ToClientMessage, WorkerListResponse,
+    SubmitRequest, SubmitResponse, TaskSelector, ToClientMessage, WorkerListResponse,
 };
 use crate::transfer::messages::{ForgetJobResponse, WaitForJobsResponse};
 use tako::{JobId, JobTaskCount, WorkerId};
@@ -143,8 +144,7 @@ async fn start_streaming<
         past_events,
         live_events,
         enable_worker_overviews,
-        job_filter,
-        allow_notify,
+        filter,
     } = stream_events;
     let enable_worker_overviews = enable_worker_overviews;
     if enable_worker_overviews {
@@ -155,15 +155,11 @@ async fn start_streaming<
         return;
     }
 
-    // Job filter is now implemented only for live events
-    assert!(job_filter.is_none() || !past_events);
-
     /* We create two event queues, one for historic events and one for live events
     So while historic events are loaded from the file and streamed, live events are already
     collected and sent immediately once the historic events are sent */
     let live = if live_events {
         let (tx2, rx2) = mpsc::unbounded_channel::<Event>();
-        let filter = EventFilter::new(job_filter, allow_notify);
         let listener_id = senders.events.register_listener(filter, tx2);
         Some((rx2, listener_id))
     } else {
@@ -217,9 +213,18 @@ pub async fn client_rpc_loop<
         match message_result {
             Ok(message) => {
                 let response = match message {
-                    FromClientMessage::Submit(msg, stream_opts) => {
+                    FromClientMessage::Submit(msg, mut stream_opts) => {
                         let response = submit::handle_submit(&state_ref, senders, msg);
-                        if let Some(stream_opts) = stream_opts {
+                        if let Some(mut stream_opts) = stream_opts
+                            && let ToClientMessage::SubmitResponse(SubmitResponse::Ok {
+                                job, ..
+                            }) = &response
+                        {
+                            if !stream_opts.filter.is_filtering_jobs() {
+                                let mut s = Set::new();
+                                s.insert(job.info.id);
+                                stream_opts.filter.set_jobs(s);
+                            }
                             start_streaming(
                                 tx,
                                 rx,
@@ -233,7 +238,31 @@ pub async fn client_rpc_loop<
                         }
                         response
                     }
-                    FromClientMessage::JobInfo(msg) => compute_job_info(&state_ref, &msg.selector),
+                    FromClientMessage::JobInfo(msg, mut stream_opts) => {
+                        let response =
+                            compute_job_info(&state_ref, &msg.selector, msg.include_running_tasks);
+                        if let Some(mut stream_opts) = stream_opts
+                            && let ToClientMessage::JobInfoResponse(JobInfoResponse { jobs }) =
+                                &response
+                        {
+                            if !stream_opts.filter.is_filtering_jobs() {
+                                stream_opts
+                                    .filter
+                                    .set_jobs(jobs.iter().map(|j| j.id).collect());
+                            }
+                            start_streaming(
+                                tx,
+                                rx,
+                                state_ref,
+                                senders,
+                                stream_opts,
+                                Some(response),
+                            )
+                            .await;
+                            break;
+                        }
+                        response
+                    }
                     FromClientMessage::Stop => {
                         end_flag.notify_one();
                         break;
@@ -541,8 +570,8 @@ async fn handle_wait_for_jobs_message(
 
     if !remaining.is_empty() {
         let mut task_set = Set::from_iter(remaining.into_iter());
-        let filter = EventFilter::new(Some(task_set.clone()), false);
         let (sender, mut receiver) = mpsc::unbounded_channel();
+        let filter = EventFilter::job_events(task_set.clone());
         senders.events.register_listener(filter, sender);
         loop {
             let event = receiver.recv().await.unwrap();
@@ -650,20 +679,27 @@ fn get_job_ids(state: &State, selector: &IdSelector) -> Vec<JobId> {
     }
 }
 
-fn compute_job_info(state_ref: &StateRef, selector: &IdSelector) -> ToClientMessage {
+fn compute_job_info(
+    state_ref: &StateRef,
+    selector: &IdSelector,
+    include_running_tasks: bool,
+) -> ToClientMessage {
     let state = state_ref.get();
 
     let jobs: Vec<_> = match selector {
-        IdSelector::All => state.jobs().map(|j| j.make_job_info()).collect(),
+        IdSelector::All => state
+            .jobs()
+            .map(|j| j.make_job_info(include_running_tasks))
+            .collect(),
         IdSelector::LastN(n) => state
             .last_n_ids(*n)
             .filter_map(|id| state.get_job(id))
-            .map(|j| j.make_job_info())
+            .map(|j| j.make_job_info(include_running_tasks))
             .collect(),
         IdSelector::Specific(array) => array
             .iter()
             .filter_map(|id| state.get_job(JobId::new(id)))
-            .map(|j| j.make_job_info())
+            .map(|j| j.make_job_info(include_running_tasks))
             .collect(),
     };
     ToClientMessage::JobInfoResponse(JobInfoResponse { jobs })
@@ -678,7 +714,7 @@ async fn handle_job_cancel(
         IdSelector::All => state_ref
             .get()
             .jobs()
-            .map(|job| job.make_job_info())
+            .map(|job| job.make_job_info(false))
             .filter(|job_info| matches!(job_status(job_info), Status::Waiting | Status::Running))
             .map(|job_info| job_info.id)
             .collect(),
@@ -777,7 +813,7 @@ fn handle_job_forget(
         let can_be_forgotten = state
             .get_job(job_id)
             .map(|j| {
-                j.is_terminated() && allowed_statuses.contains(&job_status(&j.make_job_info()))
+                j.is_terminated() && allowed_statuses.contains(&job_status(&j.make_job_info(false)))
             })
             .unwrap_or(false);
         if can_be_forgotten {

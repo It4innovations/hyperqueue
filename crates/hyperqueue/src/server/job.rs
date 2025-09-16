@@ -100,6 +100,10 @@ impl JobTaskCounters {
         self.n_failed_tasks > 0 || self.n_canceled_tasks > 0
     }
 
+    pub fn completed_tasks(&self) -> JobTaskCount {
+        self.n_finished_tasks + self.n_failed_tasks + self.n_canceled_tasks
+    }
+
     pub fn is_terminated(&self, n_tasks: JobTaskCount) -> bool {
         self.n_running_tasks == 0 && self.n_waiting_tasks(n_tasks) == 0
     }
@@ -223,7 +227,7 @@ impl Job {
         tasks.sort_unstable_by_key(|(task_id, _)| *task_id);
 
         JobDetail {
-            info: self.make_job_info(),
+            info: self.make_job_info(true),
             job_desc: self.job_desc.clone(),
             submit_descs: self.submit_descs.iter().cloned().collect(),
             tasks,
@@ -233,13 +237,27 @@ impl Job {
         }
     }
 
-    pub fn make_job_info(&self) -> JobInfo {
+    pub fn make_job_info(&self, include_running_tasks: bool) -> JobInfo {
         JobInfo {
             id: self.job_id,
             name: self.job_desc.name.clone(),
             n_tasks: self.n_tasks(),
             counters: self.counters,
             is_open: self.is_open,
+            running_tasks: if include_running_tasks {
+                self.tasks
+                    .iter()
+                    .filter_map(|(task_id, info)| {
+                        if let JobTaskState::Running { .. } = info.state {
+                            Some(*task_id)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            },
         }
     }
 

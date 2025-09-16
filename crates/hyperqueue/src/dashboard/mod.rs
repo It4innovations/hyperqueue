@@ -11,6 +11,7 @@ use crate::rpc_call;
 use crate::server::bootstrap::get_client_session;
 use crate::server::event::Event;
 use crate::server::event::journal::JournalReader;
+use crate::server::event::streamer::EventFilter;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{FromClientMessage, StreamEvents, ToClientMessage};
 use std::time::Duration;
@@ -49,8 +50,7 @@ pub async fn preload_dashboard_events(
                     past_events: true,
                     live_events: true,
                     enable_worker_overviews: true,
-                    job_filter: None,
-                    allow_notify: true,
+                    filter: EventFilter::all_events(),
                 }))
                 .await?;
 

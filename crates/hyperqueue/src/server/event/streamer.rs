@@ -6,6 +6,7 @@ use crate::server::event::payload::{EventPayload, TaskNotification};
 use crate::transfer::messages::{JobDescription, SubmitRequest};
 use bstr::BString;
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use std::sync::Arc;
 use tako::gateway::LostWorkerReason;
@@ -33,32 +34,119 @@ enum ForwardMode {
     StreamAndPersist,
 }
 
+bitflags::bitflags! {
+    #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
+    pub struct EventFilterFlags: u32 {
+        const JOB_EVENTS = 0b00000001;
+        const TASK_EVENTS = 0b00000010;
+        const WORKER_EVENTS = 0b00000100;
+        const ALLOCATION_EVENTS = 0b00001000;
+        const NOTIFY_EVENTS = 0b00010000;
+
+        const ALL_EVENTS = 0b11111111;
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EventFilter {
     jobs: Option<Set<JobId>>,
-    notify: bool,
+    flags: EventFilterFlags,
 }
 
 impl EventFilter {
-    pub fn new(jobs: Option<Set<JobId>>, notify: bool) -> Self {
-        EventFilter { jobs, notify }
+    pub fn new(jobs: Option<Set<JobId>>, flags: EventFilterFlags) -> Self {
+        EventFilter { jobs, flags }
+    }
+
+    pub fn job_events(jobs: Set<JobId>) -> Self {
+        let mut flags = EventFilterFlags::empty();
+        flags.insert(EventFilterFlags::JOB_EVENTS);
+        EventFilter {
+            jobs: Some(jobs),
+            flags,
+        }
+    }
+
+    pub fn all_events() -> Self {
+        EventFilter {
+            jobs: None,
+            flags: EventFilterFlags::all(),
+        }
+    }
+
+    pub fn is_filtering_jobs(&self) -> bool {
+        self.jobs.is_some()
+    }
+
+    pub fn set_jobs(&mut self, jobs: Set<JobId>) {
+        self.jobs = Some(jobs);
     }
 
     pub fn check(&self, payload: &EventPayload) -> bool {
-        if let Some(jobs) = &self.jobs {
-            match payload {
-                EventPayload::JobCompleted(job_id)
-                | EventPayload::JobOpen(job_id, _)
-                | EventPayload::JobClose(job_id)
-                | EventPayload::JobIdle(job_id) => jobs.contains(job_id),
-                EventPayload::TaskNotify(notify) => {
-                    self.notify && jobs.contains(&notify.task_id.job_id())
-                }
-                _ => false,
+        match payload {
+            EventPayload::WorkerConnected(_, _)
+            | EventPayload::WorkerLost(_, _)
+            | EventPayload::WorkerOverviewReceived(_) => {
+                self.flags.contains(EventFilterFlags::WORKER_EVENTS)
             }
-        } else if !self.notify {
-            !matches!(payload, EventPayload::TaskNotify(_))
-        } else {
-            true
+            EventPayload::Submit { job_id, .. }
+            | EventPayload::JobCompleted(job_id)
+            | EventPayload::JobOpen(job_id, _)
+            | EventPayload::JobClose(job_id)
+            | EventPayload::JobIdle(job_id) => {
+                if !self.flags.contains(EventFilterFlags::JOB_EVENTS) {
+                    false
+                } else {
+                    self.jobs
+                        .as_ref()
+                        .map(|jobs| jobs.contains(job_id))
+                        .unwrap_or(true)
+                }
+            }
+            EventPayload::TaskStarted { task_id, .. }
+            | EventPayload::TaskFinished { task_id }
+            | EventPayload::TaskFailed { task_id, .. } => {
+                if !self.flags.contains(EventFilterFlags::TASK_EVENTS) {
+                    false
+                } else {
+                    self.jobs
+                        .as_ref()
+                        .map(|jobs| jobs.contains(&task_id.job_id()))
+                        .unwrap_or(true)
+                }
+            }
+            EventPayload::TasksCanceled { task_ids } => {
+                if !self.flags.contains(EventFilterFlags::TASK_EVENTS) {
+                    false
+                } else {
+                    self.jobs
+                        .as_ref()
+                        .map(|jobs| {
+                            task_ids
+                                .iter()
+                                .any(|task_id| jobs.contains(&task_id.job_id()))
+                        })
+                        .unwrap_or(true)
+                }
+            }
+            EventPayload::AllocationQueueCreated(_, _)
+            | EventPayload::AllocationQueueRemoved(_)
+            | EventPayload::AllocationQueued { .. }
+            | EventPayload::AllocationStarted(_, _)
+            | EventPayload::AllocationFinished(_, _) => {
+                self.flags.contains(EventFilterFlags::ALLOCATION_EVENTS)
+            }
+            EventPayload::ServerStart { .. } | EventPayload::ServerStop => true,
+            EventPayload::TaskNotify(notify) => {
+                if !self.flags.contains(EventFilterFlags::NOTIFY_EVENTS) {
+                    false
+                } else {
+                    self.jobs
+                        .as_ref()
+                        .map(|jobs| jobs.contains(&notify.task_id.job_id()))
+                        .unwrap_or(true)
+                }
+            }
         }
     }
 }

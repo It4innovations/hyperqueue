@@ -45,7 +45,11 @@ use hyperqueue::common::cli::{
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::common::utils::fs::absolute_path;
 use hyperqueue::server::bootstrap::get_client_session;
-use hyperqueue::transfer::messages::{FromClientMessage, JobInfoRequest, ToClientMessage};
+use hyperqueue::server::event::streamer::{EventFilter, EventFilterFlags};
+use hyperqueue::transfer::messages::ToClientMessage::Event;
+use hyperqueue::transfer::messages::{
+    FromClientMessage, JobInfoRequest, StreamEvents, ToClientMessage,
+};
 use hyperqueue::worker::hwdetect::{
     detect_additional_resources, detect_cpus, prune_hyper_threading,
 };
@@ -162,11 +166,20 @@ async fn command_job_progress(
     opts: JobProgressOpts,
 ) -> anyhow::Result<()> {
     let mut session = get_client_session(gsettings.server_directory()).await?;
+    let mut flags = EventFilterFlags::empty();
+    flags.insert(EventFilterFlags::JOB_EVENTS);
+    flags.insert(EventFilterFlags::TASK_EVENTS);
     let response = hyperqueue::rpc_call!(
         session.connection(),
         FromClientMessage::JobInfo(JobInfoRequest {
             selector: opts.selector,
-        }),
+            include_running_tasks: true
+        }, Some(StreamEvents {
+            past_events: false,
+            live_events: true,
+            enable_worker_overviews: false,
+            filter: EventFilter::new(None, flags)
+        })),
         ToClientMessage::JobInfoResponse(r) => r
     )
     .await?;

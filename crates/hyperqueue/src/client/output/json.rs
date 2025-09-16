@@ -392,6 +392,7 @@ fn format_job_info(info: &JobInfo) -> Value {
         n_tasks,
         counters,
         is_open,
+        running_tasks: _,
     } = info;
 
     json!({

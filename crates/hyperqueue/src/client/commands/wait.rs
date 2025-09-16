@@ -13,6 +13,7 @@ use crate::client::status::{Status, is_terminated};
 use crate::common::arraydef::IntArray;
 use crate::common::utils::str::pluralize;
 use crate::rpc_call;
+use crate::server::event::payload::EventPayload;
 use crate::server::job::JobTaskCounters;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
@@ -20,7 +21,7 @@ use crate::transfer::messages::{
     TaskSelector, TaskStatusSelector, ToClientMessage, WaitForJobsRequest,
 };
 use colored::Colorize;
-use tako::{JobId, JobTaskCount};
+use tako::{JobId, JobTaskCount, TaskId};
 
 pub async fn wait_for_jobs(
     gsettings: &GlobalSettings,
@@ -78,119 +79,112 @@ pub async fn wait_for_jobs_with_progress(
     session: &mut ClientSession,
     jobs: &[JobInfo],
 ) -> anyhow::Result<()> {
-    if jobs.iter().all(is_terminated) {
-        log::warn!("There are no jobs to wait for");
-    } else {
-        let mut unfinished_job_ids: BTreeSet<JobId> = jobs
-            .iter()
-            .filter(|info| !is_terminated(info))
-            .map(|info| info.id)
-            .collect();
-        let unfinished_tasks = jobs
-            .iter()
-            .filter(|info| !is_terminated(info))
-            .map(|info| info.n_tasks)
-            .sum::<u32>();
+    let mut n_tasks = 0;
+    let mut counters = JobTaskCounters::default();
+    let mut completed_jobs = 0;
 
-        let initial_unfinished_jobs = unfinished_job_ids.len();
-        log::info!(
-            "Waiting for {} {} with {} {}",
-            initial_unfinished_jobs,
-            pluralize("job", initial_unfinished_jobs),
-            unfinished_tasks,
-            pluralize("task", unfinished_tasks as usize),
-        );
+    let mut running_tasks: tako::Set<TaskId> = Default::default();
 
-        let total_tasks: JobTaskCount = jobs.iter().map(|info| info.n_tasks).sum();
-
-        // Counters of jobs that have all been finished
-        // Note: this ignores the fact that some jobs might be open
-        let mut counters_finished = jobs
-            .iter()
-            .filter(|info| is_terminated(info))
-            .map(|info| info.counters)
-            .fold(JobTaskCounters::default(), |acc, c| acc + c);
-
-        loop {
-            // Only ask for status of unfinished jobs
-            let response = rpc_call!(
-                session.connection(),
-                FromClientMessage::JobInfo(JobInfoRequest {
-                    selector: IdSelector::Specific(IntArray::from_sorted_ids(unfinished_job_ids.iter().map(|x| x.as_num()))),
-                }),
-                ToClientMessage::JobInfoResponse(r) => r
-            )
-            .await?;
-
-            let mut current_counters = counters_finished;
-            for job in &response.jobs {
-                current_counters = current_counters + job.counters;
-
-                if is_terminated(job) {
-                    unfinished_job_ids.remove(&job.id);
-                    counters_finished = counters_finished + job.counters;
-                }
-            }
-
-            let completed_jobs = jobs.len() - unfinished_job_ids.len();
-            let completed_tasks = current_counters.n_finished_tasks
-                + current_counters.n_canceled_tasks
-                + current_counters.n_failed_tasks;
-
-            let mut statuses = vec![];
-            let mut add_count = |count, name: &str, color| {
-                if count > 0 {
-                    statuses.push(format!("{} {}", count, name.to_string().color(color)));
-                }
-            };
-            add_count(
-                current_counters.n_running_tasks,
-                "RUNNING",
-                TASK_COLOR_RUNNING,
-            );
-            add_count(
-                current_counters.n_finished_tasks,
-                "FINISHED",
-                TASK_COLOR_FINISHED,
-            );
-            add_count(current_counters.n_failed_tasks, "FAILED", TASK_COLOR_FAILED);
-            add_count(
-                current_counters.n_canceled_tasks,
-                "CANCELED",
-                TASK_COLOR_CANCELED,
-            );
-            let status = if !statuses.is_empty() {
-                format!("({})", statuses.join(", "))
-            } else {
-                "".to_string()
-            };
-
-            // \x1b[2K clears the line
-            print!(
-                "\r\x1b[2K{} {}/{} jobs, {}/{} tasks {}",
-                job_progress_bar(current_counters, total_tasks, 40),
-                completed_jobs,
-                jobs.len(),
-                completed_tasks,
-                total_tasks,
-                status
-            );
-            std::io::stdout().flush().unwrap();
-
-            if unfinished_job_ids.is_empty() {
-                // Move the cursor to a new line
-                println!();
-                break;
-            }
-            sleep(Duration::from_secs(1)).await;
+    for job in jobs {
+        n_tasks += job.n_tasks;
+        counters = counters + job.counters;
+        if is_terminated(job) {
+            completed_jobs += 1;
         }
-
-        if counters_finished.n_failed_tasks > 0 {
-            anyhow::bail!("Some jobs have failed");
-        }
-        if counters_finished.n_canceled_tasks > 0 {
-            anyhow::bail!("Some jobs were canceled");
+        for job_task_id in &job.running_tasks {
+            running_tasks.insert(TaskId::new(job.id, *job_task_id));
         }
     }
+
+    let mut unfinished_tasks = counters.n_running_tasks + counters.n_waiting_tasks(n_tasks);
+    if unfinished_tasks == 0 {
+        log::warn!("There are no jobs to wait for");
+        return Ok(());
+    }
+
+    log::info!(
+        "Waiting for {} {} with {} {}",
+        jobs.len(),
+        pluralize("job", jobs.len()),
+        unfinished_tasks,
+        pluralize("task", unfinished_tasks as usize),
+    );
+    let mut status = String::new();
+    loop {
+        status.clear();
+        let mut add_count = |count, name: &str, color| {
+            use std::fmt::Write;
+            if count > 0 {
+                write!(
+                    status,
+                    "{}{} {}",
+                    if status.is_empty() { "" } else { " " },
+                    count,
+                    name.color(color)
+                )
+                .unwrap();
+            }
+        };
+        add_count(counters.n_running_tasks, "RUNNING", TASK_COLOR_RUNNING);
+        add_count(counters.n_finished_tasks, "FINISHED", TASK_COLOR_FINISHED);
+        add_count(counters.n_failed_tasks, "FAILED", TASK_COLOR_FAILED);
+        add_count(counters.n_canceled_tasks, "CANCELED", TASK_COLOR_CANCELED);
+
+        // \x1b[2K clears the line
+        print!(
+            "\r\x1b[2K{} {}/{} jobs, {}/{} tasks {}",
+            job_progress_bar(counters, n_tasks, 40),
+            completed_jobs,
+            jobs.len(),
+            counters.completed_tasks(),
+            n_tasks,
+            status
+        );
+        std::io::stdout().flush().unwrap();
+
+        if completed_jobs >= jobs.len() {
+            break;
+        }
+
+        if let Some(msg) = session.connection().receive().await {
+            let msg = msg?;
+            match &msg {
+                ToClientMessage::Event(event) => match &event.payload {
+                    EventPayload::JobCompleted(_) => completed_jobs += 1,
+                    EventPayload::TaskStarted { task_id, .. } => {
+                        counters.n_running_tasks += 1;
+                        running_tasks.insert(*task_id);
+                    }
+                    EventPayload::TaskFinished { task_id } => {
+                        if running_tasks.remove(task_id) {
+                            counters.n_running_tasks -= 1;
+                        }
+                        counters.n_finished_tasks += 1;
+                    }
+                    EventPayload::TaskFailed { task_id, .. } => {
+                        if running_tasks.remove(task_id) {
+                            counters.n_running_tasks -= 1;
+                        }
+                        counters.n_failed_tasks += 1;
+                    }
+                    EventPayload::TasksCanceled { task_ids } => {
+                        for task_id in task_ids {
+                            if running_tasks.remove(task_id) {
+                                counters.n_running_tasks -= 1;
+                            }
+                            counters.n_canceled_tasks += 1;
+                        }
+                    }
+                    _ => {}
+                },
+                _ => {
+                    log::warn!("Unexpected message from server: {:?}", &msg);
+                }
+            }
+        } else {
+            return Ok(());
+        }
+    }
+
     Ok(())
 }

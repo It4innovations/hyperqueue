@@ -124,9 +124,13 @@ pub async fn output_job_list(
     job_filters: Vec<Status>,
     show_open: bool,
 ) -> anyhow::Result<()> {
-    let message = FromClientMessage::JobInfo(JobInfoRequest {
-        selector: IdSelector::All,
-    });
+    let message = FromClientMessage::JobInfo(
+        JobInfoRequest {
+            selector: IdSelector::All,
+            include_running_tasks: false,
+        },
+        None,
+    );
     let mut response =
         rpc_call!(session.connection(), message, ToClientMessage::JobInfoResponse(r) => r).await?;
 
@@ -147,9 +151,13 @@ pub async fn output_job_summary(
     gsettings: &GlobalSettings,
     session: &mut ClientSession,
 ) -> anyhow::Result<()> {
-    let message = FromClientMessage::JobInfo(JobInfoRequest {
-        selector: IdSelector::All,
-    });
+    let message = FromClientMessage::JobInfo(
+        JobInfoRequest {
+            selector: IdSelector::All,
+            include_running_tasks: false,
+        },
+        None,
+    );
     let response =
         rpc_call!(session.connection(), message, ToClientMessage::JobInfoResponse(r) => r).await?;
 
