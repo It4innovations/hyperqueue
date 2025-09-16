@@ -6,6 +6,7 @@ use crate::common::utils::str::pluralize;
 use crate::rpc_call;
 use crate::server::bootstrap::get_client_session;
 use crate::server::event::journal::JournalReader;
+use crate::server::event::streamer::EventFilter;
 use crate::transfer::messages::{FromClientMessage, StreamEvents, ToClientMessage};
 use anyhow::anyhow;
 use clap::{Parser, ValueHint};
@@ -79,8 +80,7 @@ async fn stream_json(
             past_events,
             live_events,
             enable_worker_overviews: false,
-            job_filter: None,
-            allow_notify: true,
+            filter: EventFilter::all_events(),
         }))
         .await?;
     let stdout = std::io::stdout();

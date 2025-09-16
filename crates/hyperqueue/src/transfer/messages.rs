@@ -9,6 +9,7 @@ use crate::common::arraydef::IntArray;
 use crate::common::manager::info::ManagerType;
 use crate::server::autoalloc::{Allocation, AllocationId, QueueId, QueueParameters};
 use crate::server::event::Event;
+use crate::server::event::streamer::EventFilter;
 use crate::server::job::{JobTaskCounters, JobTaskInfo, SubmittedJobDescription};
 use bstr::BString;
 use std::path::PathBuf;
@@ -30,12 +31,16 @@ pub enum FromClientMessage {
     /// If set second item is set, the server immediately starts to event streaming.
     /// Streamed events are automatically filtered only for the submitted job.
     /// It is basically as sending Submit and StreamEvents, but it is done atomically,
-    /// so no is lost messages.
+    /// so no message is lost.
     Submit(SubmitRequest, Option<StreamEvents>),
     Cancel(CancelRequest),
     ForgetJob(ForgetJobRequest),
     JobDetail(JobDetailRequest),
-    JobInfo(JobInfoRequest),
+    /// If set second item is set, the server immediately starts to event streaming.
+    /// Streamed events are automatically filtered only for selected jobs in JobInfo.
+    /// It is basically as sending JobInfo and StreamEvents, but it is done atomically,
+    /// so no message is lost.
+    JobInfo(JobInfoRequest, Option<StreamEvents>),
     WorkerList,
     WorkerInfo(WorkerInfoRequest),
     StopWorker(StopWorkerMessage),
@@ -106,9 +111,7 @@ pub struct StreamEvents {
     /// Enable worker overviews during the event streaming.
     pub enable_worker_overviews: bool,
     /// Stream events only relevant for a given jobs
-    pub job_filter: Option<Set<JobId>>,
-    /// Send TaskNotifyEvent only if `allow_notify` is on
-    pub allow_notify: bool,
+    pub filter: EventFilter,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -266,6 +269,7 @@ pub struct ForgetJobRequest {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct JobInfoRequest {
     pub selector: IdSelector,
+    pub include_running_tasks: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -430,6 +434,7 @@ pub struct JobInfo {
     pub n_tasks: JobTaskCount,
     pub counters: JobTaskCounters,
     pub is_open: bool,
+    pub running_tasks: Vec<JobTaskId>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

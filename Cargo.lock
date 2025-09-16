@@ -1006,6 +1006,7 @@ version = "0.24.0"
 dependencies = [
  "anyhow",
  "bincode",
+ "bitflags 2.9.4",
  "bstr",
  "chrono",
  "chumsky",
