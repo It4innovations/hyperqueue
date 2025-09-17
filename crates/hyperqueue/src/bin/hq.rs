@@ -2,7 +2,6 @@ use clap::{CommandFactory, FromArgMatches};
 use clap_complete::generate;
 use cli_table::ColorChoice;
 use colored::Colorize;
-use hyperqueue::HQ_VERSION;
 use hyperqueue::client::commands::autoalloc::command_autoalloc;
 use hyperqueue::client::commands::data::command_task_data;
 use hyperqueue::client::commands::doc::command_doc;
@@ -48,11 +47,12 @@ use hyperqueue::server::bootstrap::get_client_session;
 use hyperqueue::server::event::streamer::{EventFilter, EventFilterFlags};
 use hyperqueue::transfer::messages::ToClientMessage::Event;
 use hyperqueue::transfer::messages::{
-    FromClientMessage, JobInfoRequest, StreamEvents, ToClientMessage,
+    FromClientMessage, JobInfoRequest, StreamEvents, ToClientMessage, WaitForJobsRequest,
 };
 use hyperqueue::worker::hwdetect::{
     detect_additional_resources, detect_cpus, prune_hyper_threading,
 };
+use hyperqueue::{HQ_VERSION, rpc_call};
 use nix::sys::signal::{SigHandler, Signal};
 use std::io;
 use std::io::IsTerminal;
@@ -151,14 +151,22 @@ async fn command_job_task_ids(
 }
 
 async fn command_job_wait(gsettings: &GlobalSettings, opts: JobWaitOpts) -> anyhow::Result<()> {
-    let mut connection = get_client_session(gsettings.server_directory()).await?;
-    wait_for_jobs(
-        gsettings,
-        &mut connection,
-        opts.selector,
-        !opts.without_close,
+    let mut session = get_client_session(gsettings.server_directory()).await?;
+    let response = rpc_call!(
+        session.connection(),
+        FromClientMessage::JobInfo(JobInfoRequest {
+            selector: opts.selector,
+            include_running_tasks: true
+        }, Some(StreamEvents {
+            past_events: false,
+            live_events: true,
+            enable_worker_overviews: false,
+            filter: EventFilter::new(None, EventFilterFlags::JOB_EVENTS)
+        })),
+        ToClientMessage::JobInfoResponse(r) => r
     )
-    .await
+    .await?;
+    wait_for_jobs(&mut session, &response.jobs, !opts.without_close).await
 }
 
 async fn command_job_progress(
@@ -169,7 +177,7 @@ async fn command_job_progress(
     let mut flags = EventFilterFlags::empty();
     flags.insert(EventFilterFlags::JOB_EVENTS);
     flags.insert(EventFilterFlags::TASK_EVENTS);
-    let response = hyperqueue::rpc_call!(
+    let response = rpc_call!(
         session.connection(),
         FromClientMessage::JobInfo(JobInfoRequest {
             selector: opts.selector,

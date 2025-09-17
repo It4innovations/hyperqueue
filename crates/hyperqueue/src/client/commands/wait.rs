@@ -21,57 +21,37 @@ use crate::transfer::messages::{
     TaskSelector, TaskStatusSelector, ToClientMessage, WaitForJobsRequest,
 };
 use colored::Colorize;
-use tako::{JobId, JobTaskCount, TaskId};
+use tako::{JobId, JobTaskCount, Set, TaskId};
 
 pub async fn wait_for_jobs(
-    gsettings: &GlobalSettings,
     session: &mut ClientSession,
-    selector: IdSelector,
+    jobs: &[JobInfo],
     wait_for_close: bool,
 ) -> anyhow::Result<()> {
-    let start = SystemTime::now();
-    let response = rpc_call!(
-        session.connection(),
-        FromClientMessage::WaitForJobs(WaitForJobsRequest {
-            selector: selector.clone(),
-            wait_for_close,
-        }),
-        ToClientMessage::WaitForJobsResponse(r) => r
-    )
-    .await?;
-
-    let detail = match response.failed > 0 {
-        false => vec![],
-        true => {
-            rpc_call!(
-                session.connection(),
-                FromClientMessage::JobDetail(JobDetailRequest {
-                    job_id_selector: selector,
-                    task_selector: Some(TaskSelector {
-                        id_selector: TaskIdSelector::All,
-                        status_selector: TaskStatusSelector::Specific(vec![Status::Failed]),
-                    })
-                }),
-                ToClientMessage::JobDetailResponse(r) => r.details
-            )
-            .await?
+    let mut unfinished_jobs = Set::new();
+    for job in jobs {
+        if !is_terminated(job) || (wait_for_close && job.is_open) {
+            unfinished_jobs.insert(job.id);
         }
-    };
-
-    let duration = start.elapsed()?;
-    gsettings.printer().print_job_wait(
-        duration,
-        &response,
-        &detail,
-        get_worker_map(session).await?,
-    );
-
-    if response.failed > 0 || response.canceled > 0 {
-        return Err(anyhow::anyhow!(
-            "Some jobs have failed or have been canceled"
-        ));
     }
-
+    while !unfinished_jobs.is_empty() {
+        if let Some(msg) = session.connection().receive().await {
+            let msg = msg?;
+            let job_id = match &msg {
+                ToClientMessage::Event(event) => match event.payload {
+                    EventPayload::JobCompleted(job_id) => job_id,
+                    EventPayload::JobIdle(job_id) if !wait_for_close => job_id,
+                    _ => continue,
+                },
+                _ => {
+                    return Err(anyhow::anyhow!("Unexpected message from server"));
+                }
+            };
+            unfinished_jobs.remove(&job_id);
+        } else {
+            return Ok(());
+        }
+    }
     Ok(())
 }
 
