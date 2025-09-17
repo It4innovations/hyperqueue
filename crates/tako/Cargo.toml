@@ -31,7 +31,7 @@ thin-vec = { workspace = true }
 bitflags = { workspace = true }
 tempfile = { workspace = true }
 
-hashbrown = { version = "0.15", features = ["serde", "inline-more"], default-features = false }
+hashbrown = { version = "0.16", features = ["serde", "inline-more"], default-features = false }
 priority-queue = "2"
 fxhash = "0.2"
 derive_more = { version = "2", features = ["add", "add_assign", "sum"] }
