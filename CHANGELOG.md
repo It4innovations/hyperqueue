@@ -1,3 +1,9 @@
+## Unreleased
+
+### New features
+
+* Server scheduler more respects priorities
+
 ## v0.24.0
 
 ### Breaking changes
