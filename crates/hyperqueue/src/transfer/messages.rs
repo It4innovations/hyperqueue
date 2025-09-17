@@ -46,7 +46,6 @@ pub enum FromClientMessage {
     StopWorker(StopWorkerMessage),
     Stop,
     AutoAlloc(AutoAllocRequest),
-    WaitForJobs(WaitForJobsRequest),
     ServerInfo,
     OpenJob(JobDescription),
     CloseJob(CloseJobRequest),

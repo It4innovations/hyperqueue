@@ -751,10 +751,11 @@ pub(crate) async fn send_submit_request(
     progress: bool,
 ) -> anyhow::Result<()> {
     let job_id = request.job_id.unwrap_or_else(|| JobId::new(0));
-    let stream_request = if progress {
-        let mut flags = EventFilterFlags::empty();
-        flags.insert(EventFilterFlags::JOB_EVENTS);
-        flags.insert(EventFilterFlags::TASK_EVENTS);
+    let stream_request = if progress || wait {
+        let mut flags = EventFilterFlags::JOB_EVENTS;
+        if progress {
+            flags.insert(EventFilterFlags::TASK_EVENTS);
+        }
         Some(StreamEvents {
             past_events: false,
             live_events: true,
@@ -775,13 +776,7 @@ pub(crate) async fn send_submit_request(
 
             gsettings.printer().print_job_submitted(job);
             if wait {
-                wait_for_jobs(
-                    gsettings,
-                    session,
-                    IdSelector::Specific(IntArray::from_id(info.id.into())),
-                    true,
-                )
-                .await?;
+                wait_for_jobs(session, &[info], true).await?;
             } else if progress {
                 wait_for_jobs_with_progress(session, &[info]).await?;
             }

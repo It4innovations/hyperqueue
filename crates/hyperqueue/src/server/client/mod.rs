@@ -286,15 +286,6 @@ pub async fn client_rpc_loop<
                     FromClientMessage::AutoAlloc(msg) => {
                         autoalloc::handle_autoalloc_message(&server_dir, senders, msg).await
                     }
-                    FromClientMessage::WaitForJobs(msg) => {
-                        handle_wait_for_jobs_message(
-                            &state_ref,
-                            senders,
-                            msg.selector,
-                            msg.wait_for_close,
-                        )
-                        .await
-                    }
                     FromClientMessage::OpenJob(job_description) => {
                         handle_open_job(&state_ref, senders, job_description)
                     }
@@ -526,74 +517,6 @@ async fn handle_prune_journal(state_ref: &StateRef, senders: &Senders) -> ToClie
         let _ = receiver.await;
     }
     ToClientMessage::Finished
-}
-
-/// Waits until all jobs matched by the `selector` are finished (either by completing successfully,
-/// failing or being canceled).
-async fn handle_wait_for_jobs_message(
-    state_ref: &StateRef,
-    senders: &Senders,
-    selector: IdSelector,
-    wait_for_close: bool,
-) -> ToClientMessage {
-    let update_counters = |response: &mut WaitForJobsResponse, counters: &JobTaskCounters| {
-        if counters.n_canceled_tasks > 0 {
-            response.canceled += 1;
-        } else if counters.n_failed_tasks > 0 {
-            response.failed += 1;
-        } else {
-            response.finished += 1;
-        }
-    };
-
-    let (remaining, mut response) = {
-        let mut state = state_ref.get_mut();
-        let mut response = WaitForJobsResponse::default();
-        let mut job_ids: Vec<JobId> = get_job_ids(&state, &selector);
-
-        job_ids.retain(|job_id| match state.get_job_mut(*job_id) {
-            Some(job) => {
-                if job.has_no_active_tasks() && !(wait_for_close && job.is_open()) {
-                    update_counters(&mut response, &job.counters);
-                    false
-                } else {
-                    true
-                }
-            }
-            None => {
-                response.invalid += 1;
-                false
-            }
-        });
-        (job_ids, response)
-    };
-
-    if !remaining.is_empty() {
-        let mut task_set = Set::from_iter(remaining.into_iter());
-        let (sender, mut receiver) = mpsc::unbounded_channel();
-        let filter = EventFilter::job_events(task_set.clone());
-        senders.events.register_listener(filter, sender);
-        loop {
-            let event = receiver.recv().await.unwrap();
-            let job_id = match event.payload {
-                EventPayload::JobCompleted(job_id) => job_id,
-                EventPayload::JobIdle(job_id) if !wait_for_close => job_id,
-                _ => continue,
-            };
-            if task_set.remove(&job_id) {
-                let state = state_ref.get();
-                if let Some(job) = state.get_job(job_id) {
-                    update_counters(&mut response, &job.counters);
-                } else {
-                    response.invalid += 1;
-                }
-                if task_set.is_empty() {
-                    break;
-                }
-            }
-        }
-    }
-    ToClientMessage::WaitForJobsResponse(response)
 }
 
 fn handle_worker_stop(
