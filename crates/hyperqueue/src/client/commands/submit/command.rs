@@ -15,11 +15,12 @@ use crate::common::utils::fs::get_current_dir;
 use crate::common::utils::str::pluralize;
 use crate::common::utils::time::parse_hms_or_human_time;
 use crate::rpc_call;
+use crate::server::event::streamer::{EventFilter, EventFilterFlags};
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
     FromClientMessage, IdSelector, JobDescription, JobSubmitDescription, JobTaskDescription,
-    PinMode, SubmitRequest, SubmitResponse, TaskDescription, TaskKind, TaskKindProgram,
-    ToClientMessage,
+    PinMode, StreamEvents, SubmitRequest, SubmitResponse, TaskDescription, TaskKind,
+    TaskKindProgram, ToClientMessage,
 };
 use anyhow::{anyhow, bail};
 use bstr::BString;
@@ -750,7 +751,20 @@ pub(crate) async fn send_submit_request(
     progress: bool,
 ) -> anyhow::Result<()> {
     let job_id = request.job_id.unwrap_or_else(|| JobId::new(0));
-    let message = FromClientMessage::Submit(request, None);
+    let stream_request = if progress {
+        let mut flags = EventFilterFlags::empty();
+        flags.insert(EventFilterFlags::JOB_EVENTS);
+        flags.insert(EventFilterFlags::TASK_EVENTS);
+        Some(StreamEvents {
+            past_events: false,
+            live_events: true,
+            enable_worker_overviews: false,
+            filter: EventFilter::new(None, flags),
+        })
+    } else {
+        None
+    };
+    let message = FromClientMessage::Submit(request, stream_request);
 
     let response =
         rpc_call!(session.connection(), message, ToClientMessage::SubmitResponse(r) => r).await?;
