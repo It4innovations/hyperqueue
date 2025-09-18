@@ -570,10 +570,10 @@ fn handle_directives(
         )?),
         DirectivesMode::Auto | DirectivesMode::Off => None,
     } {
-        if let Some(shebang) = shebang {
-            if !stdin_present {
-                opts.commands = shebang.modify_commands(opts.commands);
-            }
+        if let Some(shebang) = shebang
+            && !stdin_present
+        {
+            opts.commands = shebang.modify_commands(opts.commands);
         }
         conf.overwrite(parsed_opts)
     } else {

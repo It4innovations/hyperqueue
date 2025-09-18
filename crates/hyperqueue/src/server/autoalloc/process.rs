@@ -423,7 +423,7 @@ fn create_queue_worker_query(queue: &AllocationQueue) -> WorkerTypeQuery {
             (resources.clone(), true)
         } else {
             // Otherwise we cannot assume anything about the worker
-            (ResourceDescriptor::new(vec![], None), true)
+            (ResourceDescriptor::new(vec![], Default::default()), true)
         }
     };
 

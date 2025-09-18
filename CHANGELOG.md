@@ -3,6 +3,7 @@
 ### New features
 
 * Server scheduler more respects priorities
+* Resource coupling is now stabilized. It is extended to freely set arbiratray weights between groups.
 
 ## v0.24.0
 

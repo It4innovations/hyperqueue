@@ -606,7 +606,7 @@ impl From<Vec<ResourceDescriptorItem>> for ResourceDescriptor {
     fn from(value: Vec<ResourceDescriptorItem>) -> Self {
         Self {
             resources: value,
-            coupling: None,
+            coupling: Default::default(),
         }
     }
 }
