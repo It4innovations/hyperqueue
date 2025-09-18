@@ -1,8 +1,9 @@
 use crate::internal::common::resources::ResourceId;
 use crate::internal::worker::resources::concise::ConciseFreeResources;
 use crate::internal::worker::resources::pool::{FAST_MAX_COUPLED_RESOURCES, FAST_MAX_GROUPS};
+use crate::internal::worker::resources::solver::create_solver;
+use crate::internal::worker::resources::solver::{LpSolution, LpSolver};
 use crate::resources::{FRACTIONS_PER_UNIT, ResourceGroupIdx};
-use highs::{HighsModelStatus, Sense};
 use smallvec::SmallVec;
 
 pub(crate) struct CouplingWeightItem {
@@ -63,18 +64,19 @@ pub fn group_solver(
     entries: &[&crate::resources::ResourceAllocRequest],
     weights: &[CouplingWeightItem],
 ) -> Option<(SelectedGroups, f64)> {
-    let mut pb = highs::RowProblem::new();
+    let mut solver = create_solver();
     let vars: SmallVec<[SmallVec<_>; FAST_MAX_COUPLED_RESOURCES]> = entries
         .iter()
         .map(|entry| {
             let (units, fractions) = entry.request.amount_or_none_if_all().unwrap().split();
             let r = free.get(entry.resource_id);
             if fractions == 0 {
-                let vs = (0..r.n_groups())
-                    .map(|_| pb.add_integer_column(-1024.0, 0..=1))
-                    .collect::<SmallVec<[highs::Col; FAST_MAX_GROUPS]>>();
-                pb.add_row(
-                    units..,
+                let vs = r
+                    .units_per_group()
+                    .map(|u| solver.add_bool_variable(-1024.0 - (u as f64) / 32.0))
+                    .collect::<SmallVec<[_; FAST_MAX_GROUPS]>>();
+                solver.add_constraint(
+                    units as f64,
                     vs.iter()
                         .zip(r.units_per_group())
                         .map(|(v, u)| (*v, u as f64)),
@@ -83,29 +85,28 @@ pub fn group_solver(
             } else {
                 let amounts: SmallVec<[_; FAST_MAX_GROUPS]> = r.amount_max_per_group().collect();
                 let mut need_second_check = false;
-                let vs: SmallVec<[highs::Col; FAST_MAX_GROUPS]> = amounts
+                let vs: SmallVec<[_; FAST_MAX_GROUPS]> = amounts
                     .iter()
                     .map(|(_, f)| {
                         if *f >= fractions {
                             need_second_check = true;
-                            pb.add_integer_column(
+                            solver.add_bool_variable(
                                 -1024.0 + (*f as f64 / (FRACTIONS_PER_UNIT as f64 / 16.0)),
-                                0..=1,
                             )
                         } else {
-                            pb.add_integer_column(-1024.0, 0..=1)
+                            solver.add_bool_variable(-1024.0)
                         }
                     })
                     .collect();
-                pb.add_row(
-                    (units + 1)..,
+                solver.add_constraint(
+                    (units + 1) as f64,
                     vs.iter()
                         .zip(amounts.iter())
                         .map(|(v, (u, f))| (*v, if *f >= fractions { u + 1 } else { *u } as f64)),
                 );
                 if units > 0 && need_second_check {
-                    pb.add_row(
-                        units..,
+                    solver.add_constraint(
+                        units as f64,
                         vs.iter()
                             .zip(r.units_per_group())
                             .map(|(v, u)| (*v, u as f64)),
@@ -124,27 +125,20 @@ pub fn group_solver(
         };
         let v1 = vars[r1][w.group1.as_num() as usize];
         let v2 = vars[r2][w.group2.as_num() as usize];
-        let v3 = pb.add_column(w.weight, 0..=1);
-        pb.add_row(0.., [(v1, 1.0), (v3, -1.0)]);
-        pb.add_row(0.., [(v2, 1.0), (v3, -1.0)]);
+        let v3 = solver.add_variable(w.weight, 0.0, 1.0);
+        solver.add_constraint(0.0, [(v1, 1.0), (v3, -1.0)].into_iter());
+        solver.add_constraint(0.0, [(v2, 1.0), (v3, -1.0)].into_iter());
     }
-
-    let solved_model = pb.optimise(Sense::Maximise).solve();
-    if !matches!(solved_model.status(), HighsModelStatus::Optimal) {
-        return None;
-    }
-    let objective_value = solved_model.objective_value();
-    let solution = solved_model.get_solution();
-    let columns = solution.columns();
+    let (solution, objective_value) = solver.solve()?;
+    let values = solution.get_values();
     let mut index = 0;
-
     Some((
         entries
             .iter()
             .map(|entry| {
                 let r = free.get(entry.resource_id);
                 let n = r.n_groups();
-                let g = columns[index..index + n]
+                let g = values[index..index + n]
                     .iter()
                     .enumerate()
                     .filter_map(|(i, v)| (*v > 0.5).then_some(i))
