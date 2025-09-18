@@ -105,10 +105,10 @@ pub fn fill_placeholders_log(
 pub fn get_unknown_placeholders(input: &str) -> Vec<&str> {
     let mut unknown = Vec::new();
     for placeholder in parse_resolvable_string(input) {
-        if let StringPart::Placeholder(placeholder) = placeholder {
-            if !KNOWN_PLACEHOLDERS.contains(&placeholder) {
-                unknown.push(placeholder);
-            }
+        if let StringPart::Placeholder(placeholder) = placeholder
+            && !KNOWN_PLACEHOLDERS.contains(&placeholder)
+        {
+            unknown.push(placeholder);
         }
     }
     unknown

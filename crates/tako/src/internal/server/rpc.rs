@@ -227,16 +227,15 @@ async fn worker_rpc_loop(
                 last_retract_check = now;
             }
 
-            if let Some(timeout) = idle_timeout {
-                if worker.idle_timestamp + timeout < now
-                    && worker.is_free()
-                    && !worker.is_reserved()
-                {
-                    log::debug!("Idle timeout reached, worker={}", worker.id);
-                    worker.set_stop(LostWorkerReason::IdleTimeout);
-                    let mut comm = comm_ref2.get_mut();
-                    comm.send_worker_message(worker_id, &ToWorkerMessage::Stop);
-                }
+            if let Some(timeout) = idle_timeout
+                && worker.idle_timestamp + timeout < now
+                && worker.is_free()
+                && !worker.is_reserved()
+            {
+                log::debug!("Idle timeout reached, worker={}", worker.id);
+                worker.set_stop(LostWorkerReason::IdleTimeout);
+                let mut comm = comm_ref2.get_mut();
+                comm.send_worker_message(worker_id, &ToWorkerMessage::Stop);
             }
 
             if let Some((_, stop)) = worker.stop_reason {
