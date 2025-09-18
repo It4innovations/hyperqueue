@@ -136,7 +136,7 @@ async fn send_message(
 pub(crate) async fn datanode_local_connection_handler(
     data_node_ref: WorkerStateRef,
     mut rx: impl Stream<Item = Result<BytesMut, std::io::Error>> + Unpin,
-    mut tx: (impl Sink<Bytes> + Unpin),
+    mut tx: impl Sink<Bytes> + Unpin,
     task_id: TaskId,
     input_map: Option<Rc<Vec<DataObjectId>>>,
 ) -> crate::Result<()> {

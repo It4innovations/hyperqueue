@@ -193,10 +193,11 @@ impl ResourceAllocator {
             let Some(pool) = pools.get(entry.resource_id.as_usize()) else {
                 return false;
             };
-            if let ResourcePool::Groups(g) = pool {
-                if g.is_coupled() && entry.request.is_relevant_for_coupling() {
-                    coupling.push(entry);
-                }
+            if let ResourcePool::Groups(g) = pool
+                && g.is_coupled()
+                && entry.request.is_relevant_for_coupling()
+            {
+                coupling.push(entry);
             }
             Self::has_resources_for_entry(pool, free.get(entry.resource_id), &entry.request)
         }) {
@@ -304,11 +305,12 @@ impl ResourceAllocator {
             SmallVec::new();
         for entry in request.entries() {
             let pool = self.pools.get_mut(entry.resource_id.as_usize()).unwrap();
-            if let ResourcePool::Groups(g) = pool {
-                if g.is_coupled() && entry.request.is_relevant_for_coupling() {
-                    coupling.push(entry);
-                    continue;
-                }
+            if let ResourcePool::Groups(g) = pool
+                && g.is_coupled()
+                && entry.request.is_relevant_for_coupling()
+            {
+                coupling.push(entry);
+                continue;
             }
             allocation.add_resource_allocation(pool.claim_resources(
                 entry.resource_id,
@@ -339,10 +341,10 @@ impl ResourceAllocator {
         &mut self,
         request: &ResourceRequest,
     ) -> Option<Rc<Allocation>> {
-        if let Some(remaining_time) = self.remaining_time {
-            if remaining_time < request.min_time() {
-                return None;
-            }
+        if let Some(remaining_time) = self.remaining_time
+            && remaining_time < request.min_time()
+        {
+            return None;
         }
 
         if self.blocked_requests.iter().any(|b| &b.request == request) {

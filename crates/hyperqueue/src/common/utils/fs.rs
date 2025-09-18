@@ -61,10 +61,10 @@ pub fn get_hq_binary_path() -> anyhow::Result<PathBuf> {
 /// - https://github.com/It4innovations/hyperqueue/issues/791
 /// - https://github.com/It4innovations/hyperqueue/issues/452
 pub fn normalize_exe_path(mut path: PathBuf) -> PathBuf {
-    if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-        if let Some(name) = name.to_string().strip_suffix(" (deleted)") {
-            path.set_file_name(name);
-        }
+    if let Some(name) = path.file_name().and_then(|n| n.to_str())
+        && let Some(name) = name.to_string().strip_suffix(" (deleted)")
+    {
+        path.set_file_name(name);
     }
     path
 }

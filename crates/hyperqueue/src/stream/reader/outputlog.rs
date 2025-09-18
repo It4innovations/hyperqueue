@@ -123,11 +123,11 @@ impl OutputLog {
                         continue;
                     }
                 };
-                if let Some(uid) = server_uid {
-                    if uid != header.server_uid {
-                        log::debug!("{} ignored because different server uid", path.display());
-                        continue;
-                    }
+                if let Some(uid) = server_uid
+                    && uid != header.server_uid
+                {
+                    log::debug!("{} ignored because different server uid", path.display());
+                    continue;
                 }
                 server_uids.insert(header.server_uid.into_owned());
                 paths.push(path);
@@ -420,10 +420,10 @@ impl OutputLog {
 
         let mut chunks = Vec::new();
         for (job_id, tasks) in self.index.iter() {
-            if let Some(selected_job_id) = opts.job {
-                if *job_id != selected_job_id {
-                    continue;
-                }
+            if let Some(selected_job_id) = opts.job
+                && *job_id != selected_job_id
+            {
+                continue;
             }
             for (task_id, task_info) in tasks.iter() {
                 let instance = task_info.last_instance();

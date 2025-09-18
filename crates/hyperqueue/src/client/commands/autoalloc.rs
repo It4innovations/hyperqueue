@@ -309,29 +309,29 @@ fn args_to_params(manager: ManagerType, args: SharedQueueOpts) -> anyhow::Result
         no_dry_run: _,
     } = args;
 
-    if let Some(min_utilization) = min_utilization {
-        if !(0.0..=1.0).contains(&min_utilization) {
-            return Err(anyhow::anyhow!(
-                "Minimal utilization has to be in the interval [0.0, 1.0]."
-            ));
-        }
+    if let Some(min_utilization) = min_utilization
+        && !(0.0..=1.0).contains(&min_utilization)
+    {
+        return Err(anyhow::anyhow!(
+            "Minimal utilization has to be in the interval [0.0, 1.0]."
+        ));
     }
 
-    if let Some(ref idle_timeout) = worker_args.idle_timeout {
-        if *idle_timeout > Duration::from_secs(60 * 10) {
-            log::warn!(
-                "You have set an idle timeout longer than 10 minutes. This can result in \
+    if let Some(ref idle_timeout) = worker_args.idle_timeout
+        && *idle_timeout > Duration::from_secs(60 * 10)
+    {
+        log::warn!(
+            "You have set an idle timeout longer than 10 minutes. This can result in \
 wasted allocation duration."
-            );
-        }
+        );
     }
 
-    if let Some(ref worker_time_limit) = worker_time_limit {
-        if worker_time_limit > &time_limit {
-            return Err(anyhow::anyhow!(
-                "Worker time limit cannot be larger than queue time limit"
-            ));
-        }
+    if let Some(ref worker_time_limit) = worker_time_limit
+        && worker_time_limit > &time_limit
+    {
+        return Err(anyhow::anyhow!(
+            "Worker time limit cannot be larger than queue time limit"
+        ));
     }
 
     // Try to guess how would the resource descriptor look like for the worker
@@ -431,13 +431,13 @@ fn construct_resources_from_cli(args: &SharedWorkerStartOpts) -> Option<Resource
     let mut resources: Vec<ResourceDescriptorItem> =
         resource.iter().map(|x| x.as_parsed_arg().clone()).collect();
     let cpu_resources = resources.iter().find(|x| x.name == CPU_RESOURCE_NAME);
-    if cpu_resources.is_none() {
-        if let Some(cpus) = cpus {
-            resources.push(ResourceDescriptorItem {
-                name: CPU_RESOURCE_NAME.to_string(),
-                kind: cpus.as_parsed_arg().clone(),
-            });
-        }
+    if cpu_resources.is_none()
+        && let Some(cpus) = cpus
+    {
+        resources.push(ResourceDescriptorItem {
+            name: CPU_RESOURCE_NAME.to_string(),
+            kind: cpus.as_parsed_arg().clone(),
+        });
     };
 
     let resources = ResourceDescriptor::new(resources, None);

@@ -88,11 +88,10 @@ pub async fn start_ui_loop(preloaded: PreloadedEvents) -> anyhow::Result<()> {
                     Ok(event) => event,
                     Err(error) => break Err(error.into()),
                 };
-                if let Key(key) = event {
-                    if let ControlFlow::Break(res) = root_screen.handle_key(key, &mut dashboard_data) {
+                if let Key(key) = event
+                    && let ControlFlow::Break(res) = root_screen.handle_key(key, &mut dashboard_data) {
                         break res;
                     }
-                }
             }
             _ = tick.tick() => {
                 root_screen.draw(&mut terminal, &dashboard_data);

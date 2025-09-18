@@ -25,7 +25,7 @@ impl IntRange {
 
     pub fn contains(&self, value: u32) -> bool {
         let end = self.start + self.count;
-        self.start <= value && value < end && ((value - self.start) % self.step == 0)
+        self.start <= value && value < end && (value - self.start).is_multiple_of(self.step)
     }
 }
 
