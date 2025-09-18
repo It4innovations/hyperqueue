@@ -1,6 +1,6 @@
 use crate::internal::common::resources::descriptor::{ResourceDescriptor, ResourceDescriptorKind};
 use crate::internal::common::resources::{Allocation, ResourceId, ResourceRequestVariants};
-use crate::internal::tests::utils::resources::{ResBuilder, cpus_compact};
+use crate::internal::tests::utils::resources::{cpus_compact, ResBuilder};
 use crate::internal::tests::utils::shared::res_allocator_from_descriptor;
 use crate::internal::tests::utils::sorted_vec;
 use crate::internal::worker::resources::allocator::{AllocatorStaticInfo, ResourceAllocator};
@@ -12,7 +12,6 @@ use crate::resources::{
 };
 use std::cell::RefCell;
 
-use crate::internal::worker::resources::groups::CouplingWeightItem;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -144,16 +143,14 @@ fn test_compute_blocking_level() {
     let rq = ResBuilder::default().add(0, 3).add(1, 1).finish();
     let sinfo = test_static_info(free.clone());
     assert!(ResourceAllocator::compute_witness(&pools, &free, &rq, [].iter(), &sinfo).is_none());
-    assert!(
-        ResourceAllocator::compute_witness(
-            &pools,
-            &free,
-            &rq,
-            [Rc::new(Allocation::new_simple(&[1]))].iter(),
-            &sinfo,
-        )
-        .is_none()
-    );
+    assert!(ResourceAllocator::compute_witness(
+        &pools,
+        &free,
+        &rq,
+        [Rc::new(Allocation::new_simple(&[1]))].iter(),
+        &sinfo,
+    )
+    .is_none());
     assert_eq!(
         ResourceAllocator::compute_witness(
             &pools,
@@ -434,19 +431,25 @@ fn test_pool_compact1() {
     let descriptor = simple_descriptor(4, 6);
     let mut allocator = test_allocator(&descriptor);
 
+    // Allocate 4 cpus
     let rq1 = cpus_compact(4).finish_v();
     let (al1, _) = allocator.try_allocate(&rq1).unwrap();
     let s1 = allocator.get_sockets(&al1, 0);
     assert_eq!(s1.len(), 1);
+
+    // Allocate 4 cpus
     let (al2, _) = allocator.try_allocate(&rq1).unwrap();
     let s2 = allocator.get_sockets(&al2, 0);
     assert_eq!(s2.len(), 1);
     assert_ne!(s1, s2);
 
+    // Allocate 3 cpus
     let rq2 = cpus_compact(3).finish_v();
     let (al3, _) = allocator.try_allocate(&rq2).unwrap();
     let s3 = allocator.get_sockets(&al3, 0);
     assert_eq!(s3.len(), 1);
+
+    // Allocate 3 cpus
     let (al4, _) = allocator.try_allocate(&rq2).unwrap();
     let s4 = allocator.get_sockets(&al4, 0);
     assert_eq!(s4.len(), 1);

@@ -5,7 +5,10 @@ authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+default = ["highs"]
+highs = ["dep:highs"]
+microlp = ["dep:microlp"]
 
 [dependencies]
 anyhow = { workspace = true }
@@ -30,7 +33,8 @@ psutil = { workspace = true }
 thin-vec = { workspace = true }
 bitflags = { workspace = true }
 tempfile = { workspace = true }
-highs = "1.12"
+highs = { version = "1.12", optional = true }
+microlp = { version = "0.2", optional = true }
 
 hashbrown = { version = "0.16", features = ["serde", "inline-more"], default-features = false }
 priority-queue = "2"
