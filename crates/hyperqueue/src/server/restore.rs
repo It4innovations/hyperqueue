@@ -214,12 +214,11 @@ impl StateRestorer {
                     // If we see a worker connected from an allocation, it should have occurred
                     // in the log *after* the corresponding allocation has been submitted from a
                     // queue.
-                    if let Some(info) = config.get_manager_info() {
-                        if let Some(queue_id) = self.allocation_to_queue_id.get(&info.allocation_id)
-                        {
-                            self.queue_to_worker_resources
-                                .insert(*queue_id, config.resources);
-                        }
+                    if let Some(info) = config.get_manager_info()
+                        && let Some(queue_id) = self.allocation_to_queue_id.get(&info.allocation_id)
+                    {
+                        self.queue_to_worker_resources
+                            .insert(*queue_id, config.resources);
                     }
                 }
                 EventPayload::WorkerLost(worker_id, reason) => {

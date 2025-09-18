@@ -328,12 +328,13 @@ impl JobDef {
                     "One of attributes of array must be defined: 'ids', 'entries'".into(),
                 ));
             }
-            if let Some(ids) = &array.ids {
-                if !array.entries.is_empty() && ids.id_count() as usize != array.entries.len() {
-                    return Err(HqError::DeserializationError(
-                        "Items 'ids' and 'entries' does not match".into(),
-                    ));
-                }
+            if let Some(ids) = &array.ids
+                && !array.entries.is_empty()
+                && ids.id_count() as usize != array.entries.len()
+            {
+                return Err(HqError::DeserializationError(
+                    "Items 'ids' and 'entries' does not match".into(),
+                ));
             }
         }
         Ok(())

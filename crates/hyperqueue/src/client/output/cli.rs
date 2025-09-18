@@ -594,12 +594,11 @@ impl Output for CliOutput {
                 format_job_workers(&tasks, &worker_map).cell(),
             ]);
 
-            if submit_descs.len() == 1 {
-                if let JobTaskDescription::Array { task_desc, .. } =
+            if submit_descs.len() == 1
+                && let JobTaskDescription::Array { task_desc, .. } =
                     &submit_descs[0].description().task_desc
-                {
-                    self.print_job_shared_task_description(&mut rows, task_desc);
-                }
+            {
+                self.print_job_shared_task_description(&mut rows, task_desc);
             }
 
             rows.push(vec![
@@ -1664,20 +1663,25 @@ fn resource_summary_kind(kind: &ResourceDescriptorKind) -> String {
 
 fn resources_summary(resources: &ResourceDescriptor, multiline: bool) -> String {
     let special_format = |descriptor: &ResourceDescriptorItem| -> Option<String> {
-        if descriptor.name == tako::resources::MEM_RESOURCE_NAME {
-            if let ResourceDescriptorKind::Sum { size } = descriptor.kind {
-                return Some(human_mem_amount(size));
-            }
+        if descriptor.name == tako::resources::MEM_RESOURCE_NAME
+            && let ResourceDescriptorKind::Sum { size } = descriptor.kind
+        {
+            return Some(human_mem_amount(size));
         }
         None
     };
 
+    let mut coupled = tako::Set::new();
+    for w in &resources.coupling.weights {
+        coupled.insert(w.resource1_idx);
+        coupled.insert(w.resource2_idx);
+    }
     let mut result = String::new();
     let mut first = true;
-    for descriptor in &resources.resources {
+    for (i, descriptor) in resources.resources.iter().enumerate() {
         write!(
             result,
-            "{}{}{} {}",
+            "{}{}{} {}{}",
             if first {
                 ""
             } else if multiline {
@@ -1687,17 +1691,14 @@ fn resources_summary(resources: &ResourceDescriptor, multiline: bool) -> String 
             },
             &descriptor.name,
             if multiline { ":" } else { "" },
-            special_format(descriptor).unwrap_or_else(|| resource_summary_kind(&descriptor.kind))
+            special_format(descriptor).unwrap_or_else(|| resource_summary_kind(&descriptor.kind)),
+            if coupled.contains(&(i as u8)) {
+                " [coupled]"
+            } else {
+                ""
+            }
         )
         .unwrap();
-        if multiline
-            && resources
-                .coupling
-                .as_ref()
-                .is_some_and(|c| c.names.contains(&descriptor.name))
-        {
-            result.push_str(" [coupled]");
-        }
         first = false;
     }
     result
@@ -1763,7 +1764,7 @@ mod tests {
                 name: "cpus".into(),
                 kind: ResourceDescriptorKind::simple_indices(1),
             }],
-            None,
+            Default::default(),
         );
         assert_eq!(resources_summary(&d, false), "cpus 1");
 
@@ -1772,7 +1773,7 @@ mod tests {
                 name: "cpus".into(),
                 kind: ResourceDescriptorKind::simple_indices(5),
             }],
-            None,
+            Default::default(),
         );
         assert_eq!(resources_summary(&d, true), "cpus: 5");
 
@@ -1805,7 +1806,7 @@ mod tests {
                     ]),
                 },
             ],
-            None,
+            Default::default(),
         );
         assert_eq!(
             resources_summary(&d, true),
@@ -1824,7 +1825,7 @@ mod tests {
                 name: "cpus".into(),
                 kind: ResourceDescriptorKind::simple_indices(1),
             }],
-            None,
+            Default::default(),
         );
         assert_eq!(resources_full_describe(&d), "cpus: [0]");
 
@@ -1846,7 +1847,7 @@ mod tests {
                     kind: res_kind_sum(1234),
                 },
             ],
-            None,
+            Default::default(),
         );
         assert_eq!(
             resources_full_describe(&d),
@@ -1861,7 +1862,7 @@ mod tests {
                 name: MEM_RESOURCE_NAME.into(),
                 kind: res_kind_sum(4 * 1024 + 123),
             }],
-            None,
+            Default::default(),
         );
         assert_eq!(resources_summary(&d, false), "mem 4.12 GiB");
     }

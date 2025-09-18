@@ -53,6 +53,9 @@ jobs:
         with:
           key: x64
 
+      - name: "Latest Clang"
+        uses: MorganCaron/latest-clang-action@master          
+
       - name: Compile
         env:
           HQ_BUILD_VERSION: ${{ needs.set-env.outputs.version }}
