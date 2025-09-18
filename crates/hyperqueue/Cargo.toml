@@ -69,11 +69,14 @@ insta = "1.15.0"
 criterion = { workspace = true }
 
 [features]
-default = ["jemalloc", "dashboard"]
+default = ["jemalloc", "dashboard", "highs"]
 # Use the jemalloc allocator
 jemalloc = ["jemallocator"]
 # Enable the dashboard
 dashboard = ["dep:ratatui", "dep:crossterm", "dep:unicode-width"]
+
+highs = ["tako/highs"]
+microlp = ["tako/microlp"]
 
 [[bench]]
 name = "benchmark"
