@@ -450,6 +450,16 @@ pub struct JobSubmitOpts {
     #[arg(long, conflicts_with("wait"))]
     progress: bool,
 
+    /// Defines a program called when a submitted task emitted notify event.
+    /// It is relevant only when `--wait` or `--progress` is used.
+    ///
+    /// Processing event is serialized, so processing an event starts after
+    /// processing of the previous event is finished.
+    ///
+    /// Event is passed as the first argument of the called program
+    #[arg(long)]
+    on_notify: Option<String>,
+
     /// Attach the stdin to the task
     ///
     /// Captures stdin and start the task with the given stdin.
@@ -669,6 +679,7 @@ pub async fn submit_computation(
                 stream,
                 crash_limit,
             },
+        on_notify,
     } = opts;
 
     let name = if let Some(name) = name {
@@ -740,7 +751,15 @@ pub async fn submit_computation(
         job_id,
     };
 
-    send_submit_request(gsettings, session, request, wait, progress).await
+    send_submit_request(
+        gsettings,
+        session,
+        request,
+        wait,
+        progress,
+        on_notify.as_deref(),
+    )
+    .await
 }
 
 pub(crate) async fn send_submit_request(
@@ -749,12 +768,16 @@ pub(crate) async fn send_submit_request(
     request: SubmitRequest,
     wait: bool,
     progress: bool,
+    on_notify: Option<&str>,
 ) -> anyhow::Result<()> {
     let job_id = request.job_id.unwrap_or_else(|| JobId::new(0));
     let stream_request = if progress || wait {
         let mut flags = EventFilterFlags::JOB_EVENTS;
         if progress {
             flags.insert(EventFilterFlags::TASK_EVENTS);
+        }
+        if on_notify.is_some() {
+            flags.insert(EventFilterFlags::NOTIFY_EVENTS);
         }
         Some(StreamEvents {
             past_events: false,
@@ -776,7 +799,7 @@ pub(crate) async fn send_submit_request(
 
             gsettings.printer().print_job_submitted(job);
             if wait {
-                wait_for_jobs(session, &[info], true).await?;
+                wait_for_jobs(session, &[info], true, on_notify).await?;
             } else if progress {
                 wait_for_jobs_with_progress(session, &[info]).await?;
             }
