@@ -82,8 +82,10 @@ impl Comm for CommSender {
             return;
         }
         let data: Bytes = serialize(&message).unwrap().into();
-        for sender in self.workers.values() {
-            sender.send(data.clone()).expect("Send to worker failed");
+        for (worker_id, sender) in &self.workers {
+            if sender.send(data.clone()).is_err() {
+                log::error!("Failed to send message to worker: {worker_id}");
+            }
         }
     }
 
