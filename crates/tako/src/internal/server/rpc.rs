@@ -343,7 +343,9 @@ pub(crate) async fn worker_receive_loop<
                 }
             }
             FromWorkerMessage::Notify(notify) => {
-                todo!()
+                log::debug!("Task notify received");
+                comm.client()
+                    .on_task_notify(notify.task_id, worker_id, notify.message);
             }
         }
     }
