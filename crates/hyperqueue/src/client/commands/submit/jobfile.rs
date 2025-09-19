@@ -226,5 +226,5 @@ pub async fn submit_computation_from_job_file(
             })?)?
         };
     let request = build_job_submit(jdef, opts.job)?;
-    send_submit_request(gsettings, session, request, false, false).await
+    send_submit_request(gsettings, session, request, false, false, None).await
 }

@@ -166,7 +166,7 @@ async fn command_job_wait(gsettings: &GlobalSettings, opts: JobWaitOpts) -> anyh
         ToClientMessage::JobInfoResponse(r) => r
     )
     .await?;
-    wait_for_jobs(&mut session, &response.jobs, !opts.without_close).await
+    wait_for_jobs(&mut session, &response.jobs, !opts.without_close, None).await
 }
 
 async fn command_job_progress(

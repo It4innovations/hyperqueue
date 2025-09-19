@@ -1343,3 +1343,30 @@ resources = { "cpus" = "1", "x"=1 }
     hq_env.command(["job", "submit-file", "job.toml"])
     hq_env.start_worker(cpus=2, args=["--resource", "x=sum(2)"])
     wait_for_job_state(hq_env, [1, 2], "FINISHED")
+
+
+def test_on_notify(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_workers(2, cpus=2)
+    hq_env.command(
+        [
+            "submit",
+            "--array=1-3",
+            "--wait",
+            "--on-notify=bash -c 'echo $HQ_JOB_ID $HQ_TASK_ID $0 >> log'",
+            "--",
+            "bash",
+            "-c",
+            "$HQ task notify msg1 && sleep 2 && $HQ task notify msg2",
+        ]
+    )
+    with open("log") as f:
+        lines = [s.rstrip().split() for s in f.readlines()]
+    assert len(lines) == 6
+    assert lines[0][2] == "msg1"
+    assert lines[1][2] == "msg1"
+    assert lines[2][2] == "msg1"
+    assert lines[3][2] == "msg2"
+    assert lines[4][2] == "msg2"
+    assert lines[5][2] == "msg2"
+    assert set(x[1] for x in lines) == {"1", "2", "3"}

@@ -1,5 +1,8 @@
 use std::collections::BTreeSet;
+use std::ffi::OsStr;
 use std::io::Write;
+use std::os::unix::ffi::OsStrExt;
+use std::process::Command;
 use std::time::{Duration, SystemTime};
 use tokio::time::sleep;
 
@@ -13,7 +16,7 @@ use crate::client::status::{Status, is_terminated};
 use crate::common::arraydef::IntArray;
 use crate::common::utils::str::pluralize;
 use crate::rpc_call;
-use crate::server::event::payload::EventPayload;
+use crate::server::event::payload::{EventPayload, TaskNotification};
 use crate::server::job::JobTaskCounters;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
@@ -21,12 +24,48 @@ use crate::transfer::messages::{
     TaskSelector, TaskStatusSelector, ToClientMessage, WaitForJobsRequest,
 };
 use colored::Colorize;
+use itertools::Itertools;
 use tako::{JobId, JobTaskCount, Set, TaskId};
+
+fn process_on_notify(program: &str, args: &[String], notification: &TaskNotification) {
+    log::info!(
+        "Running on_notify callback: {} {:?}: {:?}",
+        program,
+        args,
+        notification
+    );
+    let mut child = match Command::new(program)
+        .args(args)
+        .arg(OsStr::from_bytes(&notification.message))
+        .env("HQ_JOB_ID", notification.task_id.job_id().to_string())
+        .env("HQ_TASK_ID", notification.task_id.job_task_id().to_string())
+        .env("HQ_WORKER_ID", notification.worker_id.to_string())
+        .spawn()
+    {
+        Ok(child) => child,
+        Err(e) => {
+            log::warn!("Failed to run on_notify callback: {}", e);
+            return;
+        }
+    };
+    match child.wait() {
+        Ok(s) => {
+            if !s.success() {
+                log::warn!("on_notify callback finished with exit code: {}", s);
+            }
+        }
+        Err(e) => {
+            log::warn!("Failed to run on_notify callback: {}", e);
+            return;
+        }
+    }
+}
 
 pub async fn wait_for_jobs(
     session: &mut ClientSession,
     jobs: &[JobInfo],
     wait_for_close: bool,
+    on_notify: Option<&str>,
 ) -> anyhow::Result<()> {
     let mut unfinished_jobs = Set::new();
     for job in jobs {
@@ -34,20 +73,31 @@ pub async fn wait_for_jobs(
             unfinished_jobs.insert(job.id);
         }
     }
+    let on_notify_program_and_args =
+        on_notify.map(|s| shlex::split(&s).unwrap_or_else(|| vec![s.to_string()]));
     while !unfinished_jobs.is_empty() {
         if let Some(msg) = session.connection().receive().await {
             let msg = msg?;
             let job_id = match &msg {
-                ToClientMessage::Event(event) => match event.payload {
+                ToClientMessage::Event(event) => match &event.payload {
                     EventPayload::JobCompleted(job_id) => job_id,
                     EventPayload::JobIdle(job_id) if !wait_for_close => job_id,
+                    EventPayload::TaskNotify(notification) => {
+                        let program_and_args = on_notify_program_and_args.as_ref().unwrap();
+                        process_on_notify(
+                            &program_and_args[0],
+                            &program_and_args[1..],
+                            notification,
+                        );
+                        continue;
+                    }
                     _ => continue,
                 },
                 _ => {
                     return Err(anyhow::anyhow!("Unexpected message from server"));
                 }
             };
-            unfinished_jobs.remove(&job_id);
+            unfinished_jobs.remove(job_id);
         } else {
             return Ok(());
         }
