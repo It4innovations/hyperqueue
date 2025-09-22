@@ -17,12 +17,7 @@ use colored::Colorize;
 use tako::{Set, TaskId};
 
 fn process_on_notify(program: &str, args: &[String], notification: &TaskNotification) {
-    log::info!(
-        "Running on_notify callback: {} {:?}: {:?}",
-        program,
-        args,
-        notification
-    );
+    log::info!("Running on_notify callback: {program} {args:?}: {notification:?}");
     let mut child = match Command::new(program)
         .args(args)
         .arg(OsStr::from_bytes(&notification.message))
@@ -33,18 +28,18 @@ fn process_on_notify(program: &str, args: &[String], notification: &TaskNotifica
     {
         Ok(child) => child,
         Err(e) => {
-            log::warn!("Failed to run on_notify callback: {}", e);
+            log::warn!("Failed to run on_notify callback: {e}");
             return;
         }
     };
     match child.wait() {
         Ok(s) => {
             if !s.success() {
-                log::warn!("on_notify callback finished with exit code: {}", s);
+                log::warn!("on_notify callback finished with exit code: {s}");
             }
         }
         Err(e) => {
-            log::warn!("Failed to run on_notify callback: {}", e);
+            log::warn!("Failed to run on_notify callback: {e}");
         }
     }
 }
