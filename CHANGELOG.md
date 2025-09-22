@@ -1,17 +1,21 @@
 ## Unreleased
 
+### Breaking change
+
+* `hq job wait` now returns non-zero exit code only in case of infrastructure error (e.g. the server is lost).
+  If any waited tasks fails or is canceled, it is still returned 0.
+
 ### New features
 
 * Client notification mechanism. A task can generate a notification,
   which the process that submitted the task can capture.
 * Server scheduler more respects priorities
 
-
 ### Changes
 
 * `hq job progress` stopped using periodic polling.
-   In the current version, the client passively waits for events.
-   It saves some resources as the server is not queried every second.
+  In the current version, the client passively waits for events.
+  It saves some resources as the server is not queried every second.
 
 ## v0.24.0
 
