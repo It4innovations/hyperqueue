@@ -31,7 +31,9 @@ def check_data_env(hq_env: HqEnv, tmp_path, server_args=None):
 
 def test_task_data_invalid_call(hq_env: HqEnv):
     hq_env.command(
-        ["data", "get", "0", "out.txt"], use_server_dir=False, expect_fail="HQ_DATA_ACCESS variable not found"
+        ["data", "get", "0", "out.txt"],
+        use_server_dir=False,
+        expect_fail="HQ_ACCESS_KEY variable not found. Are you running this command inside a task?",
     )
 
 
