@@ -3,7 +3,7 @@ use crate::client::task::NotifyOpts;
 use anyhow::{anyhow, bail};
 use std::path::Path;
 use tako::internal::worker::localclient::{LocalClientConnection, LocalConnectionType};
-use tako::internal::worker::notifications::Notification;
+use tako::internal::worker::notifications::{Notification, NotificationResponse};
 
 const NOTIFY_MESSAGE_LIMIT: usize = 1024;
 
@@ -25,7 +25,10 @@ pub async fn command_task_notify(
             message: message.as_slice().into(),
         })
         .await?;
-    Ok(())
+    let response: NotificationResponse = connection.read_message().await?;
+    match response {
+        NotificationResponse::Ok => Ok(()),
+    }
 }
 
 pub async fn get_local_connection(

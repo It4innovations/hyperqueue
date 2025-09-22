@@ -1363,10 +1363,8 @@ def test_on_notify(hq_env: HqEnv):
     with open("log") as f:
         lines = [s.rstrip().split() for s in f.readlines()]
     assert len(lines) == 6
-    assert lines[0][2] == "msg1"
-    assert lines[1][2] == "msg1"
-    assert lines[2][2] == "msg1"
-    assert lines[3][2] == "msg2"
-    assert lines[4][2] == "msg2"
-    assert lines[5][2] == "msg2"
-    assert set(x[1] for x in lines) == {"1", "2", "3"}
+    for i in range(3):
+        assert lines[i][2] == "msg1"
+        assert lines[i + 3][2] == "msg2"
+    for i in "1", "2", "3":
+        assert lines.index(["1", i, "msg1"]) < lines.index(["1", i, "msg2"])
