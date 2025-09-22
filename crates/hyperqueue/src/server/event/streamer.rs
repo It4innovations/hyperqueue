@@ -361,10 +361,10 @@ impl EventStreamer {
         });
         if let Some(ref streamer) = inner.storage_sender
             && matches!(forward_mode, ForwardMode::StreamAndPersist)
-                && streamer.send(EventStreamMessage::Event(event)).is_err()
-            {
-                log::error!("Event streaming queue has been closed.");
-            }
+            && streamer.send(EventStreamMessage::Event(event)).is_err()
+        {
+            log::error!("Event streaming queue has been closed.");
+        }
     }
 
     pub fn on_server_stop(&self) {

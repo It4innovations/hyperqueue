@@ -80,18 +80,21 @@ pub fn submit_job_impl(py: Python, ctx: ClientContextPtr, job: PyJobDescription)
         let tasks = build_tasks(job.tasks, &submit_dir)?;
         let task_desc = HqJobDescription::Graph { tasks };
 
-        let message = FromClientMessage::Submit(SubmitRequest {
-            job_desc: JobDescription {
-                name: job.name.unwrap_or_else(|| "PyAPI job".to_string()),
-                max_fails: job.max_fails,
+        let message = FromClientMessage::Submit(
+            SubmitRequest {
+                job_desc: JobDescription {
+                    name: job.name.unwrap_or_else(|| "PyAPI job".to_string()),
+                    max_fails: job.max_fails,
+                },
+                submit_desc: JobSubmitDescription {
+                    task_desc,
+                    submit_dir,
+                    stream_path: None,
+                },
+                job_id: None,
             },
-            submit_desc: JobSubmitDescription {
-                task_desc,
-                submit_dir,
-                stream_path: None,
-            },
-            job_id: None,
-        });
+            None,
+        );
 
         let mut ctx = borrow_mut!(py, ctx);
         let response =
@@ -272,7 +275,8 @@ pub fn wait_for_jobs_impl(
                 ctx.session.connection(),
                 FromClientMessage::JobInfo(JobInfoRequest {
                     selector,
-                }),
+                    include_running_tasks: false
+                }, None),
                 ToClientMessage::JobInfoResponse(r) => r
             )
             .await

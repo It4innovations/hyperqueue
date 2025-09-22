@@ -12,9 +12,7 @@ use crate::common::utils::str::pluralize;
 use crate::server::event::payload::{EventPayload, TaskNotification};
 use crate::server::job::JobTaskCounters;
 use crate::transfer::connection::ClientSession;
-use crate::transfer::messages::{
-    JobInfo, ToClientMessage,
-};
+use crate::transfer::messages::{JobInfo, ToClientMessage};
 use colored::Colorize;
 use tako::{Set, TaskId};
 
