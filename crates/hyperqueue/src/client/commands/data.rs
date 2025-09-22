@@ -1,8 +1,7 @@
 use crate::client::commands::notify::get_local_connection;
 use crate::client::globalsettings::GlobalSettings;
-use crate::common::error::HqError;
 use clap::Parser;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tako::datasrv::{DataInputId, LocalDataClient, OutputId};
 use tako::internal::worker::localclient::LocalConnectionType;
 

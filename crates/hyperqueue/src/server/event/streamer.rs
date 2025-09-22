@@ -4,16 +4,13 @@ use crate::server::event::Event;
 use crate::server::event::journal::{EventStreamMessage, EventStreamSender};
 use crate::server::event::payload::{EventPayload, TaskNotification};
 use crate::transfer::messages::{JobDescription, SubmitRequest};
-use bstr::BString;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
-use std::sync::Arc;
 use tako::gateway::LostWorkerReason;
 use tako::worker::{WorkerConfiguration, WorkerOverview};
 use tako::{InstanceId, JobId, Set, TaskId, WorkerId, WrappedRcRefCell};
 use tokio::sync::{mpsc, oneshot};
-use tokio::time::Instant;
 
 struct EventListener {
     filter: EventFilter,
@@ -362,13 +359,12 @@ impl EventStreamer {
                 true
             }
         });
-        if let Some(ref streamer) = inner.storage_sender {
-            if matches!(forward_mode, ForwardMode::StreamAndPersist)
+        if let Some(ref streamer) = inner.storage_sender
+            && matches!(forward_mode, ForwardMode::StreamAndPersist)
                 && streamer.send(EventStreamMessage::Event(event)).is_err()
             {
                 log::error!("Event streaming queue has been closed.");
             }
-        }
     }
 
     pub fn on_server_stop(&self) {

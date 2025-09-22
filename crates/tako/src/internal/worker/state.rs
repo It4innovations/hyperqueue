@@ -12,7 +12,6 @@ use crate::internal::messages::worker::{
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::comm::WorkerComm;
 use crate::internal::worker::configuration::WorkerConfiguration;
-use bstr::BString;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;

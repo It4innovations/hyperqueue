@@ -13,7 +13,6 @@ use std::sync::Arc;
 use tako::comm::deserialize;
 use tako::task::SerializedTaskContext;
 use tako::{JobId, JobTaskCount, JobTaskId, Map, TaskId, WorkerId};
-use tokio::sync::oneshot;
 
 /// State of a task that has been started at least once.
 /// It contains the last known state of the task.

@@ -4,8 +4,7 @@ use crate::internal::datasrv::messages::{
     DataDown, FromLocalDataClientMessageUp, PutDataUp, ToLocalDataClientMessageDown,
 };
 use crate::internal::datasrv::utils::UPLOAD_CHUNK_SIZE;
-use crate::internal::worker::localclient::{LocalClientConnection, LocalConnectionType};
-use bstr::BStr;
+use crate::internal::worker::localclient::LocalClientConnection;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;

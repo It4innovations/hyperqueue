@@ -18,7 +18,7 @@ use crate::rpc_call;
 use crate::server::event::streamer::{EventFilter, EventFilterFlags};
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
-    FromClientMessage, IdSelector, JobDescription, JobSubmitDescription, JobTaskDescription,
+    FromClientMessage, JobDescription, JobSubmitDescription, JobTaskDescription,
     PinMode, StreamEvents, SubmitRequest, SubmitResponse, TaskDescription, TaskKind,
     TaskKindProgram, ToClientMessage,
 };

@@ -1,31 +1,22 @@
-use std::collections::BTreeSet;
 use std::ffi::OsStr;
 use std::io::Write;
 use std::os::unix::ffi::OsStrExt;
 use std::process::Command;
-use std::time::{Duration, SystemTime};
-use tokio::time::sleep;
 
-use crate::client::globalsettings::GlobalSettings;
-use crate::client::job::get_worker_map;
 use crate::client::output::cli::{
     TASK_COLOR_CANCELED, TASK_COLOR_FAILED, TASK_COLOR_FINISHED, TASK_COLOR_RUNNING,
     job_progress_bar,
 };
-use crate::client::status::{Status, is_terminated};
-use crate::common::arraydef::IntArray;
+use crate::client::status::is_terminated;
 use crate::common::utils::str::pluralize;
-use crate::rpc_call;
 use crate::server::event::payload::{EventPayload, TaskNotification};
 use crate::server::job::JobTaskCounters;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
-    FromClientMessage, IdSelector, JobDetailRequest, JobInfo, JobInfoRequest, TaskIdSelector,
-    TaskSelector, TaskStatusSelector, ToClientMessage, WaitForJobsRequest,
+    JobInfo, ToClientMessage,
 };
 use colored::Colorize;
-use itertools::Itertools;
-use tako::{JobId, JobTaskCount, Set, TaskId};
+use tako::{Set, TaskId};
 
 fn process_on_notify(program: &str, args: &[String], notification: &TaskNotification) {
     log::info!(
@@ -56,7 +47,6 @@ fn process_on_notify(program: &str, args: &[String], notification: &TaskNotifica
         }
         Err(e) => {
             log::warn!("Failed to run on_notify callback: {}", e);
-            return;
         }
     }
 }
@@ -74,7 +64,7 @@ pub async fn wait_for_jobs(
         }
     }
     let on_notify_program_and_args =
-        on_notify.map(|s| shlex::split(&s).unwrap_or_else(|| vec![s.to_string()]));
+        on_notify.map(|s| shlex::split(s).unwrap_or_else(|| vec![s.to_string()]));
     while !unfinished_jobs.is_empty() {
         if let Some(msg) = session.connection().receive().await {
             let msg = msg?;
@@ -126,7 +116,7 @@ pub async fn wait_for_jobs_with_progress(
         }
     }
 
-    let mut unfinished_tasks = counters.n_running_tasks + counters.n_waiting_tasks(n_tasks);
+    let unfinished_tasks = counters.n_running_tasks + counters.n_waiting_tasks(n_tasks);
     if unfinished_tasks == 0 {
         log::warn!("There are no jobs to wait for");
         return Ok(());
