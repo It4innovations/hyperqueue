@@ -45,9 +45,8 @@ use hyperqueue::common::setup::setup_logging;
 use hyperqueue::common::utils::fs::absolute_path;
 use hyperqueue::server::bootstrap::get_client_session;
 use hyperqueue::server::event::streamer::{EventFilter, EventFilterFlags};
-use hyperqueue::transfer::messages::ToClientMessage::Event;
 use hyperqueue::transfer::messages::{
-    FromClientMessage, JobInfoRequest, StreamEvents, ToClientMessage, WaitForJobsRequest,
+    FromClientMessage, JobInfoRequest, StreamEvents, ToClientMessage,
 };
 use hyperqueue::worker::hwdetect::{
     detect_additional_resources, detect_cpus, prune_hyper_threading,

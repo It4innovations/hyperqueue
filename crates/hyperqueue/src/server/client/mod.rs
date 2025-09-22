@@ -1,5 +1,4 @@
 use chrono::Utc;
-use chumsky::primitive::Container;
 use futures::{Sink, SinkExt, Stream, StreamExt};
 use orion::kdf::SecretKey;
 use serde_json::json;
@@ -15,7 +14,7 @@ use tokio::sync::{Notify, mpsc};
 use crate::client::status::{Status, job_status};
 use crate::common::serverdir::ServerDir;
 use crate::server::event::Event;
-use crate::server::job::{JobTaskCounters, JobTaskState};
+use crate::server::job::JobTaskState;
 use crate::server::state::{State, StateRef};
 use crate::transfer::connection::accept_client;
 use crate::transfer::messages::{
@@ -23,7 +22,7 @@ use crate::transfer::messages::{
     JobDetailResponse, JobInfoResponse, JobSubmitDescription, StopWorkerResponse, StreamEvents,
     SubmitRequest, SubmitResponse, TaskSelector, ToClientMessage, WorkerListResponse,
 };
-use crate::transfer::messages::{ForgetJobResponse, WaitForJobsResponse};
+use crate::transfer::messages::ForgetJobResponse;
 use tako::{JobId, JobTaskCount, WorkerId};
 
 pub mod autoalloc;
@@ -33,7 +32,6 @@ use crate::common::serialization::Serialized;
 use crate::server::Senders;
 use crate::server::client::submit::{handle_open_job, handle_task_explain};
 use crate::server::event::payload::EventPayload;
-use crate::server::event::streamer::EventFilter;
 pub(crate) use submit::{submit_job_desc, validate_submit};
 
 pub async fn handle_client_connections(
@@ -79,7 +77,7 @@ async fn handle_client(
     Ok(())
 }
 
-async fn stream_history_events<Tx: Sink<ToClientMessage, Error = tako::Error> + Unpin + 'static>(
+async fn stream_history_events<Tx: Sink<ToClientMessage, Error=tako::Error> + Unpin + 'static>(
     tx: &mut Tx,
     mut history: mpsc::UnboundedReceiver<Event>,
 ) {
@@ -100,8 +98,8 @@ async fn stream_history_events<Tx: Sink<ToClientMessage, Error = tako::Error> + 
 }
 
 async fn stream_events<
-    Tx: Sink<ToClientMessage, Error = tako::Error> + Unpin + 'static,
-    Rx: Stream<Item = tako::Result<FromClientMessage>> + Unpin,
+    Tx: Sink<ToClientMessage, Error=tako::Error> + Unpin + 'static,
+    Rx: Stream<Item=tako::Result<FromClientMessage>> + Unpin,
 >(
     tx: &mut Tx,
     rx: &mut Rx,
@@ -128,8 +126,8 @@ async fn stream_events<
 }
 
 async fn start_streaming<
-    Tx: Sink<ToClientMessage, Error = tako::Error> + Unpin + 'static,
-    Rx: Stream<Item = tako::Result<FromClientMessage>> + Unpin,
+    Tx: Sink<ToClientMessage, Error=tako::Error> + Unpin + 'static,
+    Rx: Stream<Item=tako::Result<FromClientMessage>> + Unpin,
 >(
     mut tx: Tx,
     mut rx: Rx,
@@ -146,7 +144,6 @@ async fn start_streaming<
         enable_worker_overviews,
         filter,
     } = stream_events;
-    let enable_worker_overviews = enable_worker_overviews;
     if enable_worker_overviews {
         senders.server_control.add_worker_overview_listener();
     }
@@ -197,8 +194,8 @@ async fn start_streaming<
 }
 
 pub async fn client_rpc_loop<
-    Tx: Sink<ToClientMessage, Error = tako::Error> + Unpin + 'static,
-    Rx: Stream<Item = tako::Result<FromClientMessage>> + Unpin,
+    Tx: Sink<ToClientMessage, Error=tako::Error> + Unpin + 'static,
+    Rx: Stream<Item=tako::Result<FromClientMessage>> + Unpin,
 >(
     mut tx: Tx,
     mut rx: Rx,
@@ -213,12 +210,12 @@ pub async fn client_rpc_loop<
         match message_result {
             Ok(message) => {
                 let response = match message {
-                    FromClientMessage::Submit(msg, mut stream_opts) => {
+                    FromClientMessage::Submit(msg, stream_opts) => {
                         let response = submit::handle_submit(&state_ref, senders, msg);
                         if let Some(mut stream_opts) = stream_opts
                             && let ToClientMessage::SubmitResponse(SubmitResponse::Ok {
-                                job, ..
-                            }) = &response
+                                                                       job, ..
+                                                                   }) = &response
                         {
                             if !stream_opts.filter.is_filtering_jobs() {
                                 let mut s = Set::new();
@@ -233,17 +230,17 @@ pub async fn client_rpc_loop<
                                 stream_opts,
                                 Some(response),
                             )
-                            .await;
+                                .await;
                             break;
                         }
                         response
                     }
-                    FromClientMessage::JobInfo(msg, mut stream_opts) => {
+                    FromClientMessage::JobInfo(msg, stream_opts) => {
                         let response =
                             compute_job_info(&state_ref, &msg.selector, msg.include_running_tasks);
                         if let Some(mut stream_opts) = stream_opts
                             && let ToClientMessage::JobInfoResponse(JobInfoResponse { jobs }) =
-                                &response
+                            &response
                         {
                             if !stream_opts.filter.is_filtering_jobs() {
                                 stream_opts
@@ -258,7 +255,7 @@ pub async fn client_rpc_loop<
                                 stream_opts,
                                 Some(response),
                             )
-                            .await;
+                                .await;
                             break;
                         }
                         response

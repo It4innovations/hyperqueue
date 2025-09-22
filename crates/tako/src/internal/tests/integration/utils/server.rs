@@ -1,4 +1,3 @@
-use bstr::BString;
 use derive_builder::Builder;
 use orion::auth::SecretKey;
 use std::future::Future;

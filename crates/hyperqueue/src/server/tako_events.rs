@@ -1,6 +1,5 @@
 use crate::server::Senders;
 use crate::server::state::StateRef;
-use bstr::BString;
 use tako::events::EventProcessor;
 use tako::gateway::LostWorkerReason;
 use tako::internal::messages::common::TaskFailInfo;

@@ -3,7 +3,6 @@ use crate::internal::messages::common::TaskFailInfo;
 use crate::task::SerializedTaskContext;
 use crate::worker::{WorkerConfiguration, WorkerOverview};
 use crate::{InstanceId, TaskId, WorkerId};
-use bstr::BString;
 
 pub trait EventProcessor {
     fn on_task_finished(&mut self, task_id: TaskId);

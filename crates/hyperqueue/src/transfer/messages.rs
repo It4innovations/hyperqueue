@@ -11,7 +11,6 @@ use crate::server::autoalloc::{Allocation, AllocationId, QueueId, QueueParameter
 use crate::server::event::Event;
 use crate::server::event::streamer::EventFilter;
 use crate::server::job::{JobTaskCounters, JobTaskInfo, SubmittedJobDescription};
-use bstr::BString;
 use std::path::PathBuf;
 use std::time::Duration;
 use tako::gateway::{
@@ -22,7 +21,7 @@ use tako::program::ProgramDefinition;
 use tako::resources::ResourceDescriptor;
 use tako::server::TaskExplanation;
 use tako::worker::WorkerConfiguration;
-use tako::{JobId, JobTaskCount, JobTaskId, Map, Set, TaskId, WorkerId};
+use tako::{JobId, JobTaskCount, JobTaskId, Map, TaskId, WorkerId};
 
 // Messages client -> server
 #[allow(clippy::large_enum_variant)]
