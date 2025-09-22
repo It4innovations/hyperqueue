@@ -43,6 +43,7 @@ nav:
       - Open jobs: jobs/openjobs.md
       - Multinode Tasks: jobs/multinode.md
       - Explain command: jobs/explain.md
+      - Task Notifications: jobs/notify.md
   - CLI:
       - Dashboard: cli/dashboard.md
       - Shortcuts: cli/shortcuts.md
