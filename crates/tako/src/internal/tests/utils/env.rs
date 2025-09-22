@@ -382,6 +382,10 @@ impl EventProcessor for TestClientProcessor {
     fn on_worker_overview(&mut self, overview: Box<WorkerOverview>) {
         self.worker_overviews.push(overview);
     }
+
+    fn on_task_notify(&mut self, _task_id: TaskId, _worker_id: WorkerId, _message: Box<[u8]>) {
+        todo!()
+    }
 }
 
 impl Comm for TestComm {
