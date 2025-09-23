@@ -32,9 +32,9 @@ def test_worker_stream_events1(hq_env: HqEnv, tmp_path):
         assert len(events) == 3
         assert events[0]["event"]["type"] == "server-start"
         assert events[1]["event"]["type"] == "job-created"
-        assert events[1]["event"]["desc"]["name"] == "sleep"
+        assert events[1]["event"]["job_desc"]["name"] == "sleep"
         assert events[2]["event"]["type"] == "job-created"
-        assert events[2]["event"]["desc"]["name"] == "uname"
+        assert events[2]["event"]["job_desc"]["name"] == "uname"
 
 
 def test_worker_stream_events2(hq_env: HqEnv, tmp_path):
@@ -59,9 +59,9 @@ def test_worker_stream_events2(hq_env: HqEnv, tmp_path):
         assert len(events) == 3
         assert events[0]["event"]["type"] == "server-start"
         assert events[1]["event"]["type"] == "job-created"
-        assert events[1]["event"]["desc"]["name"] == "sleep"
+        assert events[1]["event"]["job_desc"]["name"] == "sleep"
         assert events[2]["event"]["type"] == "job-created"
-        assert events[2]["event"]["desc"]["name"] == "uname"
+        assert events[2]["event"]["job_desc"]["name"] == "uname"
 
 
 def test_worker_journal_replay(hq_env: HqEnv, tmp_path):

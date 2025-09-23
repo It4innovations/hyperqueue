@@ -1,7 +1,9 @@
 use crate::client::output::json::format_datetime;
 use crate::server::event::Event;
 use crate::server::event::payload::EventPayload;
-use crate::transfer::messages::{JobDescription, SubmitRequest};
+use crate::transfer::messages::{
+    JobSubmitDescription, JobTaskDescription, SubmitRequest, TaskDescription,
+};
 use serde_json::json;
 use tako::worker::WorkerOverview;
 
@@ -38,10 +40,11 @@ fn format_payload(event: EventPayload) -> serde_json::Value {
                 "data-node": data_node,
             })
         }
-        EventPayload::AllocationQueueCreated(id, _params) => {
+        EventPayload::AllocationQueueCreated(id, params) => {
             json!({
                 "type": "autoalloc-queue-created",
-                "queue-id": id
+                "queue-id": id,
+                "params": params,
             })
         }
         EventPayload::AllocationQueueRemoved(id) => {
@@ -120,7 +123,8 @@ fn format_payload(event: EventPayload) -> serde_json::Value {
                 "type": "job-created",
                 "job": job_id,
                 "closed_job": closed_job,
-                "desc": JobInfoFormatter(&submit.job_desc).to_json(),
+                "job_desc": &submit.job_desc,
+                "submit_desc": SubmitDescFormatter(&submit.submit_desc).to_json()
             })
         }
         EventPayload::JobCompleted(job_id) => json!({
@@ -155,14 +159,48 @@ fn format_payload(event: EventPayload) -> serde_json::Value {
     }
 }
 
-// We need a special formatter, since BString cannot be used as a hashmap key for JSON
-struct JobInfoFormatter<'a>(&'a JobDescription);
+struct SubmitDescFormatter<'a>(&'a JobSubmitDescription);
 
-impl JobInfoFormatter<'_> {
+impl SubmitDescFormatter<'_> {
     fn to_json(&self) -> serde_json::Value {
-        // Only format the job name for now
+        let JobSubmitDescription {
+            task_desc,
+            submit_dir,
+            stream_path,
+        } = self.0;
+
+        let task_desc = match task_desc {
+            JobTaskDescription::Array {
+                ids,
+                entries: _,
+                task_desc,
+            } => {
+                let TaskDescription {
+                    kind: _,
+                    resources,
+                    time_limit,
+                    priority,
+                    crash_limit,
+                } = task_desc;
+                json!({
+                    "ids": ids,
+                    "resources": resources,
+                    "time_limit": time_limit,
+                    "priority": priority,
+                    "crash_limit": crash_limit
+                })
+            }
+            JobTaskDescription::Graph { tasks } => {
+                json!({
+                    "n_tasks": tasks.len()
+                })
+            }
+        };
+
         json!({
-            "name": self.0.name
+            "submit_dir": submit_dir,
+            "stream_path": stream_path,
+            "task_desc": task_desc,
         })
     }
 }
