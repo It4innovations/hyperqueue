@@ -17,7 +17,7 @@ fn format_payload(event: EventPayload) -> serde_json::Value {
         EventPayload::WorkerConnected(id, configuration) => json!({
             "type": "worker-connected",
             "id": id,
-            "extra": configuration.extra
+            "configuration": configuration
         }),
         EventPayload::WorkerLost(id, reason) => json!({
             "type": "worker-lost",
