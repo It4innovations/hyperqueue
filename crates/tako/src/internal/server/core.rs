@@ -1,8 +1,10 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use crate::internal::common::resources::map::{ResourceIdAllocator, ResourceMap};
-use crate::internal::common::resources::{ResourceId, ResourceRequestVariants};
+use crate::internal::common::resources::map::{
+    GlobalResourceMapping, ResourceIdMap, ResourceRqMap,
+};
+use crate::internal::common::resources::{ResourceId, ResourceRequestVariants, ResourceRqId};
 use crate::internal::common::{Set, WrappedRcRefCell};
 use crate::internal::scheduler::multinode::MultiNodeQueue;
 use crate::internal::server::dataobj::{DataObjectHandle, ObjsToRemoveFromWorkers};
@@ -37,7 +39,7 @@ pub struct Core {
 
     maximal_task_id: TaskId,
     worker_id_counter: u32,
-    resource_map: ResourceIdAllocator,
+    resource_map: GlobalResourceMapping,
     worker_listen_port: u16,
 
     idle_timeout: Option<Duration>,
@@ -511,17 +513,24 @@ impl Core {
 
     #[inline]
     pub fn get_or_create_resource_id(&mut self, name: &str) -> ResourceId {
-        self.resource_map.get_or_allocate_id(name)
+        self.resource_map.get_or_allocate_resource_id(name)
     }
 
     #[inline]
-    pub fn create_resource_map(&self) -> ResourceMap {
-        self.resource_map.create_map()
+    pub fn get_or_create_resource_rq_id(
+        &mut self,
+        rqv: &ResourceRequestVariants,
+    ) -> (ResourceRqId, bool) {
+        self.resource_map.get_or_allocate_resource_rq_id(rqv)
     }
 
     #[inline]
-    pub fn resource_count(&self) -> usize {
-        self.resource_map.resource_count()
+    pub fn create_resource_map(&self) -> ResourceIdMap {
+        self.resource_map.create_resource_id_map()
+    }
+
+    pub fn get_resource_rq_map(&self) -> &ResourceRqMap {
+        self.resource_map.get_resource_rq_map()
     }
 
     pub fn secret_key(&self) -> Option<&Arc<SecretKey>> {

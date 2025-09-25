@@ -17,7 +17,7 @@ use crate::comm::{ConnectionRegistration, RegisterWorker};
 use crate::hwstats::{WorkerHwState, WorkerHwStateMessage};
 use crate::internal::common::WrappedRcRefCell;
 use crate::internal::common::resources::Allocation;
-use crate::internal::common::resources::map::ResourceMap;
+use crate::internal::common::resources::map::ResourceIdMap;
 use crate::internal::datasrv::download::download_manager_process;
 use crate::internal::datasrv::{DownloadManagerRef, data_upload_service};
 use crate::internal::messages::worker::{
@@ -135,6 +135,7 @@ pub async fn run_worker(
                     worker_id,
                     other_workers,
                     resource_names,
+                    resource_rq_map,
                     server_idle_timeout,
                     server_uid,
                     worker_overview_interval_override,
@@ -150,7 +151,8 @@ pub async fn run_worker(
                     worker_id,
                     configuration.clone(),
                     secret_key.clone(),
-                    ResourceMap::from_vec(resource_names),
+                    ResourceIdMap::from_vec(resource_names),
+                    resource_rq_map,
                     launcher,
                     server_uid,
                 );
@@ -442,6 +444,9 @@ pub(crate) fn process_worker_message(state: &mut WorkerState, message: ToWorkerM
         ToWorkerMessage::SetOverviewIntervalOverride(r#override) => {
             state.worker_overview_interval_override = r#override;
         }
+        ToWorkerMessage::NewResourceRequest(rq_id, rqv) => {
+            todo!()
+        }
     }
     false
 }
@@ -564,7 +569,7 @@ async fn send_overview_loop(state_ref: WorkerStateRef) -> crate::Result<()> {
 
 fn resource_allocation_to_msg(
     allocation: &Allocation,
-    resource_map: &ResourceMap,
+    resource_map: &ResourceIdMap,
 ) -> TaskResourceAllocation {
     TaskResourceAllocation {
         resources: allocation

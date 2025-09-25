@@ -43,7 +43,7 @@ pub mod resources {
         ResourceRequestEntries, ResourceRequestVariants, ResourceUnits, TimeRequest,
     };
 
-    pub use crate::internal::common::resources::map::ResourceMap;
+    pub use crate::internal::common::resources::map::ResourceIdMap;
 
     pub use crate::internal::common::resources::descriptor::DescriptorError;
 

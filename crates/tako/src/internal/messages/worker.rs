@@ -1,9 +1,10 @@
 use crate::datasrv::{DataObjectId, OutputId};
 use crate::gateway::{EntryType, TaskDataFlags};
 use crate::hwstats::WorkerHwStateMessage;
-use crate::internal::common::resources::{ResourceAmount, ResourceIndex};
+use crate::internal::common::resources::map::ResourceRqMap;
+use crate::internal::common::resources::{ResourceAmount, ResourceIndex, ResourceRqId};
 use crate::internal::messages::common::TaskFailInfo;
-use crate::resources::ResourceFractions;
+use crate::resources::{ResourceFractions, ResourceRequest, ResourceRequestVariants};
 use crate::task::SerializedTaskContext;
 use crate::{InstanceId, Priority, ResourceVariantId};
 use crate::{TaskId, WorkerId};
@@ -21,6 +22,7 @@ pub struct WorkerRegistrationResponse {
     pub server_uid: String,
     /// Override worker overview interval, if the worker does not have it configured
     pub worker_overview_interval_override: Option<Duration>,
+    pub resource_rq_map: ResourceRqMap,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -38,7 +40,7 @@ pub struct ComputeTaskSeparateData {
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct ComputeTaskSharedData {
     pub user_priority: Priority,
-    pub resources: crate::internal::common::resources::ResourceRequestVariants,
+    pub resources: ResourceRequestVariants,
     pub time_limit: Option<Duration>,
     pub data_flags: TaskDataFlags,
     pub body: Rc<[u8]>,
@@ -86,6 +88,7 @@ pub enum ToWorkerMessage {
     SetOverviewIntervalOverride(Option<Duration>),
     RemoveDataObjects(SmallVec<[DataObjectId; 1]>),
     PlacementResponse(DataObjectId, Option<WorkerId>),
+    NewResourceRequest(ResourceRqId, ResourceRequestVariants),
     Stop,
 }
 

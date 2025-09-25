@@ -1,5 +1,6 @@
 use crate::internal::common::Map;
-use crate::internal::common::resources::ResourceId;
+use crate::internal::common::resources::{ResourceId, ResourceRqId};
+use crate::resources::{ResourceRequest, ResourceRequestVariants};
 
 pub const CPU_RESOURCE_ID: ResourceId = ResourceId(0);
 
@@ -8,22 +9,30 @@ pub const NVIDIA_GPU_RESOURCE_NAME: &str = "gpus/nvidia";
 pub const AMD_GPU_RESOURCE_NAME: &str = "gpus/amd";
 pub const MEM_RESOURCE_NAME: &str = "mem";
 
+pub(crate) type ResourceRqMap = Map<ResourceRqId, ResourceRequestVariants>;
+
 #[derive(Debug)]
-pub(crate) struct ResourceIdAllocator {
+pub(crate) struct GlobalResourceMapping {
+    resource_rq_from_id: ResourceRqMap,
+    resource_rq_to_id: Map<ResourceRequestVariants, ResourceRqId>,
     resource_names: Map<String, ResourceId>,
 }
 
-impl Default for ResourceIdAllocator {
+impl Default for GlobalResourceMapping {
     fn default() -> Self {
         let mut resource_names = Map::new();
         /* Fix id for cpus */
         resource_names.insert(CPU_RESOURCE_NAME.to_string(), CPU_RESOURCE_ID);
-        ResourceIdAllocator { resource_names }
+        GlobalResourceMapping {
+            resource_rq_from_id: Default::default(),
+            resource_names,
+            resource_rq_to_id: Map::new(),
+        }
     }
 }
 
-impl ResourceIdAllocator {
-    pub fn get_or_allocate_id(&mut self, name: &str) -> ResourceId {
+impl GlobalResourceMapping {
+    pub fn get_or_allocate_resource_id(&mut self, name: &str) -> ResourceId {
         match self.resource_names.get(name) {
             Some(&id) => id,
             None => {
@@ -37,25 +46,40 @@ impl ResourceIdAllocator {
 
     /// Create an immutable snapshot of resource name map.
     #[inline]
-    pub fn create_map(&self) -> ResourceMap {
+    pub fn create_resource_id_map(&self) -> ResourceIdMap {
         let mut resource_names: Vec<_> = self.resource_names.keys().cloned().collect();
         resource_names.sort_unstable_by_key(|name| *self.resource_names.get(name).unwrap());
 
-        ResourceMap { resource_names }
+        ResourceIdMap { resource_names }
     }
 
-    #[inline]
-    pub fn resource_count(&self) -> usize {
-        self.resource_names.len()
+    pub fn get_resource_rq_map(&self) -> &ResourceRqMap {
+        &self.resource_rq_from_id
+    }
+
+    pub fn get_or_allocate_resource_rq_id(
+        &mut self,
+        rqv: &ResourceRequestVariants,
+    ) -> (ResourceRqId, bool) {
+        match self.resource_rq_to_id.get(rqv) {
+            Some(&id) => (id, false),
+            None => {
+                let id = ResourceRqId::new(self.resource_rq_to_id.len() as u32);
+                log::debug!("New resource request registered {rqv:?} as {id}");
+                self.resource_rq_to_id.insert(rqv.clone(), id);
+                self.resource_rq_from_id.insert(id, rqv.clone());
+                (id, true)
+            }
+        }
     }
 }
 
 #[derive(Default, Debug)]
-pub struct ResourceMap {
+pub struct ResourceIdMap {
     resource_names: Vec<String>,
 }
 
-impl ResourceMap {
+impl ResourceIdMap {
     #[inline]
     pub fn from_vec(resource_names: Vec<String>) -> Self {
         Self { resource_names }
@@ -76,11 +100,6 @@ impl ResourceMap {
     #[inline]
     pub fn len(&self) -> usize {
         self.resource_names.len()
-    }
-
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
     }
 
     #[inline]

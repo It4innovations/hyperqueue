@@ -1,5 +1,5 @@
 use crate::internal::common::index::IndexVec;
-use crate::internal::common::resources::map::ResourceMap;
+use crate::internal::common::resources::map::ResourceIdMap;
 use crate::internal::common::resources::request::ResourceAllocRequest;
 use crate::internal::common::resources::{
     ResourceAmount, ResourceDescriptor, ResourceId, ResourceRequest, ResourceRequestVariants,
@@ -37,7 +37,7 @@ impl WorkerResources {
 
     pub(crate) fn from_description(
         resource_desc: &ResourceDescriptor,
-        resource_map: &ResourceMap,
+        resource_map: &ResourceIdMap,
     ) -> Self {
         // We only take maximum needed resource id
         // We are doing it for normalization purposes. It is useful later

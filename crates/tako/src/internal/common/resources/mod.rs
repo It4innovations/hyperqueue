@@ -24,8 +24,11 @@ pub use amount::{ResourceAmount, ResourceFractions, ResourceUnits};
 
 pub type NumOfNodes = u32;
 
-// Identifies a globally unique Resource request stored in Core.
+// Identifies a globally unique Resource ID stored in Core.
 define_id_type!(ResourceId, u32);
+
+// Identifies a globally unique Resource request stored in Core.
+define_id_type!(ResourceRqId, u32);
 
 // Represents an index within a single generic resource (e.g. GPU with ID 1).
 define_id_type!(ResourceIndex, u32);

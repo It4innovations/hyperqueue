@@ -14,7 +14,7 @@ use crate::internal::worker::configuration::{
 use crate::internal::worker::rpc::process_worker_message;
 use crate::internal::worker::state::WorkerStateRef;
 use crate::launcher::{StopReason, TaskBuildContext, TaskLaunchData, TaskLauncher};
-use crate::resources::{ResourceDescriptor, ResourceMap};
+use crate::resources::{ResourceDescriptor, ResourceIdMap};
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
 use crate::{Set, TaskId, WorkerId};
 use smallvec::smallvec;
@@ -59,7 +59,7 @@ fn create_test_worker_config() -> WorkerConfiguration {
 }
 
 fn create_test_worker_state(config: WorkerConfiguration) -> WorkerStateRef {
-    let resource_map = ResourceMap::from_vec(
+    let resource_map = ResourceIdMap::from_vec(
         config
             .resources
             .resources
@@ -73,6 +73,7 @@ fn create_test_worker_state(config: WorkerConfiguration) -> WorkerStateRef {
         config,
         None,
         resource_map,
+        Default::default(),
         Box::new(TestLauncher),
         "testuid".to_string(),
     )

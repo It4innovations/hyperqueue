@@ -11,7 +11,7 @@ use nix::libc;
 use tokio::process::Command;
 
 use crate::gateway::{EntryType, TaskDataFlags};
-use crate::internal::common::resources::map::ResourceMap;
+use crate::internal::common::resources::map::ResourceIdMap;
 use crate::internal::worker::configuration::WorkerConfiguration;
 use crate::internal::worker::localcomm::Token;
 use crate::internal::worker::resources::map::ResourceLabelMap;
@@ -126,7 +126,7 @@ impl<'a> TaskBuildContext<'a> {
         self.state.worker_hostname(worker_id)
     }
 
-    pub fn get_resource_map(&self) -> &ResourceMap {
+    pub fn get_resource_map(&self) -> &ResourceIdMap {
         self.state.get_resource_map()
     }
 
