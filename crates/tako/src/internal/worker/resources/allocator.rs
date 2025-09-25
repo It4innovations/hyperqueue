@@ -8,7 +8,7 @@ use crate::internal::worker::resources::concise::{ConciseFreeResources, ConciseR
 use crate::internal::worker::resources::groups::{find_compact_groups, find_coupled_groups};
 use crate::internal::worker::resources::map::ResourceLabelMap;
 use crate::internal::worker::resources::pool::{FAST_MAX_COUPLED_RESOURCES, ResourcePool};
-use crate::resources::{Allocation, ResourceAmount, ResourceDescriptor, ResourceMap};
+use crate::resources::{Allocation, ResourceAmount, ResourceDescriptor, ResourceIdMap};
 use smallvec::SmallVec;
 use std::rc::Rc;
 use std::time::Duration;
@@ -40,7 +40,7 @@ struct BlockedRequest {
 impl ResourceAllocator {
     pub fn new(
         desc: &ResourceDescriptor,
-        resource_map: &ResourceMap,
+        resource_map: &ResourceIdMap,
         label_map: &ResourceLabelMap,
     ) -> Self {
         let max_id = desc
