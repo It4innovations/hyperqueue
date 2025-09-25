@@ -2,7 +2,7 @@ use crate::WorkerId;
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::worker::Worker;
 use crate::internal::server::workergroup::WorkerGroup;
-use crate::resources::{NumOfNodes, ResourceAmount, ResourceMap};
+use crate::resources::{NumOfNodes, ResourceAmount, ResourceIdMap};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
@@ -95,7 +95,7 @@ pub fn task_explain_init(task: &Task) -> TaskExplanation {
 }
 
 pub fn task_explain_for_worker(
-    resource_map: &ResourceMap,
+    resource_map: &ResourceIdMap,
     task: &Task,
     worker: &Worker,
     worker_group: &WorkerGroup,
@@ -149,14 +149,14 @@ mod tests {
     use crate::internal::tests::utils::schedule::create_test_worker_config;
     use crate::internal::tests::utils::task::TaskBuilder;
     use crate::resources::{
-        ResourceAmount, ResourceDescriptor, ResourceDescriptorItem, ResourceMap,
+        ResourceAmount, ResourceDescriptor, ResourceDescriptorItem, ResourceIdMap,
     };
     use crate::{Set, WorkerId};
     use std::time::{Duration, Instant};
 
     #[test]
     fn explain_single_node() {
-        let resource_map = ResourceMap::from_vec(vec!["cpus".to_string(), "gpus".to_string()]);
+        let resource_map = ResourceIdMap::from_vec(vec!["cpus".to_string(), "gpus".to_string()]);
         let now = Instant::now();
 
         let wcfg = create_test_worker_config(1.into(), ResourceDescriptor::simple_cpus(4));
@@ -273,7 +273,7 @@ mod tests {
 
     #[test]
     fn explain_multi_node() {
-        let resource_map = ResourceMap::from_vec(vec!["cpus".to_string(), "gpus".to_string()]);
+        let resource_map = ResourceIdMap::from_vec(vec!["cpus".to_string(), "gpus".to_string()]);
         let now = Instant::now();
 
         let wcfg = create_test_worker_config(1.into(), ResourceDescriptor::simple_cpus(4));

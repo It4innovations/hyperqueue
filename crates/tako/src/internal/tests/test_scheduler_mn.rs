@@ -9,7 +9,7 @@ use crate::internal::tests::utils::schedule::{
 };
 
 use crate::internal::tests::utils::task::TaskBuilder;
-use crate::resources::{ResourceDescriptor, ResourceMap};
+use crate::resources::{ResourceDescriptor, ResourceIdMap};
 use crate::{Priority, TaskId, WorkerId};
 use std::time::Duration;
 
@@ -290,7 +290,7 @@ fn test_mn_sleep_wakeup_at_once() {
 fn test_mn_schedule_on_groups() {
     let mut core = Core::default();
 
-    let resource_map = ResourceMap::from_vec(vec!["cpus".to_string()]);
+    let resource_map = ResourceIdMap::from_vec(vec!["cpus".to_string()]);
     let worker_id = WorkerId::new(100);
     let mut wcfg1 = create_test_worker_config(worker_id, ResourceDescriptor::simple_cpus(1));
     wcfg1.group = "group1".to_string();

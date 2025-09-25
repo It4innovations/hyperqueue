@@ -3,7 +3,7 @@ use std::fmt;
 use crate::gateway::{LostWorkerReason, WorkerRuntimeInfo};
 use crate::internal::common::Set;
 use crate::internal::common::resources::TimeRequest;
-use crate::internal::common::resources::map::ResourceMap;
+use crate::internal::common::resources::map::ResourceIdMap;
 use crate::internal::common::resources::{ResourceRequest, ResourceRequestVariants};
 use crate::internal::messages::worker::{TaskIdsMsg, ToWorkerMessage};
 use crate::internal::server::comm::Comm;
@@ -319,7 +319,7 @@ impl Worker {
     pub fn new(
         id: WorkerId,
         configuration: WorkerConfiguration,
-        resource_map: &ResourceMap,
+        resource_map: &ResourceIdMap,
         now: Instant,
     ) -> Self {
         let resources = WorkerResources::from_description(&configuration.resources, resource_map);

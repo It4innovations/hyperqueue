@@ -16,7 +16,7 @@ use tako::{JobId, WorkerId};
 */
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum EventPayload {
-    /// New worker has connected to the server
+    /// A new worker has connected to the server
     WorkerConnected(WorkerId, Box<WorkerConfiguration>),
     /// Worker has disconnected from the server
     WorkerLost(WorkerId, LostWorkerReason),
