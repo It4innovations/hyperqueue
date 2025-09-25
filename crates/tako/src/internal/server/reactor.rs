@@ -1,5 +1,6 @@
 use crate::datasrv::{DataObjectId, OutputId};
 use crate::gateway::{CrashLimit, LostWorkerReason};
+use crate::internal::common::resources::ResourceRqId;
 use crate::internal::common::{Map, Set};
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{
@@ -13,6 +14,7 @@ use crate::internal::server::task::{ComputeTasksBuilder, WaitingInfo};
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::worker::Worker;
 use crate::internal::server::workermap::WorkerMap;
+use crate::resources::ResourceRequestVariants;
 use crate::{TaskId, WorkerId};
 use std::fmt::Write;
 
@@ -594,4 +596,17 @@ pub(crate) fn on_resolve_placement(
         worker_id,
         &ToWorkerMessage::PlacementResponse(data_id, placement),
     );
+}
+
+pub(crate) fn get_or_create_resource_rq_id(
+    core: &mut Core,
+    comm: &mut impl Comm,
+    rqv: &ResourceRequestVariants,
+) -> ResourceRqId {
+    let (rq_id, is_new) = core.get_or_create_resource_rq_id(rqv);
+    if is_new {
+        let msg = ToWorkerMessage::NewResourceRequest(rq_id, rqv.clone());
+        comm.broadcast_worker_message(&msg);
+    }
+    rq_id
 }

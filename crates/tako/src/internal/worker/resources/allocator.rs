@@ -8,7 +8,7 @@ use crate::internal::worker::resources::concise::ConciseFreeResources;
 use crate::internal::worker::resources::groups::{CouplingWeightItem, group_solver};
 use crate::internal::worker::resources::map::ResourceLabelMap;
 use crate::internal::worker::resources::pool::{FAST_MAX_COUPLED_RESOURCES, ResourcePool};
-use crate::resources::{Allocation, ResourceAmount, ResourceDescriptor, ResourceMap};
+use crate::resources::{Allocation, ResourceAmount, ResourceDescriptor, ResourceIdMap};
 use smallvec::SmallVec;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -47,7 +47,7 @@ struct BlockedRequest {
 impl ResourceAllocator {
     pub fn new(
         desc: &ResourceDescriptor,
-        resource_map: &ResourceMap,
+        resource_map: &ResourceIdMap,
         label_map: &ResourceLabelMap,
     ) -> Self {
         let max_id = desc

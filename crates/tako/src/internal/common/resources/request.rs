@@ -6,7 +6,7 @@ use crate::internal::common::resources::{NumOfNodes, ResourceAmount, ResourceId}
 
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::resources::allocator::ResourceAllocator;
-use crate::resources::ResourceMap;
+use crate::resources::ResourceIdMap;
 use smallvec::SmallVec;
 use std::time::Duration;
 
@@ -165,7 +165,7 @@ impl ResourceRequest {
         Ok(())
     }
 
-    pub fn to_gateway(&self, resource_map: &ResourceMap) -> crate::gateway::ResourceRequest {
+    pub fn to_gateway(&self, resource_map: &ResourceIdMap) -> crate::gateway::ResourceRequest {
         crate::gateway::ResourceRequest {
             n_nodes: self.n_nodes,
             resources: self
@@ -289,7 +289,7 @@ impl ResourceRequestVariants {
 
     pub fn to_gateway(
         &self,
-        resource_map: &ResourceMap,
+        resource_map: &ResourceIdMap,
     ) -> crate::gateway::ResourceRequestVariants {
         crate::gateway::ResourceRequestVariants {
             variants: self

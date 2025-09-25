@@ -157,6 +157,7 @@ async fn worker_rpc_loop(
         WorkerRegistrationResponse {
             worker_id,
             resource_names: core.create_resource_map().into_vec(),
+            resource_rq_map: core.get_resource_rq_map().clone(),
             other_workers: core
                 .get_workers()
                 .filter_map(|w| {
