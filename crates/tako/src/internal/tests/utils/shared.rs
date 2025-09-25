@@ -1,7 +1,8 @@
 use crate::internal::worker::resources::allocator::ResourceAllocator;
 use crate::internal::worker::resources::map::ResourceLabelMap;
 use crate::resources::{
-    ResourceAmount, ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind, ResourceMap,
+    ResourceAmount, ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind,
+    ResourceIdMap,
 };
 
 pub fn res_kind_range(start: u32, end: u32) -> ResourceDescriptorKind {
@@ -45,7 +46,7 @@ pub fn res_allocator_from_descriptor(descriptor: ResourceDescriptor) -> Resource
         names.push(item.name.clone());
     }
 
-    let resource_map = ResourceMap::from_vec(names);
+    let resource_map = ResourceIdMap::from_vec(names);
     let label_resource_map = ResourceLabelMap::new(&descriptor, &resource_map);
     let allocator = ResourceAllocator::new(&descriptor, &resource_map, &label_resource_map);
     allocator.validate();

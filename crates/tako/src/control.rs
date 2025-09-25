@@ -12,6 +12,7 @@ use crate::gateway::{
     LostWorkerReason, MultiNodeAllocationResponse, TaskSubmit, WorkerRuntimeInfo,
 };
 use crate::internal::common::error::DsError;
+use crate::internal::common::resources::{ResourceId, ResourceRqId};
 use crate::internal::messages::worker::ToWorkerMessage;
 use crate::internal::scheduler::query::compute_new_worker_query;
 use crate::internal::scheduler::state::{run_scheduling_now, scheduler_loop};
@@ -23,7 +24,7 @@ use crate::internal::server::explain::{
 };
 use crate::internal::server::reactor::on_cancel_tasks;
 use crate::internal::server::worker::DEFAULT_WORKER_OVERVIEW_INTERVAL;
-use crate::resources::ResourceDescriptor;
+use crate::resources::{ResourceDescriptor, ResourceRequest, ResourceRequestVariants};
 use crate::{TaskId, WorkerId};
 
 #[derive(Debug)]
@@ -201,6 +202,16 @@ impl ServerRef {
     pub fn debug_dump(&self, now: Instant) -> serde_json::Value {
         let core = self.core_ref.get();
         core.dump(now)
+    }
+
+    pub fn get_or_create_resource_rq_id(&self, rqv: ResourceRequestVariants) -> ResourceRqId {
+        let mut core = self.core_ref.get_mut();
+        let (rq_id, is_new) = core.get_or_create_resource_rq_id(&rqv);
+        if is_new {
+            let msg = ToWorkerMessage::NewResourceRequest(rq_id, rqv);
+            self.comm_ref.get_mut().broadcast_worker_message(&msg);
+        }
+        rq_id
     }
 }
 

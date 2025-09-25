@@ -13,7 +13,7 @@ use crate::internal::worker::configuration::{
     DEFAULT_MAX_DOWNLOAD_TRIES, DEFAULT_MAX_PARALLEL_DOWNLOADS,
     DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES, OverviewConfiguration,
 };
-use crate::resources::ResourceMap;
+use crate::resources::ResourceIdMap;
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
 use crate::{TaskId, WorkerId};
 use std::time::{Duration, Instant};
@@ -47,7 +47,7 @@ pub fn new_test_worker(
     core: &mut Core,
     worker_id: WorkerId,
     configuration: WorkerConfiguration,
-    resource_map: &ResourceMap,
+    resource_map: &ResourceIdMap,
 ) {
     let worker = Worker::new(worker_id, configuration, resource_map, Instant::now());
     on_new_worker(core, &mut TestComm::default(), worker);
@@ -59,7 +59,7 @@ pub fn create_test_worker(core: &mut Core, worker_id: WorkerId, cpus: u32) {
         core,
         worker_id,
         wcfg,
-        &ResourceMap::from_vec(vec!["cpus".to_string()]),
+        &ResourceIdMap::from_vec(vec!["cpus".to_string()]),
     );
 }
 
