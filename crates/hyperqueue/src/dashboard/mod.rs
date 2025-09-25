@@ -13,7 +13,9 @@ use crate::server::event::Event;
 use crate::server::event::journal::JournalReader;
 use crate::server::event::streamer::EventFilter;
 use crate::transfer::connection::ClientSession;
-use crate::transfer::messages::{FromClientMessage, StreamEvents, ToClientMessage};
+use crate::transfer::messages::{
+    FromClientMessage, StreamEvents, StreamEventsMode, ToClientMessage,
+};
 use std::time::Duration;
 
 // The time range in which the live timeline is display ([now() - duration, now()])
@@ -47,8 +49,7 @@ pub async fn preload_dashboard_events(
             // Start streaming events
             connection
                 .send(FromClientMessage::StreamEvents(StreamEvents {
-                    past_events: true,
-                    live_events: true,
+                    mode: StreamEventsMode::PastAndLiveEvents,
                     enable_worker_overviews: true,
                     filter: EventFilter::all_events(),
                 }))

@@ -99,16 +99,38 @@ pub struct TaskKindProgram {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum StreamEventsMode {
+    PastEvents,
+    LiveEvents,
+    PastAndLiveEvents,
+}
+
+impl StreamEventsMode {
+    pub fn is_live_events_enabled(&self) -> bool {
+        matches!(
+            self,
+            StreamEventsMode::LiveEvents | StreamEventsMode::PastAndLiveEvents
+        )
+    }
+
+    pub fn is_past_events_enabled(&self) -> bool {
+        matches!(
+            self,
+            StreamEventsMode::PastEvents | StreamEventsMode::PastAndLiveEvents
+        )
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct StreamEvents {
-    /// If true, replay historical events and then start streaming live events.
-    pub past_events: bool,
-    /// If true, and then start streaming live events.
-    /// If both `live_events` and `past_events` are true, then historical events are replayed first
-    /// then event `EventLiveBoundary` is sent, then live events are streamed.
-    pub live_events: bool,
-    /// Enable worker overviews during the event streaming.
+    /// When the mode is PathAndLiveEvents then:
+    /// 1) historical events are replayed;
+    /// 2) event `EventLiveBoundary` is sent,
+    /// 3) live events are streamed.
+    pub mode: StreamEventsMode,
+    /// Enable worker overviews during the event streaming
     pub enable_worker_overviews: bool,
-    /// Stream events only relevant for a given jobs
+    /// Stream events only relevant for given jobs
     pub filter: EventFilter,
 }
 

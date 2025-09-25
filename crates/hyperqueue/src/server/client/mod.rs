@@ -139,8 +139,7 @@ async fn start_streaming<
     Tx::Error: Debug,
 {
     let StreamEvents {
-        past_events,
-        live_events,
+        mode,
         enable_worker_overviews,
         filter,
     } = stream_events;
@@ -148,14 +147,11 @@ async fn start_streaming<
         senders.server_control.add_worker_overview_listener();
     }
     log::debug!("Start streaming events to client");
-    if !live_events && !past_events {
-        return;
-    }
 
     /* We create two event queues, one for historic events and one for live events
     So while historic events are loaded from the file and streamed, live events are already
     collected and sent immediately once the historic events are sent */
-    let live = if live_events {
+    let live = if mode.is_live_events_enabled() {
         let (tx2, rx2) = mpsc::unbounded_channel::<Event>();
         let listener_id = senders.events.register_listener(filter, tx2);
         Some((rx2, listener_id))
@@ -170,7 +166,7 @@ async fn start_streaming<
     // If we use a journal, we can replay historical events from it.
     // If not, we can at least try to reconstruct a few basic events
     // based on the current state.
-    if past_events {
+    if mode.is_past_events_enabled() {
         let (tx1, rx1) = mpsc::unbounded_channel::<Event>();
         if senders.events.is_journal_enabled() {
             senders.events.start_journal_replay(tx1);
@@ -181,7 +177,7 @@ async fn start_streaming<
     }
 
     if let Some((rx2, listener_id)) = live {
-        if past_events {
+        if mode.is_past_events_enabled() {
             let _ = tx.send(ToClientMessage::EventLiveBoundary).await;
         }
         crate::server::client::stream_events(&mut tx, &mut rx, rx2).await;

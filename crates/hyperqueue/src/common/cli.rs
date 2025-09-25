@@ -400,10 +400,6 @@ pub struct JobWaitOpts {
     /// Waits until all tasks are completed, even if the job is still open
     #[clap(long, action)]
     pub without_close: bool,
-
-    /// Call the program in the argument that is executed whenever a task produce a notification
-    #[clap(long, action)]
-    pub run_on_notify: Option<String>,
 }
 
 #[derive(Parser)]
