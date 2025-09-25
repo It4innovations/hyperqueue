@@ -46,7 +46,7 @@ use hyperqueue::common::utils::fs::absolute_path;
 use hyperqueue::server::bootstrap::get_client_session;
 use hyperqueue::server::event::streamer::{EventFilter, EventFilterFlags};
 use hyperqueue::transfer::messages::{
-    FromClientMessage, JobInfoRequest, StreamEvents, ToClientMessage,
+    FromClientMessage, JobInfoRequest, StreamEvents, StreamEventsMode, ToClientMessage,
 };
 use hyperqueue::worker::hwdetect::{
     detect_additional_resources, detect_cpus, prune_hyper_threading,
@@ -157,8 +157,7 @@ async fn command_job_wait(gsettings: &GlobalSettings, opts: JobWaitOpts) -> anyh
             selector: opts.selector,
             include_running_tasks: true
         }, Some(StreamEvents {
-            past_events: false,
-            live_events: true,
+            mode: StreamEventsMode::LiveEvents,
             enable_worker_overviews: false,
             filter: EventFilter::new(None, EventFilterFlags::JOB_EVENTS)
         })),
@@ -182,8 +181,7 @@ async fn command_job_progress(
             selector: opts.selector,
             include_running_tasks: true
         }, Some(StreamEvents {
-            past_events: false,
-            live_events: true,
+            mode: StreamEventsMode::LiveEvents,
             enable_worker_overviews: false,
             filter: EventFilter::new(None, flags)
         })),

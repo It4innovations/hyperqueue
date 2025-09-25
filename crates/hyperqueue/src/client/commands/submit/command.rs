@@ -19,8 +19,8 @@ use crate::server::event::streamer::{EventFilter, EventFilterFlags};
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
     FromClientMessage, JobDescription, JobSubmitDescription, JobTaskDescription, PinMode,
-    StreamEvents, SubmitRequest, SubmitResponse, TaskDescription, TaskKind, TaskKindProgram,
-    ToClientMessage,
+    StreamEvents, StreamEventsMode, SubmitRequest, SubmitResponse, TaskDescription, TaskKind,
+    TaskKindProgram, ToClientMessage,
 };
 use anyhow::{anyhow, bail};
 use bstr::BString;
@@ -780,8 +780,7 @@ pub(crate) async fn send_submit_request(
             flags.insert(EventFilterFlags::NOTIFY_EVENTS);
         }
         Some(StreamEvents {
-            past_events: false,
-            live_events: true,
+            mode: StreamEventsMode::LiveEvents,
             enable_worker_overviews: false,
             filter: EventFilter::new(None, flags),
         })

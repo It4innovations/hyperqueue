@@ -1,7 +1,7 @@
 use crate::client::output::json::format_datetime;
 
-use crate::server::event::payload::EventPayload;
 use crate::server::event::Event;
+use crate::server::event::payload::EventPayload;
 use crate::transfer::messages::{
     JobSubmitDescription, JobTaskDescription, SubmitRequest, TaskDescription,
 };
