@@ -1,6 +1,8 @@
 mod output;
+mod report;
 
 use crate::client::commands::journal::output::format_event;
+use crate::client::commands::journal::report::{JournalReportOpts, write_journal_report};
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::utils::str::pluralize;
 use crate::rpc_call;
@@ -46,6 +48,9 @@ enum JournalCommand {
 
     /// Forces a running server to flush its journal to the disk
     Flush,
+
+    /// Write an HTML report from data in journal
+    Report(JournalReportOpts),
 }
 
 #[derive(Parser)]
@@ -64,6 +69,7 @@ pub async fn command_journal(gsettings: &GlobalSettings, opts: JournalOpts) -> a
         JournalCommand::Stream => stream_json(gsettings, true).await,
         JournalCommand::Prune => prune_journal(gsettings).await,
         JournalCommand::Flush => flush_journal(gsettings).await,
+        JournalCommand::Report(opts) => write_journal_report(opts),
     }
 }
 
