@@ -459,3 +459,18 @@ def test_restore_crash_counters(hq_env: HqEnv, tmp_path):
     wait_for_job_state(hq_env, 1, "RUNNING")
     hq_env.kill_worker(3)
     wait_for_job_state(hq_env, 1, "FAILED")
+
+
+def test_journal_report(hq_env: HqEnv, tmp_path):
+    journal_path = os.path.join(tmp_path, "my.journal")
+    out_path = os.path.join(tmp_path, "out.html")
+    hq_env.start_server(args=["--journal", journal_path])
+    hq_env.start_worker(cpus=4)
+    hq_env.start_worker(cpus=4)
+    hq_env.command(["submit", "--array=1-10", "--cpus=2", "--", "sleep", "0"])
+    hq_env.command(["submit", "--nodes=2", "--", "sleep", "0"])
+    wait_for_job_state(hq_env, [1, 2], "FINISHED")
+    hq_env.command(["journal", "flush"])
+    hq_env.command(["journal", "report", journal_path, out_path])
+    with open(out_path) as f:
+        assert f.read().startswith("<!DOCTYPE html>")
