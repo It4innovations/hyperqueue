@@ -119,6 +119,17 @@ $ hq journal stream
     The JSON format of the journal events and their definition is currently unstable and can change
     with a new HyperQueue version.
 
+### Journal report
+
+You can export statistics from journal as an HTML report via:
+
+```bash
+$ hq journal report <journal-path> <output-filename>
+```
+
+You may specify `--start-time` or `--end-time` to filter events
+whithin a given time frame. It takes duration and it is counted from the beginning of the journal. For example if you want to selected a 30min iterval after the first hour, you can use: `--start-time=1h` and `--end-time="1h 30m"`.
+
 ### Pruning the journal
 
 The [`hq journal prune`](cli:hq.journal.prune) command removes all completed jobs and disconnected workers from the journal file, in order to reduce its size on disk.
@@ -129,14 +140,14 @@ The [`hq journal flush`](cli:hq.journal.flush) command will force the server to 
 
 ## Waiting for server availability
 
-If you need to wait for a server to become available (for example when coordinating server startup in scripts), 
+If you need to wait for a server to become available (for example when coordinating server startup in scripts),
 you can use the [`hq server wait`](cli:hq.server.wait) command:
 
 ```bash
 $ hq server wait
 ```
 
-This command will repeatedly attempt to connect to the server (every 5 seconds) until it succeeds or until a timeout 
+This command will repeatedly attempt to connect to the server (every 5 seconds) until it succeeds or until a timeout
 is reached. By default, it will wait for up to 5 minutes, but you can specify a custom timeout[^1]:
 
 ```bash
@@ -146,7 +157,7 @@ $ hq server wait --timeout 2m
 
 [^1]: You can use various [shortcuts](../cli/shortcuts.md#duration) for the timeout duration.
 
-This is particularly useful in deployment scripts where you start a server and then need to ensure it's ready before 
+This is particularly useful in deployment scripts where you start a server and then need to ensure it's ready before
 proceeding with other operations like connecting workers or submitting jobs.
 
 ## Stopping the server

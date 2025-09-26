@@ -2,6 +2,7 @@
 
 ### New features
 
+* `hq journal report` that exports a statistics into an HTML report
 * Server scheduler more respects priorities
 
 ## v0.24.0
