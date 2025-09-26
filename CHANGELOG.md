@@ -9,6 +9,7 @@
 
 * Client notification mechanism. A task can generate a notification,
   which the process that submitted the task can capture.
+* `hq journal report` that exports a statistics into an HTML report
 * Server scheduler more respects priorities
 * Server scheduler improved when resource variants are used
 * Extended events: 
