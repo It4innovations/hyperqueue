@@ -84,7 +84,8 @@ fn format_payload(event: EventPayload) -> serde_json::Value {
         EventPayload::TaskStarted {
             task_id,
             instance_id,
-            workers,
+            worker_ids: workers,
+            rv_id: resource_variant,
         } => {
             let mut event = json!({
                 "type": "task-started",
@@ -97,6 +98,9 @@ fn format_payload(event: EventPayload) -> serde_json::Value {
                 map.insert("worker".to_string(), json!(workers[0]));
             } else {
                 map.insert("workers".to_string(), json!(workers));
+            }
+            if resource_variant.as_num() > 0 {
+                map.insert("variant".to_string(), json!(resource_variant));
             }
             event
         }

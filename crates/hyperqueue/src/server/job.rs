@@ -12,7 +12,7 @@ use smallvec::SmallVec;
 use std::sync::Arc;
 use tako::comm::deserialize;
 use tako::task::SerializedTaskContext;
-use tako::{JobId, JobTaskCount, JobTaskId, Map, TaskId, WorkerId};
+use tako::{JobId, JobTaskCount, JobTaskId, Map, ResourceVariantId, TaskId, WorkerId};
 
 /// State of a task that has been started at least once.
 /// It contains the last known state of the task.
@@ -21,6 +21,7 @@ pub struct StartedTaskData {
     pub start_date: DateTime<Utc>,
     pub context: RunningTaskContext,
     pub worker_ids: SmallVec<[WorkerId; 1]>,
+    pub rv_id: ResourceVariantId,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -295,7 +296,8 @@ impl Job {
     pub fn set_running_state(
         &mut self,
         task_id: JobTaskId,
-        workers: SmallVec<[WorkerId; 1]>,
+        worker_ids: SmallVec<[WorkerId; 1]>,
+        rv_id: ResourceVariantId,
         context: SerializedTaskContext,
         now: DateTime<Utc>,
     ) {
@@ -309,7 +311,8 @@ impl Job {
                 started_data: StartedTaskData {
                     start_date: now,
                     context,
-                    worker_ids: workers,
+                    worker_ids,
+                    rv_id,
                 },
             };
             self.counters.n_running_tasks += 1;

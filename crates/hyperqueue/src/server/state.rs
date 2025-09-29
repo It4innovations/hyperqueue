@@ -2,7 +2,7 @@ use std::cmp::min;
 
 use chrono::Utc;
 use smallvec::SmallVec;
-use tako::{InstanceId, define_wrapped_type};
+use tako::{InstanceId, ResourceVariantId, define_wrapped_type};
 use tako::{ItemId, TaskId};
 
 use crate::WrappedRcRefCell;
@@ -149,13 +149,20 @@ impl State {
         task_id: TaskId,
         instance_id: InstanceId,
         worker_ids: &[WorkerId],
+        rv_id: ResourceVariantId,
         context: SerializedTaskContext,
     ) {
         let job = self.get_job_mut(task_id.job_id()).unwrap();
         let now = Utc::now();
         let worker_ids: SmallVec<_> = worker_ids.iter().copied().collect();
 
-        job.set_running_state(task_id.job_task_id(), worker_ids.clone(), context, now);
+        job.set_running_state(
+            task_id.job_task_id(),
+            worker_ids.clone(),
+            rv_id,
+            context,
+            now,
+        );
         for worker_id in &worker_ids {
             if let Some(worker) = self.workers.get_mut(worker_id) {
                 worker.update_task_started(task_id, now);
@@ -163,7 +170,7 @@ impl State {
         }
         senders
             .events
-            .on_task_started(task_id, instance_id, worker_ids, now);
+            .on_task_started(task_id, instance_id, worker_ids, rv_id, now);
     }
 
     pub fn process_task_finished(&mut self, senders: &Senders, id: TaskId) {

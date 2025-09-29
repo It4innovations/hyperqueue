@@ -348,8 +348,8 @@ async fn task_starter_process(state_ref: WrappedRcRefCell<WorkerState>, notify: 
                 break;
             }
 
-            for (task_id, allocation, resource_index) in allocations {
-                start_task(&mut state, &state_ref, task_id, allocation, resource_index);
+            for (task_id, allocation, rv_id) in allocations {
+                start_task(&mut state, &state_ref, task_id, allocation, rv_id);
             }
         }
     }

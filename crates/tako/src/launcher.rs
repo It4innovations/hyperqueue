@@ -19,7 +19,7 @@ use crate::internal::worker::state::WorkerState;
 use crate::internal::worker::task::Task;
 use crate::program::{ProgramDefinition, StdioDef};
 use crate::task::SerializedTaskContext;
-use crate::{InstanceId, TaskId, WorkerId};
+use crate::{InstanceId, ResourceVariantId, TaskId, WorkerId};
 
 pub enum TaskResult {
     Finished,
@@ -73,7 +73,7 @@ impl TaskLaunchData {
 pub struct TaskBuildContext<'a> {
     pub(crate) task: &'a Task,
     pub(crate) state: &'a WorkerState,
-    pub(crate) resource_index: usize,
+    pub(crate) rv_id: ResourceVariantId,
     pub(crate) token: Token,
 }
 
@@ -87,7 +87,7 @@ impl<'a> TaskBuildContext<'a> {
     }
 
     pub fn resources(&self) -> &'a ResourceRequest {
-        &self.task.resources.requests()[self.resource_index]
+        &self.task.resources.requests()[self.rv_id.as_usize()]
     }
 
     pub fn data_flags(&self) -> TaskDataFlags {
@@ -98,8 +98,8 @@ impl<'a> TaskBuildContext<'a> {
         self.task.resources.requests().len()
     }
 
-    pub fn resource_variant(&self) -> usize {
-        self.resource_index
+    pub fn resource_variant(&self) -> ResourceVariantId {
+        self.rv_id
     }
 
     pub fn allocation(&self) -> &'a Allocation {

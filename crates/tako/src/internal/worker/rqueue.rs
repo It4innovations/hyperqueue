@@ -4,7 +4,7 @@ use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::resources::allocator::ResourceAllocator;
 use crate::internal::worker::state::TaskMap;
 use crate::internal::worker::task::Task;
-use crate::{Priority, PriorityTuple, Set, TaskId, WorkerId};
+use crate::{Priority, PriorityTuple, ResourceVariantId, Set, TaskId, WorkerId};
 use priority_queue::PriorityQueue;
 use std::rc::Rc;
 use std::time::Duration;
@@ -173,7 +173,7 @@ impl ResourceWaitQueue {
         &mut self,
         task_map: &TaskMap,
         remaining_time: Option<Duration>,
-    ) -> Vec<(TaskId, Rc<Allocation>, usize)> {
+    ) -> Vec<(TaskId, Rc<Allocation>, ResourceVariantId)> {
         for qfr in self.queues.values_mut() {
             qfr.reset_temporaries()
         }
@@ -203,7 +203,7 @@ impl ResourceWaitQueue {
     fn try_start_tasks_helper(
         &mut self,
         _task_map: &TaskMap,
-        out: &mut Vec<(TaskId, Rc<Allocation>, usize)>,
+        out: &mut Vec<(TaskId, Rc<Allocation>, ResourceVariantId)>,
     ) -> bool {
         let current_priority: QueuePriorityTuple = if let Some(Some(priority)) =
             self.queues.values().map(|qfr| qfr.current_priority()).max()
@@ -218,7 +218,7 @@ impl ResourceWaitQueue {
                 if current_priority != priority {
                     break;
                 }
-                let (allocation, resource_index) = {
+                let (allocation, rv_id) = {
                     if let Some(x) = self.allocator.try_allocate(rqv) {
                         x
                     } else {
@@ -227,7 +227,7 @@ impl ResourceWaitQueue {
                     }
                 };
                 let task_id = qfr.queue.pop().unwrap().0;
-                out.push((task_id, allocation, resource_index));
+                out.push((task_id, allocation, rv_id));
             }
         }
         false

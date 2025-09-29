@@ -251,6 +251,9 @@ impl ResourceRequestVariants {
         if self.variants.is_empty() {
             return Err("Resource are empty".into());
         }
+        if self.variants.len() > 32 {
+            return Err("Too many resource variants".into());
+        }
         let is_multi_node = self.variants[0].is_multi_node();
         for rq in &self.variants {
             rq.validate()?;

@@ -401,7 +401,8 @@ fn reconstruct_historical_events(
                     EventPayload::TaskStarted {
                         task_id: TaskId::new(job.job_id, *id),
                         instance_id: started_data.context.instance_id,
-                        workers: started_data.worker_ids.clone(),
+                        worker_ids: started_data.worker_ids.clone(),
+                        rv_id: started_data.rv_id,
                     },
                 ));
             }

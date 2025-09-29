@@ -1,4 +1,3 @@
-use crate::TaskId;
 use crate::internal::common::resources::Allocation;
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{FromWorkerMessage, TaskRunningMsg};
@@ -6,6 +5,7 @@ use crate::internal::worker::localcomm::{Registration, Token};
 use crate::internal::worker::state::{WorkerState, WorkerStateRef};
 use crate::internal::worker::task_comm::RunningTaskComm;
 use crate::launcher::{TaskBuildContext, TaskFuture, TaskLaunchData, TaskResult};
+use crate::{ResourceVariantId, TaskId};
 use futures::future::Either;
 use std::rc::Rc;
 use tokio::sync::oneshot;
@@ -18,7 +18,7 @@ pub(crate) fn start_task(
     state_ref: &WorkerStateRef,
     task_id: TaskId,
     allocation: Rc<Allocation>,
-    resource_index: usize,
+    rv_id: ResourceVariantId,
 ) {
     log::debug!("Task={task_id} assigned");
 
@@ -42,7 +42,7 @@ pub(crate) fn start_task(
         TaskBuildContext {
             task,
             state,
-            resource_index,
+            rv_id,
             token: token.clone(),
         },
         end_receiver,
@@ -57,6 +57,7 @@ pub(crate) fn start_task(
                 .comm()
                 .send_message_to_server(FromWorkerMessage::TaskRunning(TaskRunningMsg {
                     id: task_id,
+                    rv_id,
                     context: task_context,
                 }));
 

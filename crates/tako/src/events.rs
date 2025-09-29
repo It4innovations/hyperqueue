@@ -2,7 +2,7 @@ use crate::gateway::LostWorkerReason;
 use crate::internal::messages::common::TaskFailInfo;
 use crate::task::SerializedTaskContext;
 use crate::worker::{WorkerConfiguration, WorkerOverview};
-use crate::{InstanceId, TaskId, WorkerId};
+use crate::{InstanceId, ResourceVariantId, TaskId, WorkerId};
 
 pub trait EventProcessor {
     fn on_task_finished(&mut self, task_id: TaskId);
@@ -11,6 +11,7 @@ pub trait EventProcessor {
         task_id: TaskId,
         instance_id: InstanceId,
         worker_ids: &[WorkerId],
+        rv_id: ResourceVariantId,
         context: SerializedTaskContext,
     );
     fn on_task_error(

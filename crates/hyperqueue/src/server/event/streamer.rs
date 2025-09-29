@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use tako::gateway::LostWorkerReason;
 use tako::worker::{WorkerConfiguration, WorkerOverview};
-use tako::{InstanceId, JobId, Set, TaskId, WorkerId, WrappedRcRefCell};
+use tako::{InstanceId, JobId, ResourceVariantId, Set, TaskId, WorkerId, WrappedRcRefCell};
 use tokio::sync::{mpsc, oneshot};
 
 struct EventListener {
@@ -246,13 +246,15 @@ impl EventStreamer {
         task_id: TaskId,
         instance_id: InstanceId,
         worker_ids: SmallVec<[WorkerId; 1]>,
+        resource_variant: ResourceVariantId,
         now: DateTime<Utc>,
     ) {
         self.send_event(
             EventPayload::TaskStarted {
                 task_id,
                 instance_id,
-                workers: worker_ids,
+                worker_ids,
+                rv_id: resource_variant,
             },
             Some(now),
             ForwardMode::StreamAndPersist,
@@ -409,8 +411,8 @@ impl EventStreamer {
         let inner = self.inner.get();
         if let Some(ref streamer) = inner.storage_sender
             && streamer
-                .send(EventStreamMessage::ReplayJournal(history_sender))
-                .is_err()
+            .send(EventStreamMessage::ReplayJournal(history_sender))
+            .is_err()
         {
             log::error!("Event streaming queue has been closed.");
         }

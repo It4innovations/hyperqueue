@@ -5,7 +5,7 @@ use crate::internal::common::resources::{ResourceAmount, ResourceIndex};
 use crate::internal::messages::common::TaskFailInfo;
 use crate::resources::ResourceFractions;
 use crate::task::SerializedTaskContext;
-use crate::{InstanceId, Priority};
+use crate::{InstanceId, Priority, ResourceVariantId};
 use crate::{TaskId, WorkerId};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
@@ -110,6 +110,7 @@ pub struct TaskFailedMsg {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TaskRunningMsg {
     pub id: TaskId,
+    pub rv_id: ResourceVariantId,
     #[serde(with = "serde_bytes")]
     pub context: SerializedTaskContext,
 }

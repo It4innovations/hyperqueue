@@ -22,7 +22,7 @@ use crate::internal::tests::integration::utils::worker::{
 };
 use crate::task::SerializedTaskContext;
 use crate::worker::{WorkerConfiguration, WorkerOverview};
-use crate::{InstanceId, TaskId, WorkerId, WrappedRcRefCell};
+use crate::{InstanceId, ResourceVariantId, TaskId, WorkerId, WrappedRcRefCell};
 
 const WAIT_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -190,6 +190,7 @@ impl EventProcessor for AsyncTestClientProcessorRef {
         task_id: TaskId,
         _instance_id: InstanceId,
         worker_ids: &[WorkerId],
+        _rv_id: ResourceVariantId,
         _context: SerializedTaskContext,
     ) {
         self.update_state(task_id, TestTaskState::Running(worker_ids[0]));

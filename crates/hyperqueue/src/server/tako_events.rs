@@ -5,7 +5,7 @@ use tako::gateway::LostWorkerReason;
 use tako::internal::messages::common::TaskFailInfo;
 use tako::task::SerializedTaskContext;
 use tako::worker::{WorkerConfiguration, WorkerOverview};
-use tako::{InstanceId, TaskId, WorkerId};
+use tako::{InstanceId, ResourceVariantId, TaskId, WorkerId};
 
 pub(crate) struct UpstreamEventProcessor {
     state_ref: StateRef,
@@ -30,6 +30,7 @@ impl EventProcessor for UpstreamEventProcessor {
         task_id: TaskId,
         instance_id: InstanceId,
         worker_ids: &[WorkerId],
+        rv_id: ResourceVariantId,
         context: SerializedTaskContext,
     ) {
         self.state_ref.get_mut().process_task_started(
@@ -37,6 +38,7 @@ impl EventProcessor for UpstreamEventProcessor {
             task_id,
             instance_id,
             worker_ids,
+            rv_id,
             context,
         );
     }
