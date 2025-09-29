@@ -411,8 +411,8 @@ impl EventStreamer {
         let inner = self.inner.get();
         if let Some(ref streamer) = inner.storage_sender
             && streamer
-            .send(EventStreamMessage::ReplayJournal(history_sender))
-            .is_err()
+                .send(EventStreamMessage::ReplayJournal(history_sender))
+                .is_err()
         {
             log::error!("Event streaming queue has been closed.");
         }

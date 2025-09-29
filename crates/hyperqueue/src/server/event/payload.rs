@@ -9,6 +9,11 @@ use tako::worker::{WorkerConfiguration, WorkerOverview};
 use tako::{InstanceId, ResourceVariantId, TaskId, static_assert_size};
 use tako::{JobId, WorkerId};
 
+/*
+   !!! IMPORTANT !!!
+   If you modify EventPayload you need to increment the version number in
+   src/common/serialization/mod.rs (HQ_JOURNAL_VERSION_MAJOR).
+*/
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum EventPayload {
     /// New worker has connected to the server
