@@ -211,6 +211,7 @@ pub(crate) fn on_task_running(
 ) {
     let TaskRunningMsg {
         id: task_id,
+        rv_id,
         context,
     } = message;
 
@@ -251,7 +252,7 @@ pub(crate) fn on_task_running(
         };
 
         comm.client()
-            .on_task_started(task_id, task.instance_id, worker_ids, context);
+            .on_task_started(task_id, task.instance_id, worker_ids, rv_id, context);
     }
 }
 

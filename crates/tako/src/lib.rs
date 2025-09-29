@@ -18,7 +18,9 @@ pub use crate::internal::common::taskgroup::TaskGroup;
 pub use crate::internal::common::utils::format_comma_delimited;
 pub use crate::internal::common::{Map, Set};
 
-pub use crate::internal::common::ids::{InstanceId, JobId, JobTaskId, TaskId, WorkerId};
+pub use crate::internal::common::ids::{
+    InstanceId, JobId, JobTaskId, ResourceVariantId, TaskId, WorkerId,
+};
 
 pub type JobTaskCount = u32;
 

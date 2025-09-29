@@ -259,9 +259,10 @@ impl StateRestorer {
                 EventPayload::TaskStarted {
                     task_id,
                     instance_id,
-                    workers,
+                    worker_ids,
+                    rv_id,
                 } => {
-                    log::debug!("Replaying: TaskStarted {task_id} {instance_id} {workers:?}");
+                    log::debug!("Replaying: TaskStarted {task_id} {instance_id} {worker_ids:?}");
                     if let Some(job) = self.jobs.get_mut(&task_id.job_id()) {
                         job.tasks.insert(
                             task_id.job_task_id(),
@@ -270,7 +271,8 @@ impl StateRestorer {
                                     started_data: StartedTaskData {
                                         start_date: event.time,
                                         context: RunningTaskContext { instance_id },
-                                        worker_ids: workers,
+                                        worker_ids,
+                                        rv_id,
                                     },
                                 },
                                 instance_id: Some(instance_id),

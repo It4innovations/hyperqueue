@@ -83,7 +83,8 @@ impl JobTimeline {
                 EventPayload::TaskStarted {
                     task_id,
                     instance_id: _,
-                    workers,
+                    worker_ids: workers,
+                    rv_id: _,
                 } => {
                     if let Some(info) = self.job_timeline.get_mut(&task_id.job_id()) {
                         info.job_tasks_info.insert(

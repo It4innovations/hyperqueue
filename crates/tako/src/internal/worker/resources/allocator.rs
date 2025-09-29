@@ -1,3 +1,4 @@
+use crate::ResourceVariantId;
 use crate::internal::common::resources::request::{
     AllocationRequest, ResourceAllocRequest, ResourceRequest, ResourceRequestVariants,
 };
@@ -291,12 +292,11 @@ impl ResourceAllocator {
     pub fn try_allocate(
         &mut self,
         request: &ResourceRequestVariants,
-    ) -> Option<(Rc<Allocation>, usize)> {
-        request
-            .requests()
-            .iter()
-            .enumerate()
-            .find_map(|(i, r)| self.try_allocate_variant(r).map(|c| (c, i)))
+    ) -> Option<(Rc<Allocation>, ResourceVariantId)> {
+        request.requests().iter().enumerate().find_map(|(i, r)| {
+            self.try_allocate_variant(r)
+                .map(|c| (c, ResourceVariantId::new(i as u8)))
+        })
     }
 
     fn claim_resources(&mut self, request: &ResourceRequest) -> Allocation {

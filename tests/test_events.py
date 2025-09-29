@@ -6,7 +6,7 @@ from typing import List, Callable, Any
 from schema import Schema
 
 from .conftest import HqEnv, get_hq_binary
-from .utils import wait_for_worker_state
+from .utils import wait_for_worker_state, wait_for_job_state
 
 
 def test_worker_stream_events1(hq_env: HqEnv, tmp_path):
@@ -170,26 +170,66 @@ def test_worker_capture_nvidia_gpu_state(hq_env: HqEnv):
     schema.validate(event)
 
 
+def test_event_running_variant(hq_env: HqEnv, tmp_path):
+    hq_env.start_server()
+    hq_env.start_workers(2, cpus=4)
+
+    tmp_path.joinpath("job.toml").write_text(
+        """
+[[task]]
+id = 0
+command = ["sleep", "1"]
+
+[[task.request]]
+resources = { "cpus" = "8" }
+
+[[task.request]]
+resources = { "cpus" = "2", "gpus" = "1" }
+
+[[task.request]]
+resources = { "cpus" = "4" }
+
+[[task.request]]
+resources = { "cpus" = "1", "gpus" = "2" }
+
+[[task]]
+id = 1
+command = ["sleep", "1"]
+deps = [0]
+"""
+    )
+    hq_env.command(["job", "submit-file", "job.toml"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+    events = get_replayed_events(hq_env)
+    task_started = []
+    for event in events:
+        if event["event"]["type"] == "task-started":
+            task_started.append(event["event"])
+    assert task_started == [
+        {"instance": 0, "job": 1, "task": 0, "type": "task-started", "variant": 2, "worker": 1},
+        {"instance": 0, "job": 1, "task": 1, "type": "task-started", "worker": 1},
+    ]
+
+
 def test_worker_capture_amd_gpu_state(hq_env: HqEnv):
     def body():
         with hq_env.mock.mock_program_with_code(
             "rocm-smi",
             """
-    import json
-    data = {
-        "card0": {
-            "GPU use (%)": "1.5",
-            "GPU memory use (%)": "12.5",
-            "PCI Bus": "FOOBAR1"
-        },
-        "card1": {
-            "GPU use (%)": "12.5",
-            "GPU memory use (%)": "64.0",
-            "PCI Bus": "FOOBAR2"
-        }
+import json
+data = {
+    "card0": {
+        "GPU use (%)": "1.5",
+        "GPU memory use (%)": "12.5",
+        "PCI Bus": "FOOBAR1"
+    },
+    "card1": {
+        "GPU use (%)": "12.5",
+        "GPU memory use (%)": "64.0",
+        "PCI Bus": "FOOBAR2"
     }
-    print(json.dumps(data))
-    """,
+}
+print(json.dumps(data))""",
         ):
             hq_env.start_worker(args=["--overview-interval", "10ms", "--resource", "gpus/amd=[0]"])
             wait_for_worker_state(hq_env, 1, "RUNNING")
