@@ -41,13 +41,13 @@ pub(crate) fn compute_new_worker_query(
             }
             for load in ws.loads.iter_mut() {
                 if load.have_immediate_resources_for_rqv(request, &ws.w_resources) {
-                    load.add_request(task.id, request, &ws.w_resources);
+                    load.add_request(task.id, request, task.running_variant(), &ws.w_resources);
                     return;
                 }
             }
             if ws.loads.len() < ws.max as usize {
                 let mut load = WorkerLoad::new(&ws.w_resources);
-                load.add_request(task.id, request, &ws.w_resources);
+                load.add_request(task.id, request, task.running_variant(), &ws.w_resources);
                 ws.loads.push(load);
                 return;
             }
@@ -82,7 +82,7 @@ pub(crate) fn compute_new_worker_query(
             if task.is_sn_running()
                 || load.have_immediate_resources_for_rqv(request, &worker.resources)
             {
-                load.add_request(task.id, request, &worker.resources);
+                load.add_request(task.id, request, task.running_variant(), &worker.resources);
                 continue;
             }
             add_task(&mut new_loads, task);

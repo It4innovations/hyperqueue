@@ -221,7 +221,10 @@ pub(crate) fn on_task_running(
         let worker_ids = match &task.state {
             TaskRuntimeState::Assigned(w_id) | TaskRuntimeState::Stealing(w_id, None) => {
                 assert_eq!(*w_id, worker_id);
-                task.state = TaskRuntimeState::Running { worker_id };
+                task.state = TaskRuntimeState::Running {
+                    worker_id,
+                    rv_id: message.rv_id,
+                };
                 simple_worker_list.as_slice()
             }
             TaskRuntimeState::Stealing(w_id, Some(target_id)) => {
@@ -231,7 +234,10 @@ pub(crate) fn on_task_running(
                 let worker = workers.get_worker_mut(*w_id);
                 worker.insert_sn_task(task);
                 comm.ask_for_scheduling();
-                task.state = TaskRuntimeState::Running { worker_id };
+                task.state = TaskRuntimeState::Running {
+                    worker_id,
+                    rv_id: message.rv_id,
+                };
                 simple_worker_list.as_slice()
             }
             TaskRuntimeState::RunningMultiNode(ws) => {
@@ -399,7 +405,7 @@ pub(crate) fn on_steal_response(
         }
 
         let new_state = {
-            let (from_worker_id, to_worker_id) = {
+            let to_worker_id = {
                 let task = core.get_task(task_id);
                 if task.is_done_or_running() {
                     log::debug!("Received trace response for finished task={task_id}");
@@ -407,7 +413,7 @@ pub(crate) fn on_steal_response(
                 }
                 if let TaskRuntimeState::Stealing(from_w, to_w) = &task.state {
                     assert_eq!(*from_w, worker_id);
-                    (*from_w, *to_w)
+                    *to_w
                 } else {
                     panic!("Invalid state of task={task_id} when steal response occurred");
                 }
@@ -431,15 +437,10 @@ pub(crate) fn on_steal_response(
                 }
                 StealResponse::Running => {
                     log::debug!("Task stealing was not successful task={task_id}");
-
-                    let (tasks, workers) = core.split_tasks_workers_mut();
-                    let task = tasks.get_task(task_id);
-                    if let Some(w_id) = to_worker_id {
-                        workers.get_worker_mut(w_id).remove_sn_task(task)
-                    }
-                    workers.get_worker_mut(from_worker_id).insert_sn_task(task);
-                    comm.ask_for_scheduling();
-                    TaskRuntimeState::Running { worker_id }
+                    // This should be unreachable because we should receive information
+                    // about the running task so the task is running state and the condition above
+                    // should skip the cycle previously
+                    panic!("Received Running response while stealing");
                 }
                 StealResponse::NotHere => {
                     panic!(

@@ -18,15 +18,14 @@ use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::worker::Worker;
 use crate::internal::tests::utils::env::create_test_comm;
 use crate::internal::tests::utils::schedule::{
-    create_test_scheduler, create_test_worker, create_test_workers, finish_on_worker, force_assign,
-    start_and_finish_on_worker, start_mn_task_on_worker, start_on_worker, start_on_worker_running,
-    submit_test_tasks,
+    assign_to_worker, create_test_scheduler, create_test_worker, create_test_workers,
+    finish_on_worker, force_assign, set_as_running, start_and_finish_on_worker,
+    start_mn_task_on_worker, start_on_worker_running, submit_test_tasks,
 };
 use crate::internal::tests::utils::shared::{res_kind_groups, res_kind_sum};
 use crate::internal::tests::utils::sorted_vec;
 use crate::internal::tests::utils::task::{TaskBuilder, task, task_running_msg, task_with_deps};
 use crate::internal::tests::utils::workflows::{submit_example_1, submit_example_3};
-use crate::internal::tests::utils::{env, schedule};
 use crate::internal::worker::configuration::{
     DEFAULT_MAX_DOWNLOAD_TRIES, DEFAULT_MAX_PARALLEL_DOWNLOADS,
     DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES, OverviewConfiguration,
@@ -379,7 +378,7 @@ fn test_running_task_on_error() {
     start_and_finish_on_worker(&mut core, 11, 100);
     start_and_finish_on_worker(&mut core, 12, 101);
 
-    start_on_worker(&mut core, 13, 102);
+    assign_to_worker(&mut core, 13, 102);
     core.assert_assigned(&[13]);
     assert!(worker_has_task(&core, 102, 13));
 
@@ -423,7 +422,7 @@ fn test_steal_tasks_ok() {
     start_and_finish_on_worker(&mut core, 12, 101);
 
     let task_id = 13;
-    start_on_worker(&mut core, task_id, 101);
+    assign_to_worker(&mut core, task_id, 101);
 
     assert!(worker_has_task(&core, 101, task_id));
     assert!(!worker_has_task(&core, 100, task_id));
@@ -476,7 +475,7 @@ fn test_steal_tasks_running() {
     submit_example_1(&mut core);
     start_and_finish_on_worker(&mut core, 11, 100);
     start_and_finish_on_worker(&mut core, 12, 101);
-    start_on_worker(&mut core, 13, 101);
+    assign_to_worker(&mut core, 13, 101);
 
     let mut comm = create_test_comm();
     let mut scheduler = create_test_scheduler();
@@ -493,6 +492,12 @@ fn test_steal_tasks_running() {
     assert!(!worker_has_task(&core, 101, 13));
     assert!(worker_has_task(&core, 100, 13));
 
+    on_task_running(&mut core, &mut comm, 101.into(), task_running_msg(13));
+    comm.client.take_task_running(1);
+    comm.check_need_scheduling();
+    comm.emptiness_check();
+    core.sanity_check();
+
     on_steal_response(
         &mut core,
         &mut comm,
@@ -504,10 +509,8 @@ fn test_steal_tasks_running() {
 
     assert!(worker_has_task(&core, 101, 13));
     assert!(!worker_has_task(&core, 100, 13));
-
-    comm.check_need_scheduling();
-    comm.emptiness_check();
     core.sanity_check();
+    comm.emptiness_check();
 }
 
 #[test]
@@ -525,7 +528,7 @@ fn finish_task_without_outputs() {
     create_test_workers(&mut core, &[1]);
     let t1 = task_with_deps(1, &[]);
     submit_test_tasks(&mut core, vec![t1]);
-    start_on_worker(&mut core, 1, 100);
+    assign_to_worker(&mut core, 1, 100);
 
     let mut comm = create_test_comm();
     on_task_finished(&mut core, &mut comm, 100.into(), no_data_task_finished(1));
@@ -546,13 +549,14 @@ fn test_task_cancel() {
     let t42 = task(42);
 
     submit_test_tasks(&mut core, vec![t40, t41, t42]);
+    assign_to_worker(&mut core, 11, 101);
+    assign_to_worker(&mut core, 12, 101);
+    assign_to_worker(&mut core, 40, 101);
+    assign_to_worker(&mut core, 41, 100);
 
-    start_and_finish_on_worker(&mut core, 11, 101);
-    start_on_worker(&mut core, 12, 101);
-    start_on_worker(&mut core, 40, 101);
-    start_on_worker(&mut core, 41, 100);
-
-    fail_steal(&mut core, 12, 101, 100);
+    start_stealing(&mut core, 12, 100);
+    set_as_running(&mut core, 12, 101);
+    fail_steal(&mut core, 12, 101);
     start_stealing(&mut core, 40, 100);
     start_stealing(&mut core, 41, 101);
 
@@ -573,7 +577,7 @@ fn test_task_cancel() {
 
     let msgs = comm.take_worker_msgs(101, 1);
     assert!(
-        matches!(&msgs[0], &ToWorkerMessage::CancelTasks(TaskIdsMsg { ref ids }) if sorted_vec(ids.clone()) == vec![TaskId::new_test(12), TaskId::new_test(40)])
+        matches!(&msgs[0], &ToWorkerMessage::CancelTasks(TaskIdsMsg { ref ids }) if sorted_vec(ids.clone()) == vec![TaskId::new_test(11), TaskId::new_test(12), TaskId::new_test(40)])
     );
 
     assert_eq!(core.task_map().len(), 1);
@@ -762,8 +766,8 @@ fn test_running_task() {
     let t1 = task(1);
     let t2 = task(2);
     submit_test_tasks(&mut core, vec![t1, t2]);
-    start_on_worker(&mut core, 1, 101);
-    start_on_worker(&mut core, 2, 101);
+    assign_to_worker(&mut core, 1, 101);
+    assign_to_worker(&mut core, 2, 101);
 
     let mut comm = create_test_comm();
 
@@ -818,7 +822,7 @@ fn test_finished_before_steal_response() {
     create_test_workers(&mut core, &[1, 1, 1]);
     let t1 = task(1);
     submit_test_tasks(&mut core, vec![t1]);
-    start_on_worker(&mut core, 1, 101);
+    assign_to_worker(&mut core, 1, 101);
     start_stealing(&mut core, 1, 102);
     assert!(worker_has_task(&core, 102, 1));
 
@@ -853,7 +857,7 @@ fn test_running_before_steal_response() {
     create_test_workers(&mut core, &[1, 1, 1]);
     let t1 = task(1);
     submit_test_tasks(&mut core, vec![t1]);
-    start_on_worker(&mut core, 1, 101);
+    assign_to_worker(&mut core, 1, 101);
     start_stealing(&mut core, 1, 102);
     assert!(worker_has_task(&core, 102, 1));
 
@@ -898,10 +902,10 @@ fn test_after_cancel_messages() {
     let t3 = task(3);
     let t4 = task(4);
     submit_test_tasks(&mut core, vec![t1, t2, t3, t4]);
-    start_on_worker(&mut core, 1, 101);
-    start_on_worker(&mut core, 2, 101);
-    start_on_worker(&mut core, 3, 101);
-    start_on_worker(&mut core, 4, 101);
+    assign_to_worker(&mut core, 1, 101);
+    assign_to_worker(&mut core, 2, 101);
+    assign_to_worker(&mut core, 3, 101);
+    assign_to_worker(&mut core, 4, 101);
 
     cancel_tasks(&mut core, &[1, 2, 3, 4]);
 
@@ -954,12 +958,14 @@ fn lost_worker_with_running_and_assign_tasks() {
     let t41 = task(41);
     submit_test_tasks(&mut core, vec![t40, t41]);
 
-    start_on_worker(&mut core, 11, 101);
-    start_on_worker(&mut core, 12, 101);
-    start_on_worker(&mut core, 40, 101);
-    start_on_worker(&mut core, 41, 100);
+    assign_to_worker(&mut core, 11, 101);
+    assign_to_worker(&mut core, 12, 101);
+    assign_to_worker(&mut core, 40, 101);
+    assign_to_worker(&mut core, 41, 100);
 
-    fail_steal(&mut core, 12, 101, 100);
+    start_stealing(&mut core, 12, 100);
+    set_as_running(&mut core, 12, 101);
+    fail_steal(&mut core, 12, 101);
     start_stealing(&mut core, 40, 100);
     start_stealing(&mut core, 41, 101);
 
@@ -1029,21 +1035,14 @@ fn force_reassign<W: Into<WorkerId>, T: Into<TaskId>>(
     scheduler.assign(core, task_id.into(), worker_id.into());
 }
 
-fn fail_steal<W: Into<WorkerId>, T: Into<TaskId>>(
-    core: &mut Core,
-    task_id: T,
-    worker_id: W,
-    target_worker_id: W,
-) {
-    let task_id = task_id.into();
-    start_stealing(core, task_id, target_worker_id.into());
-    let mut comm = env::create_test_comm();
+fn fail_steal<W: Into<WorkerId>, T: Into<TaskId>>(core: &mut Core, task_id: T, worker_id: W) {
+    let mut comm = create_test_comm();
     on_steal_response(
         core,
         &mut comm,
         worker_id.into(),
         StealResponseMsg {
-            responses: vec![(task_id, StealResponse::Running)],
+            responses: vec![(task_id.into(), StealResponse::Running)],
         },
     )
 }
@@ -1053,14 +1052,14 @@ fn start_stealing<W: Into<WorkerId>, T: Into<TaskId>>(
     task_id: T,
     new_worker_id: W,
 ) {
-    let mut scheduler = schedule::create_test_scheduler();
+    let mut scheduler = create_test_scheduler();
     force_reassign(core, &mut scheduler, task_id.into(), new_worker_id.into());
-    let mut comm = env::create_test_comm();
+    let mut comm = create_test_comm();
     scheduler.finish_scheduling(core, &mut comm);
 }
 
 fn cancel_tasks<T: Into<TaskId> + Copy>(core: &mut Core, task_ids: &[T]) {
-    let mut comm = env::create_test_comm();
+    let mut comm = create_test_comm();
     on_cancel_tasks(
         core,
         &mut comm,
@@ -1145,7 +1144,7 @@ fn test_data_deps_no_output() {
     let t1 = TaskBuilder::new(1).build();
     let t2 = TaskBuilder::new(2).data_dep(&t1, 11).build();
     submit_test_tasks(&mut core, vec![t1, t2]);
-    start_on_worker(&mut core, 1, 100);
+    assign_to_worker(&mut core, 1, 100);
     core.sanity_check();
     let mut comm = create_test_comm();
     on_task_finished(
@@ -1180,7 +1179,7 @@ fn test_data_deps_missing_outputs() {
         .data_dep(&t1, 101)
         .build();
     submit_test_tasks(&mut core, vec![t1, t2]);
-    start_on_worker(&mut core, 1, 100);
+    assign_to_worker(&mut core, 1, 100);
     core.sanity_check();
     let mut comm = create_test_comm();
     on_task_finished(
@@ -1242,7 +1241,7 @@ fn test_data_deps_basic() {
     core.assert_ready(&[1]);
     create_test_workers(&mut core, &[4]);
     let mut comm = create_test_comm();
-    start_on_worker(&mut core, 1, 100);
+    assign_to_worker(&mut core, 1, 100);
 
     on_task_finished(
         &mut core,
@@ -1263,7 +1262,7 @@ fn test_data_deps_basic() {
     core.assert_waiting(&[3]);
     core.assert_ready(&[2]);
 
-    start_on_worker(&mut core, 2, 100);
+    assign_to_worker(&mut core, 2, 100);
 
     let o = core.dataobj_map();
     assert_eq!(o.len(), 1);

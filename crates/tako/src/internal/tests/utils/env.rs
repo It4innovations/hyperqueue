@@ -78,7 +78,7 @@ impl TestEnv {
         let task = builder.build();
         let task_id = task.id();
         schedule::submit_test_tasks(&mut self.core, vec![task]);
-        schedule::start_on_worker(&mut self.core, task_id, worker_id.into());
+        schedule::assign_to_worker(&mut self.core, task_id, worker_id.into());
     }
 
     pub fn new_task_running<W: Into<WorkerId>>(&mut self, builder: TaskBuilder, worker_id: W) {
