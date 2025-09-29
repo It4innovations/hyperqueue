@@ -27,7 +27,7 @@ use crate::resources::{
 };
 use crate::task::SerializedTaskContext;
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
-use crate::{InstanceId, TaskId, WorkerId};
+use crate::{InstanceId, ResourceVariantId, TaskId, WorkerId};
 use std::time::{Duration, Instant};
 
 pub struct TestEnv {
@@ -351,6 +351,7 @@ impl EventProcessor for TestClientProcessor {
         task_id: TaskId,
         _instance_id: InstanceId,
         _worker_id: &[WorkerId],
+        _rv_id: ResourceVariantId,
         _context: SerializedTaskContext,
     ) {
         self.task_running.push(task_id);

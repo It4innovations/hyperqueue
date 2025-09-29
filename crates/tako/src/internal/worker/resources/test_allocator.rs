@@ -356,7 +356,7 @@ fn test_pool_single_socket() {
 
     let rq = cpus_compact(3).finish_v();
     let (al, idx) = allocator.try_allocate(&rq).unwrap();
-    assert_eq!(idx, 0);
+    assert_eq!(idx.as_num(), 0);
     assert_eq!(al.resources.len(), 1);
     assert_eq!(al.resources[0].resource_id, ResourceId::new(0));
     assert_eq!(al.resources[0].indices.len(), 3);

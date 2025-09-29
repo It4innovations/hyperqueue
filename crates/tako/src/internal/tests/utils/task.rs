@@ -7,7 +7,7 @@ use crate::internal::common::resources::{
 use crate::internal::messages::worker::TaskRunningMsg;
 use crate::internal::server::task::{Task, TaskConfiguration};
 use crate::resources::ResourceRequest;
-use crate::{Priority, Set, TaskId};
+use crate::{Priority, ResourceVariantId, Set, TaskId};
 use smallvec::SmallVec;
 use std::rc::Rc;
 use thin_vec::ThinVec;
@@ -126,6 +126,7 @@ pub fn task_with_deps<T: Into<TaskId>>(id: T, deps: &[&Task]) -> Task {
 pub fn task_running_msg<T: Into<TaskId>>(task_id: T) -> TaskRunningMsg {
     TaskRunningMsg {
         id: task_id.into(),
+        rv_id: ResourceVariantId::new(0),
         context: Default::default(),
     }
 }
