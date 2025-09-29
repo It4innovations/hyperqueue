@@ -6,7 +6,7 @@ use thin_vec::ThinVec;
 
 use crate::internal::common::Set;
 use crate::internal::common::stablemap::ExtractKey;
-use crate::{MAX_FRAME_SIZE, Map, WorkerId};
+use crate::{MAX_FRAME_SIZE, Map, ResourceVariantId, WorkerId};
 
 use crate::gateway::{CrashLimit, EntryType, TaskDataFlags};
 use crate::internal::datasrv::dataobj::DataObjectId;
@@ -29,7 +29,10 @@ pub enum TaskRuntimeState {
     Waiting(WaitingInfo),
     Assigned(WorkerId),
     Stealing(WorkerId, Option<WorkerId>), // (from, to)
-    Running { worker_id: WorkerId },
+    Running {
+        worker_id: WorkerId,
+        rv_id: ResourceVariantId,
+    },
     // The first worker is the root node where the command is executed, others are reserved
     RunningMultiNode(Vec<WorkerId>),
     Finished,
@@ -299,6 +302,14 @@ impl Task {
 
     pub(crate) fn mn_root_worker(&self) -> Option<WorkerId> {
         self.mn_placement().map(|ws| ws[0])
+    }
+
+    #[inline]
+    pub(crate) fn running_variant(&self) -> Option<ResourceVariantId> {
+        match self.state {
+            TaskRuntimeState::Running { rv_id, .. } => Some(rv_id),
+            _ => None,
+        }
     }
 
     #[inline]

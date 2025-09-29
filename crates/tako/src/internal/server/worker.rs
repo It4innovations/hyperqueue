@@ -144,8 +144,12 @@ impl Worker {
 
     pub fn insert_sn_task(&mut self, task: &Task) {
         assert!(self.sn_tasks.insert(task.id));
-        self.sn_load
-            .add_request(task.id, &task.configuration.resources, &self.resources);
+        self.sn_load.add_request(
+            task.id,
+            &task.configuration.resources,
+            task.running_variant(),
+            &self.resources,
+        );
     }
 
     pub fn remove_sn_task(&mut self, task: &Task) {
@@ -164,7 +168,12 @@ impl Worker {
         for &task_id in &self.sn_tasks {
             let task = task_map.get_task(task_id);
             trivial &= task.configuration.resources.is_trivial();
-            check_load.add_request(task_id, &task.configuration.resources, &self.resources);
+            check_load.add_request(
+                task_id,
+                &task.configuration.resources,
+                task.running_variant(),
+                &self.resources,
+            );
         }
         if trivial {
             assert_eq!(self.sn_load, check_load);

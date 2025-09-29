@@ -109,7 +109,16 @@ pub(crate) fn start_mn_task_on_worker(core: &mut Core, task_id: TaskId, worker_i
     scheduler.finish_scheduling(core, &mut comm);
 }
 
-pub fn start_on_worker<W: Into<WorkerId>, T: Into<TaskId>>(
+pub fn set_as_running<W: Into<WorkerId>, T: Into<TaskId>>(
+    core: &mut Core,
+    task_id: T,
+    worker_id: W,
+) {
+    let mut comm = TestComm::default();
+    on_task_running(core, &mut comm, worker_id.into(), task_running_msg(task_id));
+}
+
+pub fn assign_to_worker<W: Into<WorkerId>, T: Into<TaskId>>(
     core: &mut Core,
     task_id: T,
     worker_id: W,
@@ -178,7 +187,7 @@ pub fn start_and_finish_on_worker_with_data<W: Into<WorkerId>, T: Into<TaskId>>(
     let task_id = task_id.into();
     let worker_id = worker_id.into();
 
-    start_on_worker(core, task_id, worker_id);
+    assign_to_worker(core, task_id, worker_id);
     finish_on_worker_with_data(core, task_id, worker_id, outputs);
 }
 

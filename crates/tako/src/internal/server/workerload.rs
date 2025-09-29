@@ -6,7 +6,7 @@ use crate::internal::common::resources::{
     ResourceVec,
 };
 use crate::internal::messages::worker::WorkerResourceCounts;
-use crate::{Map, Set, TaskId};
+use crate::{Map, ResourceVariantId, Set, TaskId};
 use serde_json::json;
 use std::ops::Deref;
 
@@ -157,7 +157,7 @@ pub struct WorkerLoad {
 
     /// The map stores task_ids of requests for which non-first resource alternative is used
     /// i.e., if all tasks has only 1 option in resource requests, this map will be empty
-    non_first_rq: Map<TaskId, usize>,
+    non_first_rq: Map<TaskId, ResourceVariantId>,
     round_robin_counter: usize,
 }
 
@@ -188,10 +188,19 @@ impl WorkerLoad {
         &mut self,
         task_id: TaskId,
         rqv: &ResourceRequestVariants,
+        rv_id: Option<ResourceVariantId>,
         wr: &WorkerResources,
     ) {
         if let Some(rq) = rqv.trivial_request() {
             self._add(rq, wr);
+            return;
+        }
+        if let Some(rv_id) = rv_id {
+            let idx = rv_id.as_usize();
+            self._add(&rqv.requests()[idx], wr);
+            if idx != 0 {
+                self.non_first_rq.insert(task_id, rv_id);
+            }
             return;
         }
         let idx: usize = rqv
@@ -212,7 +221,8 @@ impl WorkerLoad {
             });
         self._add(&rqv.requests()[idx], wr);
         if idx != 0 {
-            self.non_first_rq.insert(task_id, idx);
+            self.non_first_rq
+                .insert(task_id, ResourceVariantId::new(idx as u8));
         }
     }
 
@@ -222,7 +232,11 @@ impl WorkerLoad {
         rqv: &ResourceRequestVariants,
         wr: &WorkerResources,
     ) {
-        let idx = self.non_first_rq.remove(&task_id).unwrap_or(0);
+        let idx = self
+            .non_first_rq
+            .remove(&task_id)
+            .map(|x| x.as_usize())
+            .unwrap_or(0);
         for r in rqv.requests()[idx].entries() {
             self.n_resources[r.resource_id] -= r.request.amount(wr.n_resources[r.resource_id]);
         }
@@ -422,25 +436,37 @@ mod tests {
         let rq2 = ResBuilder::default().add(0, 4).finish();
         let rqv = ResourceRequestVariants::new(smallvec![rq1, rq2]);
 
-        load.add_request(TaskId::new_test(1), &rqv, &wr);
+        load.add_request(TaskId::new_test(1), &rqv, None, &wr);
         assert_eq!(load.n_resources, ra_builder(&[2, 2, 0]));
         assert!(load.non_first_rq.is_empty());
 
-        load.add_request(TaskId::new_test(2), &rqv, &wr);
+        load.add_request(TaskId::new_test(2), &rqv, None, &wr);
         assert_eq!(load.n_resources, ra_builder(&[4, 4, 0]));
         assert!(load.non_first_rq.is_empty());
 
-        load.add_request(TaskId::new_test(3), &rqv, &wr);
+        load.add_request(TaskId::new_test(3), &rqv, None, &wr);
         assert_eq!(load.n_resources, ra_builder(&[8, 4, 0]));
         assert_eq!(load.non_first_rq.len(), 1);
-        assert_eq!(load.non_first_rq.get(&TaskId::new_test(3)), Some(&1));
+        assert_eq!(
+            load.non_first_rq
+                .get(&TaskId::new_test(3))
+                .unwrap()
+                .as_usize(),
+            1
+        );
 
-        load.add_request(TaskId::new_test(4), &rqv, &wr);
+        load.add_request(TaskId::new_test(4), &rqv, None, &wr);
         assert_eq!(load.n_resources, ra_builder(&[12, 4, 0]));
         assert_eq!(load.non_first_rq.len(), 2);
-        assert_eq!(load.non_first_rq.get(&TaskId::new_test(4)), Some(&1));
+        assert_eq!(
+            load.non_first_rq
+                .get(&TaskId::new_test(4))
+                .unwrap()
+                .as_usize(),
+            1
+        );
 
-        load.add_request(TaskId::new_test(5), &rqv, &wr);
+        load.add_request(TaskId::new_test(5), &rqv, None, &wr);
         assert!(
             load.n_resources == ra_builder(&[16, 4, 0])
                 || load.n_resources == ra_builder(&[14, 6, 0])
