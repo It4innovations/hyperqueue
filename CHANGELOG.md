@@ -10,6 +10,11 @@
 * Client notification mechanism. A task can generate a notification,
   which the process that submitted the task can capture.
 * Server scheduler more respects priorities
+* Extended events: 
+  * New journal events: `job-idle`, `task-notify`.
+  * `worker-new` now contains the worker configuration,
+  * `job-created` now contains task information
+  * `task-started` now contains a resource variant id
 
 ### Changes
 
