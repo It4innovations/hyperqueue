@@ -10,7 +10,7 @@ pub use write::JournalWriter;
 
 const HQ_JOURNAL_HEADER: &[u8] = b"hqjl0002";
 
-const HQ_JOURNAL_VERSION_MAJOR: u32 = 23;
+const HQ_JOURNAL_VERSION_MAJOR: u32 = 25;
 const HQ_JOURNAL_VERSION_MINOR: u32 = 0;
 
 #[derive(Serialize, Deserialize)]
