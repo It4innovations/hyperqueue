@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use tako::gateway::{ResourceRequest, ResourceRequestVariants};
 use tako::resources::ResourceAmount;
 use tako::worker::WorkerConfiguration;
-use tako::{JobId, JobTaskId, TaskId, WorkerId};
+use tako::{JobId, JobTaskId, ResourceVariantId, TaskId, WorkerId};
 
 #[derive(Parser)]
 pub(crate) struct JournalReportOpts {
@@ -130,8 +130,27 @@ struct JournalStats {
     job_requests: HashMap<JobId, JobResourceRq>,
     queued_workers: Trace<i32>,
     queue_requests: HashMap<AllocationId, i32>,
-    running_tasks: HashMap<TaskId, (TimeDelta, smallvec::SmallVec<[WorkerId; 1]>)>,
+    running_tasks: HashMap<
+        TaskId,
+        (
+            TimeDelta,
+            smallvec::SmallVec<[WorkerId; 1]>,
+            ResourceVariantId,
+        ),
+    >,
     durations: HashMap<ResourceRequest, TaskDuration>,
+}
+
+enum TaskStartStop {
+    Start,
+    Stop { start_time: TimeDelta, fail: bool },
+    Cancel,
+}
+
+impl TaskStartStop {
+    fn is_start(&self) -> bool {
+        matches!(self, TaskStartStop::Start)
+    }
 }
 
 impl JournalStats {
@@ -220,25 +239,58 @@ impl JournalStats {
                 EventPayload::JobOpen(_, _) => {}
                 EventPayload::JobClose(_) => {}
                 EventPayload::TaskStarted {
-                    task_id, workers, ..
+                    task_id,
+                    worker_ids,
+                    rv_id,
+                    instance_id: _,
                 } => {
-                    jstats.task_start_stop(time, task_id, &workers, true, None, false);
-                    jstats.running_tasks.insert(task_id, (time, workers));
+                    jstats.task_start_stop(time, task_id, rv_id, &worker_ids, TaskStartStop::Start);
+                    jstats
+                        .running_tasks
+                        .insert(task_id, (time, worker_ids, rv_id));
                 }
                 EventPayload::TaskFinished { task_id } => {
-                    if let Some((task_start_time, workers)) = jstats.running_tasks.remove(&task_id) {
-                        jstats.task_start_stop(time, task_id, &workers, false, Some(task_start_time), false);
+                    if let Some((task_start_time, workers, rv_id)) =
+                        jstats.running_tasks.remove(&task_id)
+                    {
+                        jstats.task_start_stop(
+                            time,
+                            task_id,
+                            rv_id,
+                            &workers,
+                            TaskStartStop::Stop {
+                                start_time: task_start_time,
+                                fail: false,
+                            },
+                        );
                     }
                 }
                 EventPayload::TaskFailed { task_id, .. } => {
-                    if let Some((task_start_time, workers)) = jstats.running_tasks.remove(&task_id) {
-                        jstats.task_start_stop(time, task_id, &workers, false, Some(task_start_time), true);
+                    if let Some((task_start_time, workers, rv_id)) =
+                        jstats.running_tasks.remove(&task_id)
+                    {
+                        jstats.task_start_stop(
+                            time,
+                            task_id,
+                            rv_id,
+                            &workers,
+                            TaskStartStop::Stop {
+                                start_time: task_start_time,
+                                fail: false,
+                            },
+                        );
                     }
                 }
                 EventPayload::TasksCanceled { task_ids, .. } => {
                     for task_id in task_ids {
-                        if let Some((_, workers)) = jstats.running_tasks.remove(&task_id) {
-                            jstats.task_start_stop(time, task_id, &workers, false, None, true);
+                        if let Some((_, workers, rv_id)) = jstats.running_tasks.remove(&task_id) {
+                            jstats.task_start_stop(
+                                time,
+                                task_id,
+                                rv_id,
+                                &workers,
+                                TaskStartStop::Cancel,
+                            );
                         }
                     }
                 }
@@ -265,8 +317,8 @@ impl JournalStats {
                     jstats.queued_workers.add_change(time, worker_count as i32);
                 }
                 EventPayload::AllocationStarted(_, _)
-                /*| EventPayload::JobIdle(_)
-                | EventPayload::TaskNotify(_)*/
+                | EventPayload::JobIdle(_)
+                | EventPayload::TaskNotify(_)
                 | EventPayload::ServerStart { .. } => {}
                 EventPayload::ServerStop => {
                     for trace in jstats.running_workers.values_mut() {
@@ -283,26 +335,22 @@ impl JournalStats {
         &mut self,
         time: TimeDelta,
         task_id: TaskId,
+        rv_id: ResourceVariantId,
         workers: &[WorkerId],
-        start: bool,
-        task_start_time: Option<TimeDelta>,
-        fail: bool,
+        mode: TaskStartStop,
     ) {
         let jrq = self.job_requests.get(&task_id.job_id()).unwrap();
         let rq = match jrq {
             JobResourceRq::Array(rq) => rq,
             JobResourceRq::TaskGraph(map) => map.get(&task_id.job_task_id()).unwrap(),
         };
-        if rq.variants.len() != 1 {
-            panic!("Resource variants are not yet supported in report");
-        }
-        let rq = &rq.variants[0];
+        let rq = &rq.variants[rv_id.as_usize()];
         if rq.n_nodes > 0 {
             for w in workers {
                 let w_resources = self.worker_resources.get(w).unwrap();
                 let utilization = self.w_utilization.get_mut(w_resources).unwrap();
                 for trace in utilization {
-                    trace.add_change(time, if start { 1.0 } else { -1.0 });
+                    trace.add_change(time, if mode.is_start() { 1.0 } else { -1.0 });
                 }
             }
         } else {
@@ -322,11 +370,11 @@ impl JournalStats {
                     .amount_or_none_if_all()
                     .map(|a| a.as_f32() / w_resources.0[pos].1.as_f32())
                     .unwrap_or(1.0);
-                utilization[pos].add_change(time, if start { u } else { -u });
+                utilization[pos].add_change(time, if mode.is_start() { u } else { -u });
             }
         }
-        if let Some(task_start_time) = task_start_time {
-            let duration = time - task_start_time;
+        if let TaskStartStop::Stop { start_time, fail } = mode {
+            let duration = time - start_time;
             if let Some(durations) = self.durations.get_mut(rq) {
                 if fail {
                     durations.failed.push(duration.as_seconds_f32());
