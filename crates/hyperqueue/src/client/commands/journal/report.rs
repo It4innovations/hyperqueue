@@ -1,5 +1,6 @@
+use crate::client::commands::duration_doc;
 use crate::common::format::human_duration;
-use crate::common::utils::time::parse_human_time;
+use crate::common::utils::time::parse_hms_or_human_time;
 use crate::server::autoalloc::AllocationId;
 use crate::server::event::journal::JournalReader;
 use crate::server::event::payload::EventPayload;
@@ -26,17 +27,19 @@ pub(crate) struct JournalReportOpts {
     #[arg(value_hint = ValueHint::FilePath)]
     output: PathBuf,
 
-    /// Show only statistics from a given time
-    ///
-    /// Counted from the start of the server (e.g. "1h")
-    #[arg(long)]
-    start_time: Option<String>,
+    #[arg(
+        long,
+        value_parser = parse_hms_or_human_time,
+        help = duration_doc!("Show only statistics from a given time\n\nCounted from the start of the server")
+    )]
+    start_time: Option<std::time::Duration>,
 
-    /// Show only statistics upto a given time
-    ///
-    /// Counted from the start of the server (e.g. "1h")
-    #[arg(long)]
-    end_time: Option<String>,
+    #[arg(
+        long,
+        value_parser = parse_hms_or_human_time,
+        help = duration_doc!("Show only statistics up to a given time\n\nCounted from the start of the server")
+    )]
+    end_time: Option<std::time::Duration>,
 }
 
 struct Trace<T> {
@@ -165,21 +168,11 @@ impl JournalStats {
         let start_time = opts
             .start_time
             .as_ref()
-            .map(|s| {
-                parse_human_time(s)
-                    .map(|d| chrono::Duration::from_std(d).unwrap())
-                    .map_err(|_| anyhow!("Invalid start time"))
-            })
-            .transpose()?;
+            .map(|d| chrono::Duration::from_std(*d).unwrap());
         let end_time = opts
             .end_time
             .as_ref()
-            .map(|s| {
-                parse_human_time(s)
-                    .map(|d| chrono::Duration::from_std(d).unwrap())
-                    .map_err(|_| anyhow!("Invalid end time"))
-            })
-            .transpose()?;
+            .map(|d| chrono::Duration::from_std(*d).unwrap());
 
         let mut iterator = &mut file;
         let first_event = iterator.next().ok_or(anyhow!("Empty journal"))??;
@@ -276,7 +269,7 @@ impl JournalStats {
                             &workers,
                             TaskStartStop::Stop {
                                 start_time: task_start_time,
-                                fail: false,
+                                fail: true,
                             },
                         );
                     }
