@@ -12,12 +12,13 @@
 * `hq journal report` that exports a statistics into an HTML report
 * Server scheduler more respects priorities
 * Server scheduler improved when resource variants are used
-* Extended events: 
-  * New journal events: `job-idle`, `task-notify`.
-  * `worker-new` now contains the worker configuration,
-  * `job-created` now contains task information
-  * `task-started` now contains a resource variant id
-* We now ensures that after a sucessful modifying client's operation (submit, cancel, open/close job, queues modification), 
+* Extended events:
+    * New journal events: `job-idle`, `task-notify`.
+    * `worker-new` now contains the worker configuration,
+    * `job-created` now contains task information
+    * `task-started` now contains a resource variant id
+* We now ensure that after a successful modifying client's operation (submit, cancel, open/close job, queues
+  modification),
   the operation is immediately a part of the written journal.
 
 ### Changes
