@@ -53,8 +53,9 @@ jobs:
         with:
           key: x64
 
-      - name: "Latest Clang"
-        uses: MorganCaron/latest-clang-action@master          
+      # Needed for the highs dependency
+      - name: Install Clang
+        run: yum install clang -y
 
       - name: Compile
         env:
@@ -104,14 +105,13 @@ jobs:
         with:
           key: ${{ matrix.arch }}
 
+      - name: Install cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
       - name: Compile
-        uses: actions-rs/cargo@v1
         env:
           HQ_BUILD_VERSION: ${{ needs.set-env.outputs.version }}
-        with:
-          command: build
-          args: --target ${{ matrix.arch }} --no-default-features --profile dist
-          use-cross: true
+        run: cross build --target ${{ matrix.arch }} --no-default-features --profile dist
 
       - name: Prepare archive
         id: archive
@@ -128,20 +128,33 @@ jobs:
   build-python-binding:
     needs: [ set-env ]
     runs-on: ubuntu-latest
+    container: quay.io/pypa/manylinux_2_28_x86_64
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.88.0
+          override: true
       - uses: Swatinem/rust-cache@v2
         with:
           key: pyhq
+      # Needed for the highs dependency
+      - name: Install Clang and Python development headers
+        run: yum install clang python3.12-devel -y
+      - name: Install pip
+        run: python3 -m ensurepip
       - uses: messense/maturin-action@v1
         env:
           CARGO_PROFILE_DIST_PANIC: unwind
           CARGO_PROFILE_DIST_STRIP: none
           CARGO_TARGET_DIR: target
+          HQ_BUILD_VERSION: ${{ needs.set-env.outputs.version }}
         with:
-          docker-options: -e HQ_BUILD_VERSION=${{ needs.set-env.outputs.version }}
           maturin-version: 1.3.0
+          container: off
           manylinux: 2_28
           command: build
           args: --manifest-path crates/pyhq/Cargo.toml --profile dist --out wheels
@@ -149,6 +162,7 @@ jobs:
         run: |
           python3 -m venv venv
           source venv/bin/activate
+          python3 --version
           python3 -m pip install -U setuptools wheel pip
           python3 -m pip install -r tests/requirements.txt
           WHEEL=`realpath wheels/*.whl`
