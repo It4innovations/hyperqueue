@@ -17,6 +17,8 @@
   * `worker-new` now contains the worker configuration,
   * `job-created` now contains task information
   * `task-started` now contains a resource variant id
+* We now ensures that after a sucessful modifying client's operation (submit, cancel, open/close job, queues modification), 
+  the operation is immediately a part of the written journal.
 
 ### Changes
 
