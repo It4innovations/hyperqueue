@@ -208,6 +208,11 @@ pub async fn client_rpc_loop<
                 let response = match message {
                     FromClientMessage::Submit(msg, stream_opts) => {
                         let response = submit::handle_submit(&state_ref, senders, msg);
+                        if !response.is_error()
+                            && let Some(callback) = senders.events.flush_journal()
+                        {
+                            let _ = callback.await;
+                        };
                         if let Some(mut stream_opts) = stream_opts
                             && let ToClientMessage::SubmitResponse(SubmitResponse::Ok {
                                 job, ..
@@ -268,7 +273,13 @@ pub async fn client_rpc_loop<
                         handle_worker_stop(&state_ref, senders, msg.selector)
                     }
                     FromClientMessage::Cancel(msg) => {
-                        handle_job_cancel(&state_ref, senders, &msg.selector).await
+                        let response = handle_job_cancel(&state_ref, senders, &msg.selector).await;
+                        if !response.is_error()
+                            && let Some(callback) = senders.events.flush_journal()
+                        {
+                            let _ = callback.await;
+                        };
+                        response
                     }
                     FromClientMessage::ForgetJob(msg) => {
                         handle_job_forget(&state_ref, senders, &msg.selector, msg.filter)
@@ -280,10 +291,22 @@ pub async fn client_rpc_loop<
                         autoalloc::handle_autoalloc_message(&server_dir, senders, msg).await
                     }
                     FromClientMessage::OpenJob(job_description) => {
-                        handle_open_job(&state_ref, senders, job_description)
+                        let response = handle_open_job(&state_ref, senders, job_description);
+                        if !response.is_error()
+                            && let Some(callback) = senders.events.flush_journal()
+                        {
+                            let _ = callback.await;
+                        };
+                        response
                     }
                     FromClientMessage::CloseJob(msg) => {
-                        handle_job_close(&state_ref, senders, &msg.selector).await
+                        let response = handle_job_close(&state_ref, senders, &msg.selector).await;
+                        if !response.is_error()
+                            && let Some(callback) = senders.events.flush_journal()
+                        {
+                            let _ = callback.await;
+                        };
+                        response
                     }
                     FromClientMessage::StreamEvents(msg) => {
                         start_streaming(tx, rx, state_ref, senders, msg, None).await;
@@ -644,7 +667,6 @@ async fn handle_job_cancel(
         let response = cancel_job(state_ref, senders, job_id).await;
         responses.push((job_id, response));
     }
-
     ToClientMessage::CancelJobResponse(responses)
 }
 

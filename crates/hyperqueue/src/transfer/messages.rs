@@ -400,6 +400,12 @@ pub enum ToClientMessage {
     Finished, // Generic response, now used only for journal pruning/flushing
 }
 
+impl ToClientMessage {
+    pub fn is_error(&self) -> bool {
+        matches!(self, ToClientMessage::Error(_))
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub enum CancelJobResponse {
     Canceled(Vec<JobTaskId>, JobTaskCount),

@@ -42,9 +42,14 @@ pub async fn handle_autoalloc_message(
                     .autoalloc
                     .add_queue(server_dir.directory(), parameters, None, None);
             match result.await {
-                Ok(queue_id) => ToClientMessage::AutoAllocResponse(
-                    AutoAllocResponse::QueueCreateResponse(QueueCreateResponse::Created(queue_id)),
-                ),
+                Ok(queue_id) => {
+                    if let Some(callback) = senders.events.flush_journal() {
+                        let _ = callback.await;
+                    };
+                    ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueueCreateResponse(
+                        QueueCreateResponse::Created(queue_id),
+                    ))
+                }
                 Err(error) => ToClientMessage::Error(error.to_string()),
             }
         }
@@ -61,6 +66,9 @@ pub async fn handle_autoalloc_message(
             let result = senders.autoalloc.remove_queue(queue_id, force);
             match result.await {
                 Ok(_) => {
+                    if let Some(callback) = senders.events.flush_journal() {
+                        let _ = callback.await;
+                    };
                     ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueueRemoved(queue_id))
                 }
                 Err(error) => ToClientMessage::Error(error.to_string()),
@@ -70,6 +78,9 @@ pub async fn handle_autoalloc_message(
             let result = senders.autoalloc.pause_queue(queue_id);
             match result.await {
                 Ok(_) => {
+                    if let Some(callback) = senders.events.flush_journal() {
+                        let _ = callback.await;
+                    };
                     ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueuePaused(queue_id))
                 }
                 Err(error) => ToClientMessage::Error(error.to_string()),
@@ -79,6 +90,9 @@ pub async fn handle_autoalloc_message(
             let result = senders.autoalloc.resume_queue(queue_id);
             match result.await {
                 Ok(_) => {
+                    if let Some(callback) = senders.events.flush_journal() {
+                        let _ = callback.await;
+                    };
                     ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueueResumed(queue_id))
                 }
                 Err(error) => ToClientMessage::Error(error.to_string()),
