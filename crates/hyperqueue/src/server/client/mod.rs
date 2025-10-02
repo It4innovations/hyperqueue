@@ -208,10 +208,8 @@ pub async fn client_rpc_loop<
                 let response = match message {
                     FromClientMessage::Submit(msg, stream_opts) => {
                         let response = submit::handle_submit(&state_ref, senders, msg);
-                        if !response.is_error()
-                            && let Some(callback) = senders.events.flush_journal()
-                        {
-                            let _ = callback.await;
+                        if !response.is_error() {
+                            senders.events.flush_journal().await;
                         };
                         if let Some(mut stream_opts) = stream_opts
                             && let ToClientMessage::SubmitResponse(SubmitResponse::Ok {
@@ -274,10 +272,8 @@ pub async fn client_rpc_loop<
                     }
                     FromClientMessage::Cancel(msg) => {
                         let response = handle_job_cancel(&state_ref, senders, &msg.selector).await;
-                        if !response.is_error()
-                            && let Some(callback) = senders.events.flush_journal()
-                        {
-                            let _ = callback.await;
+                        if !response.is_error() {
+                            senders.events.flush_journal().await;
                         };
                         response
                     }
@@ -292,19 +288,15 @@ pub async fn client_rpc_loop<
                     }
                     FromClientMessage::OpenJob(job_description) => {
                         let response = handle_open_job(&state_ref, senders, job_description);
-                        if !response.is_error()
-                            && let Some(callback) = senders.events.flush_journal()
-                        {
-                            let _ = callback.await;
+                        if !response.is_error() {
+                            senders.events.flush_journal().await;
                         };
                         response
                     }
                     FromClientMessage::CloseJob(msg) => {
                         let response = handle_job_close(&state_ref, senders, &msg.selector).await;
-                        if !response.is_error()
-                            && let Some(callback) = senders.events.flush_journal()
-                        {
-                            let _ = callback.await;
+                        if !response.is_error() {
+                            senders.events.flush_journal().await;
                         };
                         response
                     }
@@ -319,9 +311,7 @@ pub async fn client_rpc_loop<
                         handle_prune_journal(&state_ref, senders).await
                     }
                     FromClientMessage::FlushJournal => {
-                        if let Some(callback) = senders.events.flush_journal() {
-                            let _ = callback.await;
-                        };
+                        senders.events.flush_journal().await;
                         ToClientMessage::Finished
                     }
                     FromClientMessage::TaskExplain(request) => {

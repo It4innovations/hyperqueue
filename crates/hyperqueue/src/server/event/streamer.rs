@@ -449,7 +449,7 @@ impl EventStreamer {
         inner.client_listeners.remove(p);
     }
 
-    pub fn flush_journal(&self) -> Option<oneshot::Receiver<()>> {
+    pub fn start_flush(&self) -> Option<oneshot::Receiver<()>> {
         let inner = self.inner.get();
         if let Some(ref streamer) = inner.storage_sender {
             let (sender, receiver) = oneshot::channel();
@@ -463,6 +463,12 @@ impl EventStreamer {
         } else {
             None
         }
+    }
+
+    pub async fn flush_journal(&self) {
+        if let Some(handle) = self.start_flush() {
+            let _ = handle.await;
+        };
     }
 
     pub fn prune_journal(
