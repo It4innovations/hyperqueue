@@ -474,3 +474,20 @@ def test_journal_report(hq_env: HqEnv, tmp_path):
     hq_env.command(["journal", "report", journal_path, out_path])
     with open(out_path) as f:
         assert f.read().startswith("<!DOCTYPE html>")
+
+
+def test_journal_submit_auto_flush(hq_env: HqEnv, tmp_path):
+    journal_path = os.path.join(tmp_path, "my.journal")
+    hq_env.start_server(args=["--journal", journal_path])
+    hq_env.command(["submit", "--nodes=2", "--", "sleep", "0"])
+    hq_env.kill_server()
+    assert any(event["event"]["type"] == "job-created" for event in read_events(hq_env, journal_path))
+
+
+def test_journal_cancel_auto_flush(hq_env: HqEnv, tmp_path):
+    journal_path = os.path.join(tmp_path, "my.journal")
+    hq_env.start_server(args=["--journal", journal_path])
+    hq_env.command(["submit", "--nodes=2", "--", "sleep", "0"])
+    hq_env.command(["job", "cancel", "1"])
+    hq_env.kill_server()
+    assert any(event["event"]["type"] == "task-canceled" for event in read_events(hq_env, journal_path))
