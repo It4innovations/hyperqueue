@@ -155,7 +155,7 @@ impl ResourceAllocator {
         pools: &[ResourcePool],
         free: &ConciseFreeResources,
         request: &ResourceRequest,
-        running: impl Iterator<Item=&'b Rc<Allocation>>,
+        running: impl Iterator<Item = &'b Rc<Allocation>>,
         static_info: &AllocatorStaticInfo,
     ) -> Option<ConciseFreeResources> {
         let mut free = free.clone();
@@ -217,7 +217,7 @@ impl ResourceAllocator {
                 &coupling,
                 &static_info.coupling_weights,
             )
-                .unwrap();
+            .unwrap();
             cost -= 0.1;
             optimal_costs.insert(request.clone(), cost);
             cost
@@ -329,7 +329,7 @@ impl ResourceAllocator {
             &coupling,
             &self.static_info.coupling_weights,
         )
-            .unwrap();
+        .unwrap();
         for (entry, group_set) in coupling.into_iter().zip(groups.into_iter()) {
             allocation.add_resource_allocation(
                 self.pools[entry.resource_id].claim_resources_with_group_mask(
@@ -393,10 +393,10 @@ impl ResourceAllocator {
                     amount.total_fractions() as f32 / size.total_fractions() as f32
                 }
                 AllocationRequest::ForceCompact(amount) | AllocationRequest::ForceTight(amount)
-                if self.pools[entry.resource_id].n_groups() == 1 =>
-                    {
-                        amount.total_fractions() as f32 / size.total_fractions() as f32
-                    }
+                    if self.pools[entry.resource_id].n_groups() == 1 =>
+                {
+                    amount.total_fractions() as f32 / size.total_fractions() as f32
+                }
                 AllocationRequest::ForceCompact(amount) | AllocationRequest::ForceTight(amount) => {
                     (amount.total_fractions() * 2) as f32 / size.total_fractions() as f32
                 }
