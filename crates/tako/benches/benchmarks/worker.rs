@@ -183,7 +183,7 @@ fn create_resource_queue(num_cpus: u32) -> ResourceWaitQueue {
                 kind: ResourceDescriptorKind::simple_indices(8),
             },
         ],
-        None,
+        Default::default(),
     );
     ResourceWaitQueue::new(res_allocator_from_descriptor(descriptor))
 }

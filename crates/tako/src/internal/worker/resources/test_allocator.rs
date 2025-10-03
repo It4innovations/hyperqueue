@@ -1,6 +1,6 @@
 use crate::internal::common::resources::descriptor::{ResourceDescriptor, ResourceDescriptorKind};
 use crate::internal::common::resources::{Allocation, ResourceId, ResourceRequestVariants};
-use crate::internal::tests::utils::resources::{cpus_compact, ResBuilder};
+use crate::internal::tests::utils::resources::{ResBuilder, cpus_compact};
 use crate::internal::tests::utils::shared::res_allocator_from_descriptor;
 use crate::internal::tests::utils::sorted_vec;
 use crate::internal::worker::resources::allocator::{AllocatorStaticInfo, ResourceAllocator};
@@ -143,14 +143,16 @@ fn test_compute_blocking_level() {
     let rq = ResBuilder::default().add(0, 3).add(1, 1).finish();
     let sinfo = test_static_info(free.clone());
     assert!(ResourceAllocator::compute_witness(&pools, &free, &rq, [].iter(), &sinfo).is_none());
-    assert!(ResourceAllocator::compute_witness(
-        &pools,
-        &free,
-        &rq,
-        [Rc::new(Allocation::new_simple(&[1]))].iter(),
-        &sinfo,
-    )
-    .is_none());
+    assert!(
+        ResourceAllocator::compute_witness(
+            &pools,
+            &free,
+            &rq,
+            [Rc::new(Allocation::new_simple(&[1]))].iter(),
+            &sinfo,
+        )
+        .is_none()
+    );
     assert_eq!(
         ResourceAllocator::compute_witness(
             &pools,
