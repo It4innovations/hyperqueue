@@ -38,7 +38,7 @@ pub fn create_worker(id: u64) -> Worker {
                     name: CPU_RESOURCE_NAME.to_string(),
                     kind: ResourceDescriptorKind::simple_indices(1),
                 }],
-                None,
+                Default::default(),
             ),
             listen_address: "".to_string(),
             hostname: "".to_string(),

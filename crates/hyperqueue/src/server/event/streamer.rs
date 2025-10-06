@@ -354,6 +354,7 @@ impl EventStreamer {
             time: now.unwrap_or_else(Utc::now),
             payload,
         };
+
         inner.client_listeners.retain(|listener| {
             if listener.filter.check(&event.payload) {
                 listener.sender.send(event.clone()).is_ok()
@@ -361,6 +362,7 @@ impl EventStreamer {
                 true
             }
         });
+
         if let Some(ref streamer) = inner.storage_sender
             && matches!(forward_mode, ForwardMode::StreamAndPersist)
             && streamer.send(EventStreamMessage::Event(event)).is_err()

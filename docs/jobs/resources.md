@@ -233,42 +233,45 @@ that we get `4` indices from a group, and `2` indices from another group.
 ## Resource coupling
 
 Resource coupling extends the HQ ability to capture NUMA architectures.
-It allows saying that two or more resources of the worker should be allocated together (from the same groups). For
+It allows saying that two or more resources of the worker should be allocated together. For
 example, we may want to allocate CPUs and GPUs from the same NUMA node.
 
 The current version does not provide automatic detection of coupling; you need to specify
 it manually, via option `--coupling` when the worker is started.
 
-For example:
+For example, let us have two groups of cpus and two groups of gpus.
+By the following command we can specify that the first group of cpus should be allocated
+with the first group of gpus, and the second group of cpus with the second group of gpus.
 
 ```bash
-$ hq worker starts ... --coupling=cpus,gpus
+$ hq worker starts ... --coupling=cpus[0]:gpus[0],cpus[1]:gpus[1]
 ```
 
-Coupled resources have to be indexed resources with groups, and they all need to have the same number of groups. The
-allocation then considers the groups of these resources aligned, i.e., when we have a compact request from coupled
-resources, they should be allocated from the same groups.
+You may also specified the weights for each connection. Weight is a positive 16b number;
+when weight is not specified, the default weight 256 is used. The bigger weight
+means a stronger preference to allocate these resources together.
 
-When coupling is enabled, it modifies the behavior of `compact` and `tight` strategies
-when more coupled resources are requested. They do not minimize the number of used groups individually, but minizies it
-for all requested coupled resources.
+```bash
+$ hq worker starts ... --coupling=cpus[0]:gpus[0]=64,cpus[1]:gpus[1]=128
+```
 
-### Example
+Any group resources with more then one group is allowed to be part of coupling.
+They may have different number of groups or indices within the groups.
+You may also set coupling within the same resource.
 
-Let us assume that we have worker with resource `cpus` that have indices organized
-to 3 groups with 4 indices in each group. And resource `gpus` that have 3 groups with 2 indices within each group.
+```bash
+$ hq worker starts ... --coupling=cpus[0]:cpus[1],cpus[2]:cpus[3]
+```
 
-* `cpus=6 compact` and `gpus=2 compact` allocates `cpus=[3, 3]`, `gpus=[1, 1]`
-* `cpus=1 compact` and `gpus=2 compact` allocates `cpus=[1]`, `gpus=[2]`
-* `cpus=6 tight` and `gpus=2 compact` allocates `cpus=[4, 2]`, `gpus=[1, 1]`
-* `cpus=6 tight` and `gpus=2 tight` allocates `cpus=[4, 2]`, `gpus=[2]`
+This instructs HQ that when CPUs from two groups are needed,
+they should be allocated from groups (0, 1) or (2, 3).
+
 
 ### Strict strategies
 
-The coupling also modifies the semantics of strict strategies. The condition is stricter
-in such the case. The minimal number of groups has to be achievable not only individually, but also across all
-requested coupled resources with `compact!` or `tight!`
-strategies.
+The coupling modifies the semantics of strict strategies. The condition is stricter
+in such the case. Not only the minimal number of groups has to be achievable, but
+also the optimal configuration wrt. coupling weights has to be achieved.
 
 Let us assume a worker from the example above. And assume that the there are the following
 free resources:
@@ -276,15 +279,22 @@ free resources:
 * `cpus=[4, 4, 0]`
 * `gpus=[0, 2, 2]`
 
-The request `cpus=8 compact!` and `gpus=4 compact!` is enabled on a worker where `cpus` and `gpus` are not coupled;
-because each both resources can be taken from the minimal number of groups.
+The request `cpus=8 compact!` and `gpus=4 compact!` is enabled on a worker where `cpus` and `gpus` are not coupled; because both resources can be taken from the minimal number of groups.
 
-The same request is not enabled on a worker where `cpus` and `gpus` are coupled, because resources are taken from three
-groups if we take an union of the used groups. But we can achieve a two groups in the union. e.g. the following
+The same request is not enabled on a worker where `cpus` and `gpus` are coupled as follows:
+
+```
+cpus[0]:gpus[0],cpus[1]:gpus[1],cpus[2]:gpus[2]
+```
+
+It is not enabled because
+first cpu group and third gpu group is not coupled
+while we can achieve a situation where two pair of groups are coupled. e.g. the following
 situation:
 
 * `cpus=[4, 4, 0]`
 * `gpus=[2, 2, 0]`
+
 
 ### Non-integer allocation of resources
 
