@@ -105,8 +105,15 @@ pub struct SharedWorkerStartOpts {
 
     /// Resource coupling
     ///
+    /// Coupling is a way to specify that some resource groups have an affinity
+    /// It is used for `compact` and `tight` allocation policy
+    ///
+    /// Syntax: Comma separated list of: `<RESOURCE1>[<GROUP1>]:<RESOURCE2>[GROUP2]` or
+    /// `<RESOURCE1>[<GROUP1>]:<RESOURCE2>[GROUP2]=<WEIGHT>`.
+    ///
     /// Examples:{n}
-    /// - `--coupling TODO"
+    /// - `--coupling=cpus[0]:foo[0],cpus[1]:foo[1]`
+    /// - `--coupling=cpus[0]:foo[0]=128`
     #[arg(long)]
     pub coupling: Option<String>,
 
