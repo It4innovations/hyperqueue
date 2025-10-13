@@ -26,6 +26,7 @@
 * `hq job progress` stopped using periodic polling.
   In the current version, the client passively waits for events.
   It saves some resources as the server is not queried every second.
+* You can now depend on tasks from an earlier submit when submitting a jobfile.
 
 ## v0.24.0
 
