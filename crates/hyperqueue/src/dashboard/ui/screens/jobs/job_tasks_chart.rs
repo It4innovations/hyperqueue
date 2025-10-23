@@ -48,19 +48,28 @@ impl JobTaskChart {
                 let Some(stats) = entries.last() else {
                     return;
                 };
+
+                let TaskStats {
+                    running,
+                    failed,
+                    finished,
+                    canceled,
+                } = stats.item;
+
                 let title = format!(
-                    "Running: {}, Finished: {}, Failed: {}",
-                    stats.item.running, stats.item.finished, stats.item.failed
+                    "Running: {running}, Finished: {finished}, Failed: {failed}, Canceled: {canceled}",
                 );
 
                 let running = generate_dataset_entries(entries, |stats| stats.running as f64);
                 let finished = generate_dataset_entries(entries, |stats| stats.finished as f64);
                 let failed = generate_dataset_entries(entries, |stats| stats.failed as f64);
+                let canceled = generate_dataset_entries(entries, |stats| stats.canceled as f64);
 
                 let datasets = vec![
                     create_dataset(&running, "Running", Color::Yellow),
                     create_dataset(&finished, "Finished", Color::Green),
                     create_dataset(&failed, "Failed", Color::Red),
+                    create_dataset(&canceled, "Canceled", Color::Cyan),
                 ];
                 let chart = create_count_chart(datasets, &title, self.range);
                 frame.render_widget(chart, rect);
@@ -82,6 +91,7 @@ struct TaskStats {
     running: u64,
     failed: u64,
     finished: u64,
+    canceled: u64,
 }
 
 impl TaskStats {
@@ -90,6 +100,7 @@ impl TaskStats {
             mut running,
             mut failed,
             mut finished,
+            mut canceled,
         } = self;
         match state {
             DashboardTaskState::Running => {
@@ -101,11 +112,15 @@ impl TaskStats {
             DashboardTaskState::Failed => {
                 failed += 1;
             }
+            DashboardTaskState::Canceled => {
+                canceled += 1;
+            }
         }
         Self {
             running,
             failed,
             finished,
+            canceled,
         }
     }
 }

@@ -31,6 +31,7 @@ pub enum DashboardTaskState {
     Running,
     Finished,
     Failed,
+    Canceled,
 }
 
 impl TaskInfo {
@@ -114,7 +115,30 @@ impl JobTimeline {
                         event.time,
                     );
                 }
-                _ => {}
+                EventPayload::TasksCanceled { task_ids } => {
+                    for task_id in task_ids {
+                        update_task_status(
+                            &mut self.job_timeline,
+                            *task_id,
+                            DashboardTaskState::Canceled,
+                            event.time,
+                        );
+                    }
+                }
+                EventPayload::WorkerConnected(_, _) => {}
+                EventPayload::WorkerLost(_, _) => {}
+                EventPayload::WorkerOverviewReceived(_) => {}
+                EventPayload::JobOpen(_, _) => {}
+                EventPayload::JobClose(_) => {}
+                EventPayload::JobIdle(_) => {}
+                EventPayload::AllocationQueueCreated(_, _) => {}
+                EventPayload::AllocationQueueRemoved(_) => {}
+                EventPayload::AllocationQueued { .. } => {}
+                EventPayload::AllocationStarted(_, _) => {}
+                EventPayload::AllocationFinished(_, _) => {}
+                EventPayload::ServerStart { .. } => {}
+                EventPayload::ServerStop => {}
+                EventPayload::TaskNotify(_) => {}
             }
         }
     }
