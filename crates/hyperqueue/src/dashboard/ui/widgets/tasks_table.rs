@@ -15,6 +15,7 @@ use tako::{JobTaskId, WorkerId};
 const RUNNING: &str = "RUNNING";
 const FINISHED: &str = "FINISHED";
 const FAILED: &str = "FAILED";
+const CANCELED: &str = "CANCELED";
 
 pub struct TasksTable {
     table: StatefulTable<TaskRow>,
@@ -96,9 +97,14 @@ impl TasksTable {
                 if with_worker {
                     cols.push(Cell::from(task_row.worker_id.to_string()));
                 }
+                let task_state = match task_row.task_state {
+                    DashboardTaskState::Running => RUNNING.to_string(),
+                    DashboardTaskState::Finished => FINISHED.to_string(),
+                    DashboardTaskState::Failed => FAILED.to_string(),
+                    DashboardTaskState::Canceled => CANCELED.to_string(),
+                };
                 cols.extend([
-                    Cell::from(task_row.task_state.as_str())
-                        .style(get_task_state_color(&task_row.task_state)),
+                    Cell::from(task_state).style(get_task_state_color(task_row.task_state)),
                     Cell::from(task_row.start_time.as_str()),
                     Cell::from(task_row.end_time.as_str()),
                     Cell::from(task_row.run_time.as_str()),
@@ -113,7 +119,7 @@ impl TasksTable {
 struct TaskRow {
     worker_id: WorkerId,
     task_id: JobTaskId,
-    task_state: String,
+    task_state: DashboardTaskState,
     start_time: String,
     end_time: String,
     run_time: String,
@@ -125,6 +131,7 @@ fn create_rows(mut rows: Vec<(JobTaskId, &TaskInfo)>, current_time: SystemTime) 
             DashboardTaskState::Running => 0,
             DashboardTaskState::Finished => 1,
             DashboardTaskState::Failed => 2,
+            DashboardTaskState::Canceled => 3,
         };
         match task_info.end_time {
             None => (status_index, task_info.start_time),
@@ -153,11 +160,7 @@ fn create_rows(mut rows: Vec<(JobTaskId, &TaskInfo)>, current_time: SystemTime) 
             TaskRow {
                 task_id: *task_id,
                 worker_id: task_info.worker_id,
-                task_state: match task_info.get_task_state_at(current_time).unwrap() {
-                    DashboardTaskState::Running => RUNNING.to_string(),
-                    DashboardTaskState::Finished => FINISHED.to_string(),
-                    DashboardTaskState::Failed => FAILED.to_string(),
-                },
+                task_state: task_info.get_task_state_at(current_time).unwrap(),
                 run_time: human_duration(chrono::Duration::from_std(run_time).unwrap()),
                 start_time: start_time.format("%d.%m. %H:%M:%S").to_string(),
                 end_time,
@@ -166,13 +169,12 @@ fn create_rows(mut rows: Vec<(JobTaskId, &TaskInfo)>, current_time: SystemTime) 
         .collect()
 }
 
-pub fn get_task_state_color(task_status: &str) -> Style {
-    let color = if task_status == RUNNING {
-        Color::Yellow
-    } else if task_status == FINISHED {
-        Color::Green
-    } else {
-        Color::Red
+pub fn get_task_state_color(state: DashboardTaskState) -> Style {
+    let color = match state {
+        DashboardTaskState::Running => Color::Yellow,
+        DashboardTaskState::Finished => Color::Green,
+        DashboardTaskState::Failed => Color::Red,
+        DashboardTaskState::Canceled => Color::Cyan,
     };
 
     Style {
