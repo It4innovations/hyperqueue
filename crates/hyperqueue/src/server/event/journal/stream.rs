@@ -96,7 +96,7 @@ async fn streaming_process(
                         writer.flush()?;
                         let mut reader = JournalReader::open(journal_path)?;
                         for event in &mut reader {
-                            tx.send(event?).unwrap()
+                            tx.send(event?)?;
                         }
                     },
                     Some(EventStreamMessage::PruneJournal { live_jobs, live_workers, callback })  => {
