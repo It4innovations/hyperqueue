@@ -1,7 +1,9 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use crate::internal::common::resources::map::{GlobalResourceMapping, ResourceIdMap};
+use crate::internal::common::resources::map::{
+    GlobalResourceMapping, ResourceIdMap, ResourceRqMap,
+};
 use crate::internal::common::resources::{ResourceId, ResourceRequestVariants, ResourceRqId};
 use crate::internal::common::{Set, WrappedRcRefCell};
 use crate::internal::scheduler::multinode::MultiNodeQueue;
@@ -525,6 +527,10 @@ impl Core {
     #[inline]
     pub fn create_resource_map(&self) -> ResourceIdMap {
         self.resource_map.create_resource_id_map()
+    }
+
+    pub fn get_resource_rq_map(&self) -> &ResourceRqMap {
+        self.resource_map.get_resource_rq_map()
     }
 
     pub fn secret_key(&self) -> Option<&Arc<SecretKey>> {

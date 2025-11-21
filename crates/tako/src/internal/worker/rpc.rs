@@ -135,6 +135,7 @@ pub async fn run_worker(
                     worker_id,
                     other_workers,
                     resource_names,
+                    resource_rq_map,
                     server_idle_timeout,
                     server_uid,
                     worker_overview_interval_override,
@@ -151,6 +152,7 @@ pub async fn run_worker(
                     configuration.clone(),
                     secret_key.clone(),
                     ResourceIdMap::from_vec(resource_names),
+                    resource_rq_map,
                     launcher,
                     server_uid,
                 );
@@ -442,7 +444,7 @@ pub(crate) fn process_worker_message(state: &mut WorkerState, message: ToWorkerM
         ToWorkerMessage::SetOverviewIntervalOverride(r#override) => {
             state.worker_overview_interval_override = r#override;
         }
-        ToWorkerMessage::NewResourceRequest(_, _) => {
+        ToWorkerMessage::NewResourceRequest(rq_id, rqv) => {
             todo!()
         }
     }

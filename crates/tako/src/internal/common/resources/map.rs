@@ -9,10 +9,13 @@ pub const NVIDIA_GPU_RESOURCE_NAME: &str = "gpus/nvidia";
 pub const AMD_GPU_RESOURCE_NAME: &str = "gpus/amd";
 pub const MEM_RESOURCE_NAME: &str = "mem";
 
+pub(crate) type ResourceRqMap = Map<ResourceRqId, ResourceRequestVariants>;
+
 #[derive(Debug)]
 pub(crate) struct GlobalResourceMapping {
+    resource_rq_from_id: ResourceRqMap,
+    resource_rq_to_id: Map<ResourceRequestVariants, ResourceRqId>,
     resource_names: Map<String, ResourceId>,
-    resource_requests: Map<ResourceRequestVariants, ResourceRqId>,
 }
 
 impl Default for GlobalResourceMapping {
@@ -21,8 +24,9 @@ impl Default for GlobalResourceMapping {
         /* Fix id for cpus */
         resource_names.insert(CPU_RESOURCE_NAME.to_string(), CPU_RESOURCE_ID);
         GlobalResourceMapping {
+            resource_rq_from_id: Default::default(),
             resource_names,
-            resource_requests: Map::new(),
+            resource_rq_to_id: Map::new(),
         }
     }
 }
@@ -49,16 +53,21 @@ impl GlobalResourceMapping {
         ResourceIdMap { resource_names }
     }
 
+    pub fn get_resource_rq_map(&self) -> &ResourceRqMap {
+        &self.resource_rq_from_id
+    }
+
     pub fn get_or_allocate_resource_rq_id(
         &mut self,
         rqv: &ResourceRequestVariants,
     ) -> (ResourceRqId, bool) {
-        match self.resource_requests.get(rqv) {
+        match self.resource_rq_to_id.get(rqv) {
             Some(&id) => (id, false),
             None => {
-                let id = ResourceRqId::new(self.resource_requests.len() as u32);
+                let id = ResourceRqId::new(self.resource_rq_to_id.len() as u32);
                 log::debug!("New resource request registered {rqv:?} as {id}");
-                self.resource_requests.insert(rqv.clone(), id);
+                self.resource_rq_to_id.insert(rqv.clone(), id);
+                self.resource_rq_from_id.insert(id, rqv.clone());
                 (id, true)
             }
         }

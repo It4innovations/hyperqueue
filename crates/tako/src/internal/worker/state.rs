@@ -1,6 +1,6 @@
 use crate::datasrv::DataObjectId;
-use crate::internal::common::resources::Allocation;
-use crate::internal::common::resources::map::ResourceIdMap;
+use crate::internal::common::resources::map::{ResourceIdMap, ResourceRqMap};
+use crate::internal::common::resources::{Allocation, ResourceId};
 use crate::internal::common::stablemap::StableMap;
 use crate::internal::common::{Map, Set, WrappedRcRefCell};
 use crate::internal::datasrv::{DataObjectRef, DataStorage};
@@ -61,6 +61,7 @@ pub struct WorkerState {
     tasks_waiting_for_data: Map<DataObjectId, Set<TaskId>>,
     placement_resolver: Map<DataObjectId, oneshot::Sender<Option<String>>>,
 
+    resource_rq_map: ResourceRqMap,
     resource_map: ResourceIdMap,
     resource_label_map: ResourceLabelMap,
 
@@ -441,6 +442,7 @@ impl WorkerStateRef {
         configuration: WorkerConfiguration,
         secret_key: Option<Arc<SecretKey>>,
         resource_map: ResourceIdMap,
+        resource_rq_map: ResourceRqMap,
         task_launcher: Box<dyn TaskLauncher>,
         server_uid: String,
     ) -> Self {
@@ -465,6 +467,7 @@ impl WorkerStateRef {
             running_tasks: Default::default(),
             start_time: now,
             resource_map,
+            resource_rq_map,
             resource_label_map,
             worker_addresses: Default::default(),
             lc_state: RefCell::new(LocalCommState::new()),

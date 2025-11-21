@@ -595,3 +595,5 @@ pub(crate) fn on_resolve_placement(
         &ToWorkerMessage::PlacementResponse(data_id, placement),
     );
 }
+
+pub(crate) fn 

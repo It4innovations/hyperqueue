@@ -1,6 +1,7 @@
 use crate::datasrv::{DataObjectId, OutputId};
 use crate::gateway::{EntryType, TaskDataFlags};
 use crate::hwstats::WorkerHwStateMessage;
+use crate::internal::common::resources::map::ResourceRqMap;
 use crate::internal::common::resources::{ResourceAmount, ResourceIndex, ResourceRqId};
 use crate::internal::messages::common::TaskFailInfo;
 use crate::resources::{ResourceFractions, ResourceRequest, ResourceRequestVariants};
@@ -21,6 +22,7 @@ pub struct WorkerRegistrationResponse {
     pub server_uid: String,
     /// Override worker overview interval, if the worker does not have it configured
     pub worker_overview_interval_override: Option<Duration>,
+    pub resource_rq_map: ResourceRqMap,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
