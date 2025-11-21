@@ -26,15 +26,11 @@ use crate::launcher::{TaskLaunchData, TaskLauncher, command_from_definitions};
 use crate::worker::ServerLostPolicy;
 use crate::{Map, WorkerId};
 
+#[derive(Default)]
 pub enum WorkerSecretKey {
+    #[default]
     Server,
     Custom(Option<SecretKey>),
-}
-
-impl Default for WorkerSecretKey {
-    fn default() -> Self {
-        Self::Server
-    }
 }
 
 #[derive(Builder)]
