@@ -26,15 +26,11 @@ use crate::{InstanceId, ResourceVariantId, TaskId, WorkerId, WrappedRcRefCell};
 
 const WAIT_TIMEOUT: Duration = Duration::from_secs(5);
 
+#[derive(Default)]
 pub enum ServerSecretKey {
+    #[default]
     AutoGenerate,
     Custom(Option<SecretKey>),
-}
-
-impl Default for ServerSecretKey {
-    fn default() -> Self {
-        Self::AutoGenerate
-    }
 }
 
 #[derive(Builder, Default)]
