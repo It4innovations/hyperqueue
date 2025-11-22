@@ -10,8 +10,7 @@ use std::process::Stdio;
 use std::time::Duration;
 use tako::Map;
 use tako::resources::{
-    CPU_RESOURCE_NAME, ResourceDescriptor, ResourceDescriptorCoupling, ResourceDescriptorItem,
-    ResourceDescriptorKind,
+    CPU_RESOURCE_NAME, ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind,
 };
 use tako::worker::{ServerLostPolicy, WorkerConfiguration};
 
@@ -106,10 +105,17 @@ pub struct SharedWorkerStartOpts {
 
     /// Resource coupling
     ///
+    /// Coupling is a way to specify that some resource groups have an affinity
+    /// It is used for `compact` and `tight` allocation policy
+    ///
+    /// Syntax: Comma separated list of: `<RESOURCE1>[<GROUP1>]:<RESOURCE2>[GROUP2]` or
+    /// `<RESOURCE1>[<GROUP1>]:<RESOURCE2>[GROUP2]=<WEIGHT>`.
+    ///
     /// Examples:{n}
-    /// - `--coupling cpus,gpus"
-    #[arg(long, value_parser = passthrough_parser(parse_resource_coupling))]
-    pub coupling: Option<PassThroughArgument<ResourceDescriptorCoupling>>,
+    /// - `--coupling=cpus[0]:foo[0],cpus[1]:foo[1]`
+    /// - `--coupling=cpus[0]:foo[0]=128`
+    #[arg(long)]
+    pub coupling: Option<String>,
 
     /// Determines which resources on the worker node will be automatically detected by HyperQueue.
     ///
@@ -419,7 +425,12 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
             );
         }
     }
-    let coupling: Option<_> = coupling.map(|x| x.into_parsed_arg());
+    // We need to finally sort resources before parsing coupling
+    resources.sort_by(|x, y| x.name.cmp(&y.name));
+    let coupling = coupling
+        .map(|x| parse_resource_coupling(&x, &resources))
+        .transpose()?
+        .unwrap_or_default();
     let resources = ResourceDescriptor::new(resources, coupling);
     resources.validate(true)?;
 

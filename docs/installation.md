@@ -34,17 +34,19 @@ the performance of HyperQueue in extreme cases.
 3. Build HyperQueue:
 
     ```bash
-    $ RUSTFLAGS="-C target-cpu=native" cargo build --release
+    $ cargo build --profile=dist
     ```
 
-    ??? tip "Jemalloc dependency"
-    
-        HyperQueue by default depends on the [Jemalloc](https://github.com/jemalloc/jemalloc) memory allocator, which is a
-        C library. If you're having problems with installing HyperQueue because of this dependency, you can opt-out of it and
-        use the default system allocator by building *HQ* with `--no-default-features`:
-    
-        ```bash
-        $ cargo build --release --no-default-features
-        ```
+4. Use the executable located in `./target/dist/hq`
 
-5. Use the executable located in `./target/release/hq`
+### Build dependencies
+
+Apart from a Rust compiler, the default build configuration also depends on some C and C++ dependencies ([Jemalloc](https://github.com/jemalloc/jemalloc) and [Highs](https://highs.dev/)), which require a recent C/C++ compiler and also CMake to be built. If you encounter issues trying to compile these dependencies, you can build HyperQueue without them using the following command:
+
+```bash
+$ cargo build --profile=dist --no-default-features --features dashboard,microlp
+```
+
+This will come at some cost to runtime performance.
+
+Note that even if HyperQueue is built with the C/C++ dependencies, they are always statically linked, so they are not required during runtime, only at build time.
