@@ -120,11 +120,11 @@ command = ["sleep", "1"]
 
 ## Task dependencies
 
-Job Definition File allows to define a dependencies between tasks. In other words,
+Job Definition File allows to define dependencies between tasks. In other words,
 it means that the task may be executed only if the previous tasks are already finished.
 
-The task's option `deps` defines on which tasks the given task dependents.
-The task is addressed by their IDs.
+The task's option `deps` defines on which tasks the given task depends.
+Each dependency is identified by a task ID.
 
 The following example creates three tasks where the third task depends on the first two tasks.
 
@@ -142,6 +142,8 @@ id = 5
 command = [...]
 deps = [1, 3] # <---- Dependency on tasks 1 and 3
 ```
+
+Dependencies can also refer to tasks from [earlier submits](openjobs.md) in the same job.
 
 ## Resource variants
 

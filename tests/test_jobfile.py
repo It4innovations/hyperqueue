@@ -391,6 +391,46 @@ deps = [2]
     hq_env.command(["job", "submit-file", "job.toml"], expect_fail="cycle")
 
 
+def test_job_file_dependencies_from_previous_submit(hq_env: HqEnv, tmp_path):
+    hq_env.start_server()
+    tmp_path.joinpath("job1.toml").write_text(
+        """
+[[task]]
+id = 1
+command = ["sleep", "2"]
+"""
+    )
+
+    hq_env.command(["job", "open"])
+    hq_env.command(["job", "submit-file", "--job", "1", "job1.toml"])
+
+    tmp_path.joinpath("job2.toml").write_text(
+        """
+[[task]]
+id = 3
+command = ["sleep", "1"]
+deps = [1]
+
+[[task]]
+id = 5
+command = ["sleep", "1"]
+deps = [1, 3]
+"""
+    )
+    hq_env.command(["job", "submit-file", "--job", "1", "job2.toml"])
+    hq_env.command(["job", "close", "1"])
+
+    table = hq_env.command(["task", "info", "1", "1"], as_table=True)
+    table.check_row_value("Dependencies", "")
+    table = hq_env.command(["task", "info", "1", "3"], as_table=True)
+    table.check_row_value("Dependencies", "1")
+    table = hq_env.command(["task", "info", "1", "5"], as_table=True)
+    table.check_row_value("Dependencies", "1,3")
+
+    hq_env.start_worker()
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+
 def test_job_file_attach(hq_env: HqEnv, tmp_path):
     hq_env.start_server()
     hq_env.command(["job", "open"])
