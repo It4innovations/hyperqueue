@@ -12,7 +12,7 @@ use crate::gateway::{
     SharedTaskConfiguration, TaskConfiguration, TaskDataFlags,
 };
 use crate::internal::common::Map;
-use crate::internal::common::resources::NumOfNodes;
+use crate::internal::common::resources::{NumOfNodes, ResourceRqId};
 use crate::program::{ProgramDefinition, StdioDef};
 use crate::resources::{AllocationRequest, ResourceAmount};
 
@@ -65,8 +65,12 @@ impl GraphBuilder {
         self
     }
 
-    pub fn simple_task(self, args: &[&'static str]) -> Self {
-        self.task(TaskConfigBuilder::default().args(simple_args(args)))
+    pub fn simple_task(self, args: &[&'static str], rq_id: ResourceRqId) -> Self {
+        self.task(
+            TaskConfigBuilder::default()
+                .resources(rq_id)
+                .args(simple_args(args)),
+        )
     }
 
     fn add_task_from_config(&mut self, config: TaskConfig) {
@@ -94,11 +98,6 @@ pub fn build_task_def_from_config(
         stderr,
         cwd,
     }: TaskConfig = config;
-    let ResourceRequestConfig {
-        n_nodes,
-        entries,
-        min_time,
-    }: ResourceRequestConfig = resources.build().unwrap();
 
     let program_def = ProgramDefinition {
         args: args.into_iter().map(|v| v.into()).collect(),
@@ -114,13 +113,6 @@ pub fn build_task_def_from_config(
         .unwrap();
 
     let conf = SharedTaskConfiguration {
-        resources: ResourceRequestVariants {
-            variants: smallvec![ResourceRequest {
-                n_nodes,
-                resources: entries.into(),
-                min_time,
-            }],
-        },
         time_limit,
         priority: 0,
         crash_limit: CrashLimit::default(),
@@ -130,6 +122,7 @@ pub fn build_task_def_from_config(
     (
         TaskConfiguration {
             id: TaskId::new_test(id.unwrap_or(1)),
+            resource_rq_id: resources,
             shared_data_index: 0,
             task_deps: ThinVec::new(),
             dataobj_deps: ThinVec::new(),
@@ -148,8 +141,7 @@ pub struct TaskConfig {
     #[builder(default)]
     time_limit: Option<Duration>,
 
-    #[builder(default = "ResourceRequestConfigBuilder::default().cpus(1)")]
-    resources: ResourceRequestConfigBuilder,
+    resources: ResourceRqId,
 
     #[builder(default)]
     args: Vec<String>,
@@ -199,14 +191,34 @@ impl ResourceRequestConfigBuilder {
         self._add(name, AllocationRequest::ForceCompact(amount.into()));
         self
     }
+
+    pub fn into_rqv(self) -> ResourceRequestVariants {
+        let ResourceRequestConfig {
+            n_nodes,
+            entries,
+            min_time,
+        }: ResourceRequestConfig = self.build().unwrap();
+        ResourceRequestVariants {
+            variants: smallvec![ResourceRequest {
+                n_nodes,
+                resources: entries.into(),
+                min_time,
+            }],
+        }
+    }
 }
 
 pub fn simple_args(args: &[&'static str]) -> Vec<String> {
     args.iter().map(|&v| v.to_string()).collect()
 }
 
-pub fn simple_task(args: &[&'static str], id: u32) -> TaskConfigBuilder {
+pub fn simple_task(
+    args: &[&'static str],
+    id: u32,
+    resource_rq_id: ResourceRqId,
+) -> TaskConfigBuilder {
     TaskConfigBuilder::default()
+        .resources(resource_rq_id)
         .args(simple_args(args))
         .id(Some(id))
 }

@@ -13,6 +13,7 @@ use tokio::time::sleep;
 #[tokio::test]
 async fn test_submit_simple_task_ok() {
     run_server_test(Default::default(), |mut handler| async move {
+        let rq = handler.register_default_request();
         let worker = handler.start_worker(Default::default()).await.unwrap();
 
         let stdout = worker.workdir.join("test.out");
@@ -21,10 +22,11 @@ async fn test_submit_simple_task_ok() {
         let ids = handler
             .submit(
                 GraphBuilder::default()
-                    .simple_task(&["uname"])
-                    .simple_task(&["uname"])
+                    .simple_task(&["uname"], rq)
+                    .simple_task(&["uname"], rq)
                     .task(
                         TaskConfigBuilder::default()
+                            .resources(rq)
                             .args(simple_args(&["bash", "-c", "echo 'hello'"]))
                             .stdout(StdioDef::File {
                                 path: stdout.clone(),
@@ -50,11 +52,12 @@ async fn test_submit_simple_task_ok() {
 async fn test_submit_simple_task_fail() {
     run_server_test(Default::default(), |mut handler| async move {
         handler.start_worker(Default::default()).await.unwrap();
-
+        let rq = handler.register_default_request();
         let ids = handler
             .submit(GraphBuilder::singleton(simple_task(
                 &["/usr/bin/nonsense"],
                 1,
+                rq,
             )))
             .await;
         handler.wait(&ids).await.assert_all_failed();
@@ -63,12 +66,13 @@ async fn test_submit_simple_task_fail() {
             .submit(GraphBuilder::singleton(simple_task(
                 &["bash", "c", "'exit 3'"],
                 2,
+                rq,
             )))
             .await;
         handler.wait(&ids).await.assert_all_failed();
 
         let ids = handler
-            .submit(GraphBuilder::singleton(simple_task(&["uname"], 3)))
+            .submit(GraphBuilder::singleton(simple_task(&["uname"], 3, rq)))
             .await;
         handler.wait(&ids).await.assert_all_finished();
     })
@@ -78,11 +82,12 @@ async fn test_submit_simple_task_fail() {
 #[tokio::test]
 async fn test_task_time_limit_fail() {
     run_server_test(Default::default(), |mut handle| async move {
+        let rq = handle.register_default_request();
         handle.start_worker(Default::default()).await.unwrap();
-
         handle
             .submit(GraphBuilder::singleton(
                 TaskConfigBuilder::default()
+                    .resources(rq)
                     .args(simple_args(&["sleep", "2"]))
                     .time_limit(Some(Duration::from_millis(600))),
             ))
@@ -99,11 +104,12 @@ async fn test_task_time_limit_fail() {
 #[tokio::test]
 async fn test_task_time_limit_pass() {
     run_server_test(Default::default(), |mut handle| async move {
+        let rq = handle.register_default_request();
         handle.start_worker(Default::default()).await.unwrap();
-
         handle
             .submit(GraphBuilder::singleton(
                 TaskConfigBuilder::default()
+                    .resources(rq)
                     .args(simple_args(&["sleep", "1"]))
                     .time_limit(Some(Duration::from_millis(1600))),
             ))
@@ -123,9 +129,10 @@ fn query_helper(
 #[tokio::test]
 async fn test_query_no_output_immediate_call() {
     run_server_test(Default::default(), |mut handler| async move {
+        let rq = handler.register_default_request();
         handler.start_worker(Default::default()).await.unwrap();
         let ids = handler
-            .submit(GraphBuilder::singleton(simple_task(&["sleep", "1"], 1)))
+            .submit(GraphBuilder::singleton(simple_task(&["sleep", "1"], 1, rq)))
             .await;
         let msg = query_helper(
             &mut handler,
@@ -148,9 +155,10 @@ async fn test_query_no_output_immediate_call() {
 #[tokio::test]
 async fn test_query_no_output_delayed_call() {
     run_server_test(Default::default(), |mut handler| async move {
+        let rq = handler.register_default_request();
         handler.start_worker(Default::default()).await.unwrap();
         let ids = handler
-            .submit(GraphBuilder::singleton(simple_task(&["sleep", "1"], 1)))
+            .submit(GraphBuilder::singleton(simple_task(&["sleep", "1"], 1, rq)))
             .await;
         sleep(Duration::from_secs(1)).await;
         let msg = query_helper(
@@ -175,11 +183,9 @@ async fn test_query_no_output_delayed_call() {
 async fn test_query_new_workers_delayed_call() {
     run_server_test(Default::default(), |mut handler| async move {
         handler.start_worker(Default::default()).await.unwrap();
+        let rq = handler.register_request(ResourceRequestConfigBuilder::default().cpus(5));
         let _ = handler
-            .submit(GraphBuilder::singleton(
-                simple_task(&["sleep", "1"], 1)
-                    .resources(ResourceRequestConfigBuilder::default().cpus(5)),
-            ))
+            .submit(GraphBuilder::singleton(simple_task(&["sleep", "1"], 1, rq)))
             .await;
         sleep(Duration::from_secs(1)).await;
         let msg = query_helper(
@@ -203,11 +209,9 @@ async fn test_query_new_workers_delayed_call() {
 async fn test_query_new_workers_immediate() {
     run_server_test(Default::default(), |mut handler| async move {
         handler.start_worker(Default::default()).await.unwrap();
+        let rq = handler.register_request(ResourceRequestConfigBuilder::default().cpus(5));
         let _ = handler
-            .submit(GraphBuilder::singleton(
-                simple_task(&["sleep", "1"], 1)
-                    .resources(ResourceRequestConfigBuilder::default().cpus(5)),
-            ))
+            .submit(GraphBuilder::singleton(simple_task(&["sleep", "1"], 1, rq)))
             .await;
         let msg = query_helper(
             &mut handler,

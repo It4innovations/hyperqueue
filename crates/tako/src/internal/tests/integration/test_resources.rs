@@ -1,8 +1,7 @@
 use std::time::{Duration, Instant};
 
-use tokio::time::sleep;
-
 use crate::WorkerId;
+use crate::internal::common::resources::ResourceRqId;
 use crate::internal::tests::integration::utils::api::{
     wait_for_task_start, wait_for_worker_overview, wait_for_workers_overview,
 };
@@ -13,15 +12,18 @@ use crate::internal::tests::integration::utils::task::{
 };
 use crate::internal::tests::integration::utils::worker::WorkerConfigBuilder as WC;
 use crate::resources::ResourceDescriptor;
+use crate::tests::integration::utils::task::ResourceRequestConfigBuilder;
+use tokio::time::sleep;
 
 #[tokio::test]
 async fn test_submit_2_sleeps_on_1() {
     run_server_test(Default::default(), |mut handle| async move {
+        let rq = handle.register_default_request();
         handle
             .submit(
                 GraphBuilder::default()
-                    .task(simple_task(&["sleep", "1"], 1))
-                    .task(simple_task(&["sleep", "1"], 2))
+                    .task(simple_task(&["sleep", "1"], 1, rq))
+                    .task(simple_task(&["sleep", "1"], 2, rq))
                     .build(),
             )
             .await;
@@ -51,11 +53,12 @@ async fn test_submit_2_sleeps_on_1() {
 #[tokio::test]
 async fn test_submit_2_sleeps_on_2() {
     run_server_test(Default::default(), |mut handler| async move {
+        let rq = handler.register_default_request();
         handler
             .submit(
                 GraphBuilder::default()
-                    .task(simple_task(&["sleep", "1"], 1))
-                    .task(simple_task(&["sleep", "1"], 2))
+                    .task(simple_task(&["sleep", "1"], 1, rq))
+                    .task(simple_task(&["sleep", "1"], 2, rq))
                     .build(),
             )
             .await;
@@ -83,11 +86,12 @@ async fn test_submit_2_sleeps_on_2() {
 #[tokio::test]
 async fn test_submit_2_sleeps_on_separated_2() {
     run_server_test(Default::default(), |mut handler| async move {
+        let rq = handler.register_default_request();
         handler
             .submit(
                 GraphBuilder::default()
-                    .task(simple_task(&["sleep", "1"], 1))
-                    .task(simple_task(&["sleep", "1"], 2))
+                    .task(simple_task(&["sleep", "1"], 1, rq))
+                    .task(simple_task(&["sleep", "1"], 2, rq))
                     .build(),
             )
             .await;
@@ -120,8 +124,8 @@ async fn test_submit_2_sleeps_on_separated_2() {
 #[tokio::test]
 async fn test_submit_sleeps_more_cpus1() {
     run_server_test(Default::default(), |mut handler| async move {
-        let rq1 = RR::default().cpus(3);
-        let rq2 = RR::default().cpus(2);
+        let rq1 = handler.register_request(RR::default().cpus(3));
+        let rq2 = handler.register_request(RR::default().cpus(2));
         handler
             .submit(
                 GB::default()
@@ -133,7 +137,7 @@ async fn test_submit_sleeps_more_cpus1() {
                     .task(
                         TC::default()
                             .args(simple_args(&["sleep", "1"]))
-                            .resources(rq2.clone()),
+                            .resources(rq2),
                     )
                     .task(
                         TC::default()
@@ -171,12 +175,12 @@ async fn test_submit_sleeps_more_cpus1() {
 #[tokio::test]
 async fn test_submit_sleeps_more_cpus2() {
     run_server_test(Default::default(), |mut handler| async move {
-        let rq1 = RR::default().cpus(3);
-        let rq2 = RR::default().cpus(2);
-        let t = |rq: &RR| {
+        let rq1 = handler.register_request(RR::default().cpus(3));
+        let rq2 = handler.register_request(RR::default().cpus(2));
+        let t = |rq: ResourceRqId| {
             TC::default()
                 .args(simple_args(&["sleep", "1"]))
-                .resources(rq.clone())
+                .resources(rq)
         };
 
         handler
@@ -191,10 +195,10 @@ async fn test_submit_sleeps_more_cpus2() {
         let ids = handler
             .submit(
                 GB::default()
-                    .task(t(&rq1))
-                    .task(t(&rq2))
-                    .task(t(&rq2))
-                    .task(t(&rq1))
+                    .task(t(rq1))
+                    .task(t(rq2))
+                    .task(t(rq2))
+                    .task(t(rq1))
                     .build(),
             )
             .await;
@@ -209,12 +213,12 @@ async fn test_submit_sleeps_more_cpus2() {
 #[tokio::test]
 async fn test_submit_sleeps_more_cpus3() {
     run_server_test(Default::default(), |mut handler| async move {
-        let rq1 = RR::default().cpus(3);
-        let rq2 = RR::default().cpus(2);
-        let t = |rq: &RR| {
+        let rq1 = handler.register_request(RR::default().cpus(3));
+        let rq2 = handler.register_request(RR::default().cpus(2));
+        let t = |rq: ResourceRqId| {
             TC::default()
                 .args(simple_args(&["sleep", "1"]))
-                .resources(rq.clone())
+                .resources(rq)
         };
 
         handler
@@ -229,10 +233,10 @@ async fn test_submit_sleeps_more_cpus3() {
         let ids = handler
             .submit(
                 GB::default()
-                    .task(t(&rq1))
-                    .task(t(&rq2))
-                    .task(t(&rq2))
-                    .task(t(&rq1))
+                    .task(t(rq1))
+                    .task(t(rq2))
+                    .task(t(rq2))
+                    .task(t(rq1))
                     .build(),
             )
             .await;
@@ -248,7 +252,7 @@ async fn test_submit_sleeps_more_cpus3() {
 #[tokio::test]
 async fn test_force_compact() {
     run_server_test(Default::default(), |mut handler| async move {
-        let rq = RR::default().add_force_compact("cpus", 4);
+        let rq = handler.register_request(RR::default().add_force_compact("cpus", 4));
 
         handler
             .start_workers(

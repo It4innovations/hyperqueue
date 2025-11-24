@@ -8,6 +8,7 @@ use crate::internal::worker::test_util::{WorkerTaskBuilder, worker_task};
 use std::ops::Deref;
 use std::time::Duration;
 
+use crate::internal::common::resources::map::ResourceRqMap;
 use crate::internal::messages::worker::WorkerResourceCounts;
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::tests::utils::shared::{
@@ -29,6 +30,7 @@ impl ResourceWaitQueue {
 
 #[test]
 fn test_rqueue_resource_priority() {
+    let mut rqs = ResourceRqMap::default();
     let mut rq = RB::new(wait_queue(vec![res_item(
         "cpus",
         res_kind_groups(&[vec!["0", "1", "2", "3"], vec!["7", "8"]]),
@@ -38,12 +40,14 @@ fn test_rqueue_resource_priority() {
         10,
         ResBuilder::default().add_scatter(0, 3).finish(),
         1,
+        &mut rqs,
     ));
-    rq.add_task(worker_task(11, cpus_compact(4).finish(), 1));
+    rq.add_task(worker_task(11, cpus_compact(4).finish(), 1, &mut rqs));
     rq.add_task(worker_task(
         12,
         ResBuilder::default().add_force_compact(0, 4).finish(),
         1,
+        &mut rqs,
     ));
 
     let mut a = rq.start_tasks();
@@ -70,10 +74,11 @@ fn test_rqueue_resource_priority() {
 
 #[test]
 fn test_rqueue1() {
+    let mut rqs = ResourceRqMap::default();
     let mut rq = RB::new(wait_queue(ResourceDescriptor::sockets(3, 5)));
-    rq.add_task(worker_task(10, cpus_compact(2).finish(), 1));
-    rq.add_task(worker_task(11, cpus_compact(5).finish(), 1));
-    rq.add_task(worker_task(12, cpus_compact(2).finish(), 1));
+    rq.add_task(worker_task(10, cpus_compact(2).finish(), 1, &mut rqs));
+    rq.add_task(worker_task(11, cpus_compact(5).finish(), 1, &mut rqs));
+    rq.add_task(worker_task(12, cpus_compact(2).finish(), 1, &mut rqs));
 
     let a = rq.start_tasks();
     assert_eq!(a.get(&10).unwrap().get_indices(0).len(), 2);
@@ -83,11 +88,12 @@ fn test_rqueue1() {
 
 #[test]
 fn test_rqueue2() {
+    let mut rqs = ResourceRqMap::default();
     let mut rq = RB::new(wait_queue(ResourceDescriptor::simple_cpus(4)));
 
-    rq.add_task(worker_task(10, cpus_compact(2).finish(), 1));
-    rq.add_task(worker_task(11, cpus_compact(1).finish(), 2));
-    rq.add_task(worker_task(12, cpus_compact(2).finish(), 2));
+    rq.add_task(worker_task(10, cpus_compact(2).finish(), 1, &mut rqs));
+    rq.add_task(worker_task(11, cpus_compact(1).finish(), 2, &mut rqs));
+    rq.add_task(worker_task(12, cpus_compact(2).finish(), 2, &mut rqs));
 
     let a = rq.start_tasks();
     assert!(!a.contains_key(&10));
@@ -98,11 +104,12 @@ fn test_rqueue2() {
 
 #[test]
 fn test_rqueue3() {
+    let mut rqs = ResourceRqMap::default();
     let mut rq = RB::new(wait_queue(ResourceDescriptor::simple_cpus(4)));
 
-    rq.add_task(worker_task(10, cpus_compact(2).finish(), 1));
-    rq.add_task(worker_task(11, cpus_compact(1).finish(), 1));
-    rq.add_task(worker_task(12, cpus_compact(2).finish(), 2));
+    rq.add_task(worker_task(10, cpus_compact(2).finish(), 1, &mut rqs));
+    rq.add_task(worker_task(11, cpus_compact(1).finish(), 1, &mut rqs));
+    rq.add_task(worker_task(12, cpus_compact(2).finish(), 2, &mut rqs));
 
     let a = rq.start_tasks();
     assert!(a.contains_key(&10));
@@ -112,11 +119,13 @@ fn test_rqueue3() {
 
 #[test]
 fn test_rqueue_time_request() {
+    let mut rqs = ResourceRqMap::default();
     let mut rq = RB::new(wait_queue(ResourceDescriptor::simple_cpus(4)));
     rq.add_task(worker_task(
         10,
         ResBuilder::default().add(0, 1).min_time_secs(10).finish(),
         1,
+        &mut rqs,
     ));
 
     assert_eq!(rq.start_tasks_duration(Duration::new(9, 0)).len(), 0);
@@ -125,26 +134,31 @@ fn test_rqueue_time_request() {
 
 #[test]
 fn test_rqueue_time_request_priority1() {
+    let mut rqs = ResourceRqMap::default();
     let mut rq = RB::new(wait_queue(ResourceDescriptor::simple_cpus(4)));
     rq.add_task(worker_task(
         10,
         cpus_compact(2).min_time_secs(10).finish(),
         1,
+        &mut rqs,
     ));
     rq.add_task(worker_task(
         11,
         cpus_compact(2).min_time_secs(40).finish(),
         1,
+        &mut rqs,
     ));
     rq.add_task(worker_task(
         12,
         cpus_compact(2).min_time_secs(20).finish(),
         1,
+        &mut rqs,
     ));
     rq.add_task(worker_task(
         13,
         cpus_compact(2).min_time_secs(30).finish(),
         1,
+        &mut rqs,
     ));
 
     let map = rq.start_tasks_duration(Duration::new(40, 0));
@@ -155,26 +169,31 @@ fn test_rqueue_time_request_priority1() {
 
 #[test]
 fn test_rqueue_time_request_priority2() {
+    let mut rqs = ResourceRqMap::default();
     let mut rq = RB::new(wait_queue(ResourceDescriptor::simple_cpus(4)));
     rq.add_task(worker_task(
         10,
         cpus_compact(2).min_time_secs(10).finish(),
         1,
+        &mut rqs,
     ));
     rq.add_task(worker_task(
         11,
         cpus_compact(2).min_time_secs(40).finish(),
         1,
+        &mut rqs,
     ));
     rq.add_task(worker_task(
         12,
         cpus_compact(2).min_time_secs(20).finish(),
         1,
+        &mut rqs,
     ));
     rq.add_task(worker_task(
         13,
         cpus_compact(2).min_time_secs(30).finish(),
         1,
+        &mut rqs,
     ));
 
     let map = rq.start_tasks_duration(Duration::new(30, 0));
@@ -185,6 +204,7 @@ fn test_rqueue_time_request_priority2() {
 
 #[test]
 fn test_rqueue_generic_resource1_priorities() {
+    let mut rqs = ResourceRqMap::default();
     let resources = vec![
         ResourceDescriptorItem::range("cpus", 0, 3),
         ResourceDescriptorItem::range("Res0", 1, 20),
@@ -195,8 +215,8 @@ fn test_rqueue_generic_resource1_priorities() {
 
     let request: ResourceRequest = cpus_compact(2).add(1, 2).finish();
 
-    rq.add_task(worker_task(10, request, 1));
-    rq.add_task(worker_task(11, cpus_compact(4).finish(), 1));
+    rq.add_task(worker_task(10, request, 1, &mut rqs));
+    rq.add_task(worker_task(11, cpus_compact(4).finish(), 1, &mut rqs));
 
     let map = rq.start_tasks();
     assert!(!map.contains_key(&10));
@@ -205,6 +225,7 @@ fn test_rqueue_generic_resource1_priorities() {
 
 #[test]
 fn test_rqueue_generic_resource2_priorities() {
+    let mut rqs = ResourceRqMap::default();
     let resources = vec![
         ResourceDescriptorItem::range("cpus", 0, 3),
         ResourceDescriptorItem::range("Res0", 1, 20),
@@ -215,13 +236,13 @@ fn test_rqueue_generic_resource2_priorities() {
     let mut rq = RB::new(wait_queue(resources));
 
     let request: ResourceRequest = cpus_compact(2).add(1, 8).finish();
-    rq.add_task(worker_task(10, request, 1));
+    rq.add_task(worker_task(10, request, 1, &mut rqs));
 
     let request: ResourceRequest = cpus_compact(2).add(1, 12).finish();
-    rq.add_task(worker_task(11, request, 1));
+    rq.add_task(worker_task(11, request, 1, &mut rqs));
 
     let request: ResourceRequest = cpus_compact(2).add(2, 50_000_000).finish();
-    rq.add_task(worker_task(12, request, 1));
+    rq.add_task(worker_task(12, request, 1, &mut rqs));
 
     let map = rq.start_tasks();
     assert!(!map.contains_key(&10));
@@ -231,6 +252,7 @@ fn test_rqueue_generic_resource2_priorities() {
 
 #[test]
 fn test_rqueue_generic_resource3_priorities() {
+    let mut rqs = ResourceRqMap::default();
     let resources = vec![
         ResourceDescriptorItem::range("cpus", 0, 3),
         ResourceDescriptorItem::range("Res0", 1, 20),
@@ -241,13 +263,13 @@ fn test_rqueue_generic_resource3_priorities() {
     let mut rq = RB::new(wait_queue(resources));
 
     let request: ResourceRequest = cpus_compact(2).add(1, 18).finish();
-    rq.add_task(worker_task(10, request, 1));
+    rq.add_task(worker_task(10, request, 1, &mut rqs));
 
     let request: ResourceRequest = cpus_compact(2).add(1, 10).add(2, 60_000_000).finish();
-    rq.add_task(worker_task(11, request, 1));
+    rq.add_task(worker_task(11, request, 1, &mut rqs));
 
     let request: ResourceRequest = cpus_compact(2).add(2, 99_000_000).finish();
-    rq.add_task(worker_task(12, request, 1));
+    rq.add_task(worker_task(12, request, 1, &mut rqs));
 
     let map = rq.start_tasks();
     assert!(!map.contains_key(&10));
@@ -319,6 +341,7 @@ fn test_worker_resource_priorities() {
 
 #[test]
 fn test_uniq_resource_priorities1() {
+    let mut requests = ResourceRqMap::default();
     let resources = vec![
         ResourceDescriptorItem::range("cpus", 0, 16),
         ResourceDescriptorItem::range("res0", 1, 10),
@@ -332,11 +355,15 @@ fn test_uniq_resource_priorities1() {
         WorkerTaskBuilder::new(10)
             .resources(request)
             .server_priority(1)
-            .build(),
+            .build(&mut requests),
     );
 
     let request: ResourceRequest = cpus_compact(16).add(2, 2).finish();
-    rq.add_task(WorkerTaskBuilder::new(11).resources(request).build());
+    rq.add_task(
+        WorkerTaskBuilder::new(11)
+            .resources(request)
+            .build(&mut requests),
+    );
 
     let map = rq.start_tasks();
     assert_eq!(map.len(), 1);
@@ -345,6 +372,7 @@ fn test_uniq_resource_priorities1() {
 
 #[test]
 fn test_uniq_resource_priorities2() {
+    let mut rqs = ResourceRqMap::default();
     let resources = vec![
         ResourceDescriptorItem::range("cpus", 0, 16),
         ResourceDescriptorItem::range("res0", 1, 10),
@@ -365,11 +393,15 @@ fn test_uniq_resource_priorities2() {
         WorkerTaskBuilder::new(10)
             .resources(request)
             .server_priority(1)
-            .build(),
+            .build(&mut rqs),
     );
 
     let request: ResourceRequest = cpus_compact(16).add(2, 2).finish();
-    rq.add_task(WorkerTaskBuilder::new(11).resources(request).build());
+    rq.add_task(
+        WorkerTaskBuilder::new(11)
+            .resources(request)
+            .build(&mut rqs),
+    );
 
     let map = rq.start_tasks();
     assert_eq!(map.len(), 1);
@@ -378,6 +410,7 @@ fn test_uniq_resource_priorities2() {
 
 #[test]
 fn test_uniq_resource_priorities3() {
+    let mut rqs = ResourceRqMap::default();
     let resources = vec![
         ResourceDescriptorItem::range("cpus", 0, 16),
         ResourceDescriptorItem::range("res0", 1, 10),
@@ -398,11 +431,15 @@ fn test_uniq_resource_priorities3() {
         WorkerTaskBuilder::new(10)
             .resources(request)
             .user_priority(1)
-            .build(),
+            .build(&mut rqs),
     );
 
     let request: ResourceRequest = cpus_compact(16).add(2, 2).finish();
-    rq.add_task(WorkerTaskBuilder::new(11).resources(request).build());
+    rq.add_task(
+        WorkerTaskBuilder::new(11)
+            .resources(request)
+            .build(&mut rqs),
+    );
 
     let map = rq.start_tasks();
     assert_eq!(map.len(), 1);
@@ -411,6 +448,7 @@ fn test_uniq_resource_priorities3() {
 
 #[test]
 fn test_different_resources_and_priorities() {
+    let mut rqs = ResourceRqMap::default();
     let resources = vec![
         ResourceDescriptorItem::range("cpus", 0, 63),
         ResourceDescriptorItem::range("gpus/nvidia", 0, 3),
@@ -423,7 +461,7 @@ fn test_different_resources_and_priorities() {
             WorkerTaskBuilder::new(i)
                 .resources(request)
                 .user_priority(if i % 2 == 0 { 0 } else { -1 })
-                .build(),
+                .build(&mut rqs),
         );
     }
     for i in 0..12 {
@@ -432,7 +470,7 @@ fn test_different_resources_and_priorities() {
             WorkerTaskBuilder::new(i + 20)
                 .resources(request)
                 .user_priority(-3)
-                .build(),
+                .build(&mut rqs),
         );
     }
     let map = rq.start_tasks();
@@ -448,6 +486,7 @@ fn test_different_resources_and_priorities() {
 
 #[test]
 fn test_different_resources_and_priorities1() {
+    let mut rqs = ResourceRqMap::default();
     let resources = vec![
         ResourceDescriptorItem::range("cpus", 0, 63),
         ResourceDescriptorItem::range("gpus/nvidia", 0, 3),
@@ -460,7 +499,7 @@ fn test_different_resources_and_priorities1() {
             WorkerTaskBuilder::new(i)
                 .resources(request)
                 .user_priority(if i % 2 == 0 { 0 } else { -1 })
-                .build(),
+                .build(&mut rqs),
         );
     }
     for i in 0..12 {
@@ -469,7 +508,7 @@ fn test_different_resources_and_priorities1() {
             WorkerTaskBuilder::new(i + 20)
                 .resources(request)
                 .user_priority(-3)
-                .build(),
+                .build(&mut rqs),
         );
     }
     let map = rq.start_tasks();
@@ -485,6 +524,7 @@ fn test_different_resources_and_priorities1() {
 
 #[test]
 fn test_different_resources_and_priorities2() {
+    let mut rqs = ResourceRqMap::default();
     let resources = vec![
         ResourceDescriptorItem::range("cpus", 0, 10),
         ResourceDescriptorItem::range("foo", 1, 3),
@@ -493,7 +533,7 @@ fn test_different_resources_and_priorities2() {
 
     for i in 0..6 {
         let request: ResourceRequest = cpus_compact(1).add(1, 1).finish();
-        rq.add_task(WorkerTaskBuilder::new(i).resources(request).build());
+        rq.add_task(WorkerTaskBuilder::new(i).resources(request).build(&mut rqs));
     }
     let map = rq.start_tasks();
     assert_eq!(map.len(), 3);
@@ -503,7 +543,7 @@ fn test_different_resources_and_priorities2() {
             WorkerTaskBuilder::new(i + 10)
                 .resources(request)
                 .user_priority(1)
-                .build(),
+                .build(&mut rqs),
         );
     }
     let map = rq.start_tasks();
@@ -514,7 +554,7 @@ fn test_different_resources_and_priorities2() {
             WorkerTaskBuilder::new(i + 20)
                 .resources(request)
                 .user_priority(-3)
-                .build(),
+                .build(&mut rqs),
         );
     }
     let map = rq.start_tasks();
@@ -524,6 +564,7 @@ fn test_different_resources_and_priorities2() {
 
 #[test]
 fn test_different_resources_and_priorities3() {
+    let mut rqs = ResourceRqMap::default();
     let resources = vec![
         ResourceDescriptorItem::range("cpus", 0, 9),
         ResourceDescriptorItem::range("foo", 1, 3),
@@ -532,7 +573,7 @@ fn test_different_resources_and_priorities3() {
 
     for i in 0..6 {
         let request: ResourceRequest = cpus_compact(1).add(1, 2).finish();
-        rq.add_task(WorkerTaskBuilder::new(i).resources(request).build());
+        rq.add_task(WorkerTaskBuilder::new(i).resources(request).build(&mut rqs));
     }
     let map = rq.start_tasks();
     assert_eq!(map.len(), 1);
@@ -542,7 +583,7 @@ fn test_different_resources_and_priorities3() {
             WorkerTaskBuilder::new(i + 10)
                 .resources(request)
                 .user_priority(1)
-                .build(),
+                .build(&mut rqs),
         );
     }
     let map = rq.start_tasks();
@@ -553,7 +594,7 @@ fn test_different_resources_and_priorities3() {
             WorkerTaskBuilder::new(i + 20)
                 .resources(request)
                 .user_priority(-3)
-                .build(),
+                .build(&mut rqs),
         );
     }
     let map = rq.start_tasks();
@@ -563,6 +604,7 @@ fn test_different_resources_and_priorities3() {
 
 #[test]
 fn test_uniq_resource_priorities4() {
+    let mut rqs = ResourceRqMap::default();
     let resources = vec![
         ResourceDescriptorItem::range("cpus", 0, 16),
         ResourceDescriptorItem::range("res0", 1, 10),
@@ -583,13 +625,17 @@ fn test_uniq_resource_priorities4() {
         WorkerTaskBuilder::new(10)
             .resources(request)
             .server_priority(1)
-            .build(),
+            .build(&mut rqs),
     );
 
     rq.queue.remove_worker(400.into());
 
     let request: ResourceRequest = cpus_compact(16).add(2, 2).finish();
-    rq.add_task(WorkerTaskBuilder::new(11).resources(request).build());
+    rq.add_task(
+        WorkerTaskBuilder::new(11)
+            .resources(request)
+            .build(&mut rqs),
+    );
 
     let map = rq.start_tasks();
     assert_eq!(map.len(), 1);

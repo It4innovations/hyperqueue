@@ -1,6 +1,7 @@
 use crate::datasrv::DataObjectId;
 use crate::gateway::TaskDataFlags;
 use crate::internal::common::Map;
+use crate::internal::common::resources::map::ResourceRqMap;
 use crate::internal::common::resources::{Allocation, ResourceRequest, ResourceRequestVariants};
 use crate::internal::messages::worker::{ComputeTaskSeparateData, ComputeTaskSharedData};
 use crate::internal::server::workerload::WorkerResources;
@@ -52,15 +53,17 @@ impl WorkerTaskBuilder {
         self
     }
 
-    pub fn build(self) -> Task {
+    pub fn build(self, requests: &mut ResourceRqMap) -> Task {
         let resources = ResourceRequestVariants::new(if self.resources.is_empty() {
             smallvec![cpus_compact(1).finish()]
         } else {
             self.resources.into()
         });
+        let resource_rq_id = requests.get_or_create(resources.clone());
 
         Task::new(
             ComputeTaskSeparateData {
+                resource_rq_id,
                 shared_index: 0,
                 id: self.task_id,
                 instance_id: self.instance_id,
@@ -69,9 +72,9 @@ impl WorkerTaskBuilder {
                 data_deps: self.data_deps,
                 entry: None,
             },
+            resources,
             ComputeTaskSharedData {
                 user_priority: self.user_priority,
-                resources,
                 time_limit: None,
                 data_flags: self.data_flags,
                 body: Default::default(),
@@ -85,11 +88,12 @@ pub fn worker_task<T: Into<TaskId>>(
     task_id: T,
     resources: ResourceRequest,
     u_priority: Priority,
+    requests: &mut ResourceRqMap,
 ) -> Task {
     WorkerTaskBuilder::new(task_id)
         .resources(resources)
         .user_priority(u_priority)
-        .build()
+        .build(requests)
 }
 
 pub(crate) struct ResourceQueueBuilder {

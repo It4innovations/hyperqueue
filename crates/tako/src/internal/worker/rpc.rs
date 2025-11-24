@@ -401,7 +401,8 @@ pub(crate) fn process_worker_message(state: &mut WorkerState, message: ToWorkerM
                 } else {
                     shared.clone()
                 };
-                state.add_task(Task::new(task, shared, task_state));
+                let rqv = state.get_resource_rq(task.resource_rq_id);
+                state.add_task(Task::new(task, rqv.clone(), shared, task_state));
             }
         }
         ToWorkerMessage::StealTasks(msg) => {
@@ -444,9 +445,7 @@ pub(crate) fn process_worker_message(state: &mut WorkerState, message: ToWorkerM
         ToWorkerMessage::SetOverviewIntervalOverride(r#override) => {
             state.worker_overview_interval_override = r#override;
         }
-        ToWorkerMessage::NewResourceRequest(rq_id, rqv) => {
-            todo!()
-        }
+        ToWorkerMessage::NewResourceRequest(rq_id, rqv) => state.register_resource_rq(rq_id, rqv),
     }
     false
 }

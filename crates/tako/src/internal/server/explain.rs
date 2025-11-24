@@ -101,7 +101,8 @@ pub fn task_explain_for_worker(
     worker_group: &WorkerGroup,
     now: std::time::Instant,
 ) -> TaskExplanationForWorker {
-    TaskExplanationForWorker {
+    todo!()
+    /*TaskExplanationForWorker {
         worker_id: worker.id,
         variants: task
             .configuration
@@ -138,11 +139,12 @@ pub fn task_explain_for_worker(
                 result
             })
             .collect(),
-    }
+    }*/
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::internal::common::resources::map::{GlobalResourceMapping, ResourceRqMap};
     use crate::internal::server::explain::{TaskExplainItem, task_explain_for_worker};
     use crate::internal::server::worker::Worker;
     use crate::internal::server::workergroup::WorkerGroup;
@@ -156,6 +158,7 @@ mod tests {
 
     #[test]
     fn explain_single_node() {
+        let mut rqs = GlobalResourceMapping::default();
         let resource_map = ResourceIdMap::from_vec(vec!["cpus".to_string(), "gpus".to_string()]);
         let now = Instant::now();
 
@@ -181,13 +184,15 @@ mod tests {
         };
 
         let task_id = 1;
-        let task = TaskBuilder::new(task_id).build();
+        let task = TaskBuilder::new(task_id).build(&mut rqs);
         let r = explain(&task, &worker1, now);
         assert_eq!(r.variants.len(), 1);
         assert_eq!(r.variants[0].len(), 1);
         assert_eq!(r.n_enabled_variants(), 1);
 
-        let task = TaskBuilder::new(task_id).time_request(20_000).build();
+        let task = TaskBuilder::new(task_id)
+            .time_request(20_000)
+            .build(&mut rqs);
         let r = explain(&task, &worker1, now);
         assert_eq!(r.variants.len(), 1);
         assert_eq!(r.variants[0].len(), 2);
@@ -220,7 +225,7 @@ mod tests {
             .time_request(20_000)
             .cpus_compact(30)
             .add_resource(1, 3)
-            .build();
+            .build(&mut rqs);
         let r = explain(&task, &worker2, now);
         assert_eq!(r.variants.len(), 1);
         assert_eq!(r.variants[0].len(), 3);
@@ -239,7 +244,7 @@ mod tests {
             .next_resources()
             .cpus_compact(2)
             .add_resource(1, 32)
-            .build();
+            .build(&mut rqs);
         let r = explain(&task, &worker2, now2);
         assert_eq!(r.variants.len(), 2);
         assert_eq!(r.variants[0].len(), 3);
@@ -273,12 +278,13 @@ mod tests {
 
     #[test]
     fn explain_multi_node() {
+        let mut rqs = GlobalResourceMapping::default();
         let resource_map = ResourceIdMap::from_vec(vec!["cpus".to_string(), "gpus".to_string()]);
         let now = Instant::now();
 
         let wcfg = create_test_worker_config(1.into(), ResourceDescriptor::simple_cpus(4));
         let worker = Worker::new(1.into(), wcfg, &resource_map, now);
-        let task = TaskBuilder::new(1).n_nodes(4).build();
+        let task = TaskBuilder::new(1).n_nodes(4).build(&mut rqs);
         let mut wset = Set::new();
         wset.insert(WorkerId::new(1));
         wset.insert(WorkerId::new(2));

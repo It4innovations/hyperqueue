@@ -1,6 +1,7 @@
 use super::resources::ResBuilder;
 use crate::datasrv::DataObjectId;
 use crate::gateway::{CrashLimit, TaskDataFlags};
+use crate::internal::common::resources::map::{GlobalResourceMapping, ResourceRqMap};
 use crate::internal::common::resources::{
     NumOfNodes, ResourceAmount, ResourceId, ResourceRequestVariants,
 };
@@ -90,7 +91,7 @@ impl TaskBuilder {
         self
     }
 
-    pub fn build(self) -> Task {
+    pub fn build(self, resource_map: &mut GlobalResourceMapping) -> Task {
         let last_resource = self.resources_builder.finish();
         let mut resources: SmallVec<[ResourceRequest; 1]> = self.finished_resources.into();
         resources.push(last_resource);
@@ -98,13 +99,14 @@ impl TaskBuilder {
             rq.validate().unwrap();
         }
         let resources = ResourceRequestVariants::new(resources);
+        let (rq_id, _) = resource_map.get_or_create_resource_rq_id(&resources);
         Task::new(
             self.id,
+            rq_id,
             self.task_deps.into_iter().collect(),
             self.data_deps,
             None,
             Rc::new(TaskConfiguration {
-                resources,
                 time_limit: None,
                 user_priority: self.user_priority,
                 crash_limit: self.crash_limit,
@@ -115,12 +117,18 @@ impl TaskBuilder {
     }
 }
 
-pub fn task<T: Into<TaskId>>(id: T) -> Task {
-    TaskBuilder::new(id.into()).build()
+pub fn task<T: Into<TaskId>>(id: T, resource_map: &mut GlobalResourceMapping) -> Task {
+    TaskBuilder::new(id.into()).build(resource_map)
 }
 
-pub fn task_with_deps<T: Into<TaskId>>(id: T, deps: &[&Task]) -> Task {
-    TaskBuilder::new(id.into()).task_deps(deps).build()
+pub fn task_with_deps<T: Into<TaskId>>(
+    id: T,
+    deps: &[&Task],
+    resource_map: &mut GlobalResourceMapping,
+) -> Task {
+    TaskBuilder::new(id.into())
+        .task_deps(deps)
+        .build(resource_map)
 }
 
 pub fn task_running_msg<T: Into<TaskId>>(task_id: T) -> TaskRunningMsg {
