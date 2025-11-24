@@ -111,10 +111,11 @@ async fn test_worker_lost_idle_timeout() {
 #[tokio::test]
 async fn test_worker_idle_timeout_stays_alive_with_tasks() {
     run_server_test(Default::default(), |mut handle| async move {
+        let rq = handle.register_default_request();
         handle
             .submit(
                 GraphBuilder::default()
-                    .task(simple_task(&["sleep", "1"], 1))
+                    .task(simple_task(&["sleep", "1"], 1, rq))
                     .build(),
             )
             .await;
@@ -152,9 +153,9 @@ async fn test_panic_on_worker_lost() {
 async fn test_lost_worker_with_tasks_continue() {
     run_server_test(Default::default(), |mut handler| async move {
         let _workers = handler.start_workers(Default::default, 2).await.unwrap();
-
+        let rq = handler.register_default_request();
         let task_ids = handler
-            .submit(GraphBuilder::singleton(simple_task(&["sleep", "1"], 1)))
+            .submit(GraphBuilder::singleton(simple_task(&["sleep", "1"], 1, rq)))
             .await;
         let running_on = wait_for_task_start(&mut handler, task_ids[0]).await;
 
@@ -167,8 +168,9 @@ async fn test_lost_worker_with_tasks_continue() {
 #[tokio::test]
 async fn test_lost_worker_with_tasks_restarts() {
     run_server_test(Default::default(), |mut handle| async move {
+        let rq = handle.register_default_request();
         handle
-            .submit(GraphBuilder::singleton(simple_task(&["sleep", "1"], 1)))
+            .submit(GraphBuilder::singleton(simple_task(&["sleep", "1"], 1, rq)))
             .await;
 
         for _ in 0..5 {

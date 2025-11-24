@@ -1,6 +1,6 @@
 use crate::datasrv::DataObjectId;
 use crate::internal::common::resources::map::{ResourceIdMap, ResourceRqMap};
-use crate::internal::common::resources::{Allocation, ResourceId};
+use crate::internal::common::resources::{Allocation, ResourceId, ResourceRqId};
 use crate::internal::common::stablemap::StableMap;
 use crate::internal::common::{Map, Set, WrappedRcRefCell};
 use crate::internal::datasrv::{DataObjectRef, DataStorage};
@@ -26,6 +26,7 @@ use crate::internal::worker::rqueue::ResourceWaitQueue;
 use crate::internal::worker::task::{RunningState, Task, TaskState};
 use crate::internal::worker::task_comm::RunningTaskComm;
 use crate::launcher::TaskLauncher;
+use crate::resources::ResourceRequestVariants;
 use crate::{PriorityTuple, TaskId};
 use orion::aead::SecretKey;
 use rand::SeedableRng;
@@ -62,7 +63,7 @@ pub struct WorkerState {
     placement_resolver: Map<DataObjectId, oneshot::Sender<Option<String>>>,
 
     resource_rq_map: ResourceRqMap,
-    resource_map: ResourceIdMap,
+    resource_id_map: ResourceIdMap,
     resource_label_map: ResourceLabelMap,
 
     secret_key: Option<Arc<SecretKey>>,
@@ -317,7 +318,11 @@ impl WorkerState {
     }
 
     pub fn get_resource_map(&self) -> &ResourceIdMap {
-        &self.resource_map
+        &self.resource_id_map
+    }
+
+    pub fn get_resource_rq(&self, rq_id: ResourceRqId) -> &ResourceRequestVariants {
+        self.resource_rq_map.get(&rq_id)
     }
 
     pub fn get_resource_label_map(&self) -> &ResourceLabelMap {
@@ -416,6 +421,14 @@ impl WorkerState {
         }
     }
 
+    pub fn register_resource_rq(
+        &mut self,
+        resource_rq_id: ResourceRqId,
+        rqv: ResourceRequestVariants,
+    ) {
+        self.resource_rq_map.insert(resource_rq_id, rqv)
+    }
+
     pub fn download_object(
         &mut self,
         data_id: DataObjectId,
@@ -466,7 +479,7 @@ impl WorkerStateRef {
             start_task_scheduled: false,
             running_tasks: Default::default(),
             start_time: now,
-            resource_map,
+            resource_id_map: resource_map,
             resource_rq_map,
             resource_label_map,
             worker_addresses: Default::default(),

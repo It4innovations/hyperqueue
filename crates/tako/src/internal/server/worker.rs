@@ -2,16 +2,16 @@ use std::fmt;
 
 use crate::gateway::{LostWorkerReason, WorkerRuntimeInfo};
 use crate::internal::common::Set;
-use crate::internal::common::resources::TimeRequest;
-use crate::internal::common::resources::map::ResourceIdMap;
+use crate::internal::common::resources::map::{ResourceIdMap, ResourceRqMap};
 use crate::internal::common::resources::{ResourceRequest, ResourceRequestVariants};
+use crate::internal::common::resources::{ResourceRqId, TimeRequest};
 use crate::internal::messages::worker::{TaskIdsMsg, ToWorkerMessage};
 use crate::internal::server::comm::Comm;
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::taskmap::TaskMap;
 use crate::internal::server::workerload::{ResourceRequestLowerBound, WorkerLoad, WorkerResources};
 use crate::internal::worker::configuration::WorkerConfiguration;
-use crate::{TaskId, WorkerId};
+use crate::{Map, TaskId, WorkerId};
 use serde_json::json;
 use std::time::{Duration, Instant};
 
@@ -50,6 +50,7 @@ pub struct Worker {
     // !! In case of stealing T from W1 to W2, T is in "tasks" of W2, even T was not yet canceled from W1.
     sn_tasks: Set<TaskId>,
     pub(crate) sn_load: WorkerLoad,
+    pub(crate) difficulty: Map<ResourceRqId, u64>,
     pub(crate) resources: WorkerResources,
     pub(crate) flags: WorkerFlags,
     // When the worker will be terminated
@@ -142,38 +143,29 @@ impl Worker {
         self.sn_tasks.is_empty() && self.mn_task.is_none() && !self.is_stopping()
     }
 
-    pub fn insert_sn_task(&mut self, task: &Task) {
+    pub fn insert_sn_task(&mut self, task: &Task, rqv: &ResourceRequestVariants) {
         assert!(self.sn_tasks.insert(task.id));
-        self.sn_load.add_request(
-            task.id,
-            &task.configuration.resources,
-            task.running_variant(),
-            &self.resources,
-        );
+        self.sn_load
+            .add_request(task.id, rqv, task.running_variant(), &self.resources);
     }
 
-    pub fn remove_sn_task(&mut self, task: &Task) {
+    pub fn remove_sn_task(&mut self, task: &Task, rqv: &ResourceRequestVariants) {
         assert!(self.sn_tasks.remove(&task.id));
         if self.sn_tasks.is_empty() {
             self.idle_timestamp = Instant::now();
         }
-        self.sn_load
-            .remove_request(task.id, &task.configuration.resources, &self.resources);
+        self.sn_load.remove_request(task.id, rqv, &self.resources);
     }
 
-    pub fn sanity_check(&self, task_map: &TaskMap) {
+    pub fn sanity_check(&self, task_map: &TaskMap, request_map: &ResourceRqMap) {
         assert!(self.sn_tasks.is_empty() || self.mn_task.is_none());
         let mut check_load = WorkerLoad::new(&self.resources);
         let mut trivial = true;
         for &task_id in &self.sn_tasks {
             let task = task_map.get_task(task_id);
-            trivial &= task.configuration.resources.is_trivial();
-            check_load.add_request(
-                task_id,
-                &task.configuration.resources,
-                task.running_variant(),
-                &self.resources,
-            );
+            let rqv = request_map.get(&task.resource_rq_id);
+            trivial &= rqv.is_trivial();
+            check_load.add_request(task_id, rqv, task.running_variant(), &self.resources);
         }
         if trivial {
             assert_eq!(self.sn_load, check_load);
@@ -268,6 +260,7 @@ impl Worker {
         &mut self,
         comm: &mut impl Comm,
         task_map: &mut TaskMap,
+        request_map: &ResourceRqMap,
         now: Instant,
     ) {
         if self.termination_time.is_none() || self.mn_task.is_some() {
@@ -280,7 +273,7 @@ impl Worker {
             .filter(|task_id| {
                 let task = task_map.get_task_mut(*task_id);
                 if task.is_assigned()
-                    && !self.is_capable_to_run_rqv(&task.configuration.resources, now)
+                    && !self.is_capable_to_run_rqv(request_map.get(&task.resource_rq_id), now)
                 {
                     log::debug!(
                         "Retracting task={task_id}, time request cannot be fulfilled anymore"
@@ -336,6 +329,7 @@ impl Worker {
             last_heartbeat: now,
             mn_task: None,
             idle_timestamp: now,
+            difficulty: Map::new(),
         }
     }
 
