@@ -14,14 +14,14 @@ pub fn submit_example_1(core: &mut Core) {
         |
         17
     */
-
-    let t1 = task::task(11);
-    let t2 = task::task(12);
-    let t3 = task_with_deps(13, &[&t1, &t2]);
-    let t4 = task_with_deps(14, &[&t2]);
-    let t5 = task_with_deps(15, &[&t3, &t4]);
-    let t6 = task_with_deps(16, &[&t3]);
-    let t7 = task_with_deps(17, &[&t6]);
+    let rmap = core.get_resource_map_mut();
+    let t1 = task::task(11, rmap);
+    let t2 = task::task(12, rmap);
+    let t3 = task_with_deps(13, &[&t1, &t2], rmap);
+    let t4 = task_with_deps(14, &[&t2], rmap);
+    let t5 = task_with_deps(15, &[&t3, &t4], rmap);
+    let t6 = task_with_deps(16, &[&t3], rmap);
+    let t7 = task_with_deps(17, &[&t6], rmap);
     submit_test_tasks(core, vec![t1, t2, t3, t4, t5, t6, t7]);
 }
 
@@ -37,13 +37,14 @@ pub fn submit_example_2(core: &mut Core) {
           T5
     */
 
-    let t1 = task_with_deps(1, &[]);
-    let t2 = task_with_deps(2, &[&t1]);
-    let t3 = task_with_deps(3, &[&t1]);
-    let t4 = task_with_deps(4, &[&t2, &t3]);
-    let t5 = task_with_deps(5, &[&t4]);
-    let t6 = task_with_deps(6, &[&t3]);
-    let t7 = task_with_deps(7, &[&t6]);
+    let rmap = core.get_resource_map_mut();
+    let t1 = task_with_deps(1, &[], rmap);
+    let t2 = task_with_deps(2, &[&t1], rmap);
+    let t3 = task_with_deps(3, &[&t1], rmap);
+    let t4 = task_with_deps(4, &[&t2, &t3], rmap);
+    let t5 = task_with_deps(5, &[&t4], rmap);
+    let t6 = task_with_deps(6, &[&t3], rmap);
+    let t7 = task_with_deps(7, &[&t6], rmap);
 
     submit_test_tasks(core, vec![t1, t2, t3, t4, t5, t6, t7]);
 }
@@ -57,13 +58,13 @@ pub fn submit_example_3(core: &mut Core) {
           \   /
            T6
     */
-
-    let t1 = TaskBuilder::new(1).task_deps(&[]).build();
-    let t2 = TaskBuilder::new(2).task_deps(&[]).build();
-    let t3 = TaskBuilder::new(3).task_deps(&[&t1]).build();
-    let t4 = TaskBuilder::new(4).task_deps(&[&t1, &t2]).build();
-    let t5 = TaskBuilder::new(5).task_deps(&[&t2]).build();
-    let t6 = TaskBuilder::new(6).task_deps(&[&t1, &t5, &t3]).build();
+    let rmap = core.get_resource_map_mut();
+    let t1 = TaskBuilder::new(1).task_deps(&[]).build(rmap);
+    let t2 = TaskBuilder::new(2).task_deps(&[]).build(rmap);
+    let t3 = TaskBuilder::new(3).task_deps(&[&t1]).build(rmap);
+    let t4 = TaskBuilder::new(4).task_deps(&[&t1, &t2]).build(rmap);
+    let t5 = TaskBuilder::new(5).task_deps(&[&t2]).build(rmap);
+    let t6 = TaskBuilder::new(6).task_deps(&[&t1, &t5, &t3]).build(rmap);
 
     submit_test_tasks(core, vec![t1, t2, t3, t4, t5, t6]);
 }
@@ -77,13 +78,14 @@ pub fn submit_example_4(core: &mut Core) {
          T3
     */
 
-    let t1 = TaskBuilder::new(1).build();
-    let t2 = TaskBuilder::new(2).build();
+    let rmap = core.get_resource_map_mut();
+    let t1 = TaskBuilder::new(1).build(rmap);
+    let t2 = TaskBuilder::new(2).build(rmap);
     let t3 = TaskBuilder::new(3)
         .data_dep(&t1, 0)
         .data_dep(&t2, 0)
         .data_dep(&t2, 1)
-        .build();
+        .build(rmap);
 
     submit_test_tasks(core, vec![t1, t2, t3]);
 }

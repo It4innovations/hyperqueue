@@ -8,13 +8,15 @@ use crate::internal::common::Set;
 use crate::internal::common::stablemap::ExtractKey;
 use crate::{MAX_FRAME_SIZE, Map, ResourceVariantId, WorkerId};
 
-use crate::gateway::{CrashLimit, EntryType, TaskDataFlags};
+use crate::gateway::{CrashLimit, EntryType, ResourceRequestVariants, TaskDataFlags};
 use crate::internal::datasrv::dataobj::DataObjectId;
 
+use crate::internal::common::resources::ResourceRqId;
 use crate::internal::messages::worker::{
     ComputeTaskSeparateData, ComputeTaskSharedData, ComputeTasksMsg, ToWorkerMessage,
 };
 use crate::internal::server::taskmap::TaskMap;
+use crate::internal::server::workerload::ResourceRequestLowerBound;
 use crate::{InstanceId, Priority};
 use crate::{TaskId, static_assert_size};
 
@@ -94,11 +96,6 @@ bitflags::bitflags! {
 
 #[derive(Debug, Eq, PartialEq, Hash)]
 pub struct TaskConfiguration {
-    // Try to keep the fields ordered in a way so that the chance for finding a different field
-    // between two different task configurations is as high as possible.
-    // In other words, task configuration fields that are the same between most tasks should be
-    // ordered last.
-    pub resources: crate::internal::common::resources::ResourceRequestVariants,
     // Use Rc to avoid cloning the data when we serialize them
     pub body: Rc<[u8]>,
     pub user_priority: Priority,
@@ -110,7 +107,6 @@ pub struct TaskConfiguration {
 impl TaskConfiguration {
     pub fn dump(&self) -> serde_json::Value {
         json!({
-            "resources": self.resources,
             "user_priority": self.user_priority,
             "time_limit": self.time_limit,
             "crash_limit": self.crash_limit,
@@ -127,6 +123,7 @@ pub struct Task {
     pub task_deps: ThinVec<TaskId>,
     pub data_deps: ThinVec<DataObjectId>,
     pub flags: TaskFlags,
+    pub resource_rq_id: ResourceRqId,
     pub configuration: Rc<TaskConfiguration>,
     pub scheduler_priority: Priority,
     pub instance_id: InstanceId,
@@ -135,7 +132,7 @@ pub struct Task {
 }
 
 // Task is a critical data structure, so we should keep its size in check
-static_assert_size!(Task, 112);
+static_assert_size!(Task, 120);
 
 impl fmt::Debug for Task {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -161,15 +158,16 @@ impl Task {
 
     pub fn new(
         id: TaskId,
+        resource_rq_id: ResourceRqId,
         task_deps: ThinVec<TaskId>,
         dataobj_deps: ThinVec<DataObjectId>,
         entry: Option<EntryType>,
         configuration: Rc<TaskConfiguration>,
     ) -> Self {
         log::debug!(
-            "New task {} {:?} {:?} {:?}",
+            "New task {} rs={} {:?} {:?}",
             id,
-            &configuration.resources,
+            resource_rq_id,
             &task_deps,
             &dataobj_deps,
         );
@@ -182,6 +180,7 @@ impl Task {
             task_deps,
             data_deps: dataobj_deps,
             flags,
+            resource_rq_id,
             configuration,
             entry,
             scheduler_priority: Default::default(),
@@ -424,7 +423,6 @@ impl ComputeTasksBuilder {
             .or_insert_with(|| {
                 let shared = ComputeTaskSharedData {
                     user_priority: conf.user_priority,
-                    resources: conf.resources.clone(),
                     time_limit: conf.time_limit,
                     data_flags: conf.data_flags,
                     body: conf.body.clone(),
@@ -438,6 +436,7 @@ impl ComputeTasksBuilder {
         let task_data = ComputeTaskSeparateData {
             shared_index,
             id: task.id,
+            resource_rq_id: task.resource_rq_id,
             instance_id: task.instance_id,
             scheduler_priority: task.scheduler_priority,
             node_list,
@@ -485,6 +484,7 @@ fn estimate_task_data_size(data: &ComputeTaskSeparateData) -> usize {
     let ComputeTaskSeparateData {
         shared_index,
         id,
+        resource_rq_id,
         instance_id,
         scheduler_priority,
         node_list,
@@ -496,6 +496,7 @@ fn estimate_task_data_size(data: &ComputeTaskSeparateData) -> usize {
     // count internal field of Vecs, which are not serialized.
     size_of_val(shared_index)
         + size_of_val(id)
+        + size_of_val(resource_rq_id)
         + size_of_val(instance_id)
         + size_of_val(scheduler_priority)
         + size_of_val(node_list.as_slice())
@@ -507,27 +508,22 @@ fn estimate_task_data_size(data: &ComputeTaskSeparateData) -> usize {
 fn estimate_shared_data_size(data: &ComputeTaskSharedData) -> usize {
     let ComputeTaskSharedData {
         user_priority,
-        resources,
         time_limit,
         data_flags,
         body,
     } = data;
-    size_of_val(user_priority)
-        + size_of_val(resources.requests())
-        + size_of_val(time_limit)
-        + size_of_val(data_flags)
-        + body.len()
+    size_of_val(user_priority) + size_of_val(time_limit) + size_of_val(data_flags) + body.len()
 }
 
 #[cfg(test)]
 mod tests {
-    use std::default::Default;
-
+    use crate::internal::common::resources::map::GlobalResourceMapping;
     use crate::internal::server::core::Core;
     use crate::internal::server::task::{Task, TaskRuntimeState};
     use crate::internal::tests::utils::schedule::submit_test_tasks;
     use crate::internal::tests::utils::task;
     use crate::internal::tests::utils::task::task_with_deps;
+    use std::default::Default;
 
     impl Task {
         pub fn get_unfinished_deps(&self) -> u32 {
@@ -540,7 +536,8 @@ mod tests {
 
     #[test]
     fn task_consumers_empty() {
-        let a = task::task(0);
+        let mut rmap = GlobalResourceMapping::default();
+        let a = task::task(0, &mut rmap);
         let mut s = crate::Set::new();
         a.collect_recursive_consumers(&Default::default(), &mut s);
         assert!(s.is_empty());
@@ -549,11 +546,12 @@ mod tests {
     #[test]
     fn task_recursive_consumers() {
         let mut core = Core::default();
-        let a = task::task(0);
-        let b = task_with_deps(1, &[&a]);
-        let c = task_with_deps(2, &[&b]);
-        let d = task_with_deps(3, &[&b]);
-        let e = task_with_deps(4, &[&c, &d]);
+        let rmap = core.get_resource_map_mut();
+        let a = task::task(0, rmap);
+        let b = task_with_deps(1, &[&a], rmap);
+        let c = task_with_deps(2, &[&b], rmap);
+        let d = task_with_deps(3, &[&b], rmap);
+        let e = task_with_deps(4, &[&c, &d], rmap);
 
         let expected_ids = vec![b.id, c.id, d.id, e.id];
         submit_test_tasks(&mut core, vec![a, b, c, d, e]);

@@ -3,7 +3,7 @@ use crate::internal::common::resources::map::ResourceIdMap;
 use crate::internal::common::resources::request::ResourceAllocRequest;
 use crate::internal::common::resources::{
     ResourceAmount, ResourceDescriptor, ResourceId, ResourceRequest, ResourceRequestVariants,
-    ResourceVec,
+    ResourceRqId, ResourceVec,
 };
 use crate::internal::messages::worker::WorkerResourceCounts;
 use crate::{Map, ResourceVariantId, Set, TaskId};
@@ -115,7 +115,7 @@ impl WorkerResources {
         entry.request.amount(self.get(entry.resource_id))
     }
 
-    pub fn difficulty_score(&self, request: &ResourceRequest) -> u64 {
+    fn compute_difficulty_score(&self, request: &ResourceRequest) -> u64 {
         let mut result = 0;
         for entry in request.entries() {
             let count = self
@@ -131,10 +131,10 @@ impl WorkerResources {
         result
     }
 
-    pub fn difficulty_score_of_rqv(&self, rqv: &ResourceRequestVariants) -> u64 {
+    pub fn compute_difficulty_score_of_rqv(&self, rqv: &ResourceRequestVariants) -> u64 {
         rqv.requests()
             .iter()
-            .map(|r| self.difficulty_score(r))
+            .map(|r| self.compute_difficulty_score(r))
             .min()
             .unwrap_or(0)
     }

@@ -1,11 +1,13 @@
 use crate::datasrv::DataObjectId;
 use crate::gateway::{EntryType, TaskDataFlags};
 use crate::internal::common::resources::Allocation;
+use crate::internal::common::resources::map::ResourceRqMap;
 use crate::internal::common::stablemap::ExtractKey;
 use crate::internal::messages::worker::{
     ComputeTaskSeparateData, ComputeTaskSharedData, TaskOutput,
 };
 use crate::internal::worker::task_comm::RunningTaskComm;
+use crate::resources::ResourceRequestVariants;
 use crate::{InstanceId, Priority, TaskId, WorkerId};
 use std::rc::Rc;
 use std::time::Duration;
@@ -40,6 +42,7 @@ pub struct Task {
 impl Task {
     pub fn new(
         task: ComputeTaskSeparateData,
+        rqv: ResourceRequestVariants,
         shared: ComputeTaskSharedData,
         task_state: TaskState,
     ) -> Self {
@@ -48,7 +51,7 @@ impl Task {
             id: task.id,
             priority: (shared.user_priority, task.scheduler_priority),
             instance_id: task.instance_id,
-            resources: shared.resources,
+            resources: rqv,
             time_limit: shared.time_limit,
             body: shared.body,
             entry: task.entry,

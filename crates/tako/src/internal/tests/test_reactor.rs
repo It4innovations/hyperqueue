@@ -151,22 +151,23 @@ fn test_worker_add() {
 #[test]
 fn test_scheduler_priority() {
     let mut core = Core::default();
+    let rmap = core.get_resource_map_mut();
     let mut comm = create_test_comm();
     //new_workers(&mut core, &mut comm, vec![1]);
 
-    let t1 = task(501);
-    let t2 = task_with_deps(502, &[&t1]);
-    let t3 = task(503);
-    let t4 = task_with_deps(504, &[&t2]);
+    let t1 = task(501, rmap);
+    let t2 = task_with_deps(502, &[&t1], rmap);
+    let t3 = task(503, rmap);
+    let t4 = task_with_deps(504, &[&t2], rmap);
 
     let task_id5 = TaskId::new(123.into(), 1.into());
-    let t5 = TaskBuilder::new(task_id5).build();
+    let t5 = TaskBuilder::new(task_id5).build(rmap);
     let task_id6 = TaskId::new(122.into(), 0.into());
-    let t6 = TaskBuilder::new(task_id6).build();
+    let t6 = TaskBuilder::new(task_id6).build(rmap);
     let task_id7 = TaskId::new(123.into(), 2.into());
-    let t7 = TaskBuilder::new(task_id7).task_deps(&[&t5]).build();
+    let t7 = TaskBuilder::new(task_id7).task_deps(&[&t5]).build(rmap);
     let task_id8 = TaskId::new(123.into(), 4.into());
-    let t8 = TaskBuilder::new(task_id8).build();
+    let t8 = TaskBuilder::new(task_id8).build(rmap);
 
     on_new_tasks(&mut core, &mut comm, vec![t1, t2, t3, t4, t5, t6, t7, t8]);
 
@@ -195,9 +196,9 @@ fn test_submit_jobs() {
     let mut core = Core::default();
     let mut comm = create_test_comm();
     //new_workers(&mut core, &mut comm, vec![1]);
-
-    let t1 = task(501);
-    let t2 = task_with_deps(502, &[&t1]);
+    let rmap = core.get_resource_map_mut();
+    let t1 = task(501, rmap);
+    let t2 = task_with_deps(502, &[&t1], rmap);
     on_new_tasks(&mut core, &mut comm, vec![t1, t2]);
 
     comm.check_need_scheduling();
@@ -210,10 +211,13 @@ fn test_submit_jobs() {
 
     check_task_consumers_exact(t1, &[t2]);
 
-    let t3 = task(604);
-    let t4 = task_with_deps(602, &[t1, &t3]);
-    let t5 = task_with_deps(603, &[&t3]);
-    let t6 = task_with_deps(601, &[&t3, &t4, &t5, t2]);
+    let (tasks, rmap) = core.split_tasks_resource_map_mut();
+    let t1 = tasks.get_task(501.into());
+    let t2 = tasks.get_task(502.into());
+    let t3 = task(604, rmap);
+    let t4 = task_with_deps(602, &[t1, &t3], rmap);
+    let t5 = task_with_deps(603, &[&t3], rmap);
+    let t6 = task_with_deps(601, &[&t3, &t4, &t5, t2], rmap);
 
     on_new_tasks(&mut core, &mut comm, vec![t3, t4, t5, t6]);
     comm.check_need_scheduling();
@@ -253,12 +257,13 @@ fn test_assignments_and_finish() {
           t3[k]   t7[k]
     */
 
-    let t1 = TaskBuilder::new(11).user_priority(12).build();
-    let t2 = task(12);
-    let t3 = task_with_deps(13, &[&t1, &t2]);
-    let t4 = task(14);
-    let t5 = task(15);
-    let t7 = task_with_deps(17, &[&t4]);
+    let rmap = core.get_resource_map_mut();
+    let t1 = TaskBuilder::new(11).user_priority(12).build(rmap);
+    let t2 = task(12, rmap);
+    let t3 = task_with_deps(13, &[&t1, &t2], rmap);
+    let t4 = task(14, rmap);
+    let t5 = task(15, rmap);
+    let t7 = task_with_deps(17, &[&t4], rmap);
 
     let (id1, id2, id3, id5, id7) = (t1.id, t2.id, t3.id, t5.id, t7.id);
 
@@ -526,7 +531,8 @@ fn finish_unassigned_task() {
 fn finish_task_without_outputs() {
     let mut core = Core::default();
     create_test_workers(&mut core, &[1]);
-    let t1 = task_with_deps(1, &[]);
+    let rmap = core.get_resource_map_mut();
+    let t1 = task_with_deps(1, &[], rmap);
     submit_test_tasks(&mut core, vec![t1]);
     assign_to_worker(&mut core, 1, 100);
 
@@ -544,9 +550,10 @@ fn test_task_cancel() {
     create_test_workers(&mut core, &[1, 1, 1]);
     submit_example_1(&mut core);
 
-    let t40 = task(40);
-    let t41 = task(41);
-    let t42 = task(42);
+    let rmap = core.get_resource_map_mut();
+    let t40 = task(40, rmap);
+    let t41 = task(41, rmap);
+    let t42 = task(42, rmap);
 
     submit_test_tasks(&mut core, vec![t40, t41, t42]);
     assign_to_worker(&mut core, 11, 101);
@@ -592,7 +599,8 @@ fn test_task_cancel() {
 fn test_worker_lost_with_mn_task_non_root() {
     let mut core = Core::default();
     create_test_workers(&mut core, &[1, 1, 1, 1]);
-    let task1 = TaskBuilder::new(1).n_nodes(3).build();
+    let rmap = core.get_resource_map_mut();
+    let task1 = TaskBuilder::new(1).n_nodes(3).build(rmap);
     submit_test_tasks(&mut core, vec![task1]);
     start_mn_task_on_worker(
         &mut core,
@@ -624,7 +632,8 @@ fn test_worker_lost_with_mn_task_non_root() {
 fn test_worker_lost_with_mn_task_root() {
     let mut core = Core::default();
     create_test_workers(&mut core, &[1, 1, 1, 1]);
-    let task1 = TaskBuilder::new(1).n_nodes(3).build();
+    let rmap = core.get_resource_map_mut();
+    let task1 = TaskBuilder::new(1).n_nodes(3).build(rmap);
     submit_test_tasks(&mut core, vec![task1]);
     start_mn_task_on_worker(
         &mut core,
@@ -652,8 +661,8 @@ fn test_worker_lost_with_mn_task_root() {
 #[test]
 fn test_worker_crashing_task() {
     let mut core = Core::default();
-
-    let t1 = task(1);
+    let rmap = core.get_resource_map_mut();
+    let t1 = task(1, rmap);
     submit_test_tasks(&mut core, vec![t1]);
     assert_eq!(core.get_task(TaskId::new_test(1)).crash_counter, 0);
 
@@ -695,7 +704,8 @@ fn test_worker_crashing_task() {
 fn test_task_mn_fail() {
     let mut core = Core::default();
     create_test_workers(&mut core, &[1, 1, 1, 1]);
-    let task1 = TaskBuilder::new(1).n_nodes(3).build();
+    let rmap = core.get_resource_map_mut();
+    let task1 = TaskBuilder::new(1).n_nodes(3).build(rmap);
     submit_test_tasks(&mut core, vec![task1]);
     start_mn_task_on_worker(
         &mut core,
@@ -732,7 +742,8 @@ fn test_task_mn_fail() {
 fn test_task_mn_cancel() {
     let mut core = Core::default();
     create_test_workers(&mut core, &[1, 1, 1, 1]);
-    let task1 = TaskBuilder::new(1).n_nodes(3).build();
+    let rmap = core.get_resource_map_mut();
+    let task1 = TaskBuilder::new(1).n_nodes(3).build(rmap);
     submit_test_tasks(&mut core, vec![task1]);
     start_mn_task_on_worker(
         &mut core,
@@ -763,8 +774,9 @@ fn test_task_mn_cancel() {
 fn test_running_task() {
     let mut core = Core::default();
     create_test_workers(&mut core, &[1, 1, 1]);
-    let t1 = task(1);
-    let t2 = task(2);
+    let rmap = core.get_resource_map_mut();
+    let t1 = task(1, rmap);
+    let t2 = task(2, rmap);
     submit_test_tasks(&mut core, vec![t1, t2]);
     assign_to_worker(&mut core, 1, 101);
     assign_to_worker(&mut core, 2, 101);
@@ -820,7 +832,8 @@ fn test_running_task() {
 fn test_finished_before_steal_response() {
     let mut core = Core::default();
     create_test_workers(&mut core, &[1, 1, 1]);
-    let t1 = task(1);
+    let rmap = core.get_resource_map_mut();
+    let t1 = task(1, rmap);
     submit_test_tasks(&mut core, vec![t1]);
     assign_to_worker(&mut core, 1, 101);
     start_stealing(&mut core, 1, 102);
@@ -855,7 +868,8 @@ fn test_finished_before_steal_response() {
 fn test_running_before_steal_response() {
     let mut core = Core::default();
     create_test_workers(&mut core, &[1, 1, 1]);
-    let t1 = task(1);
+    let rmap = core.get_resource_map_mut();
+    let t1 = task(1, rmap);
     submit_test_tasks(&mut core, vec![t1]);
     assign_to_worker(&mut core, 1, 101);
     start_stealing(&mut core, 1, 102);
@@ -887,7 +901,8 @@ fn test_running_before_steal_response() {
 #[test]
 fn test_ready_to_assign_is_empty_after_cancel() {
     let mut core = Core::default();
-    let t1 = task(1);
+    let rmap = core.get_resource_map_mut();
+    let t1 = task(1, rmap);
     submit_test_tasks(&mut core, vec![t1]);
     cancel_tasks(&mut core, &[1]);
     assert!(core.take_single_node_ready_to_assign().is_empty());
@@ -897,10 +912,11 @@ fn test_ready_to_assign_is_empty_after_cancel() {
 fn test_after_cancel_messages() {
     let mut core = Core::default();
     create_test_workers(&mut core, &[1, 1, 1]);
-    let t1 = task(1);
-    let t2 = task(2);
-    let t3 = task(3);
-    let t4 = task(4);
+    let rmap = core.get_resource_map_mut();
+    let t1 = task(1, rmap);
+    let t2 = task(2, rmap);
+    let t3 = task(3, rmap);
+    let t4 = task(4, rmap);
     submit_test_tasks(&mut core, vec![t1, t2, t3, t4]);
     assign_to_worker(&mut core, 1, 101);
     assign_to_worker(&mut core, 2, 101);
@@ -954,8 +970,9 @@ fn lost_worker_with_running_and_assign_tasks() {
     create_test_workers(&mut core, &[1, 1, 1]);
     submit_example_1(&mut core);
 
-    let t40 = task(40);
-    let t41 = task(41);
+    let rmap = core.get_resource_map_mut();
+    let t40 = task(40, rmap);
+    let t41 = task(41, rmap);
     submit_test_tasks(&mut core, vec![t40, t41]);
 
     assign_to_worker(&mut core, 11, 101);
@@ -1141,8 +1158,9 @@ fn test_worker_groups() {
 fn test_data_deps_no_output() {
     let mut core = Core::default();
     create_test_workers(&mut core, &[4]);
-    let t1 = TaskBuilder::new(1).build();
-    let t2 = TaskBuilder::new(2).data_dep(&t1, 11).build();
+    let rmap = core.get_resource_map_mut();
+    let t1 = TaskBuilder::new(1).build(rmap);
+    let t2 = TaskBuilder::new(2).data_dep(&t1, 11).build(rmap);
     submit_test_tasks(&mut core, vec![t1, t2]);
     assign_to_worker(&mut core, 1, 100);
     core.sanity_check();
@@ -1171,13 +1189,14 @@ fn test_data_deps_no_output() {
 fn test_data_deps_missing_outputs() {
     let mut core = Core::default();
     create_test_workers(&mut core, &[4]);
-    let t1 = TaskBuilder::new(1).build();
+    let rmap = core.get_resource_map_mut();
+    let t1 = TaskBuilder::new(1).build(rmap);
     let t2 = TaskBuilder::new(2)
         .data_dep(&t1, 10)
         .data_dep(&t1, 11)
         .data_dep(&t1, 100)
         .data_dep(&t1, 101)
-        .build();
+        .build(rmap);
     submit_test_tasks(&mut core, vec![t1, t2]);
     assign_to_worker(&mut core, 1, 100);
     core.sanity_check();
@@ -1229,12 +1248,13 @@ fn test_data_deps_missing_outputs() {
 #[test]
 fn test_data_deps_basic() {
     let mut core = Core::default();
-    let t1 = TaskBuilder::new(1).build();
-    let t2 = TaskBuilder::new(2).data_dep(&t1, 0).build();
+    let rmap = core.get_resource_map_mut();
+    let t1 = TaskBuilder::new(1).build(rmap);
+    let t2 = TaskBuilder::new(2).data_dep(&t1, 0).build(rmap);
     let t3 = TaskBuilder::new(3)
         .data_dep(&t2, 123)
         .data_dep(&t2, 478)
-        .build();
+        .build(rmap);
     submit_test_tasks(&mut core, vec![t1, t2, t3]);
     assert_eq!(core.get_task(2.into()).task_deps, [TaskId::new_test(1)]);
     core.assert_waiting(&[2, 3]);

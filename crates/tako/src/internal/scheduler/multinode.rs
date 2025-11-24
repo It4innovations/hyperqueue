@@ -1,3 +1,5 @@
+use crate::internal::common::resources::ResourceRqId;
+use crate::internal::common::resources::map::{GlobalResourceMapping, ResourceRqMap};
 use crate::internal::server::task::Task;
 use crate::internal::server::taskmap::TaskMap;
 use crate::internal::server::worker::Worker;
@@ -25,8 +27,8 @@ impl QueueForRequest {
 
 #[derive(Default)]
 pub(crate) struct MultiNodeQueue {
-    queues: Map<ResourceRequest, QueueForRequest>,
-    requests: Vec<ResourceRequest>,
+    queues: Map<ResourceRqId, QueueForRequest>,
+    requests: Vec<ResourceRqId>,
 }
 
 fn task_priority_tuple(task: &Task) -> PriorityTuple {
@@ -42,26 +44,24 @@ impl MultiNodeQueue {
         self.requests.shrink_to_fit();
     }
 
-    pub fn get_profiles(&self) -> impl Iterator<Item = (&ResourceRequest, u32)> {
+    pub fn get_profiles(&self) -> impl Iterator<Item = (ResourceRqId, u32)> {
         self.queues
             .iter()
-            .map(|(rq, qfr)| (rq, qfr.queue.len() as u32))
+            .map(|(rq, qfr)| (*rq, qfr.queue.len() as u32))
     }
 
-    pub fn add_task(&mut self, task: &Task) {
-        let queue = if let Some(qfr) = self
-            .queues
-            .get_mut(task.configuration.resources.unwrap_first())
-        {
+    pub fn add_task(&mut self, task: &Task, resource_map: &ResourceRqMap) {
+        let queue = if let Some(qfr) = self.queues.get_mut(&task.resource_rq_id) {
             &mut qfr.queue
         } else {
-            self.requests
-                .push(task.configuration.resources.unwrap_first().clone());
-            self.requests
-                .sort_unstable_by_key(|x| std::cmp::Reverse((x.n_nodes(), x.min_time())));
+            self.requests.push(task.resource_rq_id);
+            self.requests.sort_unstable_by_key(|id| {
+                let rq = resource_map.get(id).trivial_request().unwrap();
+                std::cmp::Reverse((rq.n_nodes(), rq.min_time()))
+            });
             &mut self
                 .queues
-                .entry(task.configuration.resources.unwrap_first().clone())
+                .entry(task.resource_rq_id)
                 .or_insert(QueueForRequest {
                     queue: PriorityQueue::new(),
                     sleeping: false,
@@ -78,8 +78,8 @@ impl MultiNodeQueue {
     }
 
     #[cfg(test)]
-    pub fn is_sleeping(&self, rq: &ResourceRequest) -> bool {
-        self.queues.get(rq).unwrap().sleeping
+    pub fn is_sleeping(&self, rq_id: ResourceRqId) -> bool {
+        self.queues.get(&rq_id).unwrap().sleeping
     }
 
     pub fn dump(&self) -> serde_json::Value {
@@ -101,6 +101,7 @@ pub(crate) struct MultiNodeAllocator<'a> {
     task_map: &'a mut TaskMap,
     worker_map: &'a mut WorkerMap,
     worker_groups: &'a Map<String, WorkerGroup>,
+    resource_map: &'a ResourceRqMap,
     now: std::time::Instant,
 }
 
@@ -168,6 +169,7 @@ impl<'a> MultiNodeAllocator<'a> {
         task_map: &'a mut TaskMap,
         worker_map: &'a mut WorkerMap,
         worker_groups: &'a Map<String, WorkerGroup>,
+        resource_map: &'a ResourceRqMap,
         now: std::time::Instant,
     ) -> Self {
         MultiNodeAllocator {
@@ -175,6 +177,7 @@ impl<'a> MultiNodeAllocator<'a> {
             task_map,
             worker_map,
             worker_groups,
+            resource_map,
             now,
         }
     }
@@ -193,8 +196,8 @@ impl<'a> MultiNodeAllocator<'a> {
             } else {
                 return None;
             };
-            for rq in &self.mn_queue.requests {
-                let qfr = self.mn_queue.queues.get_mut(rq).unwrap();
+            for rq_id in &self.mn_queue.requests {
+                let qfr = self.mn_queue.queues.get_mut(rq_id).unwrap();
                 if qfr.sleeping {
                     continue;
                 }
@@ -206,6 +209,8 @@ impl<'a> MultiNodeAllocator<'a> {
                         qfr.queue.pop();
                         continue;
                     }
+
+                    let rq = self.resource_map.get(rq_id).unwrap_first();
                     match find_workers_for_task(rq, self.worker_map, self.worker_groups, self.now) {
                         TaskFindWorkersResult::Ready(workers) => {
                             let task_id = qfr.queue.pop().unwrap().0;
@@ -214,7 +219,7 @@ impl<'a> MultiNodeAllocator<'a> {
                         TaskFindWorkersResult::NotReady => { /* Do nothing */ }
                         TaskFindWorkersResult::NoWorkers => {
                             qfr.sleeping = true;
-                            log::debug!("Multi-node task {rq:?} put into sleep",);
+                            log::debug!("Multi-node task {rq_id:?} put into sleep",);
                             continue 'outer;
                         }
                     }

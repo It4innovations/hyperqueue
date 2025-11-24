@@ -64,13 +64,13 @@ fn check_worker_status_change(s1: WorkerStatus, s2: WorkerStatus, ms: &[ToWorker
 fn test_schedule_mn_simple() {
     let mut core = Core::default();
     create_test_workers(&mut core, &[5, 5, 5, 5, 5]);
-
+    let rmap = core.get_resource_map_mut();
     let tasks: Vec<Task> = (1..=4)
         .map(|i| {
             TaskBuilder::new(i)
                 .user_priority(i as Priority)
                 .n_nodes(2)
-                .build()
+                .build(rmap)
         })
         .collect();
     submit_test_tasks(&mut core, tasks);
@@ -126,9 +126,10 @@ fn test_schedule_mn_reserve() {
     let mut core = Core::default();
     create_test_workers(&mut core, &[1, 1, 1]);
 
-    let task1 = TaskBuilder::new(1).user_priority(10).n_nodes(3).build();
-    let task2 = TaskBuilder::new(2).user_priority(5).n_nodes(2).build();
-    let task3 = TaskBuilder::new(3).user_priority(0).n_nodes(3).build();
+    let rmap = core.get_resource_map_mut();
+    let task1 = TaskBuilder::new(1).user_priority(10).n_nodes(3).build(rmap);
+    let task2 = TaskBuilder::new(2).user_priority(5).n_nodes(2).build(rmap);
+    let task3 = TaskBuilder::new(3).user_priority(0).n_nodes(3).build(rmap);
 
     submit_test_tasks(&mut core, vec![task1, task2, task3]);
     core.sanity_check();
@@ -193,10 +194,11 @@ fn test_schedule_mn_fill() {
         &mut core,
         &[/* 11 workers */ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
     );
-    let task1 = TaskBuilder::new(1).n_nodes(3).build();
-    let task2 = TaskBuilder::new(2).n_nodes(5).build();
-    let task3 = TaskBuilder::new(3).n_nodes(1).build();
-    let task4 = TaskBuilder::new(4).n_nodes(2).build();
+    let rmap = core.get_resource_map_mut();
+    let task1 = TaskBuilder::new(1).n_nodes(3).build(rmap);
+    let task2 = TaskBuilder::new(2).n_nodes(5).build(rmap);
+    let task3 = TaskBuilder::new(3).n_nodes(1).build(rmap);
+    let task4 = TaskBuilder::new(4).n_nodes(2).build(rmap);
     submit_test_tasks(&mut core, vec![task1, task2, task3, task4]);
     let mut scheduler = create_test_scheduler();
     scheduler.run_scheduling(&mut core, &mut comm);
@@ -215,10 +217,15 @@ fn test_mn_not_enough() {
     let mut comm = create_test_comm();
 
     create_test_workers(&mut core, &[4]);
-    let task1 = TaskBuilder::new(1).n_nodes(3).build();
-    let task2 = TaskBuilder::new(2).n_nodes(5).build();
-    let task3 = TaskBuilder::new(3).n_nodes(11).build();
-    let task4 = TaskBuilder::new(4).n_nodes(2).build();
+    let rmap = core.get_resource_map_mut();
+    let task1 = TaskBuilder::new(1).n_nodes(3).build(rmap);
+    let task2 = TaskBuilder::new(2).n_nodes(5).build(rmap);
+    let task3 = TaskBuilder::new(3).n_nodes(11).build(rmap);
+    let task4 = TaskBuilder::new(4).n_nodes(2).build(rmap);
+    let r1 = rmap.get_resource_rq_id(&ResBuilder::default().n_nodes(3).finish_v());
+    let r2 = rmap.get_resource_rq_id(&ResBuilder::default().n_nodes(5).finish_v());
+    let r3 = rmap.get_resource_rq_id(&ResBuilder::default().n_nodes(11).finish_v());
+    let r4 = rmap.get_resource_rq_id(&ResBuilder::default().n_nodes(2).finish_v());
     submit_test_tasks(&mut core, vec![task1, task2, task3, task4]);
     let mut scheduler = create_test_scheduler();
     scheduler.run_scheduling(&mut core, &mut comm);
@@ -231,11 +238,10 @@ fn test_mn_not_enough() {
     }
 
     let (mn_queue, _, _) = core.multi_node_queue_split();
-
-    assert!(mn_queue.is_sleeping(&ResBuilder::default().n_nodes(3).finish()));
-    assert!(mn_queue.is_sleeping(&ResBuilder::default().n_nodes(5).finish()));
-    assert!(mn_queue.is_sleeping(&ResBuilder::default().n_nodes(11).finish()));
-    assert!(mn_queue.is_sleeping(&ResBuilder::default().n_nodes(2).finish()));
+    assert!(mn_queue.is_sleeping(r1));
+    assert!(mn_queue.is_sleeping(r2));
+    assert!(mn_queue.is_sleeping(r3));
+    assert!(mn_queue.is_sleeping(r4));
 }
 
 #[test]
@@ -243,7 +249,8 @@ fn test_mn_sleep_wakeup_one_by_one() {
     let mut core = Core::default();
     let mut comm = create_test_comm();
 
-    let task1 = TaskBuilder::new(1).n_nodes(4).user_priority(10).build();
+    let rmap = core.get_resource_map_mut();
+    let task1 = TaskBuilder::new(1).n_nodes(4).user_priority(10).build(rmap);
     submit_test_tasks(&mut core, vec![task1]);
 
     create_test_workers(&mut core, &[4, 1]);
@@ -253,7 +260,8 @@ fn test_mn_sleep_wakeup_one_by_one() {
     core.sanity_check();
     assert!(core.task_map().get_task(1.into()).is_waiting());
 
-    let task2 = TaskBuilder::new(2).n_nodes(2).user_priority(1).build();
+    let rmap = core.get_resource_map_mut();
+    let task2 = TaskBuilder::new(2).n_nodes(2).user_priority(1).build(rmap);
     submit_test_tasks(&mut core, vec![task2]);
     scheduler.run_scheduling(&mut core, &mut comm);
     core.sanity_check();
@@ -275,8 +283,9 @@ fn test_mn_sleep_wakeup_at_once() {
     let mut comm = create_test_comm();
 
     create_test_workers(&mut core, &[4, 1]);
-    let task1 = TaskBuilder::new(1).n_nodes(4).user_priority(10).build();
-    let task2 = TaskBuilder::new(2).n_nodes(2).user_priority(1).build();
+    let rmap = core.get_resource_map_mut();
+    let task1 = TaskBuilder::new(1).n_nodes(4).user_priority(10).build(rmap);
+    let task2 = TaskBuilder::new(2).n_nodes(2).user_priority(1).build(rmap);
     submit_test_tasks(&mut core, vec![task1, task2]);
 
     let mut scheduler = create_test_scheduler();
@@ -302,7 +311,8 @@ fn test_mn_schedule_on_groups() {
     new_test_worker(&mut core, worker_id, wcfg2, &resource_map);
 
     let mut comm = create_test_comm();
-    let task1 = TaskBuilder::new(1).n_nodes(2).build();
+    let rmap = core.get_resource_map_mut();
+    let task1 = TaskBuilder::new(1).n_nodes(2).build(rmap);
     submit_test_tasks(&mut core, vec![task1]);
 
     let mut scheduler = create_test_scheduler();

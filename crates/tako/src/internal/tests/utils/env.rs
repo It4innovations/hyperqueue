@@ -62,7 +62,7 @@ impl TestEnv {
     }
 
     pub fn new_task(&mut self, builder: TaskBuilder) -> &Task {
-        let task = builder.build();
+        let task = builder.build(self.core.get_resource_map_mut());
         let task_id = task.id;
         schedule::submit_test_tasks(&mut self.core, vec![task]);
         self.task(task_id)
@@ -75,14 +75,14 @@ impl TestEnv {
     }
 
     pub fn new_task_assigned<W: Into<WorkerId>>(&mut self, builder: TaskBuilder, worker_id: W) {
-        let task = builder.build();
+        let task = builder.build(self.core.get_resource_map_mut());
         let task_id = task.id();
         schedule::submit_test_tasks(&mut self.core, vec![task]);
         schedule::assign_to_worker(&mut self.core, task_id, worker_id.into());
     }
 
     pub fn new_task_running<W: Into<WorkerId>>(&mut self, builder: TaskBuilder, worker_id: W) {
-        let task = builder.build();
+        let task = builder.build(self.core.get_resource_map_mut());
         let task_id = task.id();
         schedule::submit_test_tasks(&mut self.core, vec![task]);
         schedule::start_on_worker_running(&mut self.core, task_id, worker_id.into());
@@ -146,6 +146,7 @@ impl TestEnv {
     }
 
     pub fn new_ready_tasks_cpus(&mut self, tasks: &[ResourceUnits]) -> Vec<TaskId> {
+        let rmap = self.core.get_resource_map_mut();
         let tasks: Vec<_> = tasks
             .iter()
             .map(|n_cpus| {
@@ -153,7 +154,7 @@ impl TestEnv {
                 self.task_id_counter += 1;
                 TaskBuilder::new(task_id)
                     .resources(cpus_compact(*n_cpus))
-                    .build()
+                    .build(rmap)
             })
             .collect();
         let task_ids: Vec<_> = tasks.iter().map(|t| t.id).collect();
@@ -233,9 +234,9 @@ impl TestEnv {
                 "Worker {} {}",
                 worker.id,
                 format_comma_delimited(worker.sn_tasks().iter().map(|&task_id| format!(
-                    "{}:{:?}",
+                    "{} -> {}",
                     task_id,
-                    self.core.get_task(task_id).configuration.resources
+                    self.core.get_task(task_id).resource_rq_id
                 )))
             );
         }

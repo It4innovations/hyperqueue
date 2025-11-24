@@ -6,6 +6,7 @@ use tokio::sync::Notify;
 use tokio::time::sleep;
 
 use crate::internal::common::Map;
+use crate::internal::common::resources::map::ResourceRqMap;
 use crate::internal::messages::worker::{TaskIdsMsg, ToWorkerMessage};
 use crate::internal::scheduler::multinode::MultiNodeAllocator;
 use crate::internal::server::comm::{Comm, CommSender, CommSenderRef};
@@ -15,6 +16,7 @@ use crate::internal::server::task::{ComputeTasksBuilder, Task, TaskRuntimeState}
 use crate::internal::server::worker::Worker;
 use crate::internal::server::workerload::ResourceRequestLowerBound;
 use crate::internal::server::workermap::WorkerMap;
+use crate::resources::ResourceRequestVariants;
 use crate::{TaskId, WorkerId};
 
 // Long duration - 1 year
@@ -86,24 +88,21 @@ impl SchedulerState {
     fn choose_worker_for_task<'a>(
         &mut self,
         task: &Task,
+        rq: &ResourceRequestVariants,
         workers: &'a [&'a mut Worker],
         dataobj_map: &DataObjectMap,
         try_immediate_check: bool,
     ) -> Option<usize> {
         let no_data_deps = task.data_deps.is_empty();
         if no_data_deps && try_immediate_check {
-            if workers[self.last_idx]
-                .have_immediate_resources_for_rqv_now(&task.configuration.resources, self.now)
-            {
+            if workers[self.last_idx].have_immediate_resources_for_rqv_now(rq, self.now) {
                 return Some(self.last_idx);
             }
             for (idx, worker) in workers.iter().enumerate() {
                 if idx == self.last_idx {
                     continue;
                 }
-                if worker
-                    .have_immediate_resources_for_rqv_now(&task.configuration.resources, self.now)
-                {
+                if worker.have_immediate_resources_for_rqv_now(rq, self.now) {
                     self.last_idx = idx;
                     return Some(self.last_idx);
                 }
@@ -112,13 +111,13 @@ impl SchedulerState {
         let start_idx = self.last_idx + 1;
         if no_data_deps {
             for (idx, worker) in workers[start_idx..].iter().enumerate() {
-                if worker.is_capable_to_run_rqv(&task.configuration.resources, self.now) {
+                if worker.is_capable_to_run_rqv(rq, self.now) {
                     self.last_idx = idx + start_idx;
                     return Some(self.last_idx);
                 }
             }
             for (idx, worker) in workers[..start_idx].iter().enumerate() {
-                if worker.is_capable_to_run_rqv(&task.configuration.resources, self.now) {
+                if worker.is_capable_to_run_rqv(rq, self.now) {
                     self.last_idx = idx;
                     return Some(self.last_idx);
                 }
@@ -129,7 +128,7 @@ impl SchedulerState {
             let mut best_idx = None;
 
             for (idx, worker) in workers[start_idx..].iter().enumerate() {
-                if !worker.is_capable_to_run_rqv(&task.configuration.resources, self.now) {
+                if !worker.is_capable_to_run_rqv(rq, self.now) {
                     continue;
                 }
                 let cost = compute_transfer_cost(dataobj_map, task, worker.id);
@@ -140,7 +139,7 @@ impl SchedulerState {
                 best_idx = Some(start_idx + idx);
             }
             for (idx, worker) in workers[..start_idx].iter().enumerate() {
-                if !worker.is_capable_to_run_rqv(&task.configuration.resources, self.now) {
+                if !worker.is_capable_to_run_rqv(rq, self.now) {
                     continue;
                 }
                 let cost = compute_transfer_cost(dataobj_map, task, worker.id);
@@ -281,8 +280,8 @@ impl SchedulerState {
     }
 
     // This function assumes that potential removal of an assigned is already done
-    fn assign_into(&mut self, task: &mut Task, worker: &mut Worker) {
-        worker.insert_sn_task(task);
+    fn assign_into(&mut self, task: &mut Task, rqv: &ResourceRequestVariants, worker: &mut Worker) {
+        worker.insert_sn_task(task, rqv);
         let new_state = match task.state {
             TaskRuntimeState::Waiting(_) => TaskRuntimeState::Assigned(worker.id),
             TaskRuntimeState::Assigned(old_w) => {
@@ -306,9 +305,10 @@ impl SchedulerState {
     }
 
     pub fn assign(&mut self, core: &mut Core, task_id: TaskId, worker_id: WorkerId) {
-        let (tasks, workers) = core.split_tasks_workers_mut();
+        let (tasks, workers, requests) = core.split_tasks_workers_requests_mut();
         let task = tasks.get_task_mut(task_id);
         let assigned_worker = task.get_assigned_worker();
+        let rqv = requests.get(&task.resource_rq_id);
         if let Some(w_id) = assigned_worker {
             log::debug!(
                 "Changing assignment of task={} from worker={} to worker={}",
@@ -317,7 +317,7 @@ impl SchedulerState {
                 worker_id
             );
             assert_ne!(w_id, worker_id);
-            workers.get_worker_mut(w_id).remove_sn_task(task);
+            workers.get_worker_mut(w_id).remove_sn_task(task, rqv);
         } else {
             log::debug!(
                 "Fresh assignment of task={} to worker={}",
@@ -325,7 +325,7 @@ impl SchedulerState {
                 worker_id
             );
         }
-        self.assign_into(task, workers.get_worker_mut(worker_id));
+        self.assign_into(task, rqv, workers.get_worker_mut(worker_id));
     }
 
     // fn assign_multi_node_task(
@@ -357,9 +357,16 @@ impl SchedulerState {
     fn try_start_multinode_tasks(&mut self, core: &mut Core) {
         loop {
             // "while let" not used because of lifetime problems
-            let (mn_queue, task_map, worker_map, worker_groups) = core.multi_node_queue_split_mut();
-            let allocator =
-                MultiNodeAllocator::new(mn_queue, task_map, worker_map, worker_groups, self.now);
+            let (mn_queue, task_map, worker_map, worker_groups, resource_map) =
+                core.multi_node_queue_split_mut();
+            let allocator = MultiNodeAllocator::new(
+                mn_queue,
+                task_map,
+                worker_map,
+                worker_groups,
+                resource_map,
+                self.now,
+            );
             if let Some((task_id, workers)) = allocator.try_allocate_task() {
                 let task = task_map.get_task_mut(task_id);
                 self.assign_multinode(worker_map, task, workers);
@@ -387,13 +394,14 @@ impl SchedulerState {
                     let Some(task) = core.find_task(*task_id) else {
                         continue;
                     };
-                    if core.check_parked_resources(&task.configuration.resources) {
+                    let rq = core.get_resource_rq(task.resource_rq_id);
+                    if core.check_parked_resources(rq) {
                         core.wakeup_parked_resources();
                         break;
                     }
                 }
             }
-            let (tasks, workers, dataobjs) = core.split_tasks_workers_dataobjs_mut();
+            let (tasks, workers, dataobjs, resource_map) = core.split_tasks_workers_dataobjs_mut();
             let mut workers = workers
                 .values_mut()
                 .filter(|w| !w.is_parked())
@@ -404,13 +412,15 @@ impl SchedulerState {
                 let Some(task) = tasks.find_task_mut(task_id) else {
                     continue;
                 };
+                let rq = resource_map.get(&task.resource_rq_id);
                 if let Some(worker) = self.choose_worker_for_task(
                     task,
+                    rq,
                     &workers,
                     dataobjs,
                     idx < MAX_TASKS_FOR_IMMEDIATE_RUN_CHECK,
                 ) {
-                    self.assign_into(task, workers[worker]);
+                    self.assign_into(task, rq, workers[worker]);
                 } else {
                     sleeping_tasks.push(task_id);
                 }
@@ -437,7 +447,7 @@ impl SchedulerState {
         let now = Instant::now();
 
         {
-            let (tasks, workers) = core.split_tasks_workers_mut();
+            let (tasks, workers, request_map) = core.split_tasks_workers_requests_mut();
             for worker in workers.values() {
                 let mut offered = 0;
                 if !worker.is_overloaded() {
@@ -448,8 +458,9 @@ impl SchedulerState {
                     if task.is_sn_running() {
                         continue;
                     }
+                    let rq = request_map.get(&task.resource_rq_id);
                     task.set_take_flag(false);
-                    min_resource.include_rqv(&task.configuration.resources);
+                    min_resource.include_rqv(rq);
                     balanced_tasks.push(task_id);
                     offered += 1;
                 }
@@ -472,9 +483,8 @@ impl SchedulerState {
         log::debug!("Min resources {min_resource:?}");
 
         let mut underload_workers = Vec::new();
-        let task_map = core.task_map();
-        let dataobj_map = core.dataobj_map();
-        for worker in core.get_workers() {
+        let (task_map, workers, dataobj_map, requests) = core.split_tasks_workers_dataobjs_mut();
+        for (_, worker) in workers.iter_mut() {
             // We could here also test park flag, but it is already solved in the next condition
             if worker.have_immediate_resources_for_lb(&min_resource) {
                 log::debug!(
@@ -492,6 +502,14 @@ impl SchedulerState {
                     if !task.is_fresh() && task.get_assigned_worker() != Some(worker.id) {
                         cost += 10_000_000;
                     }
+                    let difficulty =
+                        *worker
+                            .difficulty
+                            .entry(task.resource_rq_id)
+                            .or_insert_with(|| {
+                                let rqv = requests.get(&task.resource_rq_id);
+                                worker.resources.compute_difficulty_score_of_rqv(&rqv)
+                            });
                     log::debug!(
                         "Transfer cost task={} -> worker={} is {}",
                         task.id,
@@ -502,9 +520,7 @@ impl SchedulerState {
                         u64::MAX - cost,
                         task.configuration.user_priority,
                         task.scheduler_priority,
-                        worker
-                            .resources
-                            .difficulty_score_of_rqv(&task.configuration.resources),
+                        difficulty,
                     )
                 });
                 let len = ts.len();
@@ -549,10 +565,11 @@ impl SchedulerState {
                         if task.is_taken() {
                             continue;
                         }
-                        if !worker.has_time_to_run_for_rqv(&task.configuration.resources, now) {
+                        let rq = core.get_resource_rq(task.resource_rq_id);
+                        if !worker.has_time_to_run_for_rqv(rq, now) {
                             continue;
                         }
-                        if !worker.have_immediate_resources_for_rqv(&task.configuration.resources) {
+                        if !worker.have_immediate_resources_for_rqv(rq) {
                             continue;
                         }
                         let worker2_id = task.get_assigned_worker().unwrap();
@@ -589,15 +606,15 @@ impl SchedulerState {
                         if task.is_taken() {
                             continue;
                         }
-                        let request = &task.configuration.resources;
-                        if !worker.is_capable_to_run_rqv(request, now) {
+                        let rq = core.get_resource_rq(task.resource_rq_id);
+                        if !worker.is_capable_to_run_rqv(rq, now) {
                             continue;
                         }
                         let worker2_id = task.get_assigned_worker().unwrap();
                         let worker2 = core.get_worker_by_id_or_panic(worker2_id);
 
                         if !worker2.is_overloaded()
-                            || worker.load_wrt_rqv(request) > worker2.load_wrt_rqv(request)
+                            || worker.load_wrt_rqv(rq) > worker2.load_wrt_rqv(rq)
                         {
                             continue;
                         }

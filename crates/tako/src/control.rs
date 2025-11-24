@@ -8,6 +8,7 @@ use tokio::net::TcpListener;
 use tokio::sync::Notify;
 
 use crate::events::EventProcessor;
+use crate::gateway::ResourceRequestVariants;
 use crate::gateway::{
     LostWorkerReason, MultiNodeAllocationResponse, TaskSubmit, WorkerRuntimeInfo,
 };
@@ -24,7 +25,7 @@ use crate::internal::server::explain::{
 };
 use crate::internal::server::reactor::{get_or_create_resource_rq_id, on_cancel_tasks};
 use crate::internal::server::worker::DEFAULT_WORKER_OVERVIEW_INTERVAL;
-use crate::resources::{ResourceDescriptor, ResourceRequest, ResourceRequestVariants};
+use crate::resources::{ResourceDescriptor, ResourceRequest};
 use crate::{TaskId, WorkerId};
 
 #[derive(Debug)]
@@ -207,7 +208,8 @@ impl ServerRef {
     pub fn get_or_create_resource_rq_id(&self, rqv: &ResourceRequestVariants) -> ResourceRqId {
         let mut core = self.core_ref.get_mut();
         let mut comm = self.comm_ref.get_mut();
-        get_or_create_resource_rq_id(&mut core, &mut *comm, rqv)
+        let rqv = core.convert_client_resource_rq(rqv);
+        get_or_create_resource_rq_id(&mut core, &mut *comm, &rqv)
     }
 }
 

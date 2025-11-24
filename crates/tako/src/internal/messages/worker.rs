@@ -30,6 +30,7 @@ pub struct ComputeTaskSeparateData {
     /// Index into shared data stored in [ComputeTasksMsg].
     pub shared_index: usize,
     pub id: TaskId,
+    pub resource_rq_id: ResourceRqId,
     pub instance_id: InstanceId,
     pub scheduler_priority: Priority,
     pub node_list: Vec<WorkerId>,
@@ -40,7 +41,6 @@ pub struct ComputeTaskSeparateData {
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct ComputeTaskSharedData {
     pub user_priority: Priority,
-    pub resources: ResourceRequestVariants,
     pub time_limit: Option<Duration>,
     pub data_flags: TaskDataFlags,
     pub body: Rc<[u8]>,
