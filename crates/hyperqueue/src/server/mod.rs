@@ -3,7 +3,6 @@ use crate::server::event::streamer::EventStreamer;
 use tako::control::ServerRef;
 
 pub mod autoalloc;
-pub mod backend;
 pub mod bootstrap;
 pub mod client;
 pub mod event;
