@@ -40,7 +40,7 @@ pub mod resources {
         ResourceAllocation, ResourceAmount, ResourceDescriptor, ResourceDescriptorCoupling,
         ResourceDescriptorCouplingItem, ResourceDescriptorItem, ResourceDescriptorKind,
         ResourceFractions, ResourceGroupIdx, ResourceIndex, ResourceLabel, ResourceRequest,
-        ResourceRequestEntries, ResourceRequestVariants, ResourceUnits, TimeRequest,
+        ResourceRequestEntries, ResourceRequestVariants, ResourceRqId, ResourceUnits, TimeRequest,
     };
 
     pub use crate::internal::common::resources::map::ResourceIdMap;

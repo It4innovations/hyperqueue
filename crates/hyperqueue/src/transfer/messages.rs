@@ -18,7 +18,7 @@ use tako::gateway::{
     WorkerRuntimeInfo,
 };
 use tako::program::ProgramDefinition;
-use tako::resources::ResourceDescriptor;
+use tako::resources::{ResourceDescriptor, ResourceRqId};
 use tako::server::TaskExplanation;
 use tako::worker::WorkerConfiguration;
 use tako::{JobId, JobTaskCount, JobTaskId, Map, TaskId, WorkerId};
@@ -142,7 +142,7 @@ pub enum TaskKind {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TaskDescription {
     pub kind: TaskKind,
-    pub resources: ResourceRequestVariants,
+    pub resource_rq_id: ResourceRqId,
     pub time_limit: Option<Duration>,
     pub priority: tako::Priority,
     pub crash_limit: CrashLimit,
