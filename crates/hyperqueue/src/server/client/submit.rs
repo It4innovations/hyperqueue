@@ -4,7 +4,8 @@ use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
 use std::rc::Rc;
 use tako::gateway::{
-    EntryType, SharedTaskConfiguration, TaskConfiguration, TaskDataFlags, TaskSubmit,
+    EntryType, ResourceRequestVariants, SharedTaskConfiguration, TaskConfiguration, TaskDataFlags,
+    TaskSubmit,
 };
 use tako::{Map, Set, TaskId};
 use thin_vec::ThinVec;
@@ -14,9 +15,9 @@ use crate::common::format::human_duration;
 use crate::common::placeholders::{
     fill_placeholders_after_submit, fill_placeholders_log, normalize_path,
 };
-use crate::server::Senders;
 use crate::server::job::{Job, JobTaskState, SubmittedJobDescription};
 use crate::server::state::{State, StateRef};
+use crate::server::Senders;
 use crate::transfer::messages::{
     JobDescription, JobSubmitDescription, JobTaskDescription, OpenJobResponse, SingleIdSelector,
     SubmitRequest, SubmitResponse, TaskBuildDescription, TaskDescription, TaskExplainRequest,
@@ -24,39 +25,61 @@ use crate::transfer::messages::{
     TaskStatusSelector, TaskWithDependencies, ToClientMessage,
 };
 use tako::program::ProgramDefinition;
+use tako::resources::{GlobalResourceMapping, ResourceRqAllocator, ResourceRqId};
 use tako::{JobId, JobTaskCount, JobTaskId};
 
-fn create_task_submit(job_id: JobId, submit_desc: &mut JobSubmitDescription) -> TaskSubmit {
+fn create_task_submit(
+    ra: &dyn ResourceRqAllocator,
+    job_id: JobId,
+    submit_desc: &mut JobSubmitDescription,
+) -> TaskSubmit {
     match &mut submit_desc.task_desc {
         JobTaskDescription::Array {
             ids,
             entries,
             task_desc,
-        } => build_tasks_array(
-            job_id,
-            ids,
-            std::mem::take(entries),
-            task_desc,
-            &submit_desc.submit_dir,
-            submit_desc.stream_path.as_ref(),
-        ),
-        JobTaskDescription::Graph { tasks } => build_tasks_graph(
-            job_id,
+            resource_rq,
+        } => {
+            //let rqv = grm.convert_client_resource_rq(resource_rq);
+            let resource_rq_id = ra.get_or_create_resource_rq_id(resource_rq);
+            build_tasks_array(
+                job_id,
+                ids,
+                resource_rq_id,
+                std::mem::take(entries),
+                task_desc,
+                &submit_desc.submit_dir,
+                submit_desc.stream_path.as_ref(),
+            )
+        }
+        JobTaskDescription::Graph {
             tasks,
-            &submit_desc.submit_dir,
-            submit_desc.stream_path.as_ref(),
-        ),
+            resource_rqs,
+        } => {
+            let resources: Vec<ResourceRqId> = resource_rqs
+                .iter()
+                .map(|rqv| ra.get_or_create_resource_rq_id(rqv))
+                .collect();
+            build_tasks_graph(
+                &resources,
+                job_id,
+                tasks,
+                &submit_desc.submit_dir,
+                submit_desc.stream_path.as_ref(),
+            )
+        }
     }
 }
 
 pub(crate) fn submit_job_desc(
     state: &mut State,
+    ra: &dyn ResourceRqAllocator,
     job_id: JobId,
     mut submit_desc: JobSubmitDescription,
     submitted_at: DateTime<Utc>,
 ) -> TaskSubmit {
     prepare_job(job_id, &mut submit_desc, state);
-    let task_submit = create_task_submit(job_id, &mut submit_desc);
+    let task_submit = create_task_submit(ra, job_id, &mut submit_desc);
     submit_desc.strip_large_data();
     state
         .get_job_mut(job_id)
@@ -80,13 +103,17 @@ pub(crate) fn validate_submit(
                 }
             }
         }
-        JobTaskDescription::Graph { tasks } => {
+        JobTaskDescription::Graph {
+            tasks,
+            resource_rqs,
+        } => {
             if let Some(job) = job {
                 for task in tasks {
                     if job.tasks.contains_key(&task.id) {
                         let id = task.id;
                         return Some(SubmitResponse::TaskIdAlreadyExists(id));
                     }
+                    assert!(task.resource_rq_id.as_usize() < resource_rqs.len())
                 }
             }
             let mut task_ids = Set::new();
@@ -179,7 +206,13 @@ pub(crate) fn handle_submit(
         state.add_job(job);
     }
 
-    let new_tasks = submit_job_desc(&mut state, job_id, submit_desc, Utc::now());
+    let new_tasks = submit_job_desc(
+        &mut state,
+        &senders.server_control,
+        job_id,
+        submit_desc,
+        Utc::now(),
+    );
     senders.autoalloc.on_job_submit(job_id);
 
     let job_detail = state
@@ -207,6 +240,7 @@ fn log_submit_request(request: &SubmitRequest) {
                 JobTaskDescription::Array {
                     ids,
                     entries,
+                    resource_rq,
                     task_desc:
                         TaskDescription {
                             kind:
@@ -223,7 +257,6 @@ fn log_submit_request(request: &SubmitRequest) {
                                     pin_mode,
                                     task_dir,
                                 }),
-                            resources,
                             time_limit,
                             priority,
                             crash_limit,
@@ -232,7 +265,7 @@ fn log_submit_request(request: &SubmitRequest) {
                     .debug_struct("Array")
                     .field("ids", ids)
                     .field("entries", &entries.as_ref().map(|e| e.len()))
-                    .field("resources", resources)
+                    .field("resources", resource_rq)
                     .field(
                         "args",
                         &args
@@ -260,7 +293,7 @@ fn log_submit_request(request: &SubmitRequest) {
                     .field("priority", priority)
                     .field("crash_limit", crash_limit)
                     .finish(),
-                JobTaskDescription::Graph { tasks } => {
+                JobTaskDescription::Graph { tasks, .. } => {
                     f.write_fmt(format_args!("Graph ({}) task(s)", tasks.len()))
                 }
             }
@@ -346,6 +379,7 @@ fn serialize_task_body(
 fn build_tasks_array(
     job_id: JobId,
     ids: &IntArray,
+    resource_rq_id: ResourceRqId,
     entries: Option<Vec<EntryType>>,
     task_desc: &TaskDescription,
     submit_dir: &PathBuf,
@@ -353,6 +387,7 @@ fn build_tasks_array(
 ) -> TaskSubmit {
     let build_task_conf = |tako_id: TaskId, entry: Option<EntryType>| TaskConfiguration {
         id: tako_id,
+        resource_rq_id,
         shared_data_index: 0,
         task_deps: ThinVec::new(),
         dataobj_deps: ThinVec::new(),
@@ -380,7 +415,6 @@ fn build_tasks_array(
     TaskSubmit {
         tasks,
         shared_data: vec![SharedTaskConfiguration {
-            resources: task_desc.resources.clone(),
             time_limit: task_desc.time_limit,
             priority: task_desc.priority,
             crash_limit: task_desc.crash_limit,
@@ -392,6 +426,7 @@ fn build_tasks_array(
 }
 
 fn build_tasks_graph(
+    resources: &[ResourceRqId],
     job_id: JobId,
     tasks: &[TaskWithDependencies],
     submit_dir: &PathBuf,
@@ -401,7 +436,6 @@ fn build_tasks_graph(
     let mut allocate_shared_data = |task: &TaskDescription, data_flags: TaskDataFlags| -> u32 {
         let index = shared_data.len();
         shared_data.push(SharedTaskConfiguration {
-            resources: task.resources.clone(),
             time_limit: task.time_limit,
             priority: task.priority,
             crash_limit: task.crash_limit,
@@ -434,6 +468,7 @@ fn build_tasks_graph(
 
         task_configs.push(TaskConfiguration {
             id: TaskId::new(job_id, task.id),
+            resource_rq_id: resources[task.resource_rq_id.as_usize()],
             shared_data_index,
             task_deps,
             dataobj_deps,
@@ -514,7 +549,7 @@ mod tests {
     };
     use tako::internal::tests::utils::sorted_vec;
     use tako::program::ProgramDefinition;
-    use tako::resources::{AllocationRequest, CPU_RESOURCE_NAME, ResourceAmount};
+    use tako::resources::{AllocationRequest, ResourceAmount, CPU_RESOURCE_NAME};
     use tako::{Priority, TaskId};
 
     #[test]

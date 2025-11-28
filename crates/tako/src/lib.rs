@@ -12,10 +12,10 @@ pub mod hwstats;
 pub mod launcher;
 pub mod program;
 
-pub use crate::internal::common::WrappedRcRefCell;
 pub use crate::internal::common::index::{AsIdVec, ItemId};
 pub use crate::internal::common::taskgroup::TaskGroup;
 pub use crate::internal::common::utils::format_comma_delimited;
+pub use crate::internal::common::WrappedRcRefCell;
 pub use crate::internal::common::{Map, Set};
 
 pub use crate::internal::common::ids::{
@@ -35,12 +35,13 @@ pub const MAX_FRAME_SIZE: usize = 128 * 1024 * 1024;
 
 pub mod resources {
     pub use crate::internal::common::resources::{
-        AMD_GPU_RESOURCE_NAME, Allocation, AllocationRequest, CPU_RESOURCE_ID, CPU_RESOURCE_NAME,
-        MEM_RESOURCE_NAME, NVIDIA_GPU_RESOURCE_NAME, NumOfNodes, ResourceAllocRequest,
+        Allocation, AllocationRequest, GlobalResourceMapping, NumOfNodes, ResourceAllocRequest,
         ResourceAllocation, ResourceAmount, ResourceDescriptor, ResourceDescriptorCoupling,
         ResourceDescriptorCouplingItem, ResourceDescriptorItem, ResourceDescriptorKind,
         ResourceFractions, ResourceGroupIdx, ResourceIndex, ResourceLabel, ResourceRequest,
-        ResourceRequestEntries, ResourceRequestVariants, ResourceUnits, TimeRequest,
+        ResourceRequestEntries, ResourceRequestVariants, ResourceRqAllocator, ResourceRqId,
+        ResourceUnits, TimeRequest, AMD_GPU_RESOURCE_NAME, CPU_RESOURCE_ID, CPU_RESOURCE_NAME,
+        MEM_RESOURCE_NAME, NVIDIA_GPU_RESOURCE_NAME,
     };
 
     pub use crate::internal::common::resources::map::ResourceIdMap;

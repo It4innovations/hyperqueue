@@ -66,6 +66,7 @@ impl RestorerJob {
             }
             let mut new_tasks = submit_job_desc(
                 state,
+                todo!(),
                 job_id,
                 submit.description().clone(),
                 submit.submitted_at(),
@@ -122,10 +123,10 @@ impl RestorerJob {
         for task in self.tasks.values_mut() {
             match &task.state {
                 JobTaskState::Running { started_data }
-                    if started_data.worker_ids.contains(&worker_id) =>
-                {
-                    task.crash_counter += 1;
-                }
+                if started_data.worker_ids.contains(&worker_id) =>
+                    {
+                        task.crash_counter += 1;
+                    }
                 _ => {}
             }
         }

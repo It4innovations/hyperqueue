@@ -3,14 +3,14 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::borrow::Cow;
 
-use crate::JobDataObjectId;
 use crate::client::status::Status;
 use crate::common::arraydef::IntArray;
 use crate::common::manager::info::ManagerType;
 use crate::server::autoalloc::{Allocation, AllocationId, QueueId, QueueParameters};
-use crate::server::event::Event;
 use crate::server::event::streamer::EventFilter;
+use crate::server::event::Event;
 use crate::server::job::{JobTaskCounters, JobTaskInfo, SubmittedJobDescription};
+use crate::JobDataObjectId;
 use std::path::PathBuf;
 use std::time::Duration;
 use tako::gateway::{
@@ -18,10 +18,10 @@ use tako::gateway::{
     WorkerRuntimeInfo,
 };
 use tako::program::ProgramDefinition;
-use tako::resources::ResourceDescriptor;
+use tako::resources::{ResourceDescriptor, ResourceRqId};
 use tako::server::TaskExplanation;
 use tako::worker::WorkerConfiguration;
-use tako::{JobId, JobTaskCount, JobTaskId, Map, TaskId, WorkerId};
+use tako::{define_id_type, JobId, JobTaskCount, JobTaskId, Map, TaskId, WorkerId};
 
 // Messages client -> server
 #[allow(clippy::large_enum_variant)]
@@ -32,6 +32,7 @@ pub enum FromClientMessage {
     /// It is basically as sending Submit and StreamEvents, but it is done atomically,
     /// so no message is lost.
     Submit(SubmitRequest, Option<StreamEvents>),
+    //GetResourceRqId(Vec<ResourceRequestVariants>),
     Cancel(CancelRequest),
     ForgetJob(ForgetJobRequest),
     JobDetail(JobDetailRequest),
@@ -40,7 +41,9 @@ pub enum FromClientMessage {
     /// It is basically as sending JobInfo and StreamEvents, but it is done atomically,
     /// so no message is lost.
     JobInfo(JobInfoRequest, Option<StreamEvents>),
-    WorkerList,
+    GetList {
+        workers: bool,
+    },
     WorkerInfo(WorkerInfoRequest),
     StopWorker(StopWorkerMessage),
     Stop,
@@ -139,10 +142,11 @@ pub enum TaskKind {
     ExternalProgram(TaskKindProgram),
 }
 
+define_id_type!(LocalResourceRqId, u32);
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TaskDescription {
     pub kind: TaskKind,
-    pub resources: ResourceRequestVariants,
     pub time_limit: Option<Duration>,
     pub priority: tako::Priority,
     pub crash_limit: CrashLimit,
@@ -161,6 +165,7 @@ impl TaskDescription {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TaskWithDependencies {
     pub id: JobTaskId,
+    pub resource_rq_id: LocalResourceRqId,
     pub task_desc: TaskDescription,
     pub task_deps: Vec<JobTaskId>,
     pub data_deps: Vec<JobDataObjectId>,
@@ -180,17 +185,21 @@ pub enum JobTaskDescription {
     Array {
         ids: IntArray,
         entries: Option<Vec<EntryType>>,
+        resource_rq: ResourceRequestVariants,
         task_desc: TaskDescription,
     },
-    /// Generic DAG of tasks usually submitted through the Python binding.
-    Graph { tasks: Vec<TaskWithDependencies> },
+    /// Generic DAG of tasks usually submitted through the Python binding or job file.
+    Graph {
+        resource_rqs: Vec<ResourceRequestVariants>,
+        tasks: Vec<TaskWithDependencies>,
+    },
 }
 
 impl JobTaskDescription {
     pub fn task_count(&self) -> JobTaskCount {
         match self {
             JobTaskDescription::Array { ids, .. } => ids.id_count() as JobTaskCount,
-            JobTaskDescription::Graph { tasks } => tasks.len() as JobTaskCount,
+            JobTaskDescription::Graph { tasks, .. } => tasks.len() as JobTaskCount,
         }
     }
 
@@ -200,11 +209,15 @@ impl JobTaskDescription {
                 ids: _,
                 entries,
                 task_desc,
+                resource_rq: _,
             } => {
                 *entries = None;
                 task_desc.strip_large_data();
             }
-            JobTaskDescription::Graph { tasks } => {
+            JobTaskDescription::Graph {
+                resource_rqs: _,
+                tasks,
+            } => {
                 for task in tasks {
                     task.strip_large_data()
                 }
@@ -381,7 +394,8 @@ pub enum ToClientMessage {
     JobInfoResponse(JobInfoResponse),
     JobDetailResponse(JobDetailResponse),
     SubmitResponse(SubmitResponse),
-    WorkerListResponse(WorkerListResponse),
+    ResourceRqIdResponse(Vec<ResourceRqId>),
+    GetListResponse(GetListResponse),
     WorkerInfoResponse(Option<WorkerInfo>),
     StopWorkerResponse(Vec<(WorkerId, StopWorkerResponse)>),
     CancelJobResponse(Vec<(JobId, CancelJobResponse)>),
@@ -506,7 +520,7 @@ pub struct JobDetail {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct WorkerListResponse {
+pub struct GetListResponse {
     pub workers: Vec<WorkerInfo>,
 }
 

@@ -7,18 +7,18 @@ use anyhow::Error;
 use chrono::{DateTime, Utc};
 use serde::{Serialize, Serializer};
 use serde_json;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
-use tako::gateway::{CrashLimit, ResourceRequest};
+use tako::gateway::{CrashLimit, ResourceRequest, ResourceRequestVariants};
 use tako::program::{ProgramDefinition, StdioDef};
 use tako::resources::{ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind};
 use tako::worker::WorkerConfiguration;
 use tako::{Map, TaskId};
 
 use crate::client::job::WorkerMap;
-use crate::client::output::Verbosity;
-use crate::client::output::common::{TaskToPathsMap, group_jobs_by_status, resolve_task_paths};
+use crate::client::output::common::{group_jobs_by_status, resolve_task_paths, TaskToPathsMap};
 use crate::client::output::outputs::{Output, OutputStream};
+use crate::client::output::Verbosity;
 use crate::common::arraydef::IntArray;
 use crate::common::manager::info::{GetManagerInfo, ManagerType};
 use crate::server::autoalloc::{Allocation, AllocationState, QueueId};
@@ -107,7 +107,7 @@ impl Output for JsonOutput {
         let statuses = group_jobs_by_status(&jobs);
         self.print(json!(statuses))
     }
-    fn print_job_detail(&self, jobs: Vec<JobDetail>, _worker_map: WorkerMap, server_uid: &str) {
+    fn print_job_detail(&self, jobs: Vec<JobDetail>, _worker_map: &WorkerMap, server_uid: &str) {
         let job_details: Vec<_> = jobs
             .into_iter()
             .map(|job| {
@@ -136,15 +136,15 @@ impl Output for JsonOutput {
                                     "finished_at": finished_at.map(format_datetime),
                                     "submits": submit_descs.iter().map(|submit_desc|
                 match &submit_desc.description().task_desc {
-                                    JobTaskDescription::Array { task_desc, .. } => {
+                                    JobTaskDescription::Array { task_desc, resource_rq, .. } => {
                                         json!({
-                                            "array": format_task_description(task_desc)
+                                            "array": format_task_description(task_desc, resource_rq)
                                         })
                                     }
-                                    JobTaskDescription::Graph { tasks } => {
+                                    JobTaskDescription::Graph { tasks, resource_rqs } => {
                                         let tasks: Vec<Value> = tasks
                                             .iter()
-                                            .map(|task| format_task_description(&task.task_desc))
+                                            .map(|task| format_task_description(&task.task_desc, &resource_rqs[task.resource_rq_id.as_usize()]))
                                             .collect();
                                         json!({
                                             "graph": tasks
@@ -164,7 +164,7 @@ impl Output for JsonOutput {
         duration: Duration,
         response: &WaitForJobsResponse,
         _details: &[(JobId, Option<JobDetail>)],
-        _worker_map: WorkerMap,
+        _worker_map: &WorkerMap,
     ) {
         let WaitForJobsResponse {
             finished,
@@ -194,7 +194,7 @@ impl Output for JsonOutput {
     fn print_task_list(
         &self,
         jobs: Vec<(JobId, JobDetail)>,
-        _worker_map: WorkerMap,
+        _worker_map: &WorkerMap,
         server_uid: &str,
         _verbosity: Verbosity,
     ) {
@@ -210,7 +210,7 @@ impl Output for JsonOutput {
         &self,
         job: (JobId, JobDetail),
         tasks: &[(JobTaskId, JobTaskInfo)],
-        _worker_map: WorkerMap,
+        _worker_map: &WorkerMap,
         server_uid: &str,
         _verbosity: Verbosity,
     ) {
@@ -289,10 +289,9 @@ fn format_crash_limit(limit: CrashLimit) -> Value {
     }
 }
 
-fn format_task_description(task_desc: &TaskDescription) -> Value {
+fn format_task_description(task_desc: &TaskDescription, rqv: &ResourceRequestVariants) -> Value {
     let TaskDescription {
         kind,
-        resources,
         time_limit,
         priority,
         crash_limit,
@@ -320,7 +319,7 @@ fn format_task_description(task_desc: &TaskDescription) -> Value {
                     "stderr": format_stdio_def(stderr),
                     "stdout": format_stdio_def(stdout),
                 },
-                "resources": resources
+                "resources": rqv
                     .variants
                     .iter()
                     .map(|v| {

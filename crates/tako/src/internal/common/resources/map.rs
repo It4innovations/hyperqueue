@@ -1,6 +1,6 @@
 use crate::gateway::ResourceRequestVariants as ClientResourceRequestVariants;
-use crate::internal::common::Map;
 use crate::internal::common::resources::{ResourceId, ResourceRqId};
+use crate::internal::common::Map;
 use crate::internal::server::core::Core;
 use crate::resources::{ResourceAllocRequest, ResourceRequest, ResourceRequestVariants};
 use serde::{Deserialize, Serialize};
@@ -13,7 +13,7 @@ pub const AMD_GPU_RESOURCE_NAME: &str = "gpus/amd";
 pub const MEM_RESOURCE_NAME: &str = "mem";
 
 #[derive(Debug)]
-pub(crate) struct GlobalResourceMapping {
+pub struct GlobalResourceMapping {
     resource_rq_from_id: ResourceRqMap,
     resource_rq_to_id: Map<ResourceRequestVariants, ResourceRqId>,
     resource_names: Map<String, ResourceId>,
@@ -33,7 +33,7 @@ impl Default for GlobalResourceMapping {
 }
 
 impl GlobalResourceMapping {
-    pub(crate) fn convert_client_resource_rq(
+    pub fn convert_client_resource_rq(
         &mut self,
         resources: &ClientResourceRequestVariants,
     ) -> ResourceRequestVariants {
@@ -94,6 +94,23 @@ impl GlobalResourceMapping {
 
     pub fn get_or_create_resource_rq_id(
         &mut self,
+        rq: &ClientResourceRequestVariants,
+    ) -> (ResourceRqId, bool) {
+        let rqv = self.convert_client_resource_rq(rq);
+        match self.resource_rq_to_id.get(&rqv) {
+            Some(&id) => (id, false),
+            None => {
+                let mut id = ResourceRqId::new(self.resource_rq_to_id.len() as u32);
+                log::debug!("New resource request registered {rqv:?} as {id}");
+                self.resource_rq_to_id.insert(rqv.clone(), id);
+                self.resource_rq_from_id.insert(id, rqv);
+                (id, true)
+            }
+        }
+    }
+
+    /*    pub fn get_or_create_resource_rq_id(
+        &mut self,
         rqv: &ResourceRequestVariants,
     ) -> (ResourceRqId, bool) {
         match self.resource_rq_to_id.get(rqv) {
@@ -109,7 +126,7 @@ impl GlobalResourceMapping {
                 (id, true)
             }
         }
-    }
+    }*/
 }
 
 #[derive(Default, Debug)]
@@ -158,16 +175,17 @@ impl ResourceIdMap {
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct ResourceRqMap(Map<ResourceRqId, ResourceRequestVariants>);
+pub struct ResourceRqMap(Vec<ResourceRequestVariants>);
 
 impl ResourceRqMap {
     pub fn insert(&mut self, rq_id: ResourceRqId, rqv: ResourceRequestVariants) {
-        assert!(self.0.insert(rq_id, rqv).is_none());
+        assert_eq!(rq_id.as_usize(), self.0.len());
+        self.0.push(rqv);
     }
 
     #[inline]
-    pub fn get(&self, rq_id: &ResourceRqId) -> &ResourceRequestVariants {
-        self.0.get(rq_id).unwrap()
+    pub fn get(&self, rq_id: ResourceRqId) -> &ResourceRequestVariants {
+        self.0.get(rq_id.as_usize()).unwrap()
     }
 
     #[cfg(test)]
@@ -186,4 +204,11 @@ impl ResourceRqMap {
             new_id
         }
     }
+}
+
+pub trait ResourceRqAllocator {
+    fn get_or_create_resource_rq_id(
+        &self,
+        rqv: &crate::gateway::ResourceRequestVariants,
+    ) -> ResourceRqId;
 }

@@ -1,5 +1,5 @@
 use std::cmp::min;
-
+use std::collections::HashMap;
 use chrono::Utc;
 use smallvec::SmallVec;
 use tako::{InstanceId, ResourceVariantId, define_wrapped_type};
@@ -11,9 +11,10 @@ use crate::server::autoalloc::LostWorkerDetails;
 use crate::server::job::Job;
 use crate::server::restore::StateRestorer;
 use crate::server::worker::Worker;
-use crate::transfer::messages::ServerInfo;
-use tako::gateway::LostWorkerReason;
+use crate::transfer::messages::{ServerInfo};
+use tako::gateway::{LostWorkerReason, ResourceRequestVariants};
 use tako::internal::messages::common::TaskFailInfo;
+use tako::resources::{GlobalResourceMapping, ResourceRqId};
 use tako::task::SerializedTaskContext;
 use tako::worker::WorkerConfiguration;
 use tako::{JobId, Map, WorkerId};
@@ -36,7 +37,7 @@ impl State {
         self.jobs.get_mut(&job_id)
     }
 
-    pub fn jobs(&self) -> impl Iterator<Item = &Job> {
+    pub fn jobs(&self) -> impl Iterator<Item=&Job> {
         self.jobs.values()
     }
 
@@ -90,7 +91,7 @@ impl State {
         self.job_id_counter = id.as_num();
     }
 
-    pub fn last_n_ids(&self, n: u32) -> impl Iterator<Item = JobId> + use<> {
+    pub fn last_n_ids(&self, n: u32) -> impl Iterator<Item=JobId> + use < > {
         let n = min(n, self.job_id_counter - 1);
         ((self.job_id_counter - n)..self.job_id_counter).map(|id| id.into())
     }
@@ -178,42 +179,6 @@ impl State {
         let job = self.get_job_mut(id.job_id()).unwrap();
         job.set_finished_state(id.job_task_id(), now, senders);
     }
-
-    /*
-    pub fn process_task_update(&mut self, id: TaskId, state: TaskState, senders: &Senders) {
-        log::debug!("Task id={} updated {:?}", id, state);
-        match state {
-            TaskState::Running {
-                instance_id,
-                worker_ids,
-                context,
-            } => {
-                let job = self.get_job_mut(id.job_id()).unwrap();
-                let now = Utc::now();
-                job.set_running_state(id.job_task_id(), worker_ids.clone(), context, now);
-                for worker_id in &worker_ids {
-                    if let Some(worker) = self.workers.get_mut(worker_id) {
-                        worker.update_task_started(id, now);
-                    }
-                }
-                senders
-                    .events
-                    .on_task_started(id, instance_id, worker_ids.clone(), now);
-            }
-            TaskState::Finished => {
-                let now = Utc::now();
-                let job = self.get_job_mut(id.job_id()).unwrap();
-                job.set_finished_state(id.job_task_id(), now, senders);
-            }
-            TaskState::Waiting => {
-                let job = self.get_job_mut(id.job_id()).unwrap();
-                job.set_waiting_state(id.job_task_id());
-            }
-            TaskState::Invalid => {
-                unreachable!()
-            }
-        };
-    }*/
 
     pub fn process_worker_new(
         &mut self,

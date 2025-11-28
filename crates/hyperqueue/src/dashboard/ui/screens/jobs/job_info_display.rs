@@ -85,7 +85,10 @@ fn create_rows(info: &DashboardJobInfo) -> Vec<JobInfoDataRow> {
         };
         rows.push(JobInfoDataRow {
             label: "Resources",
-            data: format_resources(&task_desc.resources).into(),
+            data: {
+                let resources = todo!();
+                format_resources(resources).into()
+            },
         });
         if let Some(time_limit) = task_desc.time_limit {
             rows.push(JobInfoDataRow {

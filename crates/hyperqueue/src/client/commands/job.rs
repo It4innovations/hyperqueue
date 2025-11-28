@@ -1,11 +1,11 @@
 use clap::Parser;
 
 use crate::client::globalsettings::GlobalSettings;
-use crate::client::job::get_worker_map;
+use crate::client::job::{get_remote_lists, get_worker_map};
 use crate::client::output::outputs::OutputStream;
 use crate::client::output::resolve_task_paths;
-use crate::client::status::{Status, job_status};
-use crate::common::cli::{TaskSelectorArg, parse_last_all_range, parse_last_range};
+use crate::client::status::{job_status, Status};
+use crate::common::cli::{parse_last_all_range, parse_last_range, TaskSelectorArg};
 use crate::common::utils::str::pluralize;
 use crate::rpc_call;
 use crate::transfer::connection::ClientSession;
@@ -196,7 +196,7 @@ pub async fn output_job_detail(
         .collect();
     gsettings
         .printer()
-        .print_job_detail(jobs, worker_map, &response.server_uid);
+        .print_job_detail(jobs, &worker_map, &response.server_uid);
     Ok(())
 }
 

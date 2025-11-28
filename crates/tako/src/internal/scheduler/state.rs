@@ -5,8 +5,8 @@ use std::time::{Duration, Instant};
 use tokio::sync::Notify;
 use tokio::time::sleep;
 
-use crate::internal::common::Map;
 use crate::internal::common::resources::map::ResourceRqMap;
+use crate::internal::common::Map;
 use crate::internal::messages::worker::{TaskIdsMsg, ToWorkerMessage};
 use crate::internal::scheduler::multinode::MultiNodeAllocator;
 use crate::internal::server::comm::{Comm, CommSender, CommSenderRef};
@@ -308,7 +308,7 @@ impl SchedulerState {
         let (tasks, workers, requests) = core.split_tasks_workers_requests_mut();
         let task = tasks.get_task_mut(task_id);
         let assigned_worker = task.get_assigned_worker();
-        let rqv = requests.get(&task.resource_rq_id);
+        let rqv = requests.get(task.resource_rq_id);
         if let Some(w_id) = assigned_worker {
             log::debug!(
                 "Changing assignment of task={} from worker={} to worker={}",
@@ -412,7 +412,7 @@ impl SchedulerState {
                 let Some(task) = tasks.find_task_mut(task_id) else {
                     continue;
                 };
-                let rq = resource_map.get(&task.resource_rq_id);
+                let rq = resource_map.get(task.resource_rq_id);
                 if let Some(worker) = self.choose_worker_for_task(
                     task,
                     rq,
@@ -458,7 +458,7 @@ impl SchedulerState {
                     if task.is_sn_running() {
                         continue;
                     }
-                    let rq = request_map.get(&task.resource_rq_id);
+                    let rq = request_map.get(task.resource_rq_id);
                     task.set_take_flag(false);
                     min_resource.include_rqv(rq);
                     balanced_tasks.push(task_id);
@@ -507,7 +507,7 @@ impl SchedulerState {
                             .difficulty
                             .entry(task.resource_rq_id)
                             .or_insert_with(|| {
-                                let rqv = requests.get(&task.resource_rq_id);
+                                let rqv = requests.get(task.resource_rq_id);
                                 worker.resources.compute_difficulty_score_of_rqv(&rqv)
                             });
                     log::debug!(
