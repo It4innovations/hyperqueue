@@ -1,4 +1,5 @@
 use crate::datasrv::{DataObjectId, OutputId};
+use crate::gateway::ResourceRequestVariants as ClientResourceRequestVariants;
 use crate::gateway::{CrashLimit, LostWorkerReason};
 use crate::internal::common::resources::ResourceRqId;
 use crate::internal::common::{Map, Set};
@@ -122,7 +123,7 @@ pub(crate) fn on_remove_worker(
         let (tasks, workers, requests) = core.split_tasks_workers_requests_mut();
         for (w_id, task_id) in removes {
             let task = tasks.get_task(task_id);
-            let rqv = requests.get(&task.resource_rq_id);
+            let rqv = requests.get(task.resource_rq_id);
             workers.get_worker_mut(w_id).remove_sn_task(task, rqv);
         }
     }
@@ -233,7 +234,7 @@ pub(crate) fn on_task_running(
             TaskRuntimeState::Stealing(w_id, Some(target_id)) => {
                 assert_eq!(*w_id, worker_id);
                 let worker = workers.get_worker_mut(*target_id);
-                let rqv = requests.get(&task.resource_rq_id);
+                let rqv = requests.get(task.resource_rq_id);
                 worker.remove_sn_task(task, rqv);
                 let worker = workers.get_worker_mut(*w_id);
                 worker.insert_sn_task(task, rqv);
@@ -292,7 +293,7 @@ pub(crate) fn on_task_finished(
                 &msg.outputs
             );
             assert!(task.is_assigned_or_stolen_from(worker_id));
-            let rqv = requests.get(&task.resource_rq_id);
+            let rqv = requests.get(task.resource_rq_id);
 
             match &task.state {
                 TaskRuntimeState::Assigned(w_id)
@@ -474,12 +475,12 @@ fn fail_task_helper(
         if let Some(task) = tasks.find_task(task_id) {
             log::debug!("Task task_id={task_id} failed");
             if let Some(worker_id) = worker_id {
-                if task.resource_rq_id.is_multi_node() {
+                if requests.get(task.resource_rq_id).is_multi_node() {
                     let ws = task.mn_placement().unwrap();
                     assert_eq!(ws[0], worker_id);
                     reset_mn_task_workers(workers, ws, task_id);
                 } else {
-                    let rqv = requests.get(&task.resource_rq_id);
+                    let rqv = requests.get(task.resource_rq_id);
                     assert!(task.is_assigned_or_stolen_from(worker_id));
                     workers.get_worker_mut(worker_id).remove_sn_task(task, rqv);
                 }
@@ -553,7 +554,7 @@ pub(crate) fn on_cancel_tasks(core: &mut Core, comm: &mut impl Comm, task_ids: &
                 | TaskRuntimeState::Running {
                     worker_id: w_id, ..
                 } => {
-                    let rqv = requests.get(&task.resource_rq_id);
+                    let rqv = requests.get(task.resource_rq_id);
                     workers.get_worker_mut(w_id).remove_sn_task(task, rqv);
                     running_ids.entry(w_id).or_default().push(task_id);
                 }
@@ -565,7 +566,7 @@ pub(crate) fn on_cancel_tasks(core: &mut Core, comm: &mut impl Comm, task_ids: &
                 }
                 TaskRuntimeState::Stealing(from_id, to_id) => {
                     if let Some(to_id) = to_id {
-                        let rqv = requests.get(&task.resource_rq_id);
+                        let rqv = requests.get(task.resource_rq_id);
                         workers.get_worker_mut(to_id).remove_sn_task(task, rqv);
                     }
                     running_ids.entry(from_id).or_default().push(task_id);
@@ -606,12 +607,16 @@ pub(crate) fn on_resolve_placement(
 pub(crate) fn get_or_create_resource_rq_id(
     core: &mut Core,
     comm: &mut impl Comm,
-    rqv: &ResourceRequestVariants,
-) -> ResourceRqId {
-    let (rq_id, is_new) = core.get_or_create_resource_rq_id(rqv);
+    rqv: &ClientResourceRequestVariants,
+) -> (ResourceRqId, bool) {
+    let map = core.resource_map_mut();
+    let (rq_id, is_new) = map.get_or_create_resource_rq_id(rqv);
     if is_new {
-        let msg = ToWorkerMessage::NewResourceRequest(rq_id, rqv.clone());
+        let msg = ToWorkerMessage::NewResourceRequest(
+            rq_id,
+            map.get_resource_rq_map().get(rq_id).clone(),
+        );
         comm.broadcast_worker_message(&msg);
     }
-    rq_id
+    (rq_id, is_new)
 }

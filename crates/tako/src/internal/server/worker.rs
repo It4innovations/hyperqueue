@@ -1,10 +1,10 @@
 use std::fmt;
 
 use crate::gateway::{LostWorkerReason, WorkerRuntimeInfo};
-use crate::internal::common::Set;
 use crate::internal::common::resources::map::{ResourceIdMap, ResourceRqMap};
 use crate::internal::common::resources::{ResourceRequest, ResourceRequestVariants};
 use crate::internal::common::resources::{ResourceRqId, TimeRequest};
+use crate::internal::common::Set;
 use crate::internal::messages::worker::{TaskIdsMsg, ToWorkerMessage};
 use crate::internal::server::comm::Comm;
 use crate::internal::server::task::{Task, TaskRuntimeState};
@@ -73,7 +73,7 @@ impl fmt::Debug for Worker {
             .field("id", &self.id)
             .field("resources", &self.configuration.resources)
             .field("load", &self.sn_load)
-            .field("tasks", &self.sn_tasks.len())
+            .field("tasks", &self.sn_tasks)
             .finish()
     }
 }
@@ -163,7 +163,7 @@ impl Worker {
         let mut trivial = true;
         for &task_id in &self.sn_tasks {
             let task = task_map.get_task(task_id);
-            let rqv = request_map.get(&task.resource_rq_id);
+            let rqv = request_map.get(task.resource_rq_id);
             trivial &= rqv.is_trivial();
             check_load.add_request(task_id, rqv, task.running_variant(), &self.resources);
         }
@@ -273,7 +273,7 @@ impl Worker {
             .filter(|task_id| {
                 let task = task_map.get_task_mut(*task_id);
                 if task.is_assigned()
-                    && !self.is_capable_to_run_rqv(request_map.get(&task.resource_rq_id), now)
+                    && !self.is_capable_to_run_rqv(request_map.get(task.resource_rq_id), now)
                 {
                     log::debug!(
                         "Retracting task={task_id}, time request cannot be fulfilled anymore"

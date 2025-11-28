@@ -1,5 +1,5 @@
-use crate::internal::common::resources::ResourceRqId;
 use crate::internal::common::resources::map::{GlobalResourceMapping, ResourceRqMap};
+use crate::internal::common::resources::ResourceRqId;
 use crate::internal::server::task::Task;
 use crate::internal::server::taskmap::TaskMap;
 use crate::internal::server::worker::Worker;
@@ -56,7 +56,7 @@ impl MultiNodeQueue {
         } else {
             self.requests.push(task.resource_rq_id);
             self.requests.sort_unstable_by_key(|id| {
-                let rq = resource_map.get(id).trivial_request().unwrap();
+                let rq = resource_map.get(*id).trivial_request().unwrap();
                 std::cmp::Reverse((rq.n_nodes(), rq.min_time()))
             });
             &mut self
@@ -210,7 +210,7 @@ impl<'a> MultiNodeAllocator<'a> {
                         continue;
                     }
 
-                    let rq = self.resource_map.get(rq_id).unwrap_first();
+                    let rq = self.resource_map.get(*rq_id).unwrap_first();
                     match find_workers_for_task(rq, self.worker_map, self.worker_groups, self.now) {
                         TaskFindWorkersResult::Ready(workers) => {
                             let task_id = qfr.queue.pop().unwrap().0;

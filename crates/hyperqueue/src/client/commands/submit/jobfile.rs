@@ -1,5 +1,5 @@
 use crate::client::commands::submit::command::{
-    DEFAULT_STDERR_PATH, DEFAULT_STDOUT_PATH, send_submit_request,
+    send_submit_request, DEFAULT_STDERR_PATH, DEFAULT_STDOUT_PATH,
 };
 use crate::client::commands::submit::defs::{
     ArrayDef, JobDef, StdioDefFull, StdioDefInput, TaskDef,
@@ -10,15 +10,15 @@ use crate::common::arraydef::IntArray;
 use crate::common::utils::fs::get_current_dir;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
-    JobDescription, JobSubmitDescription, JobTaskDescription, PinMode, SubmitRequest,
-    TaskDescription, TaskKind, TaskKindProgram, TaskWithDependencies,
+    JobDescription, JobSubmitDescription, JobTaskDescription, LocalResourceRqId, PinMode,
+    SubmitRequest, TaskDescription, TaskKind, TaskKindProgram, TaskWithDependencies,
 };
 use clap::Parser;
 use smallvec::smallvec;
 use std::path::PathBuf;
-use tako::Map;
 use tako::gateway::{EntryType, ResourceRequest, ResourceRequestVariants, TaskDataFlags};
 use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
+use tako::Map;
 use tako::{JobId, JobTaskCount, JobTaskId};
 
 #[derive(Parser)]
@@ -54,6 +54,19 @@ fn create_stdio(def: Option<StdioDefInput>, default: &str, has_streaming: bool) 
     }
 }
 
+fn build_resource_request(cfg: &mut TaskConfigDef) -> ResourceRequestVariants {
+    ResourceRequestVariants {
+        variants: if cfg.request.is_empty() {
+            smallvec![ResourceRequest::default()]
+        } else {
+            std::mem::take(&mut cfg.request)
+                .into_iter()
+                .map(|r| r.into_request())
+                .collect()
+        },
+    }
+}
+
 fn build_task_description(cfg: TaskConfigDef, has_streaming: bool) -> TaskDescription {
     TaskDescription {
         kind: TaskKind::ExternalProgram(TaskKindProgram {
@@ -72,13 +85,6 @@ fn build_task_description(cfg: TaskConfigDef, has_streaming: bool) -> TaskDescri
             },
             task_dir: cfg.task_dir,
         }),
-        resources: ResourceRequestVariants {
-            variants: if cfg.request.is_empty() {
-                smallvec![ResourceRequest::default()]
-            } else {
-                cfg.request.into_iter().map(|r| r.into_request()).collect()
-            },
-        },
         time_limit: cfg.time_limit,
         priority: cfg.priority,
         crash_limit: cfg.crash_limit,
@@ -86,8 +92,9 @@ fn build_task_description(cfg: TaskConfigDef, has_streaming: bool) -> TaskDescri
 }
 
 fn build_task(
-    tdef: TaskDef,
+    mut tdef: TaskDef,
     max_id: &mut JobTaskId,
+    resource_map: &mut Map<ResourceRequestVariants, LocalResourceRqId>,
     data_flags: TaskDataFlags,
     has_streaming: bool,
 ) -> TaskWithDependencies {
@@ -95,16 +102,23 @@ fn build_task(
         *max_id = JobTaskId::new(max_id.as_num() + 1);
         *max_id
     });
+    let resource = build_resource_request(&mut tdef.config);
+    let resource_rq_id = resource_map.get(&resource).copied().unwrap_or_else(|| {
+        let new_id = LocalResourceRqId::new(resource_map.len() as u32);
+        resource_map.insert(resource, new_id);
+        new_id
+    });
     TaskWithDependencies {
         id,
         data_flags,
         task_desc: build_task_description(tdef.config, has_streaming),
+        resource_rq_id,
         task_deps: tdef.deps,
         data_deps: tdef.data_deps,
     }
 }
 
-fn build_job_desc_array(array: ArrayDef, has_streaming: bool) -> JobTaskDescription {
+fn build_job_desc_array(mut array: ArrayDef, has_streaming: bool) -> JobTaskDescription {
     let ids = array
         .ids
         .unwrap_or_else(|| IntArray::from_range(0, array.entries.len() as JobTaskCount));
@@ -119,9 +133,11 @@ fn build_job_desc_array(array: ArrayDef, has_streaming: bool) -> JobTaskDescript
                 .collect(),
         )
     };
+    let resources = build_resource_request(&mut array.config);
     JobTaskDescription::Array {
         ids,
         entries,
+        resource_rq: resources,
         task_desc: build_task_description(array.config, has_streaming),
     }
 }
@@ -144,8 +160,15 @@ fn build_job_desc_individual_tasks(
     let mut unprocessed_tasks = Map::new();
     let mut in_degrees = Map::new();
     let mut consumers: Map<JobTaskId, Vec<_>> = Map::new();
+    let mut resource_map: Map<ResourceRequestVariants, LocalResourceRqId> = Map::new();
     for task in tasks {
-        let t = build_task(task, &mut max_id, data_flags, has_streaming);
+        let t = build_task(
+            task,
+            &mut max_id,
+            &mut resource_map,
+            data_flags,
+            has_streaming,
+        );
         if in_degrees.insert(t.id, t.task_deps.len()).is_some() {
             return Err(crate::Error::GenericError(format!(
                 "Task {} is defined multiple times",
@@ -187,7 +210,14 @@ fn build_job_desc_individual_tasks(
         )));
     }
 
-    Ok(JobTaskDescription::Graph { tasks: new_tasks })
+    let mut resource_rqs_pairs: Vec<_> = resource_map.into_iter().collect();
+    resource_rqs_pairs.sort_unstable_by_key(|(_, v)| *v);
+    let resource_rqs = resource_rqs_pairs.into_iter().map(|(k, _)| k).collect();
+
+    Ok(JobTaskDescription::Graph {
+        tasks: new_tasks,
+        resource_rqs,
+    })
 }
 
 fn build_job_submit(jdef: JobDef, job_id: Option<JobId>) -> crate::Result<SubmitRequest> {

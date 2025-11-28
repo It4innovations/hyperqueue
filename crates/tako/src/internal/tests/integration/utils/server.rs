@@ -21,9 +21,9 @@ use crate::gateway::{
 use crate::internal::common::resources::ResourceRqId;
 use crate::internal::common::{Map, Set};
 use crate::internal::messages::common::TaskFailInfo;
-use crate::internal::tests::integration::utils::api::{WaitResult, wait_for_tasks};
+use crate::internal::tests::integration::utils::api::{wait_for_tasks, WaitResult};
 use crate::internal::tests::integration::utils::worker::{
-    WorkerContext, WorkerHandle, start_worker,
+    start_worker, WorkerContext, WorkerHandle,
 };
 use crate::task::SerializedTaskContext;
 use crate::tests::integration::utils::task::{ResourceRequestConfig, ResourceRequestConfigBuilder};
@@ -116,16 +116,6 @@ impl ServerHandle {
         timeout(WAIT_TIMEOUT, wait_for_tasks(self, tasks))
             .await
             .unwrap()
-    }
-
-    pub fn register_request(&self, rr_builder: ResourceRequestConfigBuilder) -> ResourceRqId {
-        let rqv = rr_builder.into_rqv();
-        self.server_ref.get_or_create_resource_rq_id(&rqv)
-    }
-
-    pub fn register_default_request(&self) -> ResourceRqId {
-        let config = ResourceRequestConfigBuilder::default().cpus(1);
-        self.register_request(config)
     }
 }
 

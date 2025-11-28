@@ -12,8 +12,8 @@ pub use descriptor::{
     ResourceDescriptorItem, ResourceDescriptorKind,
 };
 pub use map::{
-    AMD_GPU_RESOURCE_NAME, CPU_RESOURCE_ID, CPU_RESOURCE_NAME, MEM_RESOURCE_NAME,
-    NVIDIA_GPU_RESOURCE_NAME,
+    GlobalResourceMapping, ResourceRqAllocator, AMD_GPU_RESOURCE_NAME, CPU_RESOURCE_ID,
+    CPU_RESOURCE_NAME, MEM_RESOURCE_NAME, NVIDIA_GPU_RESOURCE_NAME,
 };
 pub use request::{
     AllocationRequest, ResourceAllocRequest, ResourceRequest, ResourceRequestEntries,
@@ -29,12 +29,6 @@ define_id_type!(ResourceId, u32);
 
 // Identifies a globally unique Resource request stored in Core.
 define_id_type!(ResourceRqId, u32);
-
-impl ResourceRqId {
-    pub fn is_multi_node(&self) -> bool {
-        self.0 % 2 == 1
-    }
-}
 
 // Represents an index within a single generic resource (e.g. GPU with ID 1).
 define_id_type!(ResourceIndex, u32);

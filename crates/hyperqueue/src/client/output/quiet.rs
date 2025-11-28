@@ -9,10 +9,10 @@ use tako::resources::ResourceDescriptor;
 use crate::client::job::WorkerMap;
 use crate::client::output::cli::print_job_output;
 use crate::client::output::common::{
-    JOB_SUMMARY_STATUS_ORDER, TaskToPathsMap, Verbosity, group_jobs_by_status,
+    group_jobs_by_status, TaskToPathsMap, Verbosity, JOB_SUMMARY_STATUS_ORDER,
 };
 use crate::client::output::outputs::{Output, OutputStream};
-use crate::client::status::{Status, job_status};
+use crate::client::status::{job_status, Status};
 use crate::common::arraydef::IntArray;
 use crate::server::autoalloc::Allocation;
 use crate::server::job::JobTaskInfo;
@@ -97,14 +97,14 @@ impl Output for Quiet {
             println!("{status} {count}");
         }
     }
-    fn print_job_detail(&self, _jobs: Vec<JobDetail>, _worker_map: WorkerMap, _server_uid: &str) {}
+    fn print_job_detail(&self, _jobs: Vec<JobDetail>, _worker_map: &WorkerMap, _server_uid: &str) {}
 
     fn print_job_wait(
         &self,
         _duration: Duration,
         _response: &WaitForJobsResponse,
         _details: &[(JobId, Option<JobDetail>)],
-        _worker_map: WorkerMap,
+        _worker_map: &WorkerMap,
     ) {
     }
     fn print_job_output(
@@ -121,7 +121,7 @@ impl Output for Quiet {
     fn print_task_list(
         &self,
         _jobs: Vec<(JobId, JobDetail)>,
-        _worker_map: WorkerMap,
+        _worker_map: &WorkerMap,
         _server_uid: &str,
         _verbosity: Verbosity,
     ) {
@@ -131,7 +131,7 @@ impl Output for Quiet {
         &self,
         _job: (JobId, JobDetail),
         _tasks: &[(JobTaskId, JobTaskInfo)],
-        _worker_map: WorkerMap,
+        _worker_map: &WorkerMap,
         _server_uid: &str,
         _verbosity: Verbosity,
     ) {

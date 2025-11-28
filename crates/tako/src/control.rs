@@ -13,6 +13,7 @@ use crate::gateway::{
     LostWorkerReason, MultiNodeAllocationResponse, TaskSubmit, WorkerRuntimeInfo,
 };
 use crate::internal::common::error::DsError;
+use crate::internal::common::resources::map::ResourceRqAllocator;
 use crate::internal::common::resources::{ResourceId, ResourceRqId};
 use crate::internal::messages::worker::ToWorkerMessage;
 use crate::internal::scheduler::query::compute_new_worker_query;
@@ -21,7 +22,7 @@ use crate::internal::server::client::handle_new_tasks;
 use crate::internal::server::comm::{Comm, CommSenderRef};
 use crate::internal::server::core::{CoreRef, CustomConnectionHandler};
 use crate::internal::server::explain::{
-    TaskExplanation, task_explain_for_worker, task_explain_init,
+    task_explain_for_worker, task_explain_init, TaskExplanation,
 };
 use crate::internal::server::reactor::{get_or_create_resource_rq_id, on_cancel_tasks};
 use crate::internal::server::worker::DEFAULT_WORKER_OVERVIEW_INTERVAL;
@@ -204,13 +205,6 @@ impl ServerRef {
         let core = self.core_ref.get();
         core.dump(now)
     }
-
-    pub fn get_or_create_resource_rq_id(&self, rqv: &ResourceRequestVariants) -> ResourceRqId {
-        let mut core = self.core_ref.get_mut();
-        let mut comm = self.comm_ref.get_mut();
-        let rqv = core.convert_client_resource_rq(rqv);
-        get_or_create_resource_rq_id(&mut core, &mut *comm, &rqv)
-    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -257,4 +251,16 @@ pub fn server_start(
     };
 
     Ok((ServerRef { core_ref, comm_ref }, future))
+}
+
+impl ResourceRqAllocator for ServerRef {
+    fn get_or_create_resource_rq_id(
+        &self,
+        rqv: &crate::gateway::ResourceRequestVariants,
+    ) -> ResourceRqId {
+        let mut core = self.core_ref.get_mut();
+        let mut comm = self.comm_ref.get_mut();
+        let (rq_id, _) = get_or_create_resource_rq_id(&mut core, &mut *comm, &rqv);
+        rq_id
+    }
 }

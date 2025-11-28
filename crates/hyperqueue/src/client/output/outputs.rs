@@ -7,8 +7,8 @@ use crate::server::autoalloc::Allocation;
 use crate::stream::reader::outputlog::Summary;
 use std::path::Path;
 
-use crate::client::output::Verbosity;
 use crate::client::output::common::TaskToPathsMap;
+use crate::client::output::Verbosity;
 use crate::common::arraydef::IntArray;
 use crate::server::job::JobTaskInfo;
 use core::time::Duration;
@@ -47,13 +47,13 @@ pub trait Output {
     fn print_job_open(&self, job_id: JobId);
     fn print_job_list(&self, jobs: Vec<JobInfo>, total_jobs: usize);
     fn print_job_summary(&self, jobs: Vec<JobInfo>);
-    fn print_job_detail(&self, jobs: Vec<JobDetail>, worker_map: WorkerMap, server_uid: &str);
+    fn print_job_detail(&self, jobs: Vec<JobDetail>, worker_map: &WorkerMap, server_uid: &str);
     fn print_job_wait(
         &self,
         duration: Duration,
         response: &WaitForJobsResponse,
         details: &[(JobId, Option<JobDetail>)],
-        worker_map: WorkerMap,
+        worker_map: &WorkerMap,
     );
     fn print_job_output(
         &self,
@@ -67,7 +67,7 @@ pub trait Output {
     fn print_task_list(
         &self,
         jobs: Vec<(JobId, JobDetail)>,
-        worker_map: WorkerMap,
+        worker_map: &WorkerMap,
         server_uid: &str,
         verbosity: Verbosity,
     );
@@ -75,7 +75,7 @@ pub trait Output {
         &self,
         job: (JobId, JobDetail),
         tasks: &[(JobTaskId, JobTaskInfo)],
-        worker_map: WorkerMap,
+        worker_map: &WorkerMap,
         server_uid: &str,
         verbosity: Verbosity,
     );

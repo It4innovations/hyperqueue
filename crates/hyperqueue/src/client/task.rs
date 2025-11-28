@@ -1,9 +1,9 @@
 use crate::client::commands::job::JobTaskIdsOpts;
 use crate::client::globalsettings::GlobalSettings;
-use crate::client::job::get_worker_map;
+use crate::client::job::{get_remote_lists, get_worker_map};
 use crate::client::output::{Verbosity, VerbosityFlag};
 use crate::common::arraydef::IntArray;
-use crate::common::cli::{TaskSelectorArg, parse_last_range, parse_last_single_id};
+use crate::common::cli::{parse_last_range, parse_last_single_id, TaskSelectorArg};
 use crate::common::error::HqError;
 use crate::rpc_call;
 use crate::transfer::connection::ClientSession;
@@ -101,12 +101,11 @@ pub async fn output_job_task_list(
         })
         .collect();
 
-    gsettings.printer().print_task_list(
-        jobs,
-        get_worker_map(session).await?,
-        &response.server_uid,
-        verbosity,
-    );
+    let worker_map = get_worker_map(session).await?;
+
+    gsettings
+        .printer()
+        .print_task_list(jobs, &worker_map, &response.server_uid, verbosity);
     Ok(())
 }
 
@@ -135,10 +134,11 @@ pub async fn output_job_task_info(
     match opt_job {
         None => log::error!("Cannot find job {job_id}"),
         Some(job) => {
+            let worker_map = get_worker_map(session).await?;
             gsettings.printer().print_task_info(
                 (*job_id, job.clone()),
                 &job.tasks,
-                get_worker_map(session).await?,
+                &worker_map,
                 &response.server_uid,
                 verbosity,
             );
