@@ -9,7 +9,7 @@ use serde::{Serialize, Serializer};
 use serde_json;
 use serde_json::{Value, json};
 
-use tako::gateway::{CrashLimit, ResourceRequest};
+use tako::gateway::{CrashLimit, ResourceRequest, ResourceRequestVariants};
 use tako::program::{ProgramDefinition, StdioDef};
 use tako::resources::{ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind};
 use tako::worker::WorkerConfiguration;
@@ -292,11 +292,13 @@ fn format_crash_limit(limit: CrashLimit) -> Value {
 fn format_task_description(task_desc: &TaskDescription) -> Value {
     let TaskDescription {
         kind,
-        resources,
+        resource_rq_id,
         time_limit,
         priority,
         crash_limit,
     } = task_desc;
+
+    let resources: &ResourceRequestVariants = todo!();
 
     match kind {
         TaskKind::ExternalProgram(TaskKindProgram {

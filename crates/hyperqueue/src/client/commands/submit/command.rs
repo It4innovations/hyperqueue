@@ -43,7 +43,9 @@ use tako::gateway::{
     ResourceRequestVariants,
 };
 use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
-use tako::resources::{AllocationRequest, CPU_RESOURCE_NAME, NumOfNodes, ResourceAmount};
+use tako::resources::{
+    AllocationRequest, CPU_RESOURCE_NAME, NumOfNodes, ResourceAmount, ResourceRqId,
+};
 use tako::{JobId, JobTaskCount, Map};
 
 const SUBMIT_ARRAY_LIMIT: JobTaskCount = 999;
@@ -691,6 +693,14 @@ pub async fn submit_computation(
             .unwrap_or_else(|| "job".to_string())
     };
 
+    // Force task_dir for multi node tasks (for a place where to create node file)
+    let task_dir = task_dir & (resources.n_nodes > 0);
+    let rqv = ResourceRequestVariants::new(smallvec![resources]);
+    let resource_rq_id = *get_resource_rq_ids(session, vec![rqv])
+        .await?
+        .first()
+        .unwrap();
+
     let args: Vec<BString> = commands.into_iter().map(|arg| arg.into()).collect();
 
     let stdout = create_stdio(stdout, &stream, DEFAULT_STDOUT_PATH);
@@ -715,13 +725,6 @@ pub async fn submit_computation(
         stdin: stdin.unwrap_or_default(),
     };
 
-    // Force task_dir for multi node tasks (for a place where to create node file)
-    let task_dir = if resources.n_nodes > 0 {
-        true
-    } else {
-        task_dir
-    };
-
     let task_kind = TaskKind::ExternalProgram(TaskKindProgram {
         program: program_def,
         pin_mode: pin.map(|arg| arg.into()).unwrap_or(PinMode::None),
@@ -729,7 +732,7 @@ pub async fn submit_computation(
     });
     let task_desc = TaskDescription {
         kind: task_kind,
-        resources: ResourceRequestVariants::new(smallvec![resources]),
+        resource_rq_id,
         priority,
         time_limit,
         crash_limit,
@@ -760,6 +763,17 @@ pub async fn submit_computation(
         on_notify.as_deref(),
     )
     .await
+}
+
+pub(crate) async fn get_resource_rq_ids(
+    session: &mut ClientSession,
+    rqv: Vec<ResourceRequestVariants>,
+) -> crate::Result<Vec<ResourceRqId>> {
+    let message = FromClientMessage::GetResourceRqId(rqv);
+    let response =
+        rpc_call!(session.connection(), message, ToClientMessage::ResourceRqIdResponse(r) => r)
+            .await?;
+    Ok(response)
 }
 
 pub(crate) async fn send_submit_request(

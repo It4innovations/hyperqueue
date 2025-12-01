@@ -318,6 +318,13 @@ pub async fn client_rpc_loop<
                         handle_task_explain(&state_ref, senders, request)
                     }
                     FromClientMessage::ServerDebugDump(path) => handle_server_dump(senders, &path),
+                    FromClientMessage::GetResourceRqId(rqvs) => {
+                        ToClientMessage::ResourceRqIdResponse(
+                            rqvs.iter()
+                                .map(|rqv| senders.server_control.get_or_create_resource_rq_id(rqv))
+                                .collect(),
+                        )
+                    }
                 };
                 if let Err(error) = tx.send(response).await {
                     log::error!("Cannot reply to client: {error:?}");

@@ -195,11 +195,12 @@ impl SubmitDescFormatter<'_> {
             } => {
                 let TaskDescription {
                     kind: _,
-                    resources,
+                    resource_rq_id,
                     time_limit,
                     priority,
                     crash_limit,
                 } = task_desc;
+                let resources: () = todo!();
                 json!({
                     "ids": ids,
                     "resources": resources,

@@ -389,7 +389,8 @@ impl JournalStats {
     }
 
     fn new_submit(&mut self, job_id: JobId, submit: SubmitRequest) {
-        let rq = match submit.submit_desc.task_desc {
+        todo!()
+        /*let rq = match submit.submit_desc.task_desc {
             JobTaskDescription::Array { task_desc, .. } => {
                 JobResourceRq::Array(task_desc.resources)
             }
@@ -401,7 +402,7 @@ impl JournalStats {
                 JobResourceRq::TaskGraph(map)
             }
         };
-        self.job_requests.insert(job_id, rq);
+        self.job_requests.insert(job_id, rq);*/
     }
 
     fn new_worker(

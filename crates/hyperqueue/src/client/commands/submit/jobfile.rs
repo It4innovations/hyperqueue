@@ -55,7 +55,8 @@ fn create_stdio(def: Option<StdioDefInput>, default: &str, has_streaming: bool) 
 }
 
 fn build_task_description(cfg: TaskConfigDef, has_streaming: bool) -> TaskDescription {
-    TaskDescription {
+    todo!()
+    /*TaskDescription {
         kind: TaskKind::ExternalProgram(TaskKindProgram {
             program: ProgramDefinition {
                 args: cfg.command.into_iter().map(|x| x.into()).collect(),
@@ -82,7 +83,7 @@ fn build_task_description(cfg: TaskConfigDef, has_streaming: bool) -> TaskDescri
         time_limit: cfg.time_limit,
         priority: cfg.priority,
         crash_limit: cfg.crash_limit,
-    }
+    }*/
 }
 
 fn build_task(

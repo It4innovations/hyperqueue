@@ -223,7 +223,7 @@ fn log_submit_request(request: &SubmitRequest) {
                                     pin_mode,
                                     task_dir,
                                 }),
-                            resources,
+                            resource_rq_id,
                             time_limit,
                             priority,
                             crash_limit,
@@ -232,7 +232,7 @@ fn log_submit_request(request: &SubmitRequest) {
                     .debug_struct("Array")
                     .field("ids", ids)
                     .field("entries", &entries.as_ref().map(|e| e.len()))
-                    .field("resources", resources)
+                    .field("resource_rq_id", resource_rq_id)
                     .field(
                         "args",
                         &args
@@ -353,6 +353,7 @@ fn build_tasks_array(
 ) -> TaskSubmit {
     let build_task_conf = |tako_id: TaskId, entry: Option<EntryType>| TaskConfiguration {
         id: tako_id,
+        resource_rq_id: task_desc.resource_rq_id,
         shared_data_index: 0,
         task_deps: ThinVec::new(),
         dataobj_deps: ThinVec::new(),
@@ -380,7 +381,6 @@ fn build_tasks_array(
     TaskSubmit {
         tasks,
         shared_data: vec![SharedTaskConfiguration {
-            resources: task_desc.resources.clone(),
             time_limit: task_desc.time_limit,
             priority: task_desc.priority,
             crash_limit: task_desc.crash_limit,
@@ -401,7 +401,6 @@ fn build_tasks_graph(
     let mut allocate_shared_data = |task: &TaskDescription, data_flags: TaskDataFlags| -> u32 {
         let index = shared_data.len();
         shared_data.push(SharedTaskConfiguration {
-            resources: task.resources.clone(),
             time_limit: task.time_limit,
             priority: task.priority,
             crash_limit: task.crash_limit,
@@ -434,6 +433,7 @@ fn build_tasks_graph(
 
         task_configs.push(TaskConfiguration {
             id: TaskId::new(job_id, task.id),
+            resource_rq_id: task.task_desc.resource_rq_id,
             shared_data_index,
             task_deps,
             dataobj_deps,

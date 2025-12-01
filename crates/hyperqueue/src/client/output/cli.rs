@@ -105,7 +105,7 @@ impl CliOutput {
     ) {
         let TaskDescription {
             kind,
-            resources,
+            resource_rq_id,
             time_limit,
             priority,
             crash_limit,
@@ -117,6 +117,7 @@ impl CliOutput {
                 pin_mode,
                 task_dir: _task_dir,
             }) => {
+                let resources = todo!();
                 let resources = format_resource_variants(resources);
                 rows.push(vec![
                     "Resources".cell().bold(true),
@@ -853,10 +854,10 @@ impl Output for CliOutput {
                                 .unwrap_or_else(|| "None".to_string())
                                 .cell(),
                         ],
-                        vec![
-                            "Resources".cell().bold(true),
-                            format_resource_variants(&task_desc.resources).cell(),
-                        ],
+                        vec!["Resources".cell().bold(true), {
+                            let resources = todo!();
+                            format_resource_variants(resources).cell()
+                        }],
                         vec!["Priority".cell().bold(true), task_desc.priority.cell()],
                         vec!["Pin".cell().bold(true), pin_mode.to_str().cell()],
                         vec![
