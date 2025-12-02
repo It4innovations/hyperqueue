@@ -3,14 +3,14 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::borrow::Cow;
 
-use crate::JobDataObjectId;
 use crate::client::status::Status;
 use crate::common::arraydef::IntArray;
 use crate::common::manager::info::ManagerType;
 use crate::server::autoalloc::{Allocation, AllocationId, QueueId, QueueParameters};
-use crate::server::event::Event;
 use crate::server::event::streamer::EventFilter;
+use crate::server::event::Event;
 use crate::server::job::{JobTaskCounters, JobTaskInfo, SubmittedJobDescription};
+use crate::JobDataObjectId;
 use std::path::PathBuf;
 use std::time::Duration;
 use tako::gateway::{
@@ -41,7 +41,10 @@ pub enum FromClientMessage {
     /// It is basically as sending JobInfo and StreamEvents, but it is done atomically,
     /// so no message is lost.
     JobInfo(JobInfoRequest, Option<StreamEvents>),
-    WorkerList,
+    GetList {
+        workers: bool,
+        requests: bool,
+    },
     WorkerInfo(WorkerInfoRequest),
     StopWorker(StopWorkerMessage),
     Stop,
@@ -383,7 +386,7 @@ pub enum ToClientMessage {
     JobDetailResponse(JobDetailResponse),
     SubmitResponse(SubmitResponse),
     ResourceRqIdResponse(Vec<ResourceRqId>),
-    WorkerListResponse(WorkerListResponse),
+    GetListResponse(GetListResponse),
     WorkerInfoResponse(Option<WorkerInfo>),
     StopWorkerResponse(Vec<(WorkerId, StopWorkerResponse)>),
     CancelJobResponse(Vec<(JobId, CancelJobResponse)>),
@@ -508,8 +511,9 @@ pub struct JobDetail {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct WorkerListResponse {
+pub struct GetListResponse {
     pub workers: Vec<WorkerInfo>,
+    pub requests: ResourceRqMap,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
