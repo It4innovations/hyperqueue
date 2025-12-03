@@ -607,11 +607,11 @@ pub(crate) fn get_or_create_resource_rq_id(
     core: &mut Core,
     comm: &mut impl Comm,
     rqv: &ResourceRequestVariants,
-) -> ResourceRqId {
+) -> (ResourceRqId, bool) {
     let (rq_id, is_new) = core.get_or_create_resource_rq_id(rqv);
     if is_new {
         let msg = ToWorkerMessage::NewResourceRequest(rq_id, rqv.clone());
         comm.broadcast_worker_message(&msg);
     }
-    rq_id
+    (rq_id, is_new)
 }

@@ -205,7 +205,10 @@ impl ServerRef {
         core.dump(now)
     }
 
-    pub fn get_or_create_resource_rq_id(&self, rqv: &ResourceRequestVariants) -> ResourceRqId {
+    pub fn get_or_create_resource_rq_id(
+        &self,
+        rqv: &ResourceRequestVariants,
+    ) -> (ResourceRqId, bool) {
         let mut core = self.core_ref.get_mut();
         let mut comm = self.comm_ref.get_mut();
         let rqv = core.convert_client_resource_rq(rqv);

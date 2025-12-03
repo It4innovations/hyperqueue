@@ -14,8 +14,8 @@ use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState};
 use crate::stream::reader::outputlog::Summary;
 use crate::transfer::messages::{
     AutoAllocListQueuesResponse, JobDetail, JobInfo, JobTaskDescription, PinMode, QueueData,
-    QueueState, ServerInfo, TaskDescription, TaskKind, TaskKindProgram, WaitForJobsResponse,
-    WorkerExitInfo, WorkerInfo,
+    QueueState, ResourceRequestMap, ServerInfo, TaskDescription, TaskKind, TaskKindProgram,
+    WaitForJobsResponse, WorkerExitInfo, WorkerInfo,
 };
 use tako::{JobId, JobTaskCount, JobTaskId, TaskId, WorkerId};
 
@@ -102,6 +102,7 @@ impl CliOutput {
         &self,
         rows: &mut Vec<Vec<CellStruct>>,
         task_desc: &TaskDescription,
+        request_map: &ResourceRequestMap,
     ) {
         let TaskDescription {
             kind,
@@ -117,8 +118,7 @@ impl CliOutput {
                 pin_mode,
                 task_dir: _task_dir,
             }) => {
-                let resources = todo!();
-                let resources = format_resource_variants(resources);
+                let resources = format_resource_variants(request_map.get(resource_rq_id).unwrap());
                 rows.push(vec![
                     "Resources".cell().bold(true),
                     if !matches!(pin_mode, PinMode::None) {
@@ -530,7 +530,13 @@ impl Output for CliOutput {
         self.print_horizontal_table(rows, header);
     }
 
-    fn print_job_detail(&self, jobs: Vec<JobDetail>, worker_map: WorkerMap, _server_uid: &str) {
+    fn print_job_detail(
+        &self,
+        jobs: Vec<JobDetail>,
+        worker_map: &WorkerMap,
+        request_map: &ResourceRequestMap,
+        _server_uid: &str,
+    ) {
         for job in jobs {
             let JobDetail {
                 info,
@@ -599,7 +605,7 @@ impl Output for CliOutput {
                 && let JobTaskDescription::Array { task_desc, .. } =
                     &submit_descs[0].description().task_desc
             {
-                self.print_job_shared_task_description(&mut rows, task_desc);
+                self.print_job_shared_task_description(&mut rows, task_desc, request_map);
             }
 
             rows.push(vec![
@@ -635,7 +641,7 @@ impl Output for CliOutput {
         duration: Duration,
         response: &WaitForJobsResponse,
         details: &[(JobId, Option<JobDetail>)],
-        worker_map: WorkerMap,
+        worker_map: &WorkerMap,
     ) {
         let mut msgs = vec![];
 
@@ -680,7 +686,7 @@ impl Output for CliOutput {
     fn print_task_list(
         &self,
         mut jobs: Vec<(JobId, JobDetail)>,
-        worker_map: WorkerMap,
+        worker_map: &WorkerMap,
         _server_uid: &str,
         verbosity: Verbosity,
     ) {
@@ -754,7 +760,8 @@ impl Output for CliOutput {
         &self,
         job: (JobId, JobDetail),
         tasks: &[(JobTaskId, JobTaskInfo)],
-        worker_map: WorkerMap,
+        worker_map: &WorkerMap,
+        requests_map: &ResourceRequestMap,
         server_uid: &str,
         verbosity: Verbosity,
     ) {
@@ -855,7 +862,7 @@ impl Output for CliOutput {
                                 .cell(),
                         ],
                         vec!["Resources".cell().bold(true), {
-                            let resources = todo!();
+                            let resources = requests_map.get(&task_desc.resource_rq_id).unwrap();
                             format_resource_variants(resources).cell()
                         }],
                         vec!["Priority".cell().bold(true), task_desc.priority.cell()],

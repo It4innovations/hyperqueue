@@ -26,7 +26,8 @@ use crate::server::job::{JobTaskInfo, JobTaskState, StartedTaskData};
 use crate::stream::reader::outputlog::Summary;
 use crate::transfer::messages::{
     AutoAllocListQueuesResponse, JobDetail, JobInfo, JobTaskDescription, PinMode, QueueData,
-    ServerInfo, TaskDescription, TaskKind, TaskKindProgram, WaitForJobsResponse, WorkerInfo,
+    ResourceRequestMap, ServerInfo, TaskDescription, TaskKind, TaskKindProgram,
+    WaitForJobsResponse, WorkerInfo,
 };
 use tako::server::TaskExplanation;
 use tako::{JobId, JobTaskId};
@@ -107,7 +108,13 @@ impl Output for JsonOutput {
         let statuses = group_jobs_by_status(&jobs);
         self.print(json!(statuses))
     }
-    fn print_job_detail(&self, jobs: Vec<JobDetail>, _worker_map: WorkerMap, server_uid: &str) {
+    fn print_job_detail(
+        &self,
+        jobs: Vec<JobDetail>,
+        _worker_map: &WorkerMap,
+        _request_map: &ResourceRequestMap,
+        server_uid: &str,
+    ) {
         let job_details: Vec<_> = jobs
             .into_iter()
             .map(|job| {
@@ -164,7 +171,7 @@ impl Output for JsonOutput {
         duration: Duration,
         response: &WaitForJobsResponse,
         _details: &[(JobId, Option<JobDetail>)],
-        _worker_map: WorkerMap,
+        _worker_map: &WorkerMap,
     ) {
         let WaitForJobsResponse {
             finished,
@@ -194,7 +201,7 @@ impl Output for JsonOutput {
     fn print_task_list(
         &self,
         jobs: Vec<(JobId, JobDetail)>,
-        _worker_map: WorkerMap,
+        _worker_map: &WorkerMap,
         server_uid: &str,
         _verbosity: Verbosity,
     ) {
@@ -210,7 +217,8 @@ impl Output for JsonOutput {
         &self,
         job: (JobId, JobDetail),
         tasks: &[(JobTaskId, JobTaskInfo)],
-        _worker_map: WorkerMap,
+        _worker_map: &WorkerMap,
+        _request_map: &ResourceRequestMap,
         server_uid: &str,
         _verbosity: Verbosity,
     ) {

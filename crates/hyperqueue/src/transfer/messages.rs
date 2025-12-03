@@ -3,14 +3,14 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::borrow::Cow;
 
+use crate::JobDataObjectId;
 use crate::client::status::Status;
 use crate::common::arraydef::IntArray;
 use crate::common::manager::info::ManagerType;
 use crate::server::autoalloc::{Allocation, AllocationId, QueueId, QueueParameters};
-use crate::server::event::streamer::EventFilter;
 use crate::server::event::Event;
+use crate::server::event::streamer::EventFilter;
 use crate::server::job::{JobTaskCounters, JobTaskInfo, SubmittedJobDescription};
-use crate::JobDataObjectId;
 use std::path::PathBuf;
 use std::time::Duration;
 use tako::gateway::{
@@ -510,10 +510,12 @@ pub struct JobDetail {
     pub completion_date_or_now: DateTime<Utc>,
 }
 
+pub type ResourceRequestMap = Map<ResourceRqId, ResourceRequestVariants>;
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GetListResponse {
     pub workers: Vec<WorkerInfo>,
-    pub requests: ResourceRqMap,
+    pub requests: ResourceRequestMap,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

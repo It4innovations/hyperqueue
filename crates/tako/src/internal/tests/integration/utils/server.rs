@@ -120,7 +120,8 @@ impl ServerHandle {
 
     pub fn register_request(&self, rr_builder: ResourceRequestConfigBuilder) -> ResourceRqId {
         let rqv = rr_builder.into_rqv();
-        self.server_ref.get_or_create_resource_rq_id(&rqv)
+        let (rq_id, _) = self.server_ref.get_or_create_resource_rq_id(&rqv);
+        rq_id
     }
 
     pub fn register_default_request(&self) -> ResourceRqId {

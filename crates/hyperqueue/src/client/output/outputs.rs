@@ -1,5 +1,6 @@
 use crate::transfer::messages::{
-    AutoAllocListQueuesResponse, JobDetail, JobInfo, ServerInfo, WaitForJobsResponse, WorkerInfo,
+    AutoAllocListQueuesResponse, JobDetail, JobInfo, ResourceRequestMap, ServerInfo,
+    WaitForJobsResponse, WorkerInfo,
 };
 
 use crate::client::job::WorkerMap;
@@ -47,13 +48,19 @@ pub trait Output {
     fn print_job_open(&self, job_id: JobId);
     fn print_job_list(&self, jobs: Vec<JobInfo>, total_jobs: usize);
     fn print_job_summary(&self, jobs: Vec<JobInfo>);
-    fn print_job_detail(&self, jobs: Vec<JobDetail>, worker_map: WorkerMap, server_uid: &str);
+    fn print_job_detail(
+        &self,
+        jobs: Vec<JobDetail>,
+        worker_map: &WorkerMap,
+        request_map: &ResourceRequestMap,
+        server_uid: &str,
+    );
     fn print_job_wait(
         &self,
         duration: Duration,
         response: &WaitForJobsResponse,
         details: &[(JobId, Option<JobDetail>)],
-        worker_map: WorkerMap,
+        worker_map: &WorkerMap,
     );
     fn print_job_output(
         &self,
@@ -67,7 +74,7 @@ pub trait Output {
     fn print_task_list(
         &self,
         jobs: Vec<(JobId, JobDetail)>,
-        worker_map: WorkerMap,
+        worker_map: &WorkerMap,
         server_uid: &str,
         verbosity: Verbosity,
     );
@@ -75,7 +82,8 @@ pub trait Output {
         &self,
         job: (JobId, JobDetail),
         tasks: &[(JobTaskId, JobTaskInfo)],
-        worker_map: WorkerMap,
+        worker_map: &WorkerMap,
+        requests_map: &ResourceRequestMap,
         server_uid: &str,
         verbosity: Verbosity,
     );

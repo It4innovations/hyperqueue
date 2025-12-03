@@ -17,12 +17,12 @@ use crate::server::event::Event;
 use crate::server::job::JobTaskState;
 use crate::server::state::{State, StateRef};
 use crate::transfer::connection::accept_client;
-use crate::transfer::messages::{ForgetJobResponse, GetListResponse};
 use crate::transfer::messages::{
     CancelJobResponse, CloseJobResponse, FromClientMessage, IdSelector, JobDetail,
     JobDetailResponse, JobInfoResponse, JobSubmitDescription, StopWorkerResponse, StreamEvents,
     SubmitRequest, SubmitResponse, TaskSelector, ToClientMessage,
 };
+use crate::transfer::messages::{ForgetJobResponse, GetListResponse};
 use tako::{JobId, JobTaskCount, WorkerId};
 
 pub mod autoalloc;
@@ -77,7 +77,7 @@ async fn handle_client(
     Ok(())
 }
 
-async fn stream_history_events<Tx: Sink<ToClientMessage, Error=tako::Error> + Unpin + 'static>(
+async fn stream_history_events<Tx: Sink<ToClientMessage, Error = tako::Error> + Unpin + 'static>(
     tx: &mut Tx,
     mut history: mpsc::UnboundedReceiver<Event>,
 ) {
@@ -98,8 +98,8 @@ async fn stream_history_events<Tx: Sink<ToClientMessage, Error=tako::Error> + Un
 }
 
 async fn stream_events<
-    Tx: Sink<ToClientMessage, Error=tako::Error> + Unpin + 'static,
-    Rx: Stream<Item=tako::Result<FromClientMessage>> + Unpin,
+    Tx: Sink<ToClientMessage, Error = tako::Error> + Unpin + 'static,
+    Rx: Stream<Item = tako::Result<FromClientMessage>> + Unpin,
 >(
     tx: &mut Tx,
     rx: &mut Rx,
@@ -126,8 +126,8 @@ async fn stream_events<
 }
 
 async fn start_streaming<
-    Tx: Sink<ToClientMessage, Error=tako::Error> + Unpin + 'static,
-    Rx: Stream<Item=tako::Result<FromClientMessage>> + Unpin,
+    Tx: Sink<ToClientMessage, Error = tako::Error> + Unpin + 'static,
+    Rx: Stream<Item = tako::Result<FromClientMessage>> + Unpin,
 >(
     mut tx: Tx,
     mut rx: Rx,
@@ -190,8 +190,8 @@ async fn start_streaming<
 }
 
 pub async fn client_rpc_loop<
-    Tx: Sink<ToClientMessage, Error=tako::Error> + Unpin + 'static,
-    Rx: Stream<Item=tako::Result<FromClientMessage>> + Unpin,
+    Tx: Sink<ToClientMessage, Error = tako::Error> + Unpin + 'static,
+    Rx: Stream<Item = tako::Result<FromClientMessage>> + Unpin,
 >(
     mut tx: Tx,
     mut rx: Rx,
@@ -213,8 +213,8 @@ pub async fn client_rpc_loop<
                         };
                         if let Some(mut stream_opts) = stream_opts
                             && let ToClientMessage::SubmitResponse(SubmitResponse::Ok {
-                                                                       job, ..
-                                                                   }) = &response
+                                job, ..
+                            }) = &response
                         {
                             if !stream_opts.filter.is_filtering_jobs() {
                                 let mut s = Set::new();
@@ -229,7 +229,7 @@ pub async fn client_rpc_loop<
                                 stream_opts,
                                 Some(response),
                             )
-                                .await;
+                            .await;
                             break;
                         }
                         response
@@ -239,7 +239,7 @@ pub async fn client_rpc_loop<
                             compute_job_info(&state_ref, &msg.selector, msg.include_running_tasks);
                         if let Some(mut stream_opts) = stream_opts
                             && let ToClientMessage::JobInfoResponse(JobInfoResponse { jobs }) =
-                            &response
+                                &response
                         {
                             if !stream_opts.filter.is_filtering_jobs() {
                                 stream_opts
@@ -254,7 +254,7 @@ pub async fn client_rpc_loop<
                                 stream_opts,
                                 Some(response),
                             )
-                                .await;
+                            .await;
                             break;
                         }
                         response
@@ -263,7 +263,9 @@ pub async fn client_rpc_loop<
                         end_flag.notify_one();
                         break;
                     }
-                    FromClientMessage::WorkerList => handle_worker_list(&state_ref),
+                    FromClientMessage::GetList { workers, requests } => {
+                        handle_get_list(&state_ref, workers, requests)
+                    }
                     FromClientMessage::WorkerInfo(msg) => {
                         handle_worker_info(&state_ref, senders, msg.worker_id, msg.runtime_info)
                     }
@@ -320,8 +322,15 @@ pub async fn client_rpc_loop<
                     FromClientMessage::ServerDebugDump(path) => handle_server_dump(senders, &path),
                     FromClientMessage::GetResourceRqId(rqvs) => {
                         ToClientMessage::ResourceRqIdResponse(
-                            rqvs.iter()
-                                .map(|rqv| senders.server_control.get_or_create_resource_rq_id(rqv))
+                            rqvs.into_iter()
+                                .map(|rqv| {
+                                    let (rq_id, new) =
+                                        senders.server_control.get_or_create_resource_rq_id(&rqv);
+                                    if new {
+                                        state_ref.get_mut().register_resource_rq(rq_id, rqv);
+                                    }
+                                    rq_id
+                                })
                                 .collect(),
                         )
                     }
@@ -779,15 +788,12 @@ fn handle_get_list(state_ref: &StateRef, workers: bool, requests: bool) -> ToCli
     };
 
     let requests = if requests {
-        todo!()
+        state.get_resource_request_map().clone()
     } else {
         Default::default()
     };
 
-    ToClientMessage::GetListResponse(GetListResponse {
-        workers,
-        requests,
-    })
+    ToClientMessage::GetListResponse(GetListResponse { workers, requests })
 }
 
 fn handle_worker_info(

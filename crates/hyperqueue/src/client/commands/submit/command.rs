@@ -694,7 +694,7 @@ pub async fn submit_computation(
     };
 
     // Force task_dir for multi node tasks (for a place where to create node file)
-    let task_dir = task_dir & (resources.n_nodes > 0);
+    let task_dir = task_dir | (resources.n_nodes > 0);
     let rqv = ResourceRequestVariants::new(smallvec![resources]);
     let resource_rq_id = *get_resource_rq_ids(session, vec![rqv])
         .await?

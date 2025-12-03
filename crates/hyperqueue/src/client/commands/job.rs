@@ -1,7 +1,7 @@
 use clap::Parser;
 
 use crate::client::globalsettings::GlobalSettings;
-use crate::client::job::get_worker_map;
+use crate::client::job::get_remote_maps;
 use crate::client::output::outputs::OutputStream;
 use crate::client::output::resolve_task_paths;
 use crate::client::status::{Status, job_status};
@@ -181,7 +181,7 @@ pub async fn output_job_detail(
         rpc_call!(session.connection(), message, ToClientMessage::JobDetailResponse(r) => r)
             .await?;
 
-    let worker_map = get_worker_map(session).await?;
+    let (worker_map, request_map) = get_remote_maps(session, true, true).await?;
 
     let jobs: Vec<JobDetail> = response
         .details
@@ -196,7 +196,7 @@ pub async fn output_job_detail(
         .collect();
     gsettings
         .printer()
-        .print_job_detail(jobs, worker_map, &response.server_uid);
+        .print_job_detail(jobs, &worker_map, &request_map, &response.server_uid);
     Ok(())
 }
 
