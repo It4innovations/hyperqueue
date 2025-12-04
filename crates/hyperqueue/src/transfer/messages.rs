@@ -3,14 +3,14 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::borrow::Cow;
 
-use crate::JobDataObjectId;
 use crate::client::status::Status;
 use crate::common::arraydef::IntArray;
 use crate::common::manager::info::ManagerType;
 use crate::server::autoalloc::{Allocation, AllocationId, QueueId, QueueParameters};
-use crate::server::event::Event;
 use crate::server::event::streamer::EventFilter;
+use crate::server::event::Event;
 use crate::server::job::{JobTaskCounters, JobTaskInfo, SubmittedJobDescription};
+use crate::JobDataObjectId;
 use std::path::PathBuf;
 use std::time::Duration;
 use tako::gateway::{
@@ -146,7 +146,7 @@ pub enum TaskKind {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TaskDescription {
     pub kind: TaskKind,
-    pub resource_rq_id: ResourceRqId,
+    pub resources: ResourceRequestVariants,
     pub time_limit: Option<Duration>,
     pub priority: tako::Priority,
     pub crash_limit: CrashLimit,
@@ -186,7 +186,7 @@ pub enum JobTaskDescription {
         entries: Option<Vec<EntryType>>,
         task_desc: TaskDescription,
     },
-    /// Generic DAG of tasks usually submitted through the Python binding.
+    /// Generic DAG of tasks usually submitted through the Python binding or job file.
     Graph { tasks: Vec<TaskWithDependencies> },
 }
 

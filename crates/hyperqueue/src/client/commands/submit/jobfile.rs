@@ -1,5 +1,5 @@
 use crate::client::commands::submit::command::{
-    DEFAULT_STDERR_PATH, DEFAULT_STDOUT_PATH, send_submit_request,
+    send_submit_request, DEFAULT_STDERR_PATH, DEFAULT_STDOUT_PATH,
 };
 use crate::client::commands::submit::defs::{
     ArrayDef, JobDef, StdioDefFull, StdioDefInput, TaskDef,
@@ -10,15 +10,15 @@ use crate::common::arraydef::IntArray;
 use crate::common::utils::fs::get_current_dir;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
-    JobDescription, JobSubmitDescription, JobTaskDescription, PinMode, SubmitRequest,
-    TaskDescription, TaskKind, TaskKindProgram, TaskWithDependencies,
+    JobDescription, JobSubmitDescription, JobTaskDescription, PinMode, ResourceRequestMap,
+    SubmitRequest, TaskDescription, TaskKind, TaskKindProgram, TaskWithDependencies,
 };
 use clap::Parser;
 use smallvec::smallvec;
 use std::path::PathBuf;
-use tako::Map;
 use tako::gateway::{EntryType, ResourceRequest, ResourceRequestVariants, TaskDataFlags};
 use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
+use tako::Map;
 use tako::{JobId, JobTaskCount, JobTaskId};
 
 #[derive(Parser)]
@@ -55,8 +55,7 @@ fn create_stdio(def: Option<StdioDefInput>, default: &str, has_streaming: bool) 
 }
 
 fn build_task_description(cfg: TaskConfigDef, has_streaming: bool) -> TaskDescription {
-    todo!()
-    /*TaskDescription {
+    TaskDescription {
         kind: TaskKind::ExternalProgram(TaskKindProgram {
             program: ProgramDefinition {
                 args: cfg.command.into_iter().map(|x| x.into()).collect(),
@@ -83,7 +82,7 @@ fn build_task_description(cfg: TaskConfigDef, has_streaming: bool) -> TaskDescri
         time_limit: cfg.time_limit,
         priority: cfg.priority,
         crash_limit: cfg.crash_limit,
-    }*/
+    }
 }
 
 fn build_task(

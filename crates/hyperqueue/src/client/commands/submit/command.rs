@@ -611,7 +611,7 @@ pub async fn open_job(
 
     let response = rpc_call!(session.connection(), FromClientMessage::OpenJob(JobDescription {
          name, max_fails }), ToClientMessage::OpenJobResponse(r) => r)
-    .await?;
+        .await?;
 
     gsettings.printer().print_job_open(response.job_id);
     Ok(())
@@ -661,26 +661,26 @@ pub async fn submit_computation(
         stdin: _,
         directives: _,
         conf:
-            SubmitJobTaskConfOpts {
-                job_conf: SubmitJobConfOpts { name, max_fails },
-                nodes: _,
-                cpus: _,
-                resource: _,
-                time_request: _,
-                pin,
-                task_dir,
-                cwd,
-                stdout,
-                stderr,
-                env,
-                each_line: _,
-                from_json: _,
-                array: _,
-                priority,
-                time_limit,
-                stream,
-                crash_limit,
-            },
+        SubmitJobTaskConfOpts {
+            job_conf: SubmitJobConfOpts { name, max_fails },
+            nodes: _,
+            cpus: _,
+            resource: _,
+            time_request: _,
+            pin,
+            task_dir,
+            cwd,
+            stdout,
+            stderr,
+            env,
+            each_line: _,
+            from_json: _,
+            array: _,
+            priority,
+            time_limit,
+            stream,
+            crash_limit,
+        },
         on_notify,
     } = opts;
 
@@ -695,11 +695,7 @@ pub async fn submit_computation(
 
     // Force task_dir for multi node tasks (for a place where to create node file)
     let task_dir = task_dir | (resources.n_nodes > 0);
-    let rqv = ResourceRequestVariants::new(smallvec![resources]);
-    let resource_rq_id = *get_resource_rq_ids(session, vec![rqv])
-        .await?
-        .first()
-        .unwrap();
+    let resources = ResourceRequestVariants::new(smallvec![resources]);
 
     let args: Vec<BString> = commands.into_iter().map(|arg| arg.into()).collect();
 
@@ -732,7 +728,7 @@ pub async fn submit_computation(
     });
     let task_desc = TaskDescription {
         kind: task_kind,
-        resource_rq_id,
+        resources,
         priority,
         time_limit,
         crash_limit,
@@ -762,7 +758,7 @@ pub async fn submit_computation(
         progress,
         on_notify.as_deref(),
     )
-    .await
+        .await
 }
 
 pub(crate) async fn get_resource_rq_ids(
@@ -1052,14 +1048,14 @@ impl TypedValueParser for CrashLimitParser {
             .map_err(|e| clap::Error::raw(ErrorKind::InvalidValue, format!("{e}\n")))
     }
 
-    fn possible_values(&self) -> Option<Box<dyn Iterator<Item = PossibleValue> + '_>> {
+    fn possible_values(&self) -> Option<Box<dyn Iterator<Item=PossibleValue> + '_>> {
         Some(Box::new(
             [
                 PossibleValue::new("never-restart"),
                 PossibleValue::new("unlimited"),
                 PossibleValue::new("<number>"),
             ]
-            .into_iter(),
+                .into_iter(),
         ))
     }
 }
