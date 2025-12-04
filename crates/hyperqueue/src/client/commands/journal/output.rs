@@ -1,7 +1,7 @@
 use crate::client::output::json::format_datetime;
 
-use crate::server::event::payload::EventPayload;
 use crate::server::event::Event;
+use crate::server::event::payload::EventPayload;
 use crate::transfer::messages::{
     JobSubmitDescription, JobTaskDescription, SubmitRequest, TaskDescription,
 };
@@ -192,24 +192,27 @@ impl SubmitDescFormatter<'_> {
                 ids,
                 entries: _,
                 task_desc,
+                resource_rq,
             } => {
                 let TaskDescription {
                     kind: _,
-                    resources,
+                    resource_rq_id: _,
                     time_limit,
                     priority,
                     crash_limit,
                 } = task_desc;
-                let resources: () = todo!();
                 json!({
                     "ids": ids,
-                    "resources": resources,
+                    "resources": resource_rq,
                     "time_limit": time_limit,
                     "priority": priority,
                     "crash_limit": crash_limit
                 })
             }
-            JobTaskDescription::Graph { tasks } => {
+            JobTaskDescription::Graph {
+                resource_rqs: _,
+                tasks,
+            } => {
                 json!({
                     "n_tasks": tasks.len()
                 })

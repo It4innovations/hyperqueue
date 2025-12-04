@@ -1,5 +1,5 @@
 use crate::client::commands::submit::command::{
-    send_submit_request, DEFAULT_STDERR_PATH, DEFAULT_STDOUT_PATH,
+    DEFAULT_STDERR_PATH, DEFAULT_STDOUT_PATH, send_submit_request,
 };
 use crate::client::commands::submit::defs::{
     ArrayDef, JobDef, StdioDefFull, StdioDefInput, TaskDef,
@@ -10,15 +10,16 @@ use crate::common::arraydef::IntArray;
 use crate::common::utils::fs::get_current_dir;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
-    JobDescription, JobSubmitDescription, JobTaskDescription, PinMode, ResourceRequestMap,
-    SubmitRequest, TaskDescription, TaskKind, TaskKindProgram, TaskWithDependencies,
+    JobDescription, JobSubmitDescription, JobTaskDescription, LocalResourceRqId, PinMode,
+    ResourceRequestMap, SubmitRequest, TaskDescription, TaskKind, TaskKindProgram,
+    TaskWithDependencies,
 };
 use clap::Parser;
 use smallvec::smallvec;
 use std::path::PathBuf;
+use tako::Map;
 use tako::gateway::{EntryType, ResourceRequest, ResourceRequestVariants, TaskDataFlags};
 use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
-use tako::Map;
 use tako::{JobId, JobTaskCount, JobTaskId};
 
 #[derive(Parser)]
@@ -54,7 +55,23 @@ fn create_stdio(def: Option<StdioDefInput>, default: &str, has_streaming: bool) 
     }
 }
 
-fn build_task_description(cfg: TaskConfigDef, has_streaming: bool) -> TaskDescription {
+fn build_task_description(
+    cfg: TaskConfigDef,
+    resource_map: &mut Map<ResourceRequestVariants, LocalResourceRqId>,
+    has_streaming: bool,
+) -> TaskDescription {
+    let resources = ResourceRequestVariants {
+        variants: if cfg.request.is_empty() {
+            smallvec![ResourceRequest::default()]
+        } else {
+            cfg.request.into_iter().map(|r| r.into_request()).collect()
+        },
+    };
+    let resource_rq_id = resource_map.get(&resources).copied().unwrap_or_else(|| {
+        let new_id = LocalResourceRqId::new(resource_map.len() as u32);
+        assert!(resource_map.insert(resources, new_id).is_none());
+        new_id
+    });
     TaskDescription {
         kind: TaskKind::ExternalProgram(TaskKindProgram {
             program: ProgramDefinition {
@@ -72,13 +89,7 @@ fn build_task_description(cfg: TaskConfigDef, has_streaming: bool) -> TaskDescri
             },
             task_dir: cfg.task_dir,
         }),
-        resources: ResourceRequestVariants {
-            variants: if cfg.request.is_empty() {
-                smallvec![ResourceRequest::default()]
-            } else {
-                cfg.request.into_iter().map(|r| r.into_request()).collect()
-            },
-        },
+        resource_rq_id,
         time_limit: cfg.time_limit,
         priority: cfg.priority,
         crash_limit: cfg.crash_limit,

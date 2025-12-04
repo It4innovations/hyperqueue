@@ -18,10 +18,10 @@ use crate::server::Senders;
 use crate::server::job::{Job, JobTaskState, SubmittedJobDescription};
 use crate::server::state::{State, StateRef};
 use crate::transfer::messages::{
-    JobDescription, JobSubmitDescription, JobTaskDescription, OpenJobResponse, SingleIdSelector,
-    SubmitRequest, SubmitResponse, TaskBuildDescription, TaskDescription, TaskExplainRequest,
-    TaskExplainResponse, TaskIdSelector, TaskKind, TaskKindProgram, TaskSelector,
-    TaskStatusSelector, TaskWithDependencies, ToClientMessage,
+    JobDescription, JobSubmitDescription, JobTaskDescription, OpenJobResponse, ResourceRequestMap,
+    SingleIdSelector, SubmitRequest, SubmitResponse, TaskBuildDescription, TaskDescription,
+    TaskExplainRequest, TaskExplainResponse, TaskIdSelector, TaskKind, TaskKindProgram,
+    TaskSelector, TaskStatusSelector, TaskWithDependencies, ToClientMessage,
 };
 use tako::program::ProgramDefinition;
 use tako::{JobId, JobTaskCount, JobTaskId};
@@ -223,7 +223,7 @@ fn log_submit_request(request: &SubmitRequest) {
                                     pin_mode,
                                     task_dir,
                                 }),
-                            resource_rq_id,
+                            resources,
                             time_limit,
                             priority,
                             crash_limit,
@@ -232,7 +232,7 @@ fn log_submit_request(request: &SubmitRequest) {
                     .debug_struct("Array")
                     .field("ids", ids)
                     .field("entries", &entries.as_ref().map(|e| e.len()))
-                    .field("resource_rq_id", resource_rq_id)
+                    .field("resources", resources)
                     .field(
                         "args",
                         &args

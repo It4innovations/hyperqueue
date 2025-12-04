@@ -3,14 +3,14 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::borrow::Cow;
 
+use crate::JobDataObjectId;
 use crate::client::status::Status;
 use crate::common::arraydef::IntArray;
 use crate::common::manager::info::ManagerType;
 use crate::server::autoalloc::{Allocation, AllocationId, QueueId, QueueParameters};
-use crate::server::event::streamer::EventFilter;
 use crate::server::event::Event;
+use crate::server::event::streamer::EventFilter;
 use crate::server::job::{JobTaskCounters, JobTaskInfo, SubmittedJobDescription};
-use crate::JobDataObjectId;
 use std::path::PathBuf;
 use std::time::Duration;
 use tako::gateway::{
@@ -21,7 +21,7 @@ use tako::program::ProgramDefinition;
 use tako::resources::{ResourceDescriptor, ResourceRqId};
 use tako::server::TaskExplanation;
 use tako::worker::WorkerConfiguration;
-use tako::{JobId, JobTaskCount, JobTaskId, Map, TaskId, WorkerId};
+use tako::{JobId, JobTaskCount, JobTaskId, Map, TaskId, WorkerId, define_id_type};
 
 // Messages client -> server
 #[allow(clippy::large_enum_variant)]
@@ -143,10 +143,12 @@ pub enum TaskKind {
     ExternalProgram(TaskKindProgram),
 }
 
+define_id_type!(LocalResourceRqId, u32);
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TaskDescription {
     pub kind: TaskKind,
-    pub resources: ResourceRequestVariants,
+    pub resource_rq_id: LocalResourceRqId,
     pub time_limit: Option<Duration>,
     pub priority: tako::Priority,
     pub crash_limit: CrashLimit,
@@ -184,10 +186,14 @@ pub enum JobTaskDescription {
     Array {
         ids: IntArray,
         entries: Option<Vec<EntryType>>,
+        resource_rq: ResourceRequestVariants,
         task_desc: TaskDescription,
     },
     /// Generic DAG of tasks usually submitted through the Python binding or job file.
-    Graph { tasks: Vec<TaskWithDependencies> },
+    Graph {
+        resource_rqs: Vec<ResourceRequestVariants>,
+        tasks: Vec<TaskWithDependencies>,
+    },
 }
 
 impl JobTaskDescription {

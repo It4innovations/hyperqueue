@@ -300,7 +300,7 @@ fn format_crash_limit(limit: CrashLimit) -> Value {
 fn format_task_description(task_desc: &TaskDescription) -> Value {
     let TaskDescription {
         kind,
-        resource_rq_id,
+        resources,
         time_limit,
         priority,
         crash_limit,
