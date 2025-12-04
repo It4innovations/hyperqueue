@@ -464,6 +464,8 @@ def test_reporting_state_after_worker_lost(hq_env: HqEnv):
 
     wait_for_job_state(hq_env, other + 1, "FINISHED")
 
+    time.sleep(1)
+
     table = list_jobs(hq_env)
     assert table.get_column_value("State")[other] == "FINISHED"
     assert table.get_column_value("State")[idx] == "RUNNING"

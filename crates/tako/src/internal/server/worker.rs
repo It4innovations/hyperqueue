@@ -73,7 +73,7 @@ impl fmt::Debug for Worker {
             .field("id", &self.id)
             .field("resources", &self.configuration.resources)
             .field("load", &self.sn_load)
-            .field("tasks", &self.sn_tasks.len())
+            .field("tasks", &self.sn_tasks)
             .finish()
     }
 }

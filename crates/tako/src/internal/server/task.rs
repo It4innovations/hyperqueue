@@ -137,7 +137,10 @@ static_assert_size!(Task, 120);
 impl fmt::Debug for Task {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         //let task_ids : Vec<_> = self.tasks.iter().map(|r| r.get().id.to_string()).collect();
-        f.debug_struct("Task").field("id", &self.id).finish()
+        f.debug_struct("Task")
+            .field("id", &self.id)
+            .field("state", &self.state)
+            .finish()
     }
 }
 
