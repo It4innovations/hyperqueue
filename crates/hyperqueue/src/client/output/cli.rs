@@ -102,11 +102,11 @@ impl CliOutput {
         &self,
         rows: &mut Vec<Vec<CellStruct>>,
         task_desc: &TaskDescription,
-        request_map: &ResourceRequestMap,
+        request_map: &[ResourceRequestVariants],
     ) {
         let TaskDescription {
             kind,
-            resources,
+            resource_rq_id,
             time_limit,
             priority,
             crash_limit,
@@ -118,6 +118,7 @@ impl CliOutput {
                 pin_mode,
                 task_dir: _task_dir,
             }) => {
+                let resources = request_map.get(resource_rq_id.as_usize()).unwrap();
                 let resources = format_resource_variants(resources);
                 rows.push(vec![
                     "Resources".cell().bold(true),
@@ -583,7 +584,7 @@ impl Output for CliOutput {
                         JobTaskDescription::Array { ids, .. } => {
                             itertools::Either::Left(ids.iter())
                         }
-                        JobTaskDescription::Graph { tasks } => {
+                        JobTaskDescription::Graph { tasks, .. } => {
                             itertools::Either::Right(tasks.iter().map(|t| t.id.as_num()))
                         }
                     })
