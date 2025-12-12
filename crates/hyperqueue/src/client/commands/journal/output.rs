@@ -196,7 +196,6 @@ impl SubmitDescFormatter<'_> {
             } => {
                 let TaskDescription {
                     kind: _,
-                    resource_rq_id: _,
                     time_limit,
                     priority,
                     crash_limit,

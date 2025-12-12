@@ -65,11 +65,7 @@ fn build_resource_request(cfg: &mut TaskConfigDef) -> ResourceRequestVariants {
     }
 }
 
-fn build_task_description(
-    cfg: TaskConfigDef,
-    resource_rq_id: LocalResourceRqId,
-    has_streaming: bool,
-) -> TaskDescription {
+fn build_task_description(cfg: TaskConfigDef, has_streaming: bool) -> TaskDescription {
     TaskDescription {
         kind: TaskKind::ExternalProgram(TaskKindProgram {
             program: ProgramDefinition {
@@ -87,7 +83,6 @@ fn build_task_description(
             },
             task_dir: cfg.task_dir,
         }),
-        resource_rq_id,
         time_limit: cfg.time_limit,
         priority: cfg.priority,
         crash_limit: cfg.crash_limit,
@@ -113,7 +108,8 @@ fn build_task(
     TaskWithDependencies {
         id,
         data_flags,
-        task_desc: build_task_description(tdef.config, resource_rq_id, has_streaming),
+        task_desc: build_task_description(tdef.config, has_streaming),
+        resource_rq_id,
         task_deps: tdef.deps,
         data_deps: tdef.data_deps,
     }
@@ -139,7 +135,7 @@ fn build_job_desc_array(mut array: ArrayDef, has_streaming: bool) -> JobTaskDesc
         ids,
         entries,
         resource_rq: resources,
-        task_desc: build_task_description(array.config, LocalResourceRqId::new(0), has_streaming),
+        task_desc: build_task_description(array.config, has_streaming),
     }
 }
 

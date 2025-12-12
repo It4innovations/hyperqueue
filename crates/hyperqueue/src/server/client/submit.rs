@@ -32,6 +32,7 @@ fn create_task_submit(job_id: JobId, submit_desc: &mut JobSubmitDescription) -> 
             ids,
             entries,
             task_desc,
+            resource_rq,
         } => build_tasks_array(
             job_id,
             ids,
@@ -40,7 +41,10 @@ fn create_task_submit(job_id: JobId, submit_desc: &mut JobSubmitDescription) -> 
             &submit_desc.submit_dir,
             submit_desc.stream_path.as_ref(),
         ),
-        JobTaskDescription::Graph { tasks } => build_tasks_graph(
+        JobTaskDescription::Graph {
+            tasks,
+            resource_rqs,
+        } => build_tasks_graph(
             job_id,
             tasks,
             &submit_desc.submit_dir,
@@ -80,13 +84,17 @@ pub(crate) fn validate_submit(
                 }
             }
         }
-        JobTaskDescription::Graph { tasks } => {
+        JobTaskDescription::Graph {
+            tasks,
+            resource_rqs,
+        } => {
             if let Some(job) = job {
                 for task in tasks {
                     if job.tasks.contains_key(&task.id) {
                         let id = task.id;
                         return Some(SubmitResponse::TaskIdAlreadyExists(id));
                     }
+                    assert!(task.resource_rq_id.as_usize() < resource_rqs.len())
                 }
             }
             let mut task_ids = Set::new();
@@ -207,6 +215,7 @@ fn log_submit_request(request: &SubmitRequest) {
                 JobTaskDescription::Array {
                     ids,
                     entries,
+                    resource_rq,
                     task_desc:
                         TaskDescription {
                             kind:
@@ -223,7 +232,6 @@ fn log_submit_request(request: &SubmitRequest) {
                                     pin_mode,
                                     task_dir,
                                 }),
-                            resources,
                             time_limit,
                             priority,
                             crash_limit,
@@ -232,7 +240,7 @@ fn log_submit_request(request: &SubmitRequest) {
                     .debug_struct("Array")
                     .field("ids", ids)
                     .field("entries", &entries.as_ref().map(|e| e.len()))
-                    .field("resources", resources)
+                    .field("resources", resource_rq)
                     .field(
                         "args",
                         &args
@@ -260,7 +268,7 @@ fn log_submit_request(request: &SubmitRequest) {
                     .field("priority", priority)
                     .field("crash_limit", crash_limit)
                     .finish(),
-                JobTaskDescription::Graph { tasks } => {
+                JobTaskDescription::Graph { tasks, .. } => {
                     f.write_fmt(format_args!("Graph ({}) task(s)", tasks.len()))
                 }
             }

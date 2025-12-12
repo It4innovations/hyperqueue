@@ -148,7 +148,6 @@ define_id_type!(LocalResourceRqId, u32);
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TaskDescription {
     pub kind: TaskKind,
-    pub resource_rq_id: LocalResourceRqId,
     pub time_limit: Option<Duration>,
     pub priority: tako::Priority,
     pub crash_limit: CrashLimit,
@@ -167,6 +166,7 @@ impl TaskDescription {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TaskWithDependencies {
     pub id: JobTaskId,
+    pub resource_rq_id: LocalResourceRqId,
     pub task_desc: TaskDescription,
     pub task_deps: Vec<JobTaskId>,
     pub data_deps: Vec<JobDataObjectId>,

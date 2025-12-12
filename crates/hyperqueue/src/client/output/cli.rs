@@ -102,11 +102,10 @@ impl CliOutput {
         &self,
         rows: &mut Vec<Vec<CellStruct>>,
         task_desc: &TaskDescription,
-        request_map: &[ResourceRequestVariants],
+        resource_rq: &ResourceRequestVariants,
     ) {
         let TaskDescription {
             kind,
-            resource_rq_id,
             time_limit,
             priority,
             crash_limit,
@@ -118,8 +117,7 @@ impl CliOutput {
                 pin_mode,
                 task_dir: _task_dir,
             }) => {
-                let resources = request_map.get(resource_rq_id.as_usize()).unwrap();
-                let resources = format_resource_variants(resources);
+                let resources = format_resource_variants(resource_rq);
                 rows.push(vec![
                     "Resources".cell().bold(true),
                     if !matches!(pin_mode, PinMode::None) {
@@ -531,13 +529,7 @@ impl Output for CliOutput {
         self.print_horizontal_table(rows, header);
     }
 
-    fn print_job_detail(
-        &self,
-        jobs: Vec<JobDetail>,
-        worker_map: &WorkerMap,
-        request_map: &ResourceRequestMap,
-        _server_uid: &str,
-    ) {
+    fn print_job_detail(&self, jobs: Vec<JobDetail>, worker_map: &WorkerMap, _server_uid: &str) {
         for job in jobs {
             let JobDetail {
                 info,
@@ -603,10 +595,13 @@ impl Output for CliOutput {
             ]);
 
             if submit_descs.len() == 1
-                && let JobTaskDescription::Array { task_desc, .. } =
-                    &submit_descs[0].description().task_desc
+                && let JobTaskDescription::Array {
+                    task_desc,
+                    resource_rq,
+                    ..
+                } = &submit_descs[0].description().task_desc
             {
-                self.print_job_shared_task_description(&mut rows, task_desc, request_map);
+                self.print_job_shared_task_description(&mut rows, task_desc, resource_rq);
             }
 
             rows.push(vec![
@@ -774,20 +769,29 @@ impl Output for CliOutput {
             let (start, end) = get_task_time(&task.state);
             let (cwd, stdout, stderr) = format_task_paths(&task_to_paths, *task_id);
 
-            let (task_desc, task_deps) = if let Some(x) =
-                job.submit_descs.iter().find_map(|submit_desc| {
-                    match &submit_desc.description().task_desc {
-                        JobTaskDescription::Array {
-                            ids,
-                            entries: _,
-                            task_desc,
-                        } if ids.contains(task_id.as_num()) => Some((task_desc, [].as_slice())),
-                        JobTaskDescription::Array { .. } => None,
-                        JobTaskDescription::Graph { tasks } => tasks
-                            .iter()
-                            .find(|t| t.id == *task_id)
-                            .map(|task_dep| (&task_dep.task_desc, task_dep.task_deps.as_slice())),
+            let (task_desc, resource_rq, task_deps) = if let Some(x) = job
+                .submit_descs
+                .iter()
+                .find_map(|submit_desc| match &submit_desc.description().task_desc {
+                    JobTaskDescription::Array {
+                        ids,
+                        entries: _,
+                        task_desc,
+                        resource_rq,
+                    } if ids.contains(task_id.as_num()) => {
+                        Some((task_desc, resource_rq, [].as_slice()))
                     }
+                    JobTaskDescription::Array { .. } => None,
+                    JobTaskDescription::Graph {
+                        tasks,
+                        resource_rqs,
+                    } => tasks.iter().find(|t| t.id == *task_id).map(|task_dep| {
+                        (
+                            &task_dep.task_desc,
+                            &resource_rqs[task_dep.resource_rq_id.as_usize()],
+                            task_dep.task_deps.as_slice(),
+                        )
+                    }),
                 }) {
                 x
             } else {
@@ -863,7 +867,7 @@ impl Output for CliOutput {
                                 .cell(),
                         ],
                         vec!["Resources".cell().bold(true), {
-                            format_resource_variants(&task_desc.resources).cell()
+                            format_resource_variants(resource_rq).cell()
                         }],
                         vec!["Priority".cell().bold(true), task_desc.priority.cell()],
                         vec!["Pin".cell().bold(true), pin_mode.to_str().cell()],

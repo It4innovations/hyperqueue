@@ -181,7 +181,7 @@ pub async fn output_job_detail(
         rpc_call!(session.connection(), message, ToClientMessage::JobDetailResponse(r) => r)
             .await?;
 
-    let (worker_map, request_map) = get_remote_maps(session, true, true).await?;
+    let (worker_map, _request_map) = get_remote_maps(session, true, false).await?;
 
     let jobs: Vec<JobDetail> = response
         .details
@@ -196,7 +196,7 @@ pub async fn output_job_detail(
         .collect();
     gsettings
         .printer()
-        .print_job_detail(jobs, &worker_map, &request_map, &response.server_uid);
+        .print_job_detail(jobs, &worker_map, &response.server_uid);
     Ok(())
 }
 

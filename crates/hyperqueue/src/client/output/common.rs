@@ -34,7 +34,10 @@ pub fn resolve_task_paths(job: &JobDetail, server_uid: &str) -> TaskToPathsMap {
                     );
                 }
             }
-            JobTaskDescription::Graph { tasks } => {
+            JobTaskDescription::Graph {
+                tasks,
+                resource_rqs,
+            } => {
                 for t in tasks {
                     task_to_desc_map.insert(
                         t.id,

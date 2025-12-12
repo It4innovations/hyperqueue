@@ -48,13 +48,7 @@ pub trait Output {
     fn print_job_open(&self, job_id: JobId);
     fn print_job_list(&self, jobs: Vec<JobInfo>, total_jobs: usize);
     fn print_job_summary(&self, jobs: Vec<JobInfo>);
-    fn print_job_detail(
-        &self,
-        jobs: Vec<JobDetail>,
-        worker_map: &WorkerMap,
-        request_map: &ResourceRequestMap,
-        server_uid: &str,
-    );
+    fn print_job_detail(&self, jobs: Vec<JobDetail>, worker_map: &WorkerMap, server_uid: &str);
     fn print_job_wait(
         &self,
         duration: Duration,

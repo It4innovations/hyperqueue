@@ -108,13 +108,7 @@ impl Output for JsonOutput {
         let statuses = group_jobs_by_status(&jobs);
         self.print(json!(statuses))
     }
-    fn print_job_detail(
-        &self,
-        jobs: Vec<JobDetail>,
-        _worker_map: &WorkerMap,
-        _request_map: &ResourceRequestMap,
-        server_uid: &str,
-    ) {
+    fn print_job_detail(&self, jobs: Vec<JobDetail>, _worker_map: &WorkerMap, server_uid: &str) {
         let job_details: Vec<_> = jobs
             .into_iter()
             .map(|job| {
@@ -143,15 +137,15 @@ impl Output for JsonOutput {
                                     "finished_at": finished_at.map(format_datetime),
                                     "submits": submit_descs.iter().map(|submit_desc|
                 match &submit_desc.description().task_desc {
-                                    JobTaskDescription::Array { task_desc, .. } => {
+                                    JobTaskDescription::Array { task_desc, resource_rq, .. } => {
                                         json!({
-                                            "array": format_task_description(task_desc)
+                                            "array": format_task_description(task_desc, resource_rq)
                                         })
                                     }
-                                    JobTaskDescription::Graph { tasks } => {
+                                    JobTaskDescription::Graph { tasks, resource_rqs } => {
                                         let tasks: Vec<Value> = tasks
                                             .iter()
-                                            .map(|task| format_task_description(&task.task_desc))
+                                            .map(|task| format_task_description(&task.task_desc, &resource_rqs[task.resource_rq_id.as_usize()]))
                                             .collect();
                                         json!({
                                             "graph": tasks
@@ -297,16 +291,13 @@ fn format_crash_limit(limit: CrashLimit) -> Value {
     }
 }
 
-fn format_task_description(task_desc: &TaskDescription) -> Value {
+fn format_task_description(task_desc: &TaskDescription, rqv: &ResourceRequestVariants) -> Value {
     let TaskDescription {
         kind,
-        resources,
         time_limit,
         priority,
         crash_limit,
     } = task_desc;
-
-    let resources: &ResourceRequestVariants = todo!();
 
     match kind {
         TaskKind::ExternalProgram(TaskKindProgram {
@@ -330,7 +321,7 @@ fn format_task_description(task_desc: &TaskDescription) -> Value {
                     "stderr": format_stdio_def(stderr),
                     "stdout": format_stdio_def(stdout),
                 },
-                "resources": resources
+                "resources": rqv
                     .variants
                     .iter()
                     .map(|v| {

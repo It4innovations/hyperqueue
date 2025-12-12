@@ -729,7 +729,6 @@ pub async fn submit_computation(
 
     let task_desc = TaskDescription {
         kind: task_kind,
-        resource_rq_id: LocalResourceRqId::new(0),
         priority,
         time_limit,
         crash_limit,

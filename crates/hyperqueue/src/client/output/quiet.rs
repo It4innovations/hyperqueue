@@ -97,14 +97,7 @@ impl Output for Quiet {
             println!("{status} {count}");
         }
     }
-    fn print_job_detail(
-        &self,
-        _jobs: Vec<JobDetail>,
-        _worker_map: &WorkerMap,
-        _request_map: &ResourceRequestMap,
-        _server_uid: &str,
-    ) {
-    }
+    fn print_job_detail(&self, _jobs: Vec<JobDetail>, _worker_map: &WorkerMap, _server_uid: &str) {}
 
     fn print_job_wait(
         &self,
@@ -139,7 +132,7 @@ impl Output for Quiet {
         _job: (JobId, JobDetail),
         _tasks: &[(JobTaskId, JobTaskInfo)],
         _worker_map: &WorkerMap,
-        _request_map: &ResourceRequestMap,
+        _resource_map: &ResourceRequestMap,
         _server_uid: &str,
         _verbosity: Verbosity,
     ) {
