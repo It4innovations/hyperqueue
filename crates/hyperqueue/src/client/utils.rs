@@ -6,6 +6,7 @@ use std::ffi::OsStr;
 macro_rules! rpc_call {
     ($conn:expr, $message:expr, $matcher:pat $(=> $result:expr)?) => {
         async {
+            #[allow(clippy::double_parens)]  // Disabled because of clippy in rust 1.92.0
             match $conn.send_and_receive($message).await? {
                 $matcher => $crate::Result::Ok(($($result),*)),
                 $crate::transfer::messages::ToClientMessage::Error(e) => {
