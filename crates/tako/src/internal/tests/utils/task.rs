@@ -99,7 +99,7 @@ impl TaskBuilder {
             rq.validate().unwrap();
         }
         let resources = ResourceRequestVariants::new(resources);
-        let (rq_id, _) = resource_map.get_or_create_resource_rq_id(&resources);
+        let (rq_id, _) = resource_map.get_or_create_rq_id(resources);
         Task::new(
             self.id,
             rq_id,
