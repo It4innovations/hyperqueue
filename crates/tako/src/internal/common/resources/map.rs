@@ -92,11 +92,7 @@ impl GlobalResourceMapping {
         *self.resource_rq_to_id.get(rqv).unwrap()
     }
 
-    pub fn get_or_create_resource_rq_id(
-        &mut self,
-        rq: &ClientResourceRequestVariants,
-    ) -> (ResourceRqId, bool) {
-        let rqv = self.convert_client_resource_rq(rq);
+    pub fn get_or_create_rq_id(&mut self, rqv: ResourceRequestVariants) -> (ResourceRqId, bool) {
         match self.resource_rq_to_id.get(&rqv) {
             Some(&id) => (id, false),
             None => {
@@ -107,6 +103,14 @@ impl GlobalResourceMapping {
                 (id, true)
             }
         }
+    }
+
+    pub fn get_or_create_resource_rq_id(
+        &mut self,
+        rq: &ClientResourceRequestVariants,
+    ) -> (ResourceRqId, bool) {
+        let rqv = self.convert_client_resource_rq(rq);
+        self.get_or_create_rq_id(rqv)
     }
 
     /*    pub fn get_or_create_resource_rq_id(
@@ -193,14 +197,13 @@ impl ResourceRqMap {
         if let Some(rq_id) = self
             .0
             .iter()
-            .find_map(|(rq_id, rqv2)| (&rqv == rqv2).then(|| *rq_id))
+            .enumerate()
+            .find_map(|(rq_id, rqv2)| (&rqv == rqv2).then(|| ResourceRqId::new(rq_id as u32)))
         {
             rq_id
         } else {
-            let mut new_id = ResourceRqId::new(
-                self.0.len() as u32 * 2 + if rqv.is_multi_node() { 1 } else { 0 },
-            );
-            self.0.insert(new_id, rqv);
+            let mut new_id = ResourceRqId::new(self.0.len() as u32);
+            self.0.push(rqv);
             new_id
         }
     }

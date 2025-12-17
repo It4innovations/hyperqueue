@@ -1,9 +1,9 @@
 use crate::control::{NewWorkerAllocationResponse, WorkerTypeQuery};
 use crate::internal::tests::integration::utils::check_file_contents;
-use crate::internal::tests::integration::utils::server::{ServerHandle, run_server_test};
+use crate::internal::tests::integration::utils::server::{run_server_test, ServerHandle};
 use crate::internal::tests::integration::utils::task::ResourceRequestConfigBuilder;
 use crate::internal::tests::integration::utils::task::{
-    GraphBuilder, TaskConfigBuilder, simple_args, simple_task,
+    simple_args, simple_task, GraphBuilder, TaskConfigBuilder,
 };
 use crate::program::StdioDef;
 use crate::resources::ResourceDescriptor;
@@ -13,7 +13,7 @@ use tokio::time::sleep;
 #[tokio::test]
 async fn test_submit_simple_task_ok() {
     run_server_test(Default::default(), |mut handler| async move {
-        let rq = handler.register_default_request();
+        let rq = todo!(); // handler.register_default_request();
         let worker = handler.start_worker(Default::default()).await.unwrap();
 
         let stdout = worker.workdir.join("test.out");

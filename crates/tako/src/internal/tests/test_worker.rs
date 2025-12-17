@@ -6,11 +6,11 @@ use crate::internal::messages::worker::{
     WorkerResourceCounts,
 };
 use crate::internal::server::workerload::WorkerResources;
-use crate::internal::tests::utils::resources::{ResourceRequestBuilder, ra_builder};
+use crate::internal::tests::utils::resources::{ra_builder, ResourceRequestBuilder};
 use crate::internal::worker::comm::WorkerComm;
 use crate::internal::worker::configuration::{
-    DEFAULT_MAX_DOWNLOAD_TRIES, DEFAULT_MAX_PARALLEL_DOWNLOADS,
-    DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES, OverviewConfiguration,
+    OverviewConfiguration, DEFAULT_MAX_DOWNLOAD_TRIES, DEFAULT_MAX_PARALLEL_DOWNLOADS,
+    DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES,
 };
 use crate::internal::worker::rpc::process_worker_message;
 use crate::internal::worker::state::WorkerStateRef;
@@ -108,7 +108,7 @@ fn create_dummy_compute_msg(task_id: TaskId, resource_rq_id: ResourceRqId) -> Co
 fn test_worker_start_task() {
     let mut rmap = GlobalResourceMapping::default();
     let rqv = ResourceRequestBuilder::default().cpus(3).finish_v();
-    let (rq_id, _) = rmap.get_or_create_resource_rq_id(&rqv);
+    let (rq_id, _) = rmap.get_or_create_rq_id(rqv.clone());
 
     let config = create_test_worker_config();
     let state_ref = create_test_worker_state(config, rmap.get_resource_rq_map().clone());
@@ -232,12 +232,10 @@ fn test_worker_other_workers() {
     assert_eq!(state.ready_task_queue.worker_resources()[&wr2], t);
 
     process_worker_message(&mut state, ToWorkerMessage::LostWorker(30.into()));
-    assert!(
-        state
-            .ready_task_queue
-            .worker_resources()
-            .get(&wr1)
-            .is_none()
-    );
+    assert!(state
+        .ready_task_queue
+        .worker_resources()
+        .get(&wr1)
+        .is_none());
     assert_eq!(state.ready_task_queue.worker_resources()[&wr2], t);
 }

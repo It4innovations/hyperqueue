@@ -25,6 +25,7 @@ use crate::internal::tests::integration::utils::api::{wait_for_tasks, WaitResult
 use crate::internal::tests::integration::utils::worker::{
     start_worker, WorkerContext, WorkerHandle,
 };
+use crate::resources::ResourceRqAllocator;
 use crate::task::SerializedTaskContext;
 use crate::tests::integration::utils::task::{ResourceRequestConfig, ResourceRequestConfigBuilder};
 use crate::worker::{WorkerConfiguration, WorkerOverview};
@@ -116,6 +117,18 @@ impl ServerHandle {
         timeout(WAIT_TIMEOUT, wait_for_tasks(self, tasks))
             .await
             .unwrap()
+    }
+
+    #[cfg(test)]
+    pub fn register_default_request(&self) -> ResourceRqId {
+        self.server_ref
+            .get_or_create_raw_rq_id(crate::resources::ResourceRequestVariants::default())
+    }
+
+    #[cfg(test)]
+    pub fn register_request(&self, rbuilder: ResourceRequestConfigBuilder) -> ResourceRqId {
+        let rqv = rbuilder.into_rqv();
+        self.server_ref.get_or_create_resource_rq_id(&rqv)
     }
 }
 

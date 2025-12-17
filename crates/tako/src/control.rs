@@ -205,6 +205,18 @@ impl ServerRef {
         let core = self.core_ref.get();
         core.dump(now)
     }
+
+    #[cfg(test)]
+    pub fn get_or_create_raw_rq_id(
+        &self,
+        rqv: crate::resources::ResourceRequestVariants,
+    ) -> ResourceRqId {
+        use crate::internal::server::reactor::get_or_create_raw_resource_rq_id;
+        let mut core = self.core_ref.get_mut();
+        let mut comm = self.comm_ref.get_mut();
+        let (rq_id, _) = get_or_create_raw_resource_rq_id(&mut core, &mut *comm, rqv);
+        rq_id
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
