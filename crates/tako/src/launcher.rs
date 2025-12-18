@@ -12,7 +12,7 @@ use tokio::process::Command;
 
 use crate::gateway::{EntryType, TaskDataFlags};
 use crate::internal::common::resources::map::ResourceMap;
-use crate::internal::worker::configuration::WorkerConfiguration;
+use crate::internal::worker::configuration::{EnvPropagationMode, WorkerConfiguration};
 use crate::internal::worker::localcomm::Token;
 use crate::internal::worker::resources::map::ResourceLabelMap;
 use crate::internal::worker::state::WorkerState;
@@ -174,7 +174,10 @@ fn create_output_stream(def: &StdioDef, cwd: &Path) -> crate::Result<Stdio> {
     Ok(stdio)
 }
 
-pub fn command_from_definitions(definition: &ProgramDefinition) -> crate::Result<Command> {
+pub fn command_from_definitions(
+    definition: &ProgramDefinition,
+    env_propagation_mode: &EnvPropagationMode,
+) -> crate::Result<Command> {
     if definition.args.is_empty() {
         return Result::Err(crate::Error::GenericError(
             "No command arguments".to_string(),
@@ -182,6 +185,14 @@ pub fn command_from_definitions(definition: &ProgramDefinition) -> crate::Result
     }
 
     let mut command = Command::new(definition.args[0].to_os_str_lossy());
+
+    match env_propagation_mode {
+        EnvPropagationMode::Propagate => {}
+        EnvPropagationMode::Isolate => {
+            // TODO: propagate path?
+            command.env_clear();
+        }
+    }
 
     #[cfg(target_os = "linux")]
     unsafe {

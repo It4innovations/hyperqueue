@@ -28,6 +28,7 @@ use crate::transfer::messages::{
     AutoAllocListQueuesResponse, JobDetail, JobInfo, JobTaskDescription, PinMode, QueueData,
     ServerInfo, TaskDescription, TaskKind, TaskKindProgram, WaitForJobsResponse, WorkerInfo,
 };
+use tako::internal::worker::configuration::EnvPropagationMode;
 use tako::server::TaskExplanation;
 use tako::{JobId, JobTaskId};
 
@@ -555,6 +556,7 @@ fn format_worker_info(worker_info: WorkerInfo) -> serde_json::Value {
                 max_parallel_downloads,
                 max_download_tries,
                 wait_between_download_tries,
+                env_propagation_mode,
                 extra: _,
             },
         started,
@@ -578,6 +580,10 @@ fn format_worker_info(worker_info: WorkerInfo) -> serde_json::Value {
             "max_parallel_downloads": max_parallel_downloads,
             "max_download_tries": max_download_tries,
             "wait_between_download_tries": format_duration(wait_between_download_tries),
+            "env_propagation_mode": match env_propagation_mode {
+                EnvPropagationMode::Propagate => "propagate",
+                EnvPropagationMode::Isolate => "isolate"
+            }
         }),
         "allocation": manager_info.map(|info| json!({
             "manager": FormattedManagerType(info.manager),

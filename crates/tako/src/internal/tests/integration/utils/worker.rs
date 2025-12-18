@@ -9,7 +9,7 @@ use crate::internal::common::error::DsError;
 use crate::internal::common::resources::ResourceDescriptor;
 use crate::internal::worker::configuration::{
     DEFAULT_MAX_DOWNLOAD_TRIES, DEFAULT_MAX_PARALLEL_DOWNLOADS,
-    DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES, OverviewConfiguration,
+    DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES, EnvPropagationMode, OverviewConfiguration,
 };
 use crate::launcher::{StopReason, TaskBuildContext, TaskResult};
 use crate::program::ProgramDefinition;
@@ -86,6 +86,7 @@ pub fn create_worker_configuration(
             wait_between_download_tries: DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES,
             time_limit: None,
             extra,
+            env_propagation_mode: EnvPropagationMode::Propagate,
         },
         secret_key,
     )
@@ -230,7 +231,7 @@ pub(super) async fn start_worker(
 }
 
 async fn launcher_main(program: ProgramDefinition) -> crate::Result<()> {
-    let mut command = command_from_definitions(&program)?;
+    let mut command = command_from_definitions(&program, &EnvPropagationMode::Propagate)?;
     let mut process = command.spawn()?;
 
     if !program.stdin.is_empty() {

@@ -29,6 +29,7 @@ use crate::worker::start::{RunningTaskContext, SharedTaskDescription};
 use crate::worker::streamer::StreamSender;
 use crate::worker::streamer::StreamerRef;
 use tako::comm::serialize;
+use tako::internal::worker::configuration::EnvPropagationMode;
 use tako::launcher::{
     StopReason, TaskBuildContext, TaskLaunchData, TaskResult, command_from_definitions,
 };
@@ -199,6 +200,10 @@ pub(super) fn build_program_task(
     let task_future = create_task_future(
         streamer_ref.clone(),
         program,
+        build_ctx
+            .worker_configuration()
+            .env_propagation_mode
+            .clone(),
         task_id,
         instance_id,
         stop_receiver,
@@ -499,13 +504,14 @@ fn check_error_filename(task_dir: TempDir) -> Option<tako::Error> {
 async fn create_task_future(
     streamer_ref: StreamerRef,
     program: ProgramDefinition,
+    env_propagation_mode: EnvPropagationMode,
     task_id: TaskId,
     instance_id: InstanceId,
     end_receiver: Receiver<StopReason>,
     task_dir: Option<TempDir>,
     stream_path: Option<PathBuf>,
 ) -> tako::Result<TaskResult> {
-    let mut command = command_from_definitions(&program)?;
+    let mut command = command_from_definitions(&program, &env_propagation_mode)?;
 
     let status_to_result = |status: ExitStatus| {
         if !status.success() {
@@ -622,6 +628,7 @@ fn signal_name(signal: i32) -> &'static str {
 async fn create_task_future(
     _streamer_ref: StreamerRef,
     _program: ProgramDefinition,
+    _env_propagation_mode: EnvPropagationMode,
     _task_id: TaskId,
     _instance_id: InstanceId,
     _end_receiver: Receiver<StopReason>,

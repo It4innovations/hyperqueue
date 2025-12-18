@@ -56,7 +56,19 @@ pub struct WorkerConfiguration {
     pub max_download_tries: u32,
     pub wait_between_download_tries: Duration,
 
+    pub env_propagation_mode: EnvPropagationMode,
+
     pub extra: Map<String, String>,
+}
+
+/// How should environment variables be handled when a worker starts a new task.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum EnvPropagationMode {
+    /// Propagate environment varibles from the worker environment to the task.
+    Propagate,
+    /// Isolate the task. Do not propagate any environment variables from the worker except for
+    /// PATH.
+    Isolate,
 }
 
 /// This function is used from both the server and the worker to keep the same values
