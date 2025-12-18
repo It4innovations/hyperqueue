@@ -537,8 +537,8 @@ mod tests {
     use crate::server::client::validate_submit;
     use crate::server::job::{Job, SubmittedJobDescription};
     use crate::transfer::messages::{
-        JobDescription, JobSubmitDescription, JobTaskDescription, PinMode, SubmitResponse,
-        TaskDescription, TaskKind, TaskKindProgram, TaskWithDependencies,
+        JobDescription, JobSubmitDescription, JobTaskDescription, LocalResourceRqId, PinMode,
+        SubmitResponse, TaskDescription, TaskKind, TaskKindProgram, TaskWithDependencies,
     };
     use chrono::Utc;
     use smallvec::smallvec;
@@ -549,7 +549,7 @@ mod tests {
     };
     use tako::internal::tests::utils::sorted_vec;
     use tako::program::ProgramDefinition;
-    use tako::resources::{AllocationRequest, CPU_RESOURCE_NAME, ResourceAmount};
+    use tako::resources::{AllocationRequest, CPU_RESOURCE_NAME, ResourceAmount, ResourceRqId};
     use tako::{Priority, TaskId};
 
     #[test]
@@ -568,7 +568,8 @@ mod tests {
                 task_desc: JobTaskDescription::Array {
                     ids: IntArray::from_range(100, 10),
                     entries: None,
-                    task_desc: task_desc(None, 0, 1),
+                    task_desc: task_desc(None, 0),
+                    resource_rq: ResourceRequestVariants::default(),
                 },
                 submit_dir: Default::default(),
                 stream_path: None,
@@ -578,17 +579,21 @@ mod tests {
         let job_task_desc = JobTaskDescription::Array {
             ids: IntArray::from_range(109, 2),
             entries: None,
-            task_desc: task_desc(None, 0, 1),
+            task_desc: task_desc(None, 0),
+            resource_rq: ResourceRequestVariants::default(),
         };
         assert!(validate_submit(None, &job_task_desc).is_none());
         assert!(matches!(
             validate_submit(Some(&job), &job_task_desc),
             Some(SubmitResponse::TaskIdAlreadyExists(x)) if x.as_num() == 109
         ));
+        let rqs = vec![ResourceRequestVariants::default()];
         let job_task_desc = JobTaskDescription::Graph {
+            resource_rqs: rqs,
             tasks: vec![TaskWithDependencies {
                 id: 102.into(),
-                task_desc: task_desc(None, 0, 1),
+                resource_rq_id: LocalResourceRqId::new(0),
+                task_desc: task_desc(None, 0),
                 task_deps: vec![],
                 data_deps: vec![],
                 data_flags: TaskDataFlags::empty(),
@@ -600,17 +605,20 @@ mod tests {
             Some(SubmitResponse::TaskIdAlreadyExists(x)) if x.as_num() == 102
         ));
         let job_task_desc = JobTaskDescription::Graph {
+            resource_rqs: vec![ResourceRequestVariants::default()],
             tasks: vec![
                 TaskWithDependencies {
                     id: 2.into(),
-                    task_desc: task_desc(None, 0, 1),
+                    resource_rq_id: LocalResourceRqId::new(0),
+                    task_desc: task_desc(None, 0),
                     task_deps: vec![],
                     data_deps: vec![],
                     data_flags: TaskDataFlags::empty(),
                 },
                 TaskWithDependencies {
                     id: 2.into(),
-                    task_desc: task_desc(None, 0, 1),
+                    resource_rq_id: LocalResourceRqId::new(0),
+                    task_desc: task_desc(None, 0),
                     task_deps: vec![],
                     data_deps: vec![],
                     data_flags: TaskDataFlags::empty(),
@@ -622,9 +630,11 @@ mod tests {
             Some(SubmitResponse::NonUniqueTaskId(x)) if x.as_num() == 2
         ));
         let job_task_desc = JobTaskDescription::Graph {
+            resource_rqs: vec![ResourceRequestVariants::default()],
             tasks: vec![TaskWithDependencies {
                 id: 2.into(),
-                task_desc: task_desc(None, 0, 1),
+                resource_rq_id: LocalResourceRqId::new(0),
+                task_desc: task_desc(None, 0),
                 task_deps: vec![3.into()],
                 data_deps: vec![],
                 data_flags: TaskDataFlags::empty(),
@@ -635,9 +645,11 @@ mod tests {
             Some(SubmitResponse::InvalidDependencies(x)) if x.as_num() == 3
         ));
         let job_task_desc = JobTaskDescription::Graph {
+            resource_rqs: vec![ResourceRequestVariants::default()],
             tasks: vec![TaskWithDependencies {
                 id: 2.into(),
-                task_desc: task_desc(None, 0, 1),
+                resource_rq_id: LocalResourceRqId::new(0),
+                task_desc: task_desc(None, 0),
                 task_deps: vec![2.into()],
                 data_deps: vec![],
                 data_flags: TaskDataFlags::empty(),
@@ -651,16 +663,17 @@ mod tests {
 
     #[test]
     fn test_build_graph_with_dependencies() {
-        let desc = || task_desc(None, 0, 1);
+        let desc = || task_desc(None, 0);
         let tasks = vec![
-            task(0, desc(), vec![2, 1]),
-            task(1, desc(), vec![0]),
-            task(2, desc(), vec![3, 4]),
-            task(3, desc(), vec![]),
-            task(4, desc(), vec![0]),
+            task(0, 0, desc(), vec![2, 1]),
+            task(1, 0, desc(), vec![0]),
+            task(2, 0, desc(), vec![3, 4]),
+            task(3, 0, desc(), vec![]),
+            task(4, 0, desc(), vec![0]),
         ];
 
-        let msg = build_tasks_graph(1.into(), &tasks, &PathBuf::from("foo"), None);
+        let rqs = vec![ResourceRqId::new(0)];
+        let msg = build_tasks_graph(&rqs, 1.into(), &tasks, &PathBuf::from("foo"), None);
         assert_eq!(
             sorted_vec(msg.tasks[0].task_deps.to_vec()),
             vec![
@@ -686,11 +699,7 @@ mod tests {
         );
     }
 
-    fn task_desc(
-        time_limit: Option<Duration>,
-        priority: Priority,
-        cpu_count: u32,
-    ) -> TaskDescription {
+    fn task_desc(time_limit: Option<Duration>, priority: Priority) -> TaskDescription {
         TaskDescription {
             kind: TaskKind::ExternalProgram(TaskKindProgram {
                 program: ProgramDefinition {
@@ -704,23 +713,21 @@ mod tests {
                 pin_mode: PinMode::None,
                 task_dir: false,
             }),
-            resources: ResourceRequestVariants::new_simple(ResourceRequest {
-                n_nodes: 0,
-                min_time: Duration::from_secs(2),
-                resources: smallvec![ResourceRequestEntry {
-                    resource: CPU_RESOURCE_NAME.to_string(),
-                    policy: AllocationRequest::Compact(ResourceAmount::new_units(cpu_count)),
-                }],
-            }),
             time_limit,
             priority,
             crash_limit: CrashLimit::default(),
         }
     }
 
-    fn task(id: u32, task_desc: TaskDescription, dependencies: Vec<u32>) -> TaskWithDependencies {
+    fn task(
+        id: u32,
+        resource_rq_id: u32,
+        task_desc: TaskDescription,
+        dependencies: Vec<u32>,
+    ) -> TaskWithDependencies {
         TaskWithDependencies {
             id: id.into(),
+            resource_rq_id: LocalResourceRqId::new(resource_rq_id),
             task_desc,
             task_deps: dependencies.into_iter().map(|id| id.into()).collect(),
             data_deps: vec![],
