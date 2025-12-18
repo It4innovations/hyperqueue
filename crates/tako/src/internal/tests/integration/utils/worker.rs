@@ -231,7 +231,7 @@ pub(super) async fn start_worker(
 }
 
 async fn launcher_main(program: ProgramDefinition) -> crate::Result<()> {
-    let mut command = command_from_definitions(&program)?;
+    let mut command = command_from_definitions(&program, &EnvPropagationMode::Propagate)?;
     let mut process = command.spawn()?;
 
     if !program.stdin.is_empty() {
