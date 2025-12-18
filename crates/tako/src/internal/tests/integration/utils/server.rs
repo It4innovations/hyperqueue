@@ -125,7 +125,6 @@ impl ServerHandle {
             .get_or_create_resource_rq_id(&ResourceRequestVariants::default())
     }
 
-    #[cfg(test)]
     pub fn register_request(&self, rbuilder: ResourceRequestConfigBuilder) -> ResourceRqId {
         let rqv = rbuilder.into_rqv();
         self.server_ref.get_or_create_resource_rq_id(&rqv)

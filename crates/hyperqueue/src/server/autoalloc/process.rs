@@ -1276,8 +1276,8 @@ mod tests {
     use derive_builder::Builder;
     use log::LevelFilter;
     use tako::WorkerId;
-    use tako::gateway::LostWorkerReason;
-    use tako::resources::ResourceDescriptor;
+    use tako::gateway::{LostWorkerReason, ResourceRequestVariants};
+    use tako::resources::{ResourceDescriptor, ResourceRqAllocator, ResourceRqId};
     use tako::tests::integration::utils::api::wait_for_worker_connected;
     use tako::tests::integration::utils::server::{
         ServerConfigBuilder, ServerHandle, run_server_test,
@@ -1502,7 +1502,8 @@ mod tests {
                 )
                 .await;
 
-            ctx.create_simple_tasks(100).await;
+            let rq_id = ctx.default_rq_id();
+            ctx.create_simple_tasks(100, rq_id).await;
             ctx.assign_worker_resource(queue_id, WorkerConfigBuilder::default());
             ctx.try_submit().await;
 
@@ -1529,7 +1530,8 @@ mod tests {
                 )
                 .await;
 
-            ctx.create_simple_tasks(100).await;
+            let rq_id = ctx.default_rq_id();
+            ctx.create_simple_tasks(100, rq_id).await;
             ctx.try_submit().await;
 
             let allocations = ctx.get_allocations(queue_id);
@@ -1558,7 +1560,8 @@ mod tests {
 
             // Note: we currently create an allocation per queue even if the task count is smaller
             // than the queue count. Could be improved in the future.
-            ctx.create_simple_tasks(1).await;
+            let rq_id = ctx.default_rq_id();
+            ctx.create_simple_tasks(1, rq_id).await;
             ctx.try_submit().await;
 
             for queue_id in queues {
@@ -1581,14 +1584,14 @@ mod tests {
                 )
                 .await;
 
+            let rq_id = ctx
+                .handle
+                .register_request(ResourceRequestConfigBuilder::default().cpus(4));
             // Create 4 CPU core tasks
             ctx.handle
                 .submit(
                     GraphBuilder::default()
-                        .task(
-                            TaskConfigBuilder::default()
-                                .resources(ResourceRequestConfigBuilder::default().cpus(4)),
-                        )
+                        .task(TaskConfigBuilder::default().resources(rq_id))
                         .build(),
                 )
                 .await;
@@ -1607,8 +1610,8 @@ mod tests {
             let queue_id = ctx
                 .add_queue(always_queued_handler(), QueueBuilder::default().backlog(4))
                 .await;
-
-            ctx.create_simple_tasks(1000).await;
+            let rq_id = ctx.default_rq_id();
+            ctx.create_simple_tasks(1000, rq_id).await;
 
             // Create a single allocation
             ctx.try_submit().await;
@@ -1637,7 +1640,8 @@ mod tests {
                 .await;
 
             ctx.assign_worker_resource(queue_id, WorkerConfigBuilder::default());
-            ctx.create_simple_tasks(100).await;
+            let rq_id = ctx.default_rq_id();
+            ctx.create_simple_tasks(100, rq_id).await;
 
             for _ in 0..5 {
                 ctx.try_submit().await;
@@ -1658,7 +1662,8 @@ mod tests {
                 )
                 .await;
 
-            ctx.create_simple_tasks(100).await;
+            let rq_id = ctx.default_rq_id();
+            ctx.create_simple_tasks(100, rq_id).await;
             ctx.try_submit().await;
             // Worker from an unknown allocation
             ctx.start_worker(WorkerConfigBuilder::default(), "foo")
@@ -1683,7 +1688,8 @@ mod tests {
                 )
                 .await;
 
-            ctx.create_simple_tasks(1).await;
+            let rq_id = ctx.default_rq_id();
+            ctx.create_simple_tasks(1, rq_id).await;
             ctx.try_submit().await;
 
             let allocations = ctx.get_allocations(queue_id);
@@ -1706,7 +1712,8 @@ mod tests {
                 )
                 .await;
 
-            ctx.create_simple_tasks(100).await;
+            let rq_id = ctx.default_rq_id();
+            ctx.create_simple_tasks(100, rq_id).await;
             ctx.try_submit().await;
 
             let allocations = ctx.get_allocations(queue_id);
@@ -1732,7 +1739,8 @@ mod tests {
                 )
                 .await;
 
-            ctx.create_simple_tasks(100).await;
+            let rq_id = ctx.default_rq_id();
+            ctx.create_simple_tasks(100, rq_id).await;
             ctx.try_submit().await;
 
             let w0 = ctx
@@ -1762,7 +1770,8 @@ mod tests {
                 .await;
 
             ctx.assign_worker_resource(queue_id, WorkerConfigBuilder::default());
-            ctx.create_simple_tasks(100).await;
+            let rq_id = ctx.default_rq_id();
+            ctx.create_simple_tasks(100, rq_id).await;
             ctx.try_submit().await;
 
             let allocations = ctx.get_allocations(queue_id);
@@ -1816,7 +1825,8 @@ mod tests {
                 .await;
 
             ctx.assign_worker_resource(queue_id, WorkerConfigBuilder::default());
-            ctx.create_simple_tasks(5).await;
+            let rq_id = ctx.default_rq_id();
+            ctx.create_simple_tasks(5, rq_id).await;
             ctx.try_submit().await;
 
             // 5 tasks, 3 * 2 workers -> last two allocations should be ignored
@@ -1837,7 +1847,8 @@ mod tests {
                 .await;
 
             ctx.assign_worker_resource(queue_id, WorkerConfigBuilder::default());
-            ctx.create_simple_tasks(5).await;
+            let rq_id = ctx.default_rq_id();
+            ctx.create_simple_tasks(5, rq_id).await;
 
             handler_state.get_mut().allocation_will_fail = true;
 
@@ -1863,16 +1874,17 @@ mod tests {
                     QueueBuilder::default().timelimit(Duration::from_secs(60 * 30)),
                 )
                 .await;
+
+            let rq_id = ctx.handle.register_request(
+                ResourceRequestConfigBuilder::default()
+                    .cpus(1)
+                    .min_time(Duration::from_secs(60 * 60)),
+            );
+
             ctx.handle
                 .submit(
                     GraphBuilder::default()
-                        .task(
-                            TaskConfigBuilder::default().resources(
-                                ResourceRequestConfigBuilder::default()
-                                    .cpus(1)
-                                    .min_time(Duration::from_secs(60 * 60)),
-                            ),
-                        )
+                        .task(TaskConfigBuilder::default().resources(rq_id))
                         .build(),
                 )
                 .await;
@@ -1896,7 +1908,8 @@ mod tests {
                 .await;
 
             ctx.assign_worker_resource(queue_id, WorkerConfigBuilder::default());
-            ctx.create_simple_tasks(100).await;
+            let rq_id = ctx.default_rq_id();
+            ctx.create_simple_tasks(100, rq_id).await;
 
             // Put 4 allocations into the queue.
             ctx.try_submit().await;
@@ -1937,8 +1950,9 @@ mod tests {
                 )
                 .await;
 
+            let rq_id = ctx.default_rq_id();
             ctx.assign_worker_resource(queue_id, WorkerConfigBuilder::default());
-            ctx.create_simple_tasks(100).await;
+            ctx.create_simple_tasks(100, rq_id).await;
 
             ctx.try_submit().await;
             let allocations = ctx.get_allocations(queue_id);
@@ -1961,7 +1975,8 @@ mod tests {
             ctx.state.set_max_kept_directories(max_kept);
             ctx.add_queue(fails_submit_handler(), QueueBuilder::default())
                 .await;
-            ctx.create_simple_tasks(100).await;
+            let rq_id = ctx.default_rq_id();
+            ctx.create_simple_tasks(100, rq_id).await;
 
             let dirs = [make_dir(), make_dir()];
             ctx.state
@@ -1992,7 +2007,8 @@ mod tests {
                         .limiter_max_submit_fails(2),
                 )
                 .await;
-            ctx.create_simple_tasks(100).await;
+            let rq_id = ctx.default_rq_id();
+            ctx.create_simple_tasks(100, rq_id).await;
 
             ctx.try_submit().await;
             ctx.check_queue_status(queue_id, AllocationQueueState::Active);
@@ -2015,7 +2031,8 @@ mod tests {
                 .await;
 
             ctx.assign_worker_resource(queue_id, WorkerConfigBuilder::default());
-            ctx.create_simple_tasks(100).await;
+            let rq_id = ctx.default_rq_id();
+            ctx.create_simple_tasks(100, rq_id).await;
             ctx.try_submit().await;
 
             let allocations = ctx.get_allocations(queue_id);
@@ -2051,7 +2068,8 @@ mod tests {
                     ]),
             )
             .await;
-            ctx.create_simple_tasks(100).await;
+            let rq_id = ctx.default_rq_id();
+            ctx.create_simple_tasks(100, rq_id).await;
 
             shared.get_mut().allocation_will_fail = true;
 
@@ -2112,7 +2130,8 @@ mod tests {
                     QueueBuilder::default().backlog(1).max_workers_per_alloc(1),
                 )
                 .await;
-            ctx.create_simple_tasks(1000).await;
+            let rq_id = ctx.default_rq_id();
+            ctx.create_simple_tasks(1000, rq_id).await;
 
             ctx.try_submit().await;
             let allocations = ctx.get_allocations(queue_id);
@@ -2139,7 +2158,8 @@ mod tests {
                     QueueBuilder::default().backlog(1).max_workers_per_alloc(1),
                 )
                 .await;
-            ctx.create_simple_tasks(1000).await;
+            let rq_id = ctx.default_rq_id();
+            ctx.create_simple_tasks(1000, rq_id).await;
 
             ctx.try_submit().await;
             let allocations = ctx.get_allocations(queue_id);
@@ -2170,6 +2190,12 @@ mod tests {
     }
 
     impl TestCtx {
+        fn default_rq_id(&self) -> ResourceRqId {
+            self.senders
+                .server
+                .get_or_create_resource_rq_id(&ResourceRequestVariants::default())
+        }
+
         async fn add_queue(
             &mut self,
             handler: Box<dyn QueueHandler>,
@@ -2208,12 +2234,14 @@ mod tests {
                 .unwrap();
         }
 
-        async fn create_simple_tasks(&mut self, count: u64) {
+        async fn create_simple_tasks(&mut self, count: u64, resource_rq_id: ResourceRqId) {
             self.handle
                 .submit(
                     GraphBuilder::default()
                         .task_copied(
-                            TaskConfigBuilder::default().args(simple_args(&["ls"])),
+                            TaskConfigBuilder::default()
+                                .resources(resource_rq_id)
+                                .args(simple_args(&["ls"])),
                             count,
                         )
                         .build(),
