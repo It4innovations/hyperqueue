@@ -19,22 +19,21 @@ pub(crate) fn compute_new_worker_query(
     core: &mut Core,
     queries: &[WorkerTypeQuery],
 ) -> NewWorkerAllocationResponse {
-    todo!()
-    /*log::debug!("Compute new worker query: query = {queries:?}");
+    log::debug!("Compute new worker query: query = {queries:?}");
 
     // Scheduler has to be performed before the query, so there should be no ready_to_assign tasks
     assert!(core.sn_ready_to_assign().is_empty() || !core.has_workers());
 
-    let add_task = |new_loads: &mut [WorkerTypeState], task: &Task| {
-        let request = core.get_resource_rq_map().get(&task.resource_rq_id);
+    let add_task = |core: &Core, new_loads: &mut [WorkerTypeState], task: &Task| {
+        let request = core.get_resource_rq_map().get(task.resource_rq_id);
         for ws in new_loads.iter_mut() {
             if !ws.w_resources.is_capable_to_run_with(request, |rq| {
                 ws.time_limit.is_none_or(|t| rq.min_time() <= t)
             }) {
                 if ws.partial
                     && ws.w_resources.is_lowerbound_for(request, |rq| {
-                    ws.time_limit.is_none_or(|t| rq.min_time() <= t)
-                })
+                        ws.time_limit.is_none_or(|t| rq.min_time() <= t)
+                    })
                 {
                     ws.min = 1;
                 }
@@ -86,14 +85,14 @@ pub(crate) fn compute_new_worker_query(
                 load.add_request(task.id, request, task.running_variant(), &worker.resources);
                 continue;
             }
-            add_task(&mut new_loads, task);
+            add_task(core, &mut new_loads, task);
         }
     }
     for task_id in core.sleeping_sn_tasks() {
         let Some(task) = core.find_task(*task_id) else {
             continue;
         };
-        add_task(&mut new_loads, task);
+        add_task(core, &mut new_loads, task);
     }
 
     // `compute_new_worker_query` should be called immediately after scheduling was performed,
@@ -104,7 +103,7 @@ pub(crate) fn compute_new_worker_query(
         let Some(task) = core.find_task(*task_id) else {
             continue;
         };
-        add_task(&mut new_loads, task);
+        add_task(core, &mut new_loads, task);
     }
 
     let single_node_allocations: Vec<u32> = new_loads
@@ -154,5 +153,5 @@ pub(crate) fn compute_new_worker_query(
     NewWorkerAllocationResponse {
         single_node_workers_per_query: single_node_allocations,
         multi_node_allocations,
-    }*/
+    }
 }
