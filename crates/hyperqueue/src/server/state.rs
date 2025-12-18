@@ -1,7 +1,7 @@
-use std::cmp::min;
-use std::collections::HashMap;
 use chrono::Utc;
 use smallvec::SmallVec;
+use std::cmp::min;
+use std::collections::HashMap;
 use tako::{InstanceId, ResourceVariantId, define_wrapped_type};
 use tako::{ItemId, TaskId};
 
@@ -11,7 +11,7 @@ use crate::server::autoalloc::LostWorkerDetails;
 use crate::server::job::Job;
 use crate::server::restore::StateRestorer;
 use crate::server::worker::Worker;
-use crate::transfer::messages::{ServerInfo};
+use crate::transfer::messages::ServerInfo;
 use tako::gateway::{LostWorkerReason, ResourceRequestVariants};
 use tako::internal::messages::common::TaskFailInfo;
 use tako::resources::{GlobalResourceMapping, ResourceRqId};
@@ -37,7 +37,7 @@ impl State {
         self.jobs.get_mut(&job_id)
     }
 
-    pub fn jobs(&self) -> impl Iterator<Item=&Job> {
+    pub fn jobs(&self) -> impl Iterator<Item = &Job> {
         self.jobs.values()
     }
 
@@ -91,7 +91,7 @@ impl State {
         self.job_id_counter = id.as_num();
     }
 
-    pub fn last_n_ids(&self, n: u32) -> impl Iterator<Item=JobId> + use < > {
+    pub fn last_n_ids(&self, n: u32) -> impl Iterator<Item = JobId> + use<> {
         let n = min(n, self.job_id_counter - 1);
         ((self.job_id_counter - n)..self.job_id_counter).map(|id| id.into())
     }

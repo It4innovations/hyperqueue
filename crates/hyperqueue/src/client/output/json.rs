@@ -7,7 +7,7 @@ use anyhow::Error;
 use chrono::{DateTime, Utc};
 use serde::{Serialize, Serializer};
 use serde_json;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use tako::gateway::{CrashLimit, ResourceRequest, ResourceRequestVariants};
 use tako::program::{ProgramDefinition, StdioDef};
@@ -16,9 +16,9 @@ use tako::worker::WorkerConfiguration;
 use tako::{Map, TaskId};
 
 use crate::client::job::WorkerMap;
-use crate::client::output::common::{group_jobs_by_status, resolve_task_paths, TaskToPathsMap};
-use crate::client::output::outputs::{Output, OutputStream};
 use crate::client::output::Verbosity;
+use crate::client::output::common::{TaskToPathsMap, group_jobs_by_status, resolve_task_paths};
+use crate::client::output::outputs::{Output, OutputStream};
 use crate::common::arraydef::IntArray;
 use crate::common::manager::info::{GetManagerInfo, ManagerType};
 use crate::server::autoalloc::{Allocation, AllocationState, QueueId};

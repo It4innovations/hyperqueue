@@ -1,6 +1,6 @@
 use crate::gateway::ResourceRequestVariants as ClientResourceRequestVariants;
-use crate::internal::common::resources::{ResourceId, ResourceRqId};
 use crate::internal::common::Map;
+use crate::internal::common::resources::{ResourceId, ResourceRqId};
 use crate::internal::server::core::Core;
 use crate::resources::{ResourceAllocRequest, ResourceRequest, ResourceRequestVariants};
 use serde::{Deserialize, Serialize};

@@ -12,8 +12,8 @@ pub use descriptor::{
     ResourceDescriptorItem, ResourceDescriptorKind,
 };
 pub use map::{
-    GlobalResourceMapping, ResourceRqAllocator, AMD_GPU_RESOURCE_NAME, CPU_RESOURCE_ID,
-    CPU_RESOURCE_NAME, MEM_RESOURCE_NAME, NVIDIA_GPU_RESOURCE_NAME,
+    AMD_GPU_RESOURCE_NAME, CPU_RESOURCE_ID, CPU_RESOURCE_NAME, GlobalResourceMapping,
+    MEM_RESOURCE_NAME, NVIDIA_GPU_RESOURCE_NAME, ResourceRqAllocator,
 };
 pub use request::{
     AllocationRequest, ResourceAllocRequest, ResourceRequest, ResourceRequestEntries,

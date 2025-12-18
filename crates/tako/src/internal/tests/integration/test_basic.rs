@@ -1,9 +1,9 @@
 use crate::control::{NewWorkerAllocationResponse, WorkerTypeQuery};
 use crate::internal::tests::integration::utils::check_file_contents;
-use crate::internal::tests::integration::utils::server::{run_server_test, ServerHandle};
+use crate::internal::tests::integration::utils::server::{ServerHandle, run_server_test};
 use crate::internal::tests::integration::utils::task::ResourceRequestConfigBuilder;
 use crate::internal::tests::integration::utils::task::{
-    simple_args, simple_task, GraphBuilder, TaskConfigBuilder,
+    GraphBuilder, TaskConfigBuilder, simple_args, simple_task,
 };
 use crate::program::StdioDef;
 use crate::resources::ResourceDescriptor;

@@ -5,8 +5,8 @@ use std::time::{Duration, Instant};
 use tokio::sync::Notify;
 use tokio::time::sleep;
 
-use crate::internal::common::resources::map::ResourceRqMap;
 use crate::internal::common::Map;
+use crate::internal::common::resources::map::ResourceRqMap;
 use crate::internal::messages::worker::{TaskIdsMsg, ToWorkerMessage};
 use crate::internal::scheduler::multinode::MultiNodeAllocator;
 use crate::internal::server::comm::{Comm, CommSender, CommSenderRef};

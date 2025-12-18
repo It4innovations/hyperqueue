@@ -1,10 +1,10 @@
 use std::fmt;
 
 use crate::gateway::{LostWorkerReason, WorkerRuntimeInfo};
+use crate::internal::common::Set;
 use crate::internal::common::resources::map::{ResourceIdMap, ResourceRqMap};
 use crate::internal::common::resources::{ResourceRequest, ResourceRequestVariants};
 use crate::internal::common::resources::{ResourceRqId, TimeRequest};
-use crate::internal::common::Set;
 use crate::internal::messages::worker::{TaskIdsMsg, ToWorkerMessage};
 use crate::internal::server::comm::Comm;
 use crate::internal::server::task::{Task, TaskRuntimeState};

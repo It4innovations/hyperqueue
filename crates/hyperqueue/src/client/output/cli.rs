@@ -14,8 +14,8 @@ use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState};
 use crate::stream::reader::outputlog::Summary;
 use crate::transfer::messages::{
     AutoAllocListQueuesResponse, JobDetail, JobInfo, JobTaskDescription, PinMode, QueueData,
-    QueueState, ServerInfo, TaskDescription, TaskKind, TaskKindProgram,
-    WaitForJobsResponse, WorkerExitInfo, WorkerInfo,
+    QueueState, ServerInfo, TaskDescription, TaskKind, TaskKindProgram, WaitForJobsResponse,
+    WorkerExitInfo, WorkerInfo,
 };
 use tako::{JobId, JobTaskCount, JobTaskId, TaskId, WorkerId};
 
@@ -113,10 +113,10 @@ impl CliOutput {
 
         match kind {
             TaskKind::ExternalProgram(TaskKindProgram {
-                                          program,
-                                          pin_mode,
-                                          task_dir: _task_dir,
-                                      }) => {
+                program,
+                pin_mode,
+                task_dir: _task_dir,
+            }) => {
                 let resources = format_resource_variants(resource_rq);
                 rows.push(vec![
                     "Resources".cell().bold(true),
@@ -125,7 +125,7 @@ impl CliOutput {
                     } else {
                         resources
                     }
-                        .cell(),
+                    .cell(),
                 ]);
 
                 rows.push(vec!["Priority".cell().bold(true), priority.cell()]);
@@ -345,7 +345,7 @@ impl Output for CliOutput {
                     configuration.max_download_tries,
                     format_duration(configuration.wait_between_download_tries)
                 )
-                    .cell(),
+                .cell(),
             ],
             vec![
                 "Manager".cell().bold(true),
@@ -484,7 +484,7 @@ impl Output for CliOutput {
                     } else {
                         t.id.cell()
                     }
-                        .justify(Justify::Right),
+                    .justify(Justify::Right),
                     truncate_middle(&t.name, 50).cell(),
                     status,
                     t.n_tasks.cell(),
@@ -596,10 +596,10 @@ impl Output for CliOutput {
 
             if submit_descs.len() == 1
                 && let JobTaskDescription::Array {
-                task_desc,
-                resource_rq,
-                ..
-            } = &submit_descs[0].description().task_desc
+                    task_desc,
+                    resource_rq,
+                    ..
+                } = &submit_descs[0].description().task_desc
             {
                 self.print_job_shared_task_description(&mut rows, task_desc, resource_rq);
             }
@@ -800,10 +800,10 @@ impl Output for CliOutput {
 
             match &task_desc.kind {
                 TaskKind::ExternalProgram(TaskKindProgram {
-                                              program,
-                                              pin_mode,
-                                              task_dir,
-                                          }) => {
+                    program,
+                    pin_mode,
+                    task_dir,
+                }) => {
                     let mut env_vars: Vec<(_, _)> =
                         program.env.iter().filter(|(k, _)| !is_hq_env(k)).collect();
                     env_vars.sort_by_key(|item| item.0);
@@ -939,7 +939,7 @@ impl Output for CliOutput {
                     human_size(summary.stdout_size),
                     human_size(summary.stderr_size)
                 )
-                    .cell(),
+                .cell(),
             ],
             vec![
                 "Superseded streams".cell().bold(true),
@@ -952,7 +952,7 @@ impl Output for CliOutput {
                     human_size(summary.superseded_stdout_size),
                     human_size(summary.superseded_stderr_size)
                 )
-                    .cell(),
+                .cell(),
             ],
         ];
         self.print_vertical_table(rows);
@@ -979,7 +979,7 @@ impl Output for CliOutput {
                         QueueState::Active => "ACTIVE",
                         QueueState::Paused => "PAUSED",
                     }
-                        .cell(),
+                    .cell(),
                     params.backlog.cell(),
                     params.max_workers_per_alloc.cell(),
                     params.max_worker_count.unwrap_or_default().cell(),
@@ -1126,7 +1126,7 @@ impl Output for CliOutput {
                         enabled_variants.to_string().color(colored::Color::Green),
                         all_varints
                     )
-                        .cell()
+                    .cell()
                 };
                 let mut header = vec![w.worker_id.cell(), can_run];
                 for (i, variant) in w.variants.iter().enumerate() {
@@ -1310,25 +1310,25 @@ pub fn worker_status(worker_info: &WorkerInfo) -> CellStruct {
     match worker_info.ended.as_ref() {
         None => "RUNNING".cell().foreground_color(Some(Color::Green)),
         Some(WorkerExitInfo {
-                 reason: LostWorkerReason::ConnectionLost,
-                 ..
-             }) => "CONNECTION LOST".cell().foreground_color(Some(Color::Red)),
+            reason: LostWorkerReason::ConnectionLost,
+            ..
+        }) => "CONNECTION LOST".cell().foreground_color(Some(Color::Red)),
         Some(WorkerExitInfo {
-                 reason: LostWorkerReason::HeartbeatLost,
-                 ..
-             }) => "HEARTBEAT LOST".cell().foreground_color(Some(Color::Red)),
+            reason: LostWorkerReason::HeartbeatLost,
+            ..
+        }) => "HEARTBEAT LOST".cell().foreground_color(Some(Color::Red)),
         Some(WorkerExitInfo {
-                 reason: LostWorkerReason::IdleTimeout,
-                 ..
-             }) => "IDLE TIMEOUT".cell().foreground_color(Some(Color::Cyan)),
+            reason: LostWorkerReason::IdleTimeout,
+            ..
+        }) => "IDLE TIMEOUT".cell().foreground_color(Some(Color::Cyan)),
         Some(WorkerExitInfo {
-                 reason: LostWorkerReason::Stopped,
-                 ..
-             }) => "STOPPED".cell().foreground_color(Some(Color::Magenta)),
+            reason: LostWorkerReason::Stopped,
+            ..
+        }) => "STOPPED".cell().foreground_color(Some(Color::Magenta)),
         Some(WorkerExitInfo {
-                 reason: LostWorkerReason::TimeLimitReached,
-                 ..
-             }) => "TIME LIMIT REACHED"
+            reason: LostWorkerReason::TimeLimitReached,
+            ..
+        }) => "TIME LIMIT REACHED"
             .cell()
             .foreground_color(Some(Color::Cyan)),
     }
@@ -1360,7 +1360,7 @@ pub fn job_progress_bar(counters: JobTaskCounters, n_tasks: JobTaskCount, width:
         "{}",
         ".".repeat(width.saturating_sub(total_char_count))
     )
-        .unwrap();
+    .unwrap();
 
     buffer.push(']');
     buffer
@@ -1452,7 +1452,7 @@ fn format_resource_request(rq: &ResourceRequest) -> String {
             grq.resource,
             grq.policy
         )
-            .unwrap();
+        .unwrap();
         first = false;
     }
     result
@@ -1473,7 +1473,7 @@ fn format_resource_variants(rqv: &ResourceRequestVariants) -> String {
             format_resource_request(v),
             if is_last { "" } else { "\n\n" }
         )
-            .unwrap();
+        .unwrap();
     }
     result
 }
@@ -1618,7 +1618,7 @@ fn resources_full_describe(resources: &ResourceDescriptor) -> String {
             &descriptor.name,
             format_descriptor_kind(&descriptor.kind),
         )
-            .unwrap();
+        .unwrap();
         first = false;
     }
     result
@@ -1709,7 +1709,7 @@ fn resources_summary(resources: &ResourceDescriptor, multiline: bool) -> String 
                 ""
             }
         )
-            .unwrap();
+        .unwrap();
         first = false;
     }
     result

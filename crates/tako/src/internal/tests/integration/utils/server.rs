@@ -21,9 +21,9 @@ use crate::gateway::{
 use crate::internal::common::resources::ResourceRqId;
 use crate::internal::common::{Map, Set};
 use crate::internal::messages::common::TaskFailInfo;
-use crate::internal::tests::integration::utils::api::{wait_for_tasks, WaitResult};
+use crate::internal::tests::integration::utils::api::{WaitResult, wait_for_tasks};
 use crate::internal::tests::integration::utils::worker::{
-    start_worker, WorkerContext, WorkerHandle,
+    WorkerContext, WorkerHandle, start_worker,
 };
 use crate::resources::ResourceRqAllocator;
 use crate::task::SerializedTaskContext;
@@ -122,7 +122,7 @@ impl ServerHandle {
     #[cfg(test)]
     pub fn register_default_request(&self) -> ResourceRqId {
         self.server_ref
-            .get_or_create_raw_rq_id(crate::resources::ResourceRequestVariants::default())
+            .get_or_create_resource_rq_id(&ResourceRequestVariants::default())
     }
 
     #[cfg(test)]
