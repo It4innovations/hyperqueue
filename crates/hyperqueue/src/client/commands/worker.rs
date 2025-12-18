@@ -1,4 +1,5 @@
 use crate::client::commands::duration_doc;
+use crate::tako::internal::worker::configuration::EnvPropagationMode;
 use anyhow::{Context, bail};
 use chrono::Utc;
 use clap::builder::{PossibleValue, TypedValueParser};
@@ -148,6 +149,27 @@ pub struct SharedWorkerStartOpts {
     /// size.
     #[arg(long, value_parser = passthrough_parser(parse_human_time))]
     pub overview_interval: Option<PassThroughArgument<Duration>>,
+
+    /// How should environment variables be propagated from the worker to tasks.
+    #[arg(long("env"), default_value = "propagate")]
+    pub env_propagation_mode: EnvPropagationModeCli,
+}
+
+#[derive(Debug, Clone, clap::ValueEnum)]
+pub enum EnvPropagationModeCli {
+    /// Propagate environment variables from the worker to tasks.
+    Propagate,
+    /// Do not propagate environment variables
+    Isolate,
+}
+
+impl From<EnvPropagationModeCli> for EnvPropagationMode {
+    fn from(value: EnvPropagationModeCli) -> Self {
+        match value {
+            EnvPropagationModeCli::Propagate => EnvPropagationMode::Propagate,
+            EnvPropagationModeCli::Isolate => EnvPropagationMode::Isolate,
+        }
+    }
 }
 
 /// Parses resource detection options (all, none or a comma-separated list of
@@ -337,6 +359,7 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
                 no_hyper_threading,
                 idle_timeout,
                 overview_interval,
+                env_propagation_mode,
             },
         heartbeat,
         time_limit,
@@ -483,6 +506,7 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
         max_parallel_downloads,
         max_download_tries,
         wait_between_download_tries,
+        env_propagation_mode: env_propagation_mode.into(),
     })
 }
 

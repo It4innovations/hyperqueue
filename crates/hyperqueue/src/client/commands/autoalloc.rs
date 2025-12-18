@@ -16,7 +16,7 @@ use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
     AutoAllocRequest, AutoAllocResponse, FromClientMessage, QueueCreateResponse, ToClientMessage,
 };
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use humantime::format_duration;
 use tako::resources::{CPU_RESOURCE_NAME, ResourceDescriptor, ResourceDescriptorItem};
 
@@ -346,6 +346,7 @@ wasted allocation duration."
         no_hyper_threading,
         idle_timeout,
         overview_interval,
+        env_propagation_mode,
     } = worker_args;
 
     if cpus.is_none() && resource.is_empty() {
@@ -354,7 +355,14 @@ wasted allocation duration."
         )
     }
 
-    let mut worker_args = vec![];
+    let mut worker_args = vec![
+        "--env".to_string(),
+        env_propagation_mode
+            .to_possible_value()
+            .unwrap()
+            .get_name()
+            .to_owned(),
+    ];
     if let Some(cpus) = cpus {
         worker_args.extend([
             "--cpus".to_string(),
