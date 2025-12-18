@@ -13,7 +13,7 @@ use tokio::time::sleep;
 #[tokio::test]
 async fn test_submit_simple_task_ok() {
     run_server_test(Default::default(), |mut handler| async move {
-        let rq = todo!(); // handler.register_default_request();
+        let rq = handler.register_default_request();
         let worker = handler.start_worker(Default::default()).await.unwrap();
 
         let stdout = worker.workdir.join("test.out");
