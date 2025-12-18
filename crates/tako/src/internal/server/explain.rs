@@ -1,4 +1,5 @@
 use crate::WorkerId;
+use crate::internal::common::resources::map::ResourceRqMap;
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::worker::Worker;
 use crate::internal::server::workergroup::WorkerGroup;
@@ -96,17 +97,16 @@ pub fn task_explain_init(task: &Task) -> TaskExplanation {
 
 pub fn task_explain_for_worker(
     resource_map: &ResourceIdMap,
+    resource_rq_map: &ResourceRqMap,
     task: &Task,
     worker: &Worker,
     worker_group: &WorkerGroup,
     now: std::time::Instant,
 ) -> TaskExplanationForWorker {
-    todo!()
-    /*TaskExplanationForWorker {
+    let rqv = resource_rq_map.get(task.resource_rq_id);
+    TaskExplanationForWorker {
         worker_id: worker.id,
-        variants: task
-            .configuration
-            .resources
+        variants: rqv
             .requests()
             .iter()
             .map(|rq| {
@@ -139,7 +139,7 @@ pub fn task_explain_for_worker(
                 result
             })
             .collect(),
-    }*/
+    }
 }
 
 #[cfg(test)]
@@ -178,14 +178,21 @@ mod tests {
         wcfg.time_limit = Some(Duration::from_secs(40_000));
         let worker2 = Worker::new(2.into(), wcfg, &resource_map, now);
 
-        let explain = |task, worker, now| {
+        let explain = |task, rqs: &GlobalResourceMapping, worker, now| {
             let group = WorkerGroup::new(Set::new());
-            task_explain_for_worker(&resource_map, task, worker, &group, now)
+            task_explain_for_worker(
+                &resource_map,
+                rqs.get_resource_rq_map(),
+                task,
+                worker,
+                &group,
+                now,
+            )
         };
 
         let task_id = 1;
         let task = TaskBuilder::new(task_id).build(&mut rqs);
-        let r = explain(&task, &worker1, now);
+        let r = explain(&task, &rqs, &worker1, now);
         assert_eq!(r.variants.len(), 1);
         assert_eq!(r.variants[0].len(), 1);
         assert_eq!(r.n_enabled_variants(), 1);
@@ -193,23 +200,23 @@ mod tests {
         let task = TaskBuilder::new(task_id)
             .time_request(20_000)
             .build(&mut rqs);
-        let r = explain(&task, &worker1, now);
+        let r = explain(&task, &rqs, &worker1, now);
         assert_eq!(r.variants.len(), 1);
         assert_eq!(r.variants[0].len(), 2);
         assert_eq!(r.n_enabled_variants(), 1);
 
-        let r = explain(&task, &worker2, now);
+        let r = explain(&task, &rqs, &worker2, now);
         assert_eq!(r.variants.len(), 1);
         assert_eq!(r.variants[0].len(), 2);
         assert_eq!(r.n_enabled_variants(), 1);
 
         let now2 = now + Duration::from_secs(21_000);
-        let r = explain(&task, &worker1, now2);
+        let r = explain(&task, &rqs, &worker1, now2);
         assert_eq!(r.variants.len(), 1);
         assert_eq!(r.variants[0].len(), 2);
         assert_eq!(r.n_enabled_variants(), 1);
 
-        let r = explain(&task, &worker2, now2);
+        let r = explain(&task, &rqs, &worker2, now2);
         assert_eq!(r.variants.len(), 1);
         assert_eq!(r.variants[0].len(), 2);
         assert!(matches!(
@@ -226,7 +233,7 @@ mod tests {
             .cpus_compact(30)
             .add_resource(1, 3)
             .build(&mut rqs);
-        let r = explain(&task, &worker2, now);
+        let r = explain(&task, &rqs, &worker2, now);
         assert_eq!(r.variants.len(), 1);
         assert_eq!(r.variants[0].len(), 3);
         assert!(matches!(
@@ -245,7 +252,7 @@ mod tests {
             .cpus_compact(2)
             .add_resource(1, 32)
             .build(&mut rqs);
-        let r = explain(&task, &worker2, now2);
+        let r = explain(&task, &rqs, &worker2, now2);
         assert_eq!(r.variants.len(), 2);
         assert_eq!(r.variants[0].len(), 3);
         assert_eq!(r.variants[1].len(), 2);
@@ -291,7 +298,14 @@ mod tests {
         wset.insert(WorkerId::new(3));
         wset.insert(WorkerId::new(132));
         let group = WorkerGroup::new(wset);
-        let r = task_explain_for_worker(&resource_map, &task, &worker, &group, now);
+        let r = task_explain_for_worker(
+            &resource_map,
+            rqs.get_resource_rq_map(),
+            &task,
+            &worker,
+            &group,
+            now,
+        );
         assert_eq!(r.variants.len(), 1);
         assert_eq!(r.variants[0].len(), 1);
         assert_eq!(r.n_enabled_variants(), 1);
@@ -300,7 +314,14 @@ mod tests {
         wset.insert(WorkerId::new(1));
         wset.insert(WorkerId::new(132));
         let group = WorkerGroup::new(wset);
-        let r = task_explain_for_worker(&resource_map, &task, &worker, &group, now);
+        let r = task_explain_for_worker(
+            &resource_map,
+            rqs.get_resource_rq_map(),
+            &task,
+            &worker,
+            &group,
+            now,
+        );
         assert_eq!(r.variants.len(), 1);
         assert_eq!(r.variants[0].len(), 1);
         assert!(matches!(

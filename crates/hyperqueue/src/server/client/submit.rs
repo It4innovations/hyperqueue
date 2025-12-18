@@ -15,9 +15,9 @@ use crate::common::format::human_duration;
 use crate::common::placeholders::{
     fill_placeholders_after_submit, fill_placeholders_log, normalize_path,
 };
+use crate::server::Senders;
 use crate::server::job::{Job, JobTaskState, SubmittedJobDescription};
 use crate::server::state::{State, StateRef};
-use crate::server::Senders;
 use crate::transfer::messages::{
     JobDescription, JobSubmitDescription, JobTaskDescription, OpenJobResponse, SingleIdSelector,
     SubmitRequest, SubmitResponse, TaskBuildDescription, TaskDescription, TaskExplainRequest,
@@ -549,7 +549,7 @@ mod tests {
     };
     use tako::internal::tests::utils::sorted_vec;
     use tako::program::ProgramDefinition;
-    use tako::resources::{AllocationRequest, ResourceAmount, CPU_RESOURCE_NAME};
+    use tako::resources::{AllocationRequest, CPU_RESOURCE_NAME, ResourceAmount};
     use tako::{Priority, TaskId};
 
     #[test]

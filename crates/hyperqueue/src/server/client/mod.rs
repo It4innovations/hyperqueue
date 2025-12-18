@@ -77,7 +77,7 @@ async fn handle_client(
     Ok(())
 }
 
-async fn stream_history_events<Tx: Sink<ToClientMessage, Error=tako::Error> + Unpin + 'static>(
+async fn stream_history_events<Tx: Sink<ToClientMessage, Error = tako::Error> + Unpin + 'static>(
     tx: &mut Tx,
     mut history: mpsc::UnboundedReceiver<Event>,
 ) {
@@ -98,8 +98,8 @@ async fn stream_history_events<Tx: Sink<ToClientMessage, Error=tako::Error> + Un
 }
 
 async fn stream_events<
-    Tx: Sink<ToClientMessage, Error=tako::Error> + Unpin + 'static,
-    Rx: Stream<Item=tako::Result<FromClientMessage>> + Unpin,
+    Tx: Sink<ToClientMessage, Error = tako::Error> + Unpin + 'static,
+    Rx: Stream<Item = tako::Result<FromClientMessage>> + Unpin,
 >(
     tx: &mut Tx,
     rx: &mut Rx,
@@ -126,8 +126,8 @@ async fn stream_events<
 }
 
 async fn start_streaming<
-    Tx: Sink<ToClientMessage, Error=tako::Error> + Unpin + 'static,
-    Rx: Stream<Item=tako::Result<FromClientMessage>> + Unpin,
+    Tx: Sink<ToClientMessage, Error = tako::Error> + Unpin + 'static,
+    Rx: Stream<Item = tako::Result<FromClientMessage>> + Unpin,
 >(
     mut tx: Tx,
     mut rx: Rx,
@@ -190,8 +190,8 @@ async fn start_streaming<
 }
 
 pub async fn client_rpc_loop<
-    Tx: Sink<ToClientMessage, Error=tako::Error> + Unpin + 'static,
-    Rx: Stream<Item=tako::Result<FromClientMessage>> + Unpin,
+    Tx: Sink<ToClientMessage, Error = tako::Error> + Unpin + 'static,
+    Rx: Stream<Item = tako::Result<FromClientMessage>> + Unpin,
 >(
     mut tx: Tx,
     mut rx: Rx,
@@ -213,8 +213,8 @@ pub async fn client_rpc_loop<
                         };
                         if let Some(mut stream_opts) = stream_opts
                             && let ToClientMessage::SubmitResponse(SubmitResponse::Ok {
-                                                                       job, ..
-                                                                   }) = &response
+                                job, ..
+                            }) = &response
                         {
                             if !stream_opts.filter.is_filtering_jobs() {
                                 let mut s = Set::new();
@@ -229,7 +229,7 @@ pub async fn client_rpc_loop<
                                 stream_opts,
                                 Some(response),
                             )
-                                .await;
+                            .await;
                             break;
                         }
                         response
@@ -239,7 +239,7 @@ pub async fn client_rpc_loop<
                             compute_job_info(&state_ref, &msg.selector, msg.include_running_tasks);
                         if let Some(mut stream_opts) = stream_opts
                             && let ToClientMessage::JobInfoResponse(JobInfoResponse { jobs }) =
-                            &response
+                                &response
                         {
                             if !stream_opts.filter.is_filtering_jobs() {
                                 stream_opts
@@ -254,7 +254,7 @@ pub async fn client_rpc_loop<
                                 stream_opts,
                                 Some(response),
                             )
-                                .await;
+                            .await;
                             break;
                         }
                         response
@@ -263,9 +263,7 @@ pub async fn client_rpc_loop<
                         end_flag.notify_one();
                         break;
                     }
-                    FromClientMessage::GetList { workers } => {
-                        handle_get_list(&state_ref, workers)
-                    }
+                    FromClientMessage::GetList { workers } => handle_get_list(&state_ref, workers),
                     FromClientMessage::WorkerInfo(msg) => {
                         handle_worker_info(&state_ref, senders, msg.worker_id, msg.runtime_info)
                     }

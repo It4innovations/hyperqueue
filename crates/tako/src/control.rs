@@ -22,7 +22,7 @@ use crate::internal::server::client::handle_new_tasks;
 use crate::internal::server::comm::{Comm, CommSenderRef};
 use crate::internal::server::core::{CoreRef, CustomConnectionHandler};
 use crate::internal::server::explain::{
-    task_explain_for_worker, task_explain_init, TaskExplanation,
+    TaskExplanation, task_explain_for_worker, task_explain_init,
 };
 use crate::internal::server::reactor::{get_or_create_resource_rq_id, on_cancel_tasks};
 use crate::internal::server::worker::DEFAULT_WORKER_OVERVIEW_INTERVAL;
@@ -147,6 +147,7 @@ impl ServerRef {
             return Err(DsError::from("Task not found"));
         };
         let resource_map = core.create_resource_map();
+        let resource_rq_map = core.get_resource_rq_map();
         let now = Instant::now();
         let mut explanation = task_explain_init(task);
         explanation.workers = core
@@ -158,6 +159,7 @@ impl ServerRef {
                     .unwrap();
                 Ok(task_explain_for_worker(
                     &resource_map,
+                    resource_rq_map,
                     task,
                     worker,
                     group,
