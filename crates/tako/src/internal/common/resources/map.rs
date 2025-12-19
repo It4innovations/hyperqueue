@@ -208,10 +208,3 @@ impl ResourceRqMap {
         }
     }
 }
-
-pub trait ResourceRqAllocator {
-    fn get_or_create_resource_rq_id(
-        &self,
-        rqv: &crate::gateway::ResourceRequestVariants,
-    ) -> ResourceRqId;
-}

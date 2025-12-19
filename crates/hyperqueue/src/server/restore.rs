@@ -9,6 +9,7 @@ use crate::server::state::State;
 use crate::transfer::messages::{JobDescription, SubmitRequest};
 use crate::worker::start::RunningTaskContext;
 use std::path::Path;
+use tako::control::ServerRef;
 use tako::gateway::TaskSubmit;
 use tako::resources::ResourceDescriptor;
 use tako::{InstanceId, ItemId, JobId, JobTaskId, Map, TaskId, WorkerId};
@@ -52,6 +53,7 @@ impl RestorerJob {
         mut self,
         job_id: JobId,
         state: &mut State,
+        server_ref: &ServerRef,
     ) -> crate::Result<Vec<TaskSubmit>> {
         log::debug!("Restoring job {job_id}");
         let job = Job::new(job_id, self.job_desc, self.is_open);
@@ -66,7 +68,7 @@ impl RestorerJob {
             }
             let mut new_tasks = submit_job_desc(
                 state,
-                todo!(),
+                server_ref,
                 job_id,
                 submit.description().clone(),
                 submit.submitted_at(),
@@ -167,10 +169,11 @@ impl StateRestorer {
     pub fn restore_jobs_and_queues(
         mut self,
         state: &mut State,
+        server_ref: &ServerRef,
     ) -> crate::Result<(Vec<TaskSubmit>, Vec<Queue>)> {
         let mut jobs = Vec::new();
         for (job_id, job) in self.jobs {
-            let mut new_jobs = job.restore_job(job_id, state)?;
+            let mut new_jobs = job.restore_job(job_id, state, server_ref)?;
             jobs.append(&mut new_jobs);
         }
         let queues: Vec<Queue> = self
