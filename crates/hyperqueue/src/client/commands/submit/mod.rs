@@ -4,6 +4,6 @@ pub mod directives;
 mod jobfile;
 
 pub use command::SubmitJobTaskConfOpts;
-pub use command::{JobSubmitOpts, submit_computation};
+pub use command::{submit_computation, JobSubmitOpts};
 
-pub use jobfile::{JobSubmitFileOpts, submit_computation_from_job_file};
+pub use jobfile::{resource_rq_map_to_vec, submit_computation_from_job_file, JobSubmitFileOpts};
