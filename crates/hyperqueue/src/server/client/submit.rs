@@ -24,12 +24,13 @@ use crate::transfer::messages::{
     TaskExplainResponse, TaskIdSelector, TaskKind, TaskKindProgram, TaskSelector,
     TaskStatusSelector, TaskWithDependencies, ToClientMessage,
 };
+use tako::control::ServerRef;
 use tako::program::ProgramDefinition;
-use tako::resources::{GlobalResourceMapping, ResourceRqAllocator, ResourceRqId};
+use tako::resources::{GlobalResourceMapping, ResourceRqId};
 use tako::{JobId, JobTaskCount, JobTaskId};
 
 fn create_task_submit(
-    ra: &dyn ResourceRqAllocator,
+    server_ref: &ServerRef,
     job_id: JobId,
     submit_desc: &mut JobSubmitDescription,
 ) -> TaskSubmit {
@@ -41,7 +42,7 @@ fn create_task_submit(
             resource_rq,
         } => {
             //let rqv = grm.convert_client_resource_rq(resource_rq);
-            let resource_rq_id = ra.get_or_create_resource_rq_id(resource_rq);
+            let resource_rq_id = server_ref.get_or_create_resource_rq_id(resource_rq);
             build_tasks_array(
                 job_id,
                 ids,
@@ -58,7 +59,7 @@ fn create_task_submit(
         } => {
             let resources: Vec<ResourceRqId> = resource_rqs
                 .iter()
-                .map(|rqv| ra.get_or_create_resource_rq_id(rqv))
+                .map(|rqv| server_ref.get_or_create_resource_rq_id(rqv))
                 .collect();
             build_tasks_graph(
                 &resources,
@@ -73,13 +74,13 @@ fn create_task_submit(
 
 pub(crate) fn submit_job_desc(
     state: &mut State,
-    ra: &dyn ResourceRqAllocator,
+    server_ref: &ServerRef,
     job_id: JobId,
     mut submit_desc: JobSubmitDescription,
     submitted_at: DateTime<Utc>,
 ) -> TaskSubmit {
     prepare_job(job_id, &mut submit_desc, state);
-    let task_submit = create_task_submit(ra, job_id, &mut submit_desc);
+    let task_submit = create_task_submit(server_ref, job_id, &mut submit_desc);
     submit_desc.strip_large_data();
     state
         .get_job_mut(job_id)

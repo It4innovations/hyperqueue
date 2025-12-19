@@ -1277,7 +1277,7 @@ mod tests {
     use log::LevelFilter;
     use tako::WorkerId;
     use tako::gateway::{LostWorkerReason, ResourceRequestVariants};
-    use tako::resources::{ResourceDescriptor, ResourceRqAllocator, ResourceRqId};
+    use tako::resources::{ResourceDescriptor, ResourceRqId};
     use tako::tests::integration::utils::api::wait_for_worker_connected;
     use tako::tests::integration::utils::server::{
         ServerConfigBuilder, ServerHandle, run_server_test,

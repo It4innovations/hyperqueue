@@ -25,7 +25,6 @@ use crate::internal::tests::integration::utils::api::{WaitResult, wait_for_tasks
 use crate::internal::tests::integration::utils::worker::{
     WorkerContext, WorkerHandle, start_worker,
 };
-use crate::resources::ResourceRqAllocator;
 use crate::task::SerializedTaskContext;
 use crate::tests::integration::utils::task::{ResourceRequestConfig, ResourceRequestConfigBuilder};
 use crate::worker::{WorkerConfiguration, WorkerOverview};
