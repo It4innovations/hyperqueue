@@ -1,10 +1,11 @@
 use crate::marshal::FromPy;
 use crate::utils::error::ToPyResult;
-use crate::{ClientContextPtr, FromPyObject, PyJobId, PyTaskId, borrow_mut, run_future};
+use crate::{borrow_mut, run_future, ClientContextPtr, FromPyObject, PyJobId, PyTaskId};
 use hyperqueue::client::commands::submit::command::{DEFAULT_STDERR_PATH, DEFAULT_STDOUT_PATH};
+use hyperqueue::client::commands::submit::resource_rq_map_to_vec;
 use hyperqueue::client::output::resolve_task_paths;
 use hyperqueue::client::resources::parse_allocation_request;
-use hyperqueue::client::status::{Status, is_terminated};
+use hyperqueue::client::status::{is_terminated, Status};
 use hyperqueue::common::arraydef::IntArray;
 use hyperqueue::common::utils::fs::get_current_dir;
 use hyperqueue::rpc_call;
@@ -12,9 +13,9 @@ use hyperqueue::server::job::JobTaskState;
 use hyperqueue::transfer::messages::{
     ForgetJobRequest, FromClientMessage, IdSelector, JobDescription, JobDetailRequest,
     JobInfoRequest, JobInfoResponse, JobSubmitDescription, JobTaskDescription as HqJobDescription,
-    PinMode, SubmitRequest, SubmitResponse, TaskDescription as HqTaskDescription, TaskIdSelector,
-    TaskKind, TaskKindProgram, TaskSelector, TaskStatusSelector, TaskWithDependencies,
-    ToClientMessage,
+    LocalResourceRqId, PinMode, SubmitRequest, SubmitResponse,
+    TaskDescription as HqTaskDescription, TaskIdSelector, TaskKind, TaskKindProgram, TaskSelector,
+    TaskStatusSelector, TaskWithDependencies, ToClientMessage,
 };
 use pyo3::exceptions::PyException;
 use pyo3::prelude::PyAnyMethods;
@@ -23,13 +24,13 @@ use pyo3::{Bound, IntoPyObject, PyAny, PyResult, Python};
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
-use tako::JobTaskCount;
 use tako::gateway::{
     CrashLimit, ResourceRequestEntries, ResourceRequestEntry, ResourceRequestVariants,
     TaskDataFlags,
 };
 use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
-use tako::resources::{AllocationRequest, NumOfNodes, ResourceAmount};
+use tako::resources::{AllocationRequest, NumOfNodes, ResourceAmount, ResourceRqId};
+use tako::{JobTaskCount, Map};
 
 #[derive(Debug, FromPyObject)]
 enum AllocationValue {
@@ -77,8 +78,13 @@ pub struct PyJobDescription {
 pub fn submit_job_impl(py: Python, ctx: ClientContextPtr, job: PyJobDescription) -> PyResult<u32> {
     run_future(async move {
         let submit_dir = get_current_dir();
-        let tasks = build_tasks(job.tasks, &submit_dir)?;
-        let task_desc = HqJobDescription::Graph { tasks };
+        let mut resource_map = Map::new();
+        let tasks = build_tasks(&mut resource_map, job.tasks, &submit_dir)?;
+
+        let task_desc = HqJobDescription::Graph {
+            tasks,
+            resource_rqs: resource_rq_map_to_vec(resource_map),
+        };
 
         let message = FromClientMessage::Submit(
             SubmitRequest {
@@ -140,14 +146,17 @@ pub fn forget_job_impl(py: Python, ctx: ClientContextPtr, job_id: PyJobId) -> Py
 }
 
 fn build_tasks(
+    resource_map: &mut Map<ResourceRequestVariants, LocalResourceRqId>,
     tasks: Vec<TaskDescription>,
     submit_dir: &Path,
 ) -> anyhow::Result<Vec<TaskWithDependencies>> {
     tasks
         .into_iter()
         .map(|mut task| {
+            let resource_rq_id = build_task_resources(&mut task, resource_map)?;
             Ok(TaskWithDependencies {
                 id: task.id.into(),
+                resource_rq_id,
                 task_deps: std::mem::take(&mut task.dependencies)
                     .into_iter()
                     .map(|id| id.into())
@@ -160,33 +169,13 @@ fn build_tasks(
         .collect()
 }
 
-fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<HqTaskDescription> {
-    let args = desc.args.into_iter().map(|arg| arg.into()).collect();
-    let env = desc
-        .env
-        .into_iter()
-        .map(|(k, v)| (k.into(), v.into()))
-        .collect();
-    let stdout = desc
-        .stdout
-        .map(|stdio| StdioDef::File {
-            path: stdio.path.unwrap_or(PathBuf::from(DEFAULT_STDOUT_PATH)),
-            on_close: stdio.on_close.extract(),
-        })
-        .unwrap_or_default();
-    let stderr = desc
-        .stderr
-        .map(|stdio| StdioDef::File {
-            path: stdio.path.unwrap_or(PathBuf::from(DEFAULT_STDERR_PATH)),
-            on_close: stdio.on_close.extract(),
-        })
-        .unwrap_or_default();
-    let stdin = desc.stdin.unwrap_or_default();
-    let cwd = desc.cwd.unwrap_or_else(|| submit_dir.to_path_buf());
-
-    let resources = if !desc.resource_request.is_empty() {
+fn build_task_resources(
+    desc: &mut TaskDescription,
+    resource_map: &mut Map<ResourceRequestVariants, LocalResourceRqId>,
+) -> anyhow::Result<LocalResourceRqId> {
+    let rqv = if !desc.resource_request.is_empty() {
         ResourceRequestVariants::new(
-            desc.resource_request
+            std::mem::take(&mut desc.resource_request)
                 .into_iter()
                 .map(|rq| {
                     anyhow::Ok(tako::gateway::ResourceRequest {
@@ -221,6 +210,33 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<H
     } else {
         Default::default()
     };
+    let new_id = LocalResourceRqId::new(resource_map.len() as u32);
+    Ok(*resource_map.entry(rqv).or_insert(new_id))
+}
+
+fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<HqTaskDescription> {
+    let args = desc.args.into_iter().map(|arg| arg.into()).collect();
+    let env = desc
+        .env
+        .into_iter()
+        .map(|(k, v)| (k.into(), v.into()))
+        .collect();
+    let stdout = desc
+        .stdout
+        .map(|stdio| StdioDef::File {
+            path: stdio.path.unwrap_or(PathBuf::from(DEFAULT_STDOUT_PATH)),
+            on_close: stdio.on_close.extract(),
+        })
+        .unwrap_or_default();
+    let stderr = desc
+        .stderr
+        .map(|stdio| StdioDef::File {
+            path: stdio.path.unwrap_or(PathBuf::from(DEFAULT_STDERR_PATH)),
+            on_close: stdio.on_close.extract(),
+        })
+        .unwrap_or_default();
+    let stdin = desc.stdin.unwrap_or_default();
+    let cwd = desc.cwd.unwrap_or_else(|| submit_dir.to_path_buf());
 
     Ok(HqTaskDescription {
         kind: TaskKind::ExternalProgram(TaskKindProgram {
@@ -235,7 +251,6 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<H
             pin_mode: PinMode::None,
             task_dir: desc.task_dir,
         }),
-        resources,
         priority: desc.priority,
         time_limit: None,
         crash_limit: desc

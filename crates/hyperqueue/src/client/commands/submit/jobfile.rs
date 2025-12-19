@@ -1,5 +1,5 @@
 use crate::client::commands::submit::command::{
-    DEFAULT_STDERR_PATH, DEFAULT_STDOUT_PATH, send_submit_request,
+    send_submit_request, DEFAULT_STDERR_PATH, DEFAULT_STDOUT_PATH,
 };
 use crate::client::commands::submit::defs::{
     ArrayDef, JobDef, StdioDefFull, StdioDefInput, TaskDef,
@@ -16,9 +16,9 @@ use crate::transfer::messages::{
 use clap::Parser;
 use smallvec::smallvec;
 use std::path::PathBuf;
-use tako::Map;
 use tako::gateway::{EntryType, ResourceRequest, ResourceRequestVariants, TaskDataFlags};
 use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
+use tako::Map;
 use tako::{JobId, JobTaskCount, JobTaskId};
 
 #[derive(Parser)]
@@ -210,13 +210,9 @@ fn build_job_desc_individual_tasks(
         )));
     }
 
-    let mut resource_rqs_pairs: Vec<_> = resource_map.into_iter().collect();
-    resource_rqs_pairs.sort_unstable_by_key(|(_, v)| *v);
-    let resource_rqs = resource_rqs_pairs.into_iter().map(|(k, _)| k).collect();
-
     Ok(JobTaskDescription::Graph {
         tasks: new_tasks,
-        resource_rqs,
+        resource_rqs: resource_rq_map_to_vec(resource_map),
     })
 }
 
@@ -257,4 +253,14 @@ pub async fn submit_computation_from_job_file(
         };
     let request = build_job_submit(jdef, opts.job)?;
     send_submit_request(gsettings, session, request, false, false, None).await
+}
+
+pub fn resource_rq_map_to_vec(
+    map: Map<ResourceRequestVariants, LocalResourceRqId>,
+) -> Vec<ResourceRequestVariants> {
+    let mut result = vec![None; map.len()];
+    for (rq, id) in map.into_iter() {
+        result[id.as_num() as usize] = Some(rq);
+    }
+    result.into_iter().map(|x| x.unwrap()).collect()
 }

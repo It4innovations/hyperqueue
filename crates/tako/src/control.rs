@@ -21,7 +21,7 @@ use crate::internal::server::client::handle_new_tasks;
 use crate::internal::server::comm::{Comm, CommSenderRef};
 use crate::internal::server::core::{CoreRef, CustomConnectionHandler};
 use crate::internal::server::explain::{
-    TaskExplanation, task_explain_for_worker, task_explain_init,
+    task_explain_for_worker, task_explain_init, TaskExplanation,
 };
 use crate::internal::server::reactor::{get_or_create_resource_rq_id, on_cancel_tasks};
 use crate::internal::server::worker::DEFAULT_WORKER_OVERVIEW_INTERVAL;
