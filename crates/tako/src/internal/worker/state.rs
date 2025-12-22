@@ -118,8 +118,12 @@ impl WorkerState {
     }
 
     #[inline]
-    pub fn borrow_tasks_and_queue(&mut self) -> (&TaskMap, &mut ResourceWaitQueue) {
-        (&self.tasks, &mut self.ready_task_queue)
+    pub fn borrow_tasks_and_queue(&mut self) -> (&TaskMap, &ResourceRqMap, &mut ResourceWaitQueue) {
+        (
+            &self.tasks,
+            &self.resource_rq_map,
+            &mut self.ready_task_queue,
+        )
     }
 
     pub fn is_empty(&self) -> bool {
@@ -127,13 +131,13 @@ impl WorkerState {
     }
 
     pub fn add_ready_task(&mut self, task: &Task) {
-        self.ready_task_queue.add_task(task);
+        self.ready_task_queue.add_task(&self.resource_rq_map, task);
         self.schedule_task_start();
     }
 
-    pub fn add_ready_tasks(&mut self, tasks: &[Task]) {
+    pub fn add_ready_tasks(&mut self, resource_rq_map: &ResourceRqMap, tasks: &[Task]) {
         for task in tasks {
-            self.ready_task_queue.add_task(task);
+            self.ready_task_queue.add_task(resource_rq_map, task);
         }
         self.schedule_task_start();
     }
@@ -317,10 +321,21 @@ impl WorkerState {
         self.remove_task(task_id, true, false);
     }
 
+    #[inline]
     pub fn get_resource_map(&self) -> &ResourceIdMap {
         &self.resource_id_map
     }
 
+    pub fn get_resource_maps(&self) -> (&ResourceIdMap, &ResourceRqMap) {
+        (&self.resource_id_map, &self.resource_rq_map)
+    }
+
+    #[inline]
+    pub fn get_resource_rq_map(&self) -> &ResourceRqMap {
+        &self.resource_rq_map
+    }
+
+    #[inline]
     pub fn get_resource_rq(&self, rq_id: ResourceRqId) -> &ResourceRequestVariants {
         self.resource_rq_map.get(rq_id)
     }
@@ -353,13 +368,14 @@ impl WorkerState {
 
         let resources = WorkerResources::from_transport(other_worker.resources);
         self.ready_task_queue
-            .new_worker(other_worker.worker_id, resources);
+            .new_worker(other_worker.worker_id, resources, &self.resource_rq_map);
     }
 
     pub fn remove_worker(&mut self, worker_id: WorkerId) {
         log::debug!("Lost worker={worker_id} announced");
         assert!(self.worker_addresses.remove(&worker_id).is_some());
-        self.ready_task_queue.remove_worker(worker_id);
+        self.ready_task_queue
+            .remove_worker(worker_id, &self.resource_rq_map);
     }
 
     pub fn send_notify(&mut self, task_id: TaskId, message: Box<[u8]>) {
@@ -381,7 +397,7 @@ impl WorkerState {
                 if let Some(task) = self.tasks.find_mut(&task_id) {
                     log::debug!("Task {} is directly ready", task.id);
                     if task.decrease_waiting_count() {
-                        self.ready_task_queue.add_task(task);
+                        self.ready_task_queue.add_task(&self.resource_rq_map, task);
                         new_ready = true;
                     }
                 }

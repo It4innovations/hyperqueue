@@ -344,8 +344,9 @@ async fn task_starter_process(state_ref: WrappedRcRefCell<WorkerState>, notify: 
             None
         };
         loop {
-            let (task_map, ready_task_queue) = state.borrow_tasks_and_queue();
-            let allocations = ready_task_queue.try_start_tasks(task_map, remaining_time);
+            let (task_map, resource_rq_map, ready_task_queue) = state.borrow_tasks_and_queue();
+            let allocations =
+                ready_task_queue.try_start_tasks(task_map, resource_rq_map, remaining_time);
             if allocations.is_empty() {
                 break;
             }
@@ -401,8 +402,8 @@ pub(crate) fn process_worker_message(state: &mut WorkerState, message: ToWorkerM
                 } else {
                     shared.clone()
                 };
-                let rqv = state.get_resource_rq(task.resource_rq_id);
-                state.add_task(Task::new(task, rqv.clone(), shared, task_state));
+                let new_task = Task::new(task, shared, task_state);
+                state.add_task(new_task);
             }
         }
         ToWorkerMessage::StealTasks(msg) => {

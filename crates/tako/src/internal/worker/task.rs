@@ -6,7 +6,7 @@ use crate::internal::messages::worker::{
     ComputeTaskSeparateData, ComputeTaskSharedData, TaskOutput,
 };
 use crate::internal::worker::task_comm::RunningTaskComm;
-use crate::resources::ResourceRequestVariants;
+use crate::resources::ResourceRqId;
 use crate::{InstanceId, Priority, TaskId, WorkerId};
 use std::rc::Rc;
 use std::time::Duration;
@@ -28,7 +28,7 @@ pub struct Task {
     pub priority: (Priority, Priority),
     pub instance_id: InstanceId,
 
-    pub resources: crate::internal::common::resources::ResourceRequestVariants,
+    pub resource_rq_id: ResourceRqId,
     pub time_limit: Option<Duration>,
     pub body: Rc<[u8]>,
     pub entry: Option<EntryType>,
@@ -41,7 +41,6 @@ pub struct Task {
 impl Task {
     pub fn new(
         task: ComputeTaskSeparateData,
-        rqv: ResourceRequestVariants,
         shared: ComputeTaskSharedData,
         task_state: TaskState,
     ) -> Self {
@@ -50,7 +49,7 @@ impl Task {
             id: task.id,
             priority: (shared.user_priority, task.scheduler_priority),
             instance_id: task.instance_id,
-            resources: rqv,
+            resource_rq_id: task.resource_rq_id,
             time_limit: shared.time_limit,
             body: shared.body,
             entry: task.entry,
