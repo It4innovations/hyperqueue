@@ -5,19 +5,20 @@ use std::pin::Pin;
 use std::process::Stdio;
 
 use crate::internal::common::error::DsError::GenericError;
-use crate::internal::common::resources::{Allocation, ResourceRequest};
+use crate::internal::common::resources::Allocation;
 use bstr::{BString, ByteSlice};
 use nix::libc;
 use tokio::process::Command;
 
 use crate::gateway::{EntryType, TaskDataFlags};
-use crate::internal::common::resources::map::ResourceIdMap;
+use crate::internal::common::resources::map::{ResourceIdMap, ResourceRqMap};
 use crate::internal::worker::configuration::WorkerConfiguration;
 use crate::internal::worker::localcomm::Token;
 use crate::internal::worker::resources::map::ResourceLabelMap;
 use crate::internal::worker::state::WorkerState;
 use crate::internal::worker::task::Task;
 use crate::program::{ProgramDefinition, StdioDef};
+use crate::resources::ResourceRqId;
 use crate::task::SerializedTaskContext;
 use crate::{InstanceId, ResourceVariantId, TaskId, WorkerId};
 
@@ -86,16 +87,12 @@ impl<'a> TaskBuildContext<'a> {
         self.task.entry.as_ref()
     }
 
-    pub fn resources(&self) -> &'a ResourceRequest {
-        &self.task.resources.requests()[self.rv_id.as_usize()]
+    pub fn resource_rq_id(&self) -> ResourceRqId {
+        self.task.resource_rq_id
     }
 
     pub fn data_flags(&self) -> TaskDataFlags {
         self.task.data_flags
-    }
-
-    pub fn n_resource_variants(&self) -> usize {
-        self.task.resources.requests().len()
     }
 
     pub fn resource_variant(&self) -> ResourceVariantId {
@@ -126,8 +123,8 @@ impl<'a> TaskBuildContext<'a> {
         self.state.worker_hostname(worker_id)
     }
 
-    pub fn get_resource_map(&self) -> &ResourceIdMap {
-        self.state.get_resource_map()
+    pub fn get_resource_maps(&self) -> (&ResourceIdMap, &ResourceRqMap) {
+        self.state.get_resource_maps()
     }
 
     pub fn get_resource_label_map(&self) -> &ResourceLabelMap {

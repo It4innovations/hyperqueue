@@ -260,9 +260,10 @@ impl TaskLauncher for TestTaskLauncher {
     ) -> crate::Result<TaskLaunchData> {
         let program: ProgramDefinition = {
             log::debug!(
-                "Starting program launcher task_id={} res={:?} alloc={:?} body_len={}",
+                "Starting program launcher task_id={} res={} variant={} alloc={:?} body_len={}",
                 ctx.task_id(),
-                ctx.resources(),
+                ctx.resource_rq_id(),
+                ctx.resource_variant(),
                 ctx.allocation(),
                 ctx.body().len(),
             );
