@@ -4,7 +4,7 @@ use crate::common::utils::time::parse_hms_or_human_time;
 use crate::server::autoalloc::AllocationId;
 use crate::server::event::journal::JournalReader;
 use crate::server::event::payload::EventPayload;
-use crate::transfer::messages::{JobTaskDescription, SubmitRequest};
+use crate::transfer::messages::{JobTaskDescription, LocalResourceRqId, SubmitRequest};
 use anyhow::anyhow;
 use chrono::{DateTime, Duration, TimeDelta, Utc};
 use clap::{Parser, ValueHint};
@@ -15,7 +15,7 @@ use std::path::PathBuf;
 use tako::gateway::{ResourceRequest, ResourceRequestVariants};
 use tako::resources::ResourceAmount;
 use tako::worker::WorkerConfiguration;
-use tako::{JobId, JobTaskId, ResourceVariantId, TaskId, WorkerId};
+use tako::{JobId, JobTaskId, Map, ResourceVariantId, TaskId, WorkerId};
 
 #[derive(Parser)]
 pub(crate) struct JournalReportOpts {
@@ -113,7 +113,10 @@ impl ResCount {
 
 enum JobResourceRq {
     Array(ResourceRequestVariants),
-    TaskGraph(HashMap<JobTaskId, ResourceRequestVariants>),
+    TaskGraph {
+        resource_rqs: Vec<ResourceRequestVariants>,
+        task_rqs: Map<JobTaskId, LocalResourceRqId>,
+    },
 }
 
 struct TaskDuration {
@@ -335,7 +338,12 @@ impl JournalStats {
         let jrq = self.job_requests.get(&task_id.job_id()).unwrap();
         let rq = match jrq {
             JobResourceRq::Array(rq) => rq,
-            JobResourceRq::TaskGraph(map) => map.get(&task_id.job_task_id()).unwrap(),
+            JobResourceRq::TaskGraph {
+                resource_rqs,
+                task_rqs,
+            } => resource_rqs
+                .get(task_rqs.get(&task_id.job_task_id()).unwrap().as_usize())
+                .unwrap(),
         };
         let rq = &rq.variants[rv_id.as_usize()];
         if rq.n_nodes > 0 {
@@ -389,20 +397,27 @@ impl JournalStats {
     }
 
     fn new_submit(&mut self, job_id: JobId, submit: SubmitRequest) {
-        todo!()
-        /*let rq = match submit.submit_desc.task_desc {
-            JobTaskDescription::Array { task_desc, .. } => {
-                JobResourceRq::Array(task_desc.resources)
-            }
-            JobTaskDescription::Graph { tasks } => {
+        let rq = match submit.submit_desc.task_desc {
+            JobTaskDescription::Array {
+                task_desc,
+                resource_rq,
+                ..
+            } => JobResourceRq::Array(resource_rq),
+            JobTaskDescription::Graph {
+                tasks,
+                resource_rqs,
+            } => {
                 let map = tasks
                     .into_iter()
-                    .map(|t| (t.id, t.task_desc.resources))
+                    .map(|t| (t.id, t.resource_rq_id))
                     .collect();
-                JobResourceRq::TaskGraph(map)
+                JobResourceRq::TaskGraph {
+                    task_rqs: map,
+                    resource_rqs: resource_rqs.clone(),
+                }
             }
         };
-        self.job_requests.insert(job_id, rq);*/
+        self.job_requests.insert(job_id, rq);
     }
 
     fn new_worker(

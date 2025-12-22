@@ -1,11 +1,11 @@
 use crate::marshal::FromPy;
 use crate::utils::error::ToPyResult;
-use crate::{borrow_mut, run_future, ClientContextPtr, FromPyObject, PyJobId, PyTaskId};
+use crate::{ClientContextPtr, FromPyObject, PyJobId, PyTaskId, borrow_mut, run_future};
 use hyperqueue::client::commands::submit::command::{DEFAULT_STDERR_PATH, DEFAULT_STDOUT_PATH};
 use hyperqueue::client::commands::submit::resource_rq_map_to_vec;
 use hyperqueue::client::output::resolve_task_paths;
 use hyperqueue::client::resources::parse_allocation_request;
-use hyperqueue::client::status::{is_terminated, Status};
+use hyperqueue::client::status::{Status, is_terminated};
 use hyperqueue::common::arraydef::IntArray;
 use hyperqueue::common::utils::fs::get_current_dir;
 use hyperqueue::rpc_call;
