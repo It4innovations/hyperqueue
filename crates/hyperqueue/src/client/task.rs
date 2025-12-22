@@ -1,6 +1,6 @@
 use crate::client::commands::job::JobTaskIdsOpts;
 use crate::client::globalsettings::GlobalSettings;
-use crate::client::job::{get_remote_lists, get_worker_map};
+use crate::client::job::get_worker_map;
 use crate::client::output::{Verbosity, VerbosityFlag};
 use crate::common::arraydef::IntArray;
 use crate::common::cli::{TaskSelectorArg, parse_last_range, parse_last_single_id};

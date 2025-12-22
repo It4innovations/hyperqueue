@@ -399,7 +399,7 @@ impl JournalStats {
     fn new_submit(&mut self, job_id: JobId, submit: SubmitRequest) {
         let rq = match submit.submit_desc.task_desc {
             JobTaskDescription::Array {
-                task_desc,
+                task_desc: _,
                 resource_rq,
                 ..
             } => JobResourceRq::Array(resource_rq),

@@ -1,7 +1,6 @@
 use chrono::Utc;
 use smallvec::SmallVec;
 use std::cmp::min;
-use std::collections::HashMap;
 use tako::{InstanceId, ResourceVariantId, define_wrapped_type};
 use tako::{ItemId, TaskId};
 
@@ -12,9 +11,8 @@ use crate::server::job::Job;
 use crate::server::restore::StateRestorer;
 use crate::server::worker::Worker;
 use crate::transfer::messages::ServerInfo;
-use tako::gateway::{LostWorkerReason, ResourceRequestVariants};
+use tako::gateway::LostWorkerReason;
 use tako::internal::messages::common::TaskFailInfo;
-use tako::resources::{GlobalResourceMapping, ResourceRqId};
 use tako::task::SerializedTaskContext;
 use tako::worker::WorkerConfiguration;
 use tako::{JobId, Map, WorkerId};

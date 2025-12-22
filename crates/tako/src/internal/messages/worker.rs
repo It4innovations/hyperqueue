@@ -4,7 +4,7 @@ use crate::hwstats::WorkerHwStateMessage;
 use crate::internal::common::resources::map::ResourceRqMap;
 use crate::internal::common::resources::{ResourceAmount, ResourceIndex, ResourceRqId};
 use crate::internal::messages::common::TaskFailInfo;
-use crate::resources::{ResourceFractions, ResourceRequest, ResourceRequestVariants};
+use crate::resources::{ResourceFractions, ResourceRequestVariants};
 use crate::task::SerializedTaskContext;
 use crate::{InstanceId, Priority, ResourceVariantId};
 use crate::{TaskId, WorkerId};

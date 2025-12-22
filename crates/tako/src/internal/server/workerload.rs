@@ -3,7 +3,7 @@ use crate::internal::common::resources::map::ResourceIdMap;
 use crate::internal::common::resources::request::ResourceAllocRequest;
 use crate::internal::common::resources::{
     ResourceAmount, ResourceDescriptor, ResourceId, ResourceRequest, ResourceRequestVariants,
-    ResourceRqId, ResourceVec,
+    ResourceVec,
 };
 use crate::internal::messages::worker::WorkerResourceCounts;
 use crate::{Map, ResourceVariantId, Set, TaskId};

@@ -8,7 +8,7 @@ use crate::internal::common::Set;
 use crate::internal::common::stablemap::ExtractKey;
 use crate::{MAX_FRAME_SIZE, Map, ResourceVariantId, WorkerId};
 
-use crate::gateway::{CrashLimit, EntryType, ResourceRequestVariants, TaskDataFlags};
+use crate::gateway::{CrashLimit, EntryType, TaskDataFlags};
 use crate::internal::datasrv::dataobj::DataObjectId;
 
 use crate::internal::common::resources::ResourceRqId;
@@ -16,7 +16,6 @@ use crate::internal::messages::worker::{
     ComputeTaskSeparateData, ComputeTaskSharedData, ComputeTasksMsg, ToWorkerMessage,
 };
 use crate::internal::server::taskmap::TaskMap;
-use crate::internal::server::workerload::ResourceRequestLowerBound;
 use crate::{InstanceId, Priority};
 use crate::{TaskId, static_assert_size};
 

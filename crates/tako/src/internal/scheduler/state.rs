@@ -6,7 +6,6 @@ use tokio::sync::Notify;
 use tokio::time::sleep;
 
 use crate::internal::common::Map;
-use crate::internal::common::resources::map::ResourceRqMap;
 use crate::internal::messages::worker::{TaskIdsMsg, ToWorkerMessage};
 use crate::internal::scheduler::multinode::MultiNodeAllocator;
 use crate::internal::server::comm::{Comm, CommSender, CommSenderRef};
@@ -508,7 +507,7 @@ impl SchedulerState {
                             .entry(task.resource_rq_id)
                             .or_insert_with(|| {
                                 let rqv = requests.get(task.resource_rq_id);
-                                worker.resources.compute_difficulty_score_of_rqv(&rqv)
+                                worker.resources.compute_difficulty_score_of_rqv(rqv)
                             });
                     log::debug!(
                         "Transfer cost task={} -> worker={} is {}",

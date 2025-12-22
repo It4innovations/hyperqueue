@@ -591,7 +591,7 @@ impl Output for CliOutput {
             rows.push(vec!["Tasks".cell().bold(true), n_tasks.cell()]);
             rows.push(vec![
                 "Workers".cell().bold(true),
-                format_job_workers(&tasks, &worker_map).cell(),
+                format_job_workers(&tasks, worker_map).cell(),
             ]);
 
             if submit_descs.len() == 1
@@ -628,7 +628,7 @@ impl Output for CliOutput {
             self.print_vertical_table(rows);
 
             tasks.sort_unstable_by_key(|t| t.0);
-            self.print_task_summary(&tasks, &info, &worker_map);
+            self.print_task_summary(&tasks, &info, worker_map);
         }
     }
 
@@ -657,7 +657,7 @@ impl Output for CliOutput {
             match detail {
                 (id, None) => log::warn!("Job {id} not found"),
                 (_id, Some(detail)) => {
-                    self.print_task_summary(&detail.tasks, &detail.info, &worker_map)
+                    self.print_task_summary(&detail.tasks, &detail.info, worker_map)
                 }
             }
         }
@@ -708,7 +708,7 @@ impl Output for CliOutput {
                         job_rows.append(&mut vec![
                             task_id.cell().justify(Justify::Right),
                             status_to_cell(&get_task_status(&task.state)),
-                            format_workers(task.state.get_workers(), &worker_map).cell(),
+                            format_workers(task.state.get_workers(), worker_map).cell(),
                             format_task_duration(start, end).cell(),
                             match (verbosity, &task.state) {
                                 (Verbosity::Normal, JobTaskState::Failed { error, .. }) => {
@@ -835,7 +835,7 @@ impl Output for CliOutput {
                         ],
                         vec![
                             "Worker".cell().bold(true),
-                            format_workers(task.state.get_workers(), &worker_map).cell(),
+                            format_workers(task.state.get_workers(), worker_map).cell(),
                         ],
                         vec![
                             "Start".cell().bold(true),

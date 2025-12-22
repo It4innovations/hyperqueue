@@ -173,7 +173,7 @@ impl Core {
             &mut self.tasks,
             &mut self.workers,
             &self.worker_groups,
-            &self.resource_map.get_resource_rq_map(),
+            self.resource_map.get_resource_rq_map(),
         )
     }
 
