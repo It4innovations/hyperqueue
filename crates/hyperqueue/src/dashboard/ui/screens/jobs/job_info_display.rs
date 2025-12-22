@@ -57,7 +57,12 @@ fn create_rows(info: &DashboardJobInfo) -> Vec<JobInfoDataRow> {
             JobTaskDescription::Graph { .. } => "Graph".into(),
         },
     }];
-    if let JobTaskDescription::Array { task_desc, .. } = &info.submit_data.task_desc {
+    if let JobTaskDescription::Array {
+        task_desc,
+        resource_rq,
+        ..
+    } = &info.submit_data.task_desc
+    {
         match &task_desc.kind {
             TaskKind::ExternalProgram(program) => {
                 // TODO: wrap text
@@ -85,10 +90,7 @@ fn create_rows(info: &DashboardJobInfo) -> Vec<JobInfoDataRow> {
         };
         rows.push(JobInfoDataRow {
             label: "Resources",
-            data: {
-                let resources = todo!();
-                format_resources(resources).into()
-            },
+            data: { format_resources(resource_rq).into() },
         });
         if let Some(time_limit) = task_desc.time_limit {
             rows.push(JobInfoDataRow {
