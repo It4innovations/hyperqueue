@@ -18,9 +18,9 @@ use crate::rpc_call;
 use crate::server::event::streamer::{EventFilter, EventFilterFlags};
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
-    FromClientMessage, JobDescription, JobSubmitDescription, JobTaskDescription, LocalResourceRqId,
-    PinMode, StreamEvents, StreamEventsMode, SubmitRequest, SubmitResponse, TaskDescription,
-    TaskKind, TaskKindProgram, ToClientMessage,
+    FromClientMessage, JobDescription, JobSubmitDescription, JobTaskDescription, PinMode,
+    StreamEvents, StreamEventsMode, SubmitRequest, SubmitResponse, TaskDescription, TaskKind,
+    TaskKindProgram, ToClientMessage,
 };
 use anyhow::{anyhow, bail};
 use bstr::BString;
@@ -43,9 +43,7 @@ use tako::gateway::{
     ResourceRequestVariants,
 };
 use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
-use tako::resources::{
-    AllocationRequest, CPU_RESOURCE_NAME, NumOfNodes, ResourceAmount, ResourceRqId,
-};
+use tako::resources::{AllocationRequest, CPU_RESOURCE_NAME, NumOfNodes, ResourceAmount};
 use tako::{JobId, JobTaskCount, Map};
 
 const SUBMIT_ARRAY_LIMIT: JobTaskCount = 999;
@@ -761,17 +759,6 @@ pub async fn submit_computation(
     )
     .await
 }
-
-/*pub(crate) async fn get_resource_rq_ids(
-    session: &mut ClientSession,
-    rqv: Vec<ResourceRequestVariants>,
-) -> crate::Result<Vec<ResourceRqId>> {
-    let message = FromClientMessage::GetResourceRqId(rqv);
-    let response =
-        rpc_call!(session.connection(), message, ToClientMessage::ResourceRqIdResponse(r) => r)
-            .await?;
-    Ok(response)
-}*/
 
 pub(crate) async fn send_submit_request(
     gsettings: &GlobalSettings,

@@ -454,7 +454,7 @@ impl Job {
             }
             JobTaskDescription::Graph {
                 tasks,
-                resource_rqs,
+                resource_rqs: _,
             } => {
                 self.tasks.reserve(tasks.len());
                 tasks.iter().for_each(|task| {

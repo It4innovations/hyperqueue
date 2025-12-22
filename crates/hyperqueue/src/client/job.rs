@@ -1,7 +1,6 @@
 use crate::rpc_call;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{FromClientMessage, GetListResponse, ToClientMessage};
-use orion::kex::SessionKeys;
 use tako::{Map, WorkerId};
 
 /// Maps worker IDs to hostnames.

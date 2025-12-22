@@ -1,7 +1,6 @@
 use crate::gateway::ResourceRequestVariants as ClientResourceRequestVariants;
 use crate::internal::common::Map;
 use crate::internal::common::resources::{ResourceId, ResourceRqId};
-use crate::internal::server::core::Core;
 use crate::resources::{ResourceAllocRequest, ResourceRequest, ResourceRequestVariants};
 use serde::{Deserialize, Serialize};
 
@@ -96,7 +95,7 @@ impl GlobalResourceMapping {
         match self.resource_rq_to_id.get(&rqv) {
             Some(&id) => (id, false),
             None => {
-                let mut id = ResourceRqId::new(self.resource_rq_to_id.len() as u32);
+                let id = ResourceRqId::new(self.resource_rq_to_id.len() as u32);
                 log::debug!("New resource request registered {rqv:?} as {id}");
                 self.resource_rq_to_id.insert(rqv.clone(), id);
                 self.resource_rq_from_id.insert(id, rqv);
@@ -157,7 +156,7 @@ impl ResourceIdMap {
     }
 
     #[inline]
-    pub fn len(&self) -> usize {
+    pub fn size(&self) -> usize {
         self.resource_names.len()
     }
 

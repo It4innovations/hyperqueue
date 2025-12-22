@@ -1,17 +1,12 @@
-use crate::internal::common::resources::{ResourceRequest, ResourceRequestVariants, ResourceRqId};
+use crate::gateway::{SharedTaskConfiguration, TaskSubmit};
 
-use crate::gateway::{
-    ResourceRequestVariants as ClientResourceRequestVariants, SharedTaskConfiguration, TaskSubmit,
-};
-
-use crate::internal::common::resources::request::ResourceAllocRequest;
 use crate::internal::server::comm::CommSender;
 use crate::internal::server::core::Core;
 use crate::internal::server::reactor::on_new_tasks;
 use crate::internal::server::task::{Task, TaskConfiguration};
 use std::rc::Rc;
 
-fn create_task_configuration(core: &mut Core, msg: SharedTaskConfiguration) -> TaskConfiguration {
+fn create_task_configuration(_core: &mut Core, msg: SharedTaskConfiguration) -> TaskConfiguration {
     TaskConfiguration {
         time_limit: msg.time_limit,
         user_priority: msg.priority,

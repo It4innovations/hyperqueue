@@ -1,6 +1,6 @@
 use crate::datasrv::DataObjectId;
 use crate::internal::common::resources::map::{ResourceIdMap, ResourceRqMap};
-use crate::internal::common::resources::{Allocation, ResourceId, ResourceRqId};
+use crate::internal::common::resources::{Allocation, ResourceRqId};
 use crate::internal::common::stablemap::StableMap;
 use crate::internal::common::{Map, Set, WrappedRcRefCell};
 use crate::internal::datasrv::{DataObjectRef, DataStorage};

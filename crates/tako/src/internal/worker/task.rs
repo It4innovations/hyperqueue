@@ -1,7 +1,6 @@
 use crate::datasrv::DataObjectId;
 use crate::gateway::{EntryType, TaskDataFlags};
 use crate::internal::common::resources::Allocation;
-use crate::internal::common::resources::map::ResourceRqMap;
 use crate::internal::common::stablemap::ExtractKey;
 use crate::internal::messages::worker::{
     ComputeTaskSeparateData, ComputeTaskSharedData, TaskOutput,

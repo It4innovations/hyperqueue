@@ -14,7 +14,7 @@ pub struct ResourceLabelMap {
 
 impl ResourceLabelMap {
     pub fn new(descriptor: &ResourceDescriptor, map: &ResourceIdMap) -> Self {
-        let mut resources: IndexVec<ResourceId, _> = vec![Default::default(); map.len()].into();
+        let mut resources: IndexVec<ResourceId, _> = vec![Default::default(); map.size()].into();
 
         for resource in &descriptor.resources {
             let index = map.get_index(&resource.name).unwrap();

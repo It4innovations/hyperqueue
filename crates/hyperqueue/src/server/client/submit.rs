@@ -4,8 +4,7 @@ use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
 use std::rc::Rc;
 use tako::gateway::{
-    EntryType, ResourceRequestVariants, SharedTaskConfiguration, TaskConfiguration, TaskDataFlags,
-    TaskSubmit,
+    EntryType, SharedTaskConfiguration, TaskConfiguration, TaskDataFlags, TaskSubmit,
 };
 use tako::{Map, Set, TaskId};
 use thin_vec::ThinVec;
@@ -26,7 +25,7 @@ use crate::transfer::messages::{
 };
 use tako::control::ServerRef;
 use tako::program::ProgramDefinition;
-use tako::resources::{GlobalResourceMapping, ResourceRqId};
+use tako::resources::ResourceRqId;
 use tako::{JobId, JobTaskCount, JobTaskId};
 
 fn create_task_submit(

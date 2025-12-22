@@ -13,7 +13,7 @@ use crate::gateway::{
     LostWorkerReason, MultiNodeAllocationResponse, TaskSubmit, WorkerRuntimeInfo,
 };
 use crate::internal::common::error::DsError;
-use crate::internal::common::resources::{ResourceId, ResourceRqId};
+use crate::internal::common::resources::ResourceRqId;
 use crate::internal::messages::worker::ToWorkerMessage;
 use crate::internal::scheduler::query::compute_new_worker_query;
 use crate::internal::scheduler::state::{run_scheduling_now, scheduler_loop};
@@ -25,7 +25,7 @@ use crate::internal::server::explain::{
 };
 use crate::internal::server::reactor::{get_or_create_resource_rq_id, on_cancel_tasks};
 use crate::internal::server::worker::DEFAULT_WORKER_OVERVIEW_INTERVAL;
-use crate::resources::{ResourceDescriptor, ResourceRequest};
+use crate::resources::ResourceDescriptor;
 use crate::{TaskId, WorkerId};
 
 #[derive(Debug)]
@@ -222,7 +222,7 @@ impl ServerRef {
     pub fn get_or_create_resource_rq_id(&self, rqv: &ResourceRequestVariants) -> ResourceRqId {
         let mut core = self.core_ref.get_mut();
         let mut comm = self.comm_ref.get_mut();
-        let (rq_id, _) = get_or_create_resource_rq_id(&mut core, &mut *comm, &rqv);
+        let (rq_id, _) = get_or_create_resource_rq_id(&mut core, &mut *comm, rqv);
         rq_id
     }
 }

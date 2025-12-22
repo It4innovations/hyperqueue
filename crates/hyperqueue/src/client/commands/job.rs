@@ -1,7 +1,7 @@
 use clap::Parser;
 
 use crate::client::globalsettings::GlobalSettings;
-use crate::client::job::{get_remote_lists, get_worker_map};
+use crate::client::job::get_worker_map;
 use crate::client::output::outputs::OutputStream;
 use crate::client::output::resolve_task_paths;
 use crate::client::status::{Status, job_status};

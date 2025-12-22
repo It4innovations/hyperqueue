@@ -15,7 +15,6 @@ use crate::internal::server::task::{ComputeTasksBuilder, WaitingInfo};
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::worker::Worker;
 use crate::internal::server::workermap::WorkerMap;
-use crate::resources::ResourceRequestVariants;
 use crate::{TaskId, WorkerId};
 use std::fmt::Write;
 
