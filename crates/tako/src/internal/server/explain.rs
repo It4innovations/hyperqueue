@@ -144,7 +144,7 @@ pub fn task_explain_for_worker(
 
 #[cfg(test)]
 mod tests {
-    use crate::internal::common::resources::map::{GlobalResourceMapping, ResourceRqMap};
+    use crate::internal::common::resources::map::GlobalResourceMapping;
     use crate::internal::server::explain::{TaskExplainItem, task_explain_for_worker};
     use crate::internal::server::worker::Worker;
     use crate::internal::server::workergroup::WorkerGroup;

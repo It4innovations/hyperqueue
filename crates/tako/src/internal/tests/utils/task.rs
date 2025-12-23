@@ -1,7 +1,7 @@
 use super::resources::ResBuilder;
 use crate::datasrv::DataObjectId;
 use crate::gateway::{CrashLimit, TaskDataFlags};
-use crate::internal::common::resources::map::{GlobalResourceMapping, ResourceRqMap};
+use crate::internal::common::resources::map::GlobalResourceMapping;
 use crate::internal::common::resources::{
     NumOfNodes, ResourceAmount, ResourceId, ResourceRequestVariants,
 };

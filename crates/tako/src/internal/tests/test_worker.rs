@@ -1,6 +1,6 @@
 use crate::gateway::TaskDataFlags;
+use crate::internal::common::resources::ResourceRqId;
 use crate::internal::common::resources::map::{GlobalResourceMapping, ResourceRqMap};
-use crate::internal::common::resources::{ResourceRequestVariants, ResourceRqId};
 use crate::internal::messages::worker::{
     ComputeTaskSeparateData, ComputeTaskSharedData, ComputeTasksMsg, NewWorkerMsg, ToWorkerMessage,
     WorkerResourceCounts,
@@ -18,7 +18,6 @@ use crate::launcher::{StopReason, TaskBuildContext, TaskLaunchData, TaskLauncher
 use crate::resources::{ResourceDescriptor, ResourceIdMap};
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
 use crate::{Set, TaskId, WorkerId};
-use smallvec::smallvec;
 use std::ops::Deref;
 use std::time::Duration;
 use tokio::sync::oneshot::Receiver;
@@ -108,7 +107,7 @@ fn create_dummy_compute_msg(task_id: TaskId, resource_rq_id: ResourceRqId) -> Co
 fn test_worker_start_task() {
     let mut rmap = GlobalResourceMapping::default();
     let rqv = ResourceRequestBuilder::default().cpus(3).finish_v();
-    let (rq_id, _) = rmap.get_or_create_rq_id(rqv.clone());
+    let (rq_id, _) = rmap.get_or_create_rq_id(rqv);
 
     let config = create_test_worker_config();
     let state_ref = create_test_worker_state(config, rmap.get_resource_rq_map().clone());
@@ -123,7 +122,7 @@ fn test_worker_start_task() {
     assert!(state.running_tasks.is_empty());
     let requests = state.ready_task_queue.requests();
     assert_eq!(requests.len(), 1);
-    assert_eq!(requests[0], rqv);
+    assert_eq!(requests[0], rq_id);
 }
 
 /*#[test]

@@ -117,7 +117,7 @@ impl ServerHandle {
     #[cfg(test)]
     pub fn register_default_request(&self) -> ResourceRqId {
         self.server_ref
-            .get_or_create_resource_rq_id(&ResourceRequestVariants::default())
+            .get_or_create_resource_rq_id(&crate::gateway::ResourceRequestVariants::default())
     }
 
     pub fn register_request(&self, rbuilder: ResourceRequestConfigBuilder) -> ResourceRqId {

@@ -541,15 +541,12 @@ mod tests {
         SubmitResponse, TaskDescription, TaskKind, TaskKindProgram, TaskWithDependencies,
     };
     use chrono::Utc;
-    use smallvec::smallvec;
     use std::path::PathBuf;
     use std::time::Duration;
-    use tako::gateway::{
-        CrashLimit, ResourceRequest, ResourceRequestEntry, ResourceRequestVariants, TaskDataFlags,
-    };
+    use tako::gateway::{CrashLimit, ResourceRequestVariants, TaskDataFlags};
     use tako::internal::tests::utils::sorted_vec;
     use tako::program::ProgramDefinition;
-    use tako::resources::{AllocationRequest, CPU_RESOURCE_NAME, ResourceAmount, ResourceRqId};
+    use tako::resources::ResourceRqId;
     use tako::{Priority, TaskId};
 
     #[test]

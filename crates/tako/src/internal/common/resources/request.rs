@@ -318,10 +318,7 @@ impl ResourceRequestVariants {
 
 #[cfg(test)]
 mod tests {
-    use crate::internal::common::resources::ResourceRequestVariants;
     use crate::internal::tests::utils::resources::ResBuilder;
-    use crate::resources::ResourceRequest;
-    use smallvec::smallvec;
 
     #[test]
     fn test_resource_request_validate() {
