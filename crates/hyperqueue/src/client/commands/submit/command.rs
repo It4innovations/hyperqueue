@@ -691,6 +691,10 @@ pub async fn submit_computation(
             .unwrap_or_else(|| "job".to_string())
     };
 
+    // Force task_dir for multi node tasks (for a place where to create node file)
+    let task_dir = task_dir | (resources.n_nodes > 0);
+    let resources = ResourceRequestVariants::new(smallvec![resources]);
+
     let args: Vec<BString> = commands.into_iter().map(|arg| arg.into()).collect();
 
     let stdout = create_stdio(stdout, &stream, DEFAULT_STDOUT_PATH);
@@ -715,21 +719,14 @@ pub async fn submit_computation(
         stdin: stdin.unwrap_or_default(),
     };
 
-    // Force task_dir for multi node tasks (for a place where to create node file)
-    let task_dir = if resources.n_nodes > 0 {
-        true
-    } else {
-        task_dir
-    };
-
     let task_kind = TaskKind::ExternalProgram(TaskKindProgram {
         program: program_def,
         pin_mode: pin.map(|arg| arg.into()).unwrap_or(PinMode::None),
         task_dir,
     });
+
     let task_desc = TaskDescription {
         kind: task_kind,
-        resources: ResourceRequestVariants::new(smallvec![resources]),
         priority,
         time_limit,
         crash_limit,
@@ -739,6 +736,7 @@ pub async fn submit_computation(
         ids,
         entries,
         task_desc,
+        resource_rq: resources,
     };
 
     let request = SubmitRequest {

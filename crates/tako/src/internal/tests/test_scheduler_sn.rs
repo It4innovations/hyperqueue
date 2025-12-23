@@ -29,7 +29,8 @@ fn test_no_deps_scattering_1() {
     let mut core = Core::default();
     create_test_workers(&mut core, &[5, 5, 5]);
 
-    let tasks: Vec<Task> = (1..=4).map(task).collect();
+    let rmap = core.get_resource_map_mut();
+    let tasks: Vec<Task> = (1..=4).map(|id| task(id, rmap)).collect();
     submit_test_tasks(&mut core, tasks);
 
     let mut scheduler = create_test_scheduler();
@@ -57,9 +58,9 @@ fn test_no_deps_scattering_2() {
 
     let mut scheduler = create_test_scheduler();
     let mut comm = create_test_comm();
-
     let mut submit_and_check = |id, expected| {
-        let t = task(id);
+        let rmap = core.get_resource_map_mut();
+        let t = task(id, rmap);
         submit_test_tasks(&mut core, vec![t]);
         scheduler.run_scheduling_without_balancing(&mut core, &mut comm);
         let mut counts: Vec<_> = core.get_workers().map(|w| w.sn_tasks().len()).collect();
@@ -91,7 +92,8 @@ fn test_no_deps_distribute_without_balance() {
     let mut core = Core::default();
     create_test_workers(&mut core, &[10, 10, 10]);
 
-    let tasks: Vec<Task> = (1..=150).map(task).collect();
+    let rmap = core.get_resource_map_mut();
+    let tasks: Vec<Task> = (1..=150).map(|id| task(id, rmap)).collect();
     submit_test_tasks(&mut core, tasks);
 
     let mut scheduler = create_test_scheduler();
@@ -122,7 +124,8 @@ fn test_no_deps_distribute_with_balance() {
     }
 
     let mut active_ids: Set<TaskId> = (1..301).map(|id| id.into()).collect();
-    let tasks: Vec<Task> = (1..301).map(task).collect();
+    let rmap = core.get_resource_map_mut();
+    let tasks: Vec<Task> = (1..301).map(|id| task(id, rmap)).collect();
     submit_test_tasks(&mut core, tasks);
 
     let mut scheduler = create_test_scheduler();
@@ -839,14 +842,15 @@ fn test_task_data_deps_balancing() {
     for odd in [0u32, 1u32] {
         for late_worker in [true, false] {
             let mut core = Core::default();
-            let t1 = TaskBuilder::new(1).build();
-            let t2 = TaskBuilder::new(2).build();
+            let rmap = core.get_resource_map_mut();
+            let t1 = TaskBuilder::new(1).build(rmap);
+            let t2 = TaskBuilder::new(2).build(rmap);
             let mut ts: Vec<_> = (10u32..110u32)
                 .map(|i| {
                     TaskBuilder::new(TaskId::new_test(i))
                         .data_dep(&t1, i - 10)
                         .data_dep(&t2, i - 10)
-                        .build()
+                        .build(rmap)
                 })
                 .collect();
             ts.insert(0, t1);

@@ -6,8 +6,8 @@ use crate::internal::common::resources::{NumOfNodes, ResourceAmount, ResourceId}
 
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::resources::allocator::ResourceAllocator;
-use crate::resources::ResourceMap;
-use smallvec::SmallVec;
+use crate::resources::ResourceIdMap;
+use smallvec::{SmallVec, smallvec};
 use std::time::Duration;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
@@ -165,7 +165,7 @@ impl ResourceRequest {
         Ok(())
     }
 
-    pub fn to_gateway(&self, resource_map: &ResourceMap) -> crate::gateway::ResourceRequest {
+    pub fn to_gateway(&self, resource_map: &ResourceIdMap) -> crate::gateway::ResourceRequest {
         crate::gateway::ResourceRequest {
             n_nodes: self.n_nodes,
             resources: self
@@ -189,6 +189,21 @@ pub struct ResourceRequestVariants {
 impl ResourceRequestVariants {
     pub fn new(variants: SmallVec<[ResourceRequest; 1]>) -> Self {
         ResourceRequestVariants { variants }
+    }
+
+    pub fn new_simple(rq: ResourceRequest) -> ResourceRequestVariants {
+        ResourceRequestVariants::new(smallvec![rq])
+    }
+
+    pub fn new_cpu1() -> ResourceRequestVariants {
+        Self::new_simple(ResourceRequest::new(
+            0,
+            TimeRequest::new(0, 0),
+            smallvec![ResourceAllocRequest {
+                resource_id: crate::resources::CPU_RESOURCE_ID,
+                request: AllocationRequest::Compact(ResourceAmount::ONE),
+            }],
+        ))
     }
 
     pub fn sort_key(&self, allocator: &ResourceAllocator) -> (f32, TimeRequest) {
@@ -289,7 +304,7 @@ impl ResourceRequestVariants {
 
     pub fn to_gateway(
         &self,
-        resource_map: &ResourceMap,
+        resource_map: &ResourceIdMap,
     ) -> crate::gateway::ResourceRequestVariants {
         crate::gateway::ResourceRequestVariants {
             variants: self
@@ -303,15 +318,7 @@ impl ResourceRequestVariants {
 
 #[cfg(test)]
 mod tests {
-    use crate::internal::common::resources::ResourceRequestVariants;
     use crate::internal::tests::utils::resources::ResBuilder;
-    use crate::resources::ResourceRequest;
-    use smallvec::smallvec;
-    impl ResourceRequestVariants {
-        pub fn new_simple(rq: ResourceRequest) -> ResourceRequestVariants {
-            ResourceRequestVariants::new(smallvec![rq])
-        }
-    }
 
     #[test]
     fn test_resource_request_validate() {

@@ -1,9 +1,11 @@
 use crate::internal::common::Map;
+use crate::internal::common::resources::map::ResourceRqMap;
 use crate::internal::common::resources::{Allocation, ResourceRequestVariants};
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::resources::allocator::ResourceAllocator;
 use crate::internal::worker::state::TaskMap;
 use crate::internal::worker::task::Task;
+use crate::resources::ResourceRqId;
 use crate::{Priority, PriorityTuple, ResourceVariantId, Set, TaskId, WorkerId};
 use priority_queue::PriorityQueue;
 use std::rc::Rc;
@@ -63,8 +65,8 @@ impl QueueForRequest {
 }
 
 pub struct ResourceWaitQueue {
-    pub(super) queues: Map<ResourceRequestVariants, QueueForRequest>,
-    pub(super) requests: Vec<ResourceRequestVariants>,
+    pub(super) queues: Map<ResourceRqId, QueueForRequest>,
+    pub(super) requests: Vec<ResourceRqId>,
     pub(super) allocator: ResourceAllocator,
     pub(super) worker_resources: Map<WorkerResources, Set<WorkerId>>,
 }
@@ -79,22 +81,27 @@ impl ResourceWaitQueue {
         }
     }
 
-    pub fn new_worker(&mut self, worker_id: WorkerId, resources: WorkerResources) {
+    pub fn new_worker(
+        &mut self,
+        worker_id: WorkerId,
+        resources: WorkerResources,
+        resource_rq_map: &ResourceRqMap,
+    ) {
         assert!(
             self.worker_resources
                 .entry(resources)
                 .or_default()
                 .insert(worker_id)
         );
-        self.recompute_resource_priorities();
+        self.recompute_resource_priorities(resource_rq_map);
     }
 
-    pub fn remove_worker(&mut self, worker_id: WorkerId) {
+    pub fn remove_worker(&mut self, worker_id: WorkerId, resource_rq_map: &ResourceRqMap) {
         self.worker_resources.retain(|_, value| {
             let is_empty = value.remove(&worker_id) && value.is_empty();
             !is_empty
         });
-        self.recompute_resource_priorities();
+        self.recompute_resource_priorities(resource_rq_map);
     }
 
     pub fn resource_priority(&self, rqv: &ResourceRequestVariants) -> Priority {
@@ -111,32 +118,35 @@ impl ResourceWaitQueue {
         self.allocator.release_allocation(allocation);
     }
 
-    pub fn add_task(&mut self, task: &Task) {
+    pub fn add_task(&mut self, resource_rq_map: &ResourceRqMap, task: &Task) {
         let priority = task.priority;
         let (queue, priority, task_id) = {
             (
-                if let Some(qfr) = self.queues.get_mut(&task.resources) {
+                if let Some(qfr) = self.queues.get_mut(&task.resource_rq_id) {
                     &mut qfr.queue
                 } else {
                     log::debug!(
                         "Creating new request queue for {:?} (task {})",
-                        task.resources,
+                        task.resource_rq_id,
                         task.id
                     );
-                    self.requests.push(task.resources.clone());
+                    self.requests.push(task.resource_rq_id);
 
                     let mut requests = std::mem::take(&mut self.requests);
                     // Sort bigger values first
                     requests.sort_unstable_by(|x, y| {
-                        y.sort_key(&self.allocator)
-                            .partial_cmp(&x.sort_key(&self.allocator))
+                        let rx = resource_rq_map.get(*x);
+                        let ry = resource_rq_map.get(*y);
+                        ry.sort_key(&self.allocator)
+                            .partial_cmp(&rx.sort_key(&self.allocator))
                             .unwrap()
                     });
                     self.requests = requests;
-                    let resource_priority = self.resource_priority(&task.resources);
+                    let rq = resource_rq_map.get(task.resource_rq_id);
+                    let resource_priority = self.resource_priority(rq);
                     &mut self
                         .queues
-                        .entry(task.resources.clone())
+                        .entry(task.resource_rq_id)
                         .or_insert(QueueForRequest {
                             resource_priority,
                             queue: PriorityQueue::new(),
@@ -160,11 +170,11 @@ impl ResourceWaitQueue {
         panic!("Removing unknown task");
     }
 
-    pub fn recompute_resource_priorities(&mut self) {
+    pub fn recompute_resource_priorities(&mut self, resource_rq_map: &ResourceRqMap) {
         log::debug!("Recomputing resource priorities");
         let mut queues = std::mem::take(&mut self.queues);
         for (rq, qfr) in queues.iter_mut() {
-            qfr.resource_priority = self.resource_priority(rq);
+            qfr.resource_priority = self.resource_priority(resource_rq_map.get(*rq));
         }
         self.queues = queues;
     }
@@ -172,6 +182,7 @@ impl ResourceWaitQueue {
     pub fn try_start_tasks(
         &mut self,
         task_map: &TaskMap,
+        resource_rq_map: &ResourceRqMap,
         remaining_time: Option<Duration>,
     ) -> Vec<(TaskId, Rc<Allocation>, ResourceVariantId)> {
         for qfr in self.queues.values_mut() {
@@ -179,7 +190,7 @@ impl ResourceWaitQueue {
         }
         self.allocator.reset_temporaries(remaining_time);
         let mut out = Vec::new();
-        while !self.try_start_tasks_helper(task_map, &mut out) {
+        while !self.try_start_tasks_helper(task_map, resource_rq_map, &mut out) {
             self.allocator.close_priority_level()
         }
         out
@@ -203,6 +214,7 @@ impl ResourceWaitQueue {
     fn try_start_tasks_helper(
         &mut self,
         _task_map: &TaskMap,
+        resource_rq_map: &ResourceRqMap,
         out: &mut Vec<(TaskId, Rc<Allocation>, ResourceVariantId)>,
     ) -> bool {
         let current_priority: QueuePriorityTuple = if let Some(Some(priority)) =
@@ -219,7 +231,8 @@ impl ResourceWaitQueue {
                     break;
                 }
                 let (allocation, rv_id) = {
-                    if let Some(x) = self.allocator.try_allocate(rqv) {
+                    let rq = resource_rq_map.get(*rqv);
+                    if let Some(x) = self.allocator.try_allocate(rq) {
                         x
                     } else {
                         qfr.set_blocked();

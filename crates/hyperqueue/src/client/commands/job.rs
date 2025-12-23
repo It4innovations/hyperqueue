@@ -196,7 +196,7 @@ pub async fn output_job_detail(
         .collect();
     gsettings
         .printer()
-        .print_job_detail(jobs, worker_map, &response.server_uid);
+        .print_job_detail(jobs, &worker_map, &response.server_uid);
     Ok(())
 }
 

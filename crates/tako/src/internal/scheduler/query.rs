@@ -24,8 +24,8 @@ pub(crate) fn compute_new_worker_query(
     // Scheduler has to be performed before the query, so there should be no ready_to_assign tasks
     assert!(core.sn_ready_to_assign().is_empty() || !core.has_workers());
 
-    let add_task = |new_loads: &mut [WorkerTypeState], task: &Task| {
-        let request = &task.configuration.resources;
+    let add_task = |core: &Core, new_loads: &mut [WorkerTypeState], task: &Task| {
+        let request = core.get_resource_rq_map().get(task.resource_rq_id);
         for ws in new_loads.iter_mut() {
             if !ws.w_resources.is_capable_to_run_with(request, |rq| {
                 ws.time_limit.is_none_or(|t| rq.min_time() <= t)
@@ -78,21 +78,21 @@ pub(crate) fn compute_new_worker_query(
         let mut load = WorkerLoad::new(&worker.resources);
         for task_id in worker.sn_tasks() {
             let task = core.get_task(*task_id);
-            let request = &task.configuration.resources;
+            let request = core.get_resource_rq(task.resource_rq_id);
             if task.is_sn_running()
                 || load.have_immediate_resources_for_rqv(request, &worker.resources)
             {
                 load.add_request(task.id, request, task.running_variant(), &worker.resources);
                 continue;
             }
-            add_task(&mut new_loads, task);
+            add_task(core, &mut new_loads, task);
         }
     }
     for task_id in core.sleeping_sn_tasks() {
         let Some(task) = core.find_task(*task_id) else {
             continue;
         };
-        add_task(&mut new_loads, task);
+        add_task(core, &mut new_loads, task);
     }
 
     // `compute_new_worker_query` should be called immediately after scheduling was performed,
@@ -103,7 +103,7 @@ pub(crate) fn compute_new_worker_query(
         let Some(task) = core.find_task(*task_id) else {
             continue;
         };
-        add_task(&mut new_loads, task);
+        add_task(core, &mut new_loads, task);
     }
 
     let single_node_allocations: Vec<u32> = new_loads
@@ -127,7 +127,8 @@ pub(crate) fn compute_new_worker_query(
     let (queue, _map, _ws) = core.multi_node_queue_split();
     let mut multi_node_allocations: Vec<_> = queue
         .get_profiles()
-        .filter_map(|(rq, count)| {
+        .filter_map(|(rq_id, count)| {
+            let rq = core.get_resource_rq(rq_id).unwrap_first();
             let n_nodes = rq.n_nodes();
             queries.iter().enumerate().find_map(|(i, worker_type)| {
                 if let Some(time_limit) = worker_type.time_limit

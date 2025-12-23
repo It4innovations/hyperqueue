@@ -2,7 +2,7 @@ use crate::Map;
 use crate::internal::common::index::IndexVec;
 use crate::internal::common::resources::ResourceId;
 use crate::resources::{
-    ResourceDescriptor, ResourceDescriptorKind, ResourceIndex, ResourceLabel, ResourceMap,
+    ResourceDescriptor, ResourceDescriptorKind, ResourceIdMap, ResourceIndex, ResourceLabel,
 };
 use std::borrow::Cow;
 
@@ -13,8 +13,8 @@ pub struct ResourceLabelMap {
 }
 
 impl ResourceLabelMap {
-    pub fn new(descriptor: &ResourceDescriptor, map: &ResourceMap) -> Self {
-        let mut resources: IndexVec<ResourceId, _> = vec![Default::default(); map.len()].into();
+    pub fn new(descriptor: &ResourceDescriptor, map: &ResourceIdMap) -> Self {
+        let mut resources: IndexVec<ResourceId, _> = vec![Default::default(); map.size()].into();
 
         for resource in &descriptor.resources {
             let index = map.get_index(&resource.name).unwrap();

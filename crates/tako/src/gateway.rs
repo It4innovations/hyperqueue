@@ -1,4 +1,5 @@
 use crate::internal::common::error::DsError;
+use crate::internal::common::resources::ResourceRqId;
 use crate::internal::datasrv::dataobj::DataObjectId;
 use crate::resources::{AllocationRequest, CPU_RESOURCE_NAME, NumOfNodes, ResourceAmount};
 use crate::{InstanceId, Map, Priority, TaskId};
@@ -123,8 +124,6 @@ impl Display for CrashLimit {
 /// It is sent out-of-band in NewTasksMessage to save bandwidth and allocations.
 #[derive(Debug)]
 pub struct SharedTaskConfiguration {
-    pub resources: ResourceRequestVariants,
-
     pub time_limit: Option<Duration>,
 
     pub priority: Priority,
@@ -142,6 +141,9 @@ pub type EntryType = ThinVec<u8>;
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct TaskConfiguration {
     pub id: TaskId,
+
+    pub resource_rq_id: ResourceRqId,
+
     /// Index into NewTasksMessage::shared_data that contains the shared data for this task.
     pub shared_data_index: u32,
 

@@ -1,5 +1,5 @@
 use crate::internal::common::index::IndexVec;
-use crate::internal::common::resources::map::ResourceMap;
+use crate::internal::common::resources::map::ResourceIdMap;
 use crate::internal::common::resources::request::ResourceAllocRequest;
 use crate::internal::common::resources::{
     ResourceAmount, ResourceDescriptor, ResourceId, ResourceRequest, ResourceRequestVariants,
@@ -37,7 +37,7 @@ impl WorkerResources {
 
     pub(crate) fn from_description(
         resource_desc: &ResourceDescriptor,
-        resource_map: &ResourceMap,
+        resource_map: &ResourceIdMap,
     ) -> Self {
         // We only take maximum needed resource id
         // We are doing it for normalization purposes. It is useful later
@@ -115,7 +115,7 @@ impl WorkerResources {
         entry.request.amount(self.get(entry.resource_id))
     }
 
-    pub fn difficulty_score(&self, request: &ResourceRequest) -> u64 {
+    fn compute_difficulty_score(&self, request: &ResourceRequest) -> u64 {
         let mut result = 0;
         for entry in request.entries() {
             let count = self
@@ -131,10 +131,10 @@ impl WorkerResources {
         result
     }
 
-    pub fn difficulty_score_of_rqv(&self, rqv: &ResourceRequestVariants) -> u64 {
+    pub fn compute_difficulty_score_of_rqv(&self, rqv: &ResourceRequestVariants) -> u64 {
         rqv.requests()
             .iter()
-            .map(|r| self.difficulty_score(r))
+            .map(|r| self.compute_difficulty_score(r))
             .min()
             .unwrap_or(0)
     }

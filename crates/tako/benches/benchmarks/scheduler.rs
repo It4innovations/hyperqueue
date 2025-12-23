@@ -9,8 +9,11 @@ use tako::internal::messages::worker::ToWorkerMessage;
 use tako::internal::scheduler::state::SchedulerState;
 use tako::internal::server::comm::Comm;
 use tako::internal::server::core::Core;
+use tako::resources::{ResourceRequestVariants, ResourceRqMap};
 
 fn bench_schedule(c: &mut BenchmarkGroup<WallTime>) {
+    let mut resource_map = ResourceRqMap::default();
+    let rq_id = resource_map.insert(ResourceRequestVariants::new_cpu1());
     for task_count in [10, 1_000, 100_000] {
         for worker_count in [1, 8, 16, 32] {
             c.bench_with_input(
@@ -23,7 +26,7 @@ fn bench_schedule(c: &mut BenchmarkGroup<WallTime>) {
                     b.iter_batched_ref(
                         || {
                             let mut core = Core::default();
-                            add_tasks(&mut core, task_count);
+                            add_tasks(&mut core, task_count, rq_id);
 
                             for worker_id in 0..worker_count {
                                 core.new_worker(create_worker(worker_id as u64));

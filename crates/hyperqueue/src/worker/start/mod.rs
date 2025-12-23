@@ -37,9 +37,10 @@ impl TaskLauncher for HqTaskLauncher {
         stop_receiver: Receiver<StopReason>,
     ) -> tako::Result<TaskLaunchData> {
         log::debug!(
-            "Starting task launcher task_id={} res={:?} alloc={:?} body_len={}",
+            "Starting task launcher task_id={} res={} variant={} alloc={:?} body_len={}",
             build_ctx.task_id(),
-            build_ctx.resources(),
+            build_ctx.resource_rq_id(),
+            build_ctx.resource_variant(),
             build_ctx.allocation(),
             build_ctx.body().len(),
         );

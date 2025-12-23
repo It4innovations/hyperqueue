@@ -41,9 +41,7 @@ impl<R: DeserializeOwned, S: Serialize> Connection<R, S> {
         self.send(item).await?;
         match self.receive().await {
             Some(msg) => msg,
-            None => Err(crate::Error::GenericError(
-                "Expected response was not received".into(),
-            )),
+            None => Err(crate::Error::GenericError("Connection closed".into())),
         }
     }
 

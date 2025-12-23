@@ -507,8 +507,8 @@ pub async fn get_worker_list(
 ) -> crate::Result<Vec<WorkerInfo>> {
     let msg = rpc_call!(
         session.connection(),
-        FromClientMessage::WorkerList,
-        ToClientMessage::WorkerListResponse(r) => r
+        FromClientMessage::GetList { workers: true },
+        ToClientMessage::GetListResponse(r) => r
     )
     .await?;
 
@@ -577,8 +577,8 @@ pub async fn wait_for_workers(
     async fn get_workers_status(session: &mut ClientSession) -> anyhow::Result<(u32, u32)> {
         let msg = rpc_call!(
             session.connection(),
-            FromClientMessage::WorkerList,
-            ToClientMessage::WorkerListResponse(r) => r
+            FromClientMessage::GetList { workers: true },
+            ToClientMessage::GetListResponse(r) => r
         )
         .await?;
 

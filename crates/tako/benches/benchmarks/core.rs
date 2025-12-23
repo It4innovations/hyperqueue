@@ -4,11 +4,14 @@ use std::hint::black_box;
 use tako::Set;
 use tako::TaskId;
 use tako::internal::server::core::Core;
+use tako::resources::{ResourceRequestVariants, ResourceRqMap};
 use tako::server::ObjsToRemoveFromWorkers;
 
 use crate::{add_tasks, create_task};
 
 fn bench_remove_single_task(c: &mut BenchmarkGroup<WallTime>) {
+    let mut resource_map = ResourceRqMap::default();
+    let rq_id = resource_map.insert(ResourceRequestVariants::new_cpu1());
     for task_count in [10, 1_000, 100_000] {
         c.bench_with_input(
             BenchmarkId::new("remove a single task", task_count),
@@ -17,7 +20,7 @@ fn bench_remove_single_task(c: &mut BenchmarkGroup<WallTime>) {
                 b.iter_batched_ref(
                     || {
                         let mut core = Core::default();
-                        add_tasks(&mut core, task_count);
+                        add_tasks(&mut core, task_count, rq_id);
                         (core, TaskId::new_test(0))
                     },
                     |(core, task_id)| {
@@ -32,6 +35,8 @@ fn bench_remove_single_task(c: &mut BenchmarkGroup<WallTime>) {
 }
 
 fn bench_remove_all_tasks(c: &mut BenchmarkGroup<WallTime>) {
+    let mut resource_map = ResourceRqMap::default();
+    let rq_id = resource_map.insert(ResourceRequestVariants::new_cpu1());
     for task_count in [10, 1_000, 100_000] {
         c.bench_with_input(
             BenchmarkId::new("remove all tasks", task_count),
@@ -40,7 +45,9 @@ fn bench_remove_all_tasks(c: &mut BenchmarkGroup<WallTime>) {
                 b.iter_batched_ref(
                     || {
                         let mut core = Core::default();
-                        let tasks: Set<_> = add_tasks(&mut core, task_count).into_iter().collect();
+                        let tasks: Set<_> = add_tasks(&mut core, task_count, rq_id)
+                            .into_iter()
+                            .collect();
                         (core, tasks)
                     },
                     |(core, tasks)| {
@@ -55,6 +62,8 @@ fn bench_remove_all_tasks(c: &mut BenchmarkGroup<WallTime>) {
 }
 
 fn bench_add_task(c: &mut BenchmarkGroup<WallTime>) {
+    let mut resource_map = ResourceRqMap::default();
+    let rq_id = resource_map.insert(ResourceRequestVariants::new_cpu1());
     for task_count in [10, 1_000, 100_000] {
         c.bench_with_input(
             BenchmarkId::new("add task", task_count),
@@ -63,9 +72,9 @@ fn bench_add_task(c: &mut BenchmarkGroup<WallTime>) {
                 b.iter_batched_ref(
                     || {
                         let mut core = Core::default();
-                        add_tasks(&mut core, task_count);
+                        add_tasks(&mut core, task_count, rq_id);
 
-                        let task = create_task(TaskId::new_test(task_count + 1));
+                        let task = create_task(TaskId::new_test(task_count + 1), rq_id);
                         (core, Some(task))
                     },
                     |(core, task)| {
@@ -79,6 +88,8 @@ fn bench_add_task(c: &mut BenchmarkGroup<WallTime>) {
 }
 
 fn bench_add_tasks(c: &mut BenchmarkGroup<WallTime>) {
+    let mut resource_map = ResourceRqMap::default();
+    let rq_id = resource_map.insert(ResourceRequestVariants::new_cpu1());
     for task_count in [10, 1_000, 100_000] {
         c.bench_with_input(
             BenchmarkId::new("add tasks", task_count),
@@ -88,7 +99,7 @@ fn bench_add_tasks(c: &mut BenchmarkGroup<WallTime>) {
                     || {
                         let core = Core::default();
                         let tasks: Vec<_> = (0..task_count)
-                            .map(|id| create_task(TaskId::new_test(id as u32)))
+                            .map(|id| create_task(TaskId::new_test(id as u32), rq_id))
                             .collect();
                         (core, tasks)
                     },
@@ -105,6 +116,8 @@ fn bench_add_tasks(c: &mut BenchmarkGroup<WallTime>) {
 }
 
 fn bench_iterate_tasks(c: &mut BenchmarkGroup<WallTime>) {
+    let mut resource_map = ResourceRqMap::default();
+    let rq_id = resource_map.insert(ResourceRequestVariants::new_cpu1());
     for task_count in [10, 1_000, 100_000] {
         c.bench_with_input(
             BenchmarkId::new("iterate tasks", task_count),
@@ -113,7 +126,7 @@ fn bench_iterate_tasks(c: &mut BenchmarkGroup<WallTime>) {
                 b.iter_batched_ref(
                     || {
                         let mut core = Core::default();
-                        add_tasks(&mut core, task_count);
+                        add_tasks(&mut core, task_count, rq_id);
                         core
                     },
                     |ref mut core| {

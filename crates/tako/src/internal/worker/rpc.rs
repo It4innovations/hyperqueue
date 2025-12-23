@@ -17,7 +17,7 @@ use crate::comm::{ConnectionRegistration, RegisterWorker};
 use crate::hwstats::{WorkerHwState, WorkerHwStateMessage};
 use crate::internal::common::WrappedRcRefCell;
 use crate::internal::common::resources::Allocation;
-use crate::internal::common::resources::map::ResourceMap;
+use crate::internal::common::resources::map::ResourceIdMap;
 use crate::internal::datasrv::download::download_manager_process;
 use crate::internal::datasrv::{DownloadManagerRef, data_upload_service};
 use crate::internal::messages::worker::{
@@ -135,6 +135,7 @@ pub async fn run_worker(
                     worker_id,
                     other_workers,
                     resource_names,
+                    resource_rq_map,
                     server_idle_timeout,
                     server_uid,
                     worker_overview_interval_override,
@@ -150,7 +151,8 @@ pub async fn run_worker(
                     worker_id,
                     configuration.clone(),
                     secret_key.clone(),
-                    ResourceMap::from_vec(resource_names),
+                    ResourceIdMap::from_vec(resource_names),
+                    resource_rq_map,
                     launcher,
                     server_uid,
                 );
@@ -342,8 +344,9 @@ async fn task_starter_process(state_ref: WrappedRcRefCell<WorkerState>, notify: 
             None
         };
         loop {
-            let (task_map, ready_task_queue) = state.borrow_tasks_and_queue();
-            let allocations = ready_task_queue.try_start_tasks(task_map, remaining_time);
+            let (task_map, resource_rq_map, ready_task_queue) = state.borrow_tasks_and_queue();
+            let allocations =
+                ready_task_queue.try_start_tasks(task_map, resource_rq_map, remaining_time);
             if allocations.is_empty() {
                 break;
             }
@@ -399,7 +402,8 @@ pub(crate) fn process_worker_message(state: &mut WorkerState, message: ToWorkerM
                 } else {
                     shared.clone()
                 };
-                state.add_task(Task::new(task, shared, task_state));
+                let new_task = Task::new(task, shared, task_state);
+                state.add_task(new_task);
             }
         }
         ToWorkerMessage::StealTasks(msg) => {
@@ -441,6 +445,10 @@ pub(crate) fn process_worker_message(state: &mut WorkerState, message: ToWorkerM
         }
         ToWorkerMessage::SetOverviewIntervalOverride(r#override) => {
             state.worker_overview_interval_override = r#override;
+        }
+        ToWorkerMessage::NewResourceRequest(rq_id, rqv) => {
+            let new_id = state.register_resource_rq(rqv);
+            assert_eq!(rq_id, new_id);
         }
     }
     false
@@ -564,7 +572,7 @@ async fn send_overview_loop(state_ref: WorkerStateRef) -> crate::Result<()> {
 
 fn resource_allocation_to_msg(
     allocation: &Allocation,
-    resource_map: &ResourceMap,
+    resource_map: &ResourceIdMap,
 ) -> TaskResourceAllocation {
     TaskResourceAllocation {
         resources: allocation

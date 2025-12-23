@@ -1,6 +1,6 @@
 use crate::datasrv::DataObjectId;
-use crate::internal::common::resources::Allocation;
-use crate::internal::common::resources::map::ResourceMap;
+use crate::internal::common::resources::map::{ResourceIdMap, ResourceRqMap};
+use crate::internal::common::resources::{Allocation, ResourceRqId};
 use crate::internal::common::stablemap::StableMap;
 use crate::internal::common::{Map, Set, WrappedRcRefCell};
 use crate::internal::datasrv::{DataObjectRef, DataStorage};
@@ -26,6 +26,7 @@ use crate::internal::worker::rqueue::ResourceWaitQueue;
 use crate::internal::worker::task::{RunningState, Task, TaskState};
 use crate::internal::worker::task_comm::RunningTaskComm;
 use crate::launcher::TaskLauncher;
+use crate::resources::ResourceRequestVariants;
 use crate::{PriorityTuple, TaskId};
 use orion::aead::SecretKey;
 use rand::SeedableRng;
@@ -61,7 +62,8 @@ pub struct WorkerState {
     tasks_waiting_for_data: Map<DataObjectId, Set<TaskId>>,
     placement_resolver: Map<DataObjectId, oneshot::Sender<Option<String>>>,
 
-    resource_map: ResourceMap,
+    resource_rq_map: ResourceRqMap,
+    resource_id_map: ResourceIdMap,
     resource_label_map: ResourceLabelMap,
 
     secret_key: Option<Arc<SecretKey>>,
@@ -116,8 +118,12 @@ impl WorkerState {
     }
 
     #[inline]
-    pub fn borrow_tasks_and_queue(&mut self) -> (&TaskMap, &mut ResourceWaitQueue) {
-        (&self.tasks, &mut self.ready_task_queue)
+    pub fn borrow_tasks_and_queue(&mut self) -> (&TaskMap, &ResourceRqMap, &mut ResourceWaitQueue) {
+        (
+            &self.tasks,
+            &self.resource_rq_map,
+            &mut self.ready_task_queue,
+        )
     }
 
     pub fn is_empty(&self) -> bool {
@@ -125,13 +131,13 @@ impl WorkerState {
     }
 
     pub fn add_ready_task(&mut self, task: &Task) {
-        self.ready_task_queue.add_task(task);
+        self.ready_task_queue.add_task(&self.resource_rq_map, task);
         self.schedule_task_start();
     }
 
-    pub fn add_ready_tasks(&mut self, tasks: &[Task]) {
+    pub fn add_ready_tasks(&mut self, resource_rq_map: &ResourceRqMap, tasks: &[Task]) {
         for task in tasks {
-            self.ready_task_queue.add_task(task);
+            self.ready_task_queue.add_task(resource_rq_map, task);
         }
         self.schedule_task_start();
     }
@@ -315,8 +321,23 @@ impl WorkerState {
         self.remove_task(task_id, true, false);
     }
 
-    pub fn get_resource_map(&self) -> &ResourceMap {
-        &self.resource_map
+    #[inline]
+    pub fn get_resource_map(&self) -> &ResourceIdMap {
+        &self.resource_id_map
+    }
+
+    pub fn get_resource_maps(&self) -> (&ResourceIdMap, &ResourceRqMap) {
+        (&self.resource_id_map, &self.resource_rq_map)
+    }
+
+    #[inline]
+    pub fn get_resource_rq_map(&self) -> &ResourceRqMap {
+        &self.resource_rq_map
+    }
+
+    #[inline]
+    pub fn get_resource_rq(&self, rq_id: ResourceRqId) -> &ResourceRequestVariants {
+        self.resource_rq_map.get(rq_id)
     }
 
     pub fn get_resource_label_map(&self) -> &ResourceLabelMap {
@@ -347,13 +368,14 @@ impl WorkerState {
 
         let resources = WorkerResources::from_transport(other_worker.resources);
         self.ready_task_queue
-            .new_worker(other_worker.worker_id, resources);
+            .new_worker(other_worker.worker_id, resources, &self.resource_rq_map);
     }
 
     pub fn remove_worker(&mut self, worker_id: WorkerId) {
         log::debug!("Lost worker={worker_id} announced");
         assert!(self.worker_addresses.remove(&worker_id).is_some());
-        self.ready_task_queue.remove_worker(worker_id);
+        self.ready_task_queue
+            .remove_worker(worker_id, &self.resource_rq_map);
     }
 
     pub fn send_notify(&mut self, task_id: TaskId, message: Box<[u8]>) {
@@ -375,7 +397,7 @@ impl WorkerState {
                 if let Some(task) = self.tasks.find_mut(&task_id) {
                     log::debug!("Task {} is directly ready", task.id);
                     if task.decrease_waiting_count() {
-                        self.ready_task_queue.add_task(task);
+                        self.ready_task_queue.add_task(&self.resource_rq_map, task);
                         new_ready = true;
                     }
                 }
@@ -415,6 +437,10 @@ impl WorkerState {
         }
     }
 
+    pub fn register_resource_rq(&mut self, rqv: ResourceRequestVariants) -> ResourceRqId {
+        self.resource_rq_map.insert(rqv)
+    }
+
     pub fn download_object(
         &mut self,
         data_id: DataObjectId,
@@ -440,7 +466,8 @@ impl WorkerStateRef {
         worker_id: WorkerId,
         configuration: WorkerConfiguration,
         secret_key: Option<Arc<SecretKey>>,
-        resource_map: ResourceMap,
+        resource_map: ResourceIdMap,
+        resource_rq_map: ResourceRqMap,
         task_launcher: Box<dyn TaskLauncher>,
         server_uid: String,
     ) -> Self {
@@ -464,7 +491,8 @@ impl WorkerStateRef {
             start_task_scheduled: false,
             running_tasks: Default::default(),
             start_time: now,
-            resource_map,
+            resource_id_map: resource_map,
+            resource_rq_map,
             resource_label_map,
             worker_addresses: Default::default(),
             lc_state: RefCell::new(LocalCommState::new()),

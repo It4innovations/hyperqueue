@@ -17,12 +17,12 @@ use crate::server::event::Event;
 use crate::server::job::JobTaskState;
 use crate::server::state::{State, StateRef};
 use crate::transfer::connection::accept_client;
-use crate::transfer::messages::ForgetJobResponse;
 use crate::transfer::messages::{
     CancelJobResponse, CloseJobResponse, FromClientMessage, IdSelector, JobDetail,
     JobDetailResponse, JobInfoResponse, JobSubmitDescription, StopWorkerResponse, StreamEvents,
-    SubmitRequest, SubmitResponse, TaskSelector, ToClientMessage, WorkerListResponse,
+    SubmitRequest, SubmitResponse, TaskSelector, ToClientMessage,
 };
+use crate::transfer::messages::{ForgetJobResponse, GetListResponse};
 use tako::{JobId, JobTaskCount, WorkerId};
 
 pub mod autoalloc;
@@ -263,7 +263,7 @@ pub async fn client_rpc_loop<
                         end_flag.notify_one();
                         break;
                     }
-                    FromClientMessage::WorkerList => handle_worker_list(&state_ref),
+                    FromClientMessage::GetList { workers } => handle_get_list(&state_ref, workers),
                     FromClientMessage::WorkerInfo(msg) => {
                         handle_worker_info(&state_ref, senders, msg.worker_id, msg.runtime_info)
                     }
@@ -318,6 +318,20 @@ pub async fn client_rpc_loop<
                         handle_task_explain(&state_ref, senders, request)
                     }
                     FromClientMessage::ServerDebugDump(path) => handle_server_dump(senders, &path),
+                    /*FromClientMessage::GetResourceRqId(rqvs) => {
+                        ToClientMessage::ResourceRqIdResponse(
+                            rqvs.into_iter()
+                                .map(|rqv| {
+                                    let (rq_id, new) =
+                                        senders.server_control.get_or_create_resource_rq_id(&rqv);
+                                    if new {
+                                        state_ref.get_mut().register_resource_rq(rq_id, rqv);
+                                    }
+                                    rq_id
+                                })
+                                .collect(),
+                        )
+                    }*/
                 };
                 if let Err(error) = tx.send(response).await {
                     log::error!("Cannot reply to client: {error:?}");
@@ -758,16 +772,20 @@ fn handle_job_forget(
     ToClientMessage::ForgetJobResponse(ForgetJobResponse { forgotten, ignored })
 }
 
-fn handle_worker_list(state_ref: &StateRef) -> ToClientMessage {
+fn handle_get_list(state_ref: &StateRef, workers: bool) -> ToClientMessage {
     let state = state_ref.get();
 
-    ToClientMessage::WorkerListResponse(WorkerListResponse {
-        workers: state
+    let workers = if workers {
+        state
             .get_workers()
             .values()
             .map(|w| w.make_info(None))
-            .collect(),
-    })
+            .collect()
+    } else {
+        Vec::new()
+    };
+
+    ToClientMessage::GetListResponse(GetListResponse { workers })
 }
 
 fn handle_worker_info(

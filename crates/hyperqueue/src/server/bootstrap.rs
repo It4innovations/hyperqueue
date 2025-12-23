@@ -358,11 +358,10 @@ async fn start_server(
     )
     .await?;
     let new_tasks_and_queues = if let Some(restorer) = restorer {
-        // This is early state recovery, we restore jobs later as we start futures because restoring
-        // jobs already needs a running Tako
         let mut state = state_ref.get_mut();
+        let ra = &senders.server_control;
         state.restore_state(&restorer);
-        Some(restorer.restore_jobs_and_queues(&mut state)?)
+        Some(restorer.restore_jobs_and_queues(&mut state, ra)?)
     } else {
         None
     };

@@ -192,23 +192,26 @@ impl SubmitDescFormatter<'_> {
                 ids,
                 entries: _,
                 task_desc,
+                resource_rq,
             } => {
                 let TaskDescription {
                     kind: _,
-                    resources,
                     time_limit,
                     priority,
                     crash_limit,
                 } = task_desc;
                 json!({
                     "ids": ids,
-                    "resources": resources,
+                    "resources": resource_rq,
                     "time_limit": time_limit,
                     "priority": priority,
                     "crash_limit": crash_limit
                 })
             }
-            JobTaskDescription::Graph { tasks } => {
+            JobTaskDescription::Graph {
+                resource_rqs: _,
+                tasks,
+            } => {
                 json!({
                     "n_tasks": tasks.len()
                 })

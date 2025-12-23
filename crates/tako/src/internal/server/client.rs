@@ -1,48 +1,13 @@
-use crate::internal::common::resources::{ResourceRequest, ResourceRequestVariants};
+use crate::gateway::{SharedTaskConfiguration, TaskSubmit};
 
-use crate::gateway::{
-    ResourceRequestVariants as ClientResourceRequestVariants, SharedTaskConfiguration, TaskSubmit,
-};
-
-use crate::internal::common::resources::request::ResourceAllocRequest;
 use crate::internal::server::comm::CommSender;
 use crate::internal::server::core::Core;
 use crate::internal::server::reactor::on_new_tasks;
 use crate::internal::server::task::{Task, TaskConfiguration};
 use std::rc::Rc;
 
-fn convert_client_resources(
-    core: &mut Core,
-    resources: ClientResourceRequestVariants,
-) -> ResourceRequestVariants {
-    ResourceRequestVariants::new(
-        resources
-            .variants
-            .into_iter()
-            .map(|rq| {
-                ResourceRequest::new(
-                    rq.n_nodes,
-                    rq.min_time,
-                    rq.resources
-                        .into_iter()
-                        .map(|r| {
-                            let resource_id = core.get_or_create_resource_id(&r.resource);
-                            ResourceAllocRequest {
-                                resource_id,
-                                request: r.policy,
-                            }
-                        })
-                        .collect(),
-                )
-            })
-            .collect(),
-    )
-}
-
-fn create_task_configuration(core: &mut Core, msg: SharedTaskConfiguration) -> TaskConfiguration {
-    let resources = convert_client_resources(core, msg.resources);
+fn create_task_configuration(_core: &mut Core, msg: SharedTaskConfiguration) -> TaskConfiguration {
     TaskConfiguration {
-        resources,
         time_limit: msg.time_limit,
         user_priority: msg.priority,
         crash_limit: msg.crash_limit,
@@ -67,12 +32,6 @@ pub(crate) fn handle_new_tasks(
         .map(|c| Rc::new(create_task_configuration(core, c)))
         .collect();
 
-    for cfg in &configurations {
-        if let Err(e) = cfg.resources.validate() {
-            return Err(format!("Invalid task request {e:?}").into());
-        }
-    }
-
     let mut tasks: Vec<Task> = Vec::with_capacity(task_submit.tasks.len());
     for task in task_submit.tasks {
         if core.is_used_task_id(task.id) {
@@ -85,6 +44,7 @@ pub(crate) fn handle_new_tasks(
         let conf = &configurations[idx];
         let mut task = Task::new(
             task.id,
+            task.resource_rq_id,
             task.task_deps,
             task.dataobj_deps,
             task.entry,

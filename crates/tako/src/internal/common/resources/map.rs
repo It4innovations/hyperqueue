@@ -1,5 +1,8 @@
+use crate::gateway::ResourceRequestVariants as ClientResourceRequestVariants;
 use crate::internal::common::Map;
-use crate::internal::common::resources::ResourceId;
+use crate::internal::common::resources::{ResourceId, ResourceRqId};
+use crate::resources::{ResourceAllocRequest, ResourceRequest, ResourceRequestVariants};
+use serde::{Deserialize, Serialize};
 
 pub const CPU_RESOURCE_ID: ResourceId = ResourceId(0);
 
@@ -9,21 +12,55 @@ pub const AMD_GPU_RESOURCE_NAME: &str = "gpus/amd";
 pub const MEM_RESOURCE_NAME: &str = "mem";
 
 #[derive(Debug)]
-pub(crate) struct ResourceIdAllocator {
+pub struct GlobalResourceMapping {
+    resource_rq_from_id: ResourceRqMap,
+    resource_rq_to_id: Map<ResourceRequestVariants, ResourceRqId>,
     resource_names: Map<String, ResourceId>,
 }
 
-impl Default for ResourceIdAllocator {
+impl Default for GlobalResourceMapping {
     fn default() -> Self {
         let mut resource_names = Map::new();
         /* Fix id for cpus */
         resource_names.insert(CPU_RESOURCE_NAME.to_string(), CPU_RESOURCE_ID);
-        ResourceIdAllocator { resource_names }
+        GlobalResourceMapping {
+            resource_rq_from_id: Default::default(),
+            resource_names,
+            resource_rq_to_id: Map::new(),
+        }
     }
 }
 
-impl ResourceIdAllocator {
-    pub fn get_or_allocate_id(&mut self, name: &str) -> ResourceId {
+impl GlobalResourceMapping {
+    pub fn convert_client_resource_rq(
+        &mut self,
+        resources: &ClientResourceRequestVariants,
+    ) -> ResourceRequestVariants {
+        ResourceRequestVariants::new(
+            resources
+                .variants
+                .iter()
+                .map(|rq| {
+                    ResourceRequest::new(
+                        rq.n_nodes,
+                        rq.min_time,
+                        rq.resources
+                            .iter()
+                            .map(|r| {
+                                let resource_id = self.get_or_create_resource_id(&r.resource);
+                                ResourceAllocRequest {
+                                    resource_id,
+                                    request: r.policy.clone(),
+                                }
+                            })
+                            .collect(),
+                    )
+                })
+                .collect(),
+        )
+    }
+
+    pub fn get_or_create_resource_id(&mut self, name: &str) -> ResourceId {
         match self.resource_names.get(name) {
             Some(&id) => id,
             None => {
@@ -37,25 +74,69 @@ impl ResourceIdAllocator {
 
     /// Create an immutable snapshot of resource name map.
     #[inline]
-    pub fn create_map(&self) -> ResourceMap {
+    pub fn create_resource_id_map(&self) -> ResourceIdMap {
         let mut resource_names: Vec<_> = self.resource_names.keys().cloned().collect();
         resource_names.sort_unstable_by_key(|name| *self.resource_names.get(name).unwrap());
 
-        ResourceMap { resource_names }
+        ResourceIdMap { resource_names }
     }
 
     #[inline]
-    pub fn resource_count(&self) -> usize {
-        self.resource_names.len()
+    pub fn get_resource_rq_map(&self) -> &ResourceRqMap {
+        &self.resource_rq_from_id
     }
+
+    #[cfg(test)]
+    pub fn get_resource_rq_id(&mut self, rqv: &ResourceRequestVariants) -> ResourceRqId {
+        *self.resource_rq_to_id.get(rqv).unwrap()
+    }
+
+    pub fn get_or_create_rq_id(&mut self, rqv: ResourceRequestVariants) -> (ResourceRqId, bool) {
+        match self.resource_rq_to_id.get(&rqv) {
+            Some(&id) => (id, false),
+            None => {
+                let id = self.resource_rq_from_id.insert(rqv.clone());
+                log::debug!("New resource request registered {rqv:?} as {id}");
+                self.resource_rq_to_id.insert(rqv, id);
+                (id, true)
+            }
+        }
+    }
+
+    pub fn get_or_create_resource_rq_id(
+        &mut self,
+        rq: &ClientResourceRequestVariants,
+    ) -> (ResourceRqId, bool) {
+        let rqv = self.convert_client_resource_rq(rq);
+        self.get_or_create_rq_id(rqv)
+    }
+
+    /*    pub fn get_or_create_resource_rq_id(
+        &mut self,
+        rqv: &ResourceRequestVariants,
+    ) -> (ResourceRqId, bool) {
+        match self.resource_rq_to_id.get(rqv) {
+            Some(&id) => (id, false),
+            None => {
+                let mut id = ResourceRqId::new(
+                    self.resource_rq_to_id.len() as u32 * 2
+                        + if rqv.is_multi_node() { 1 } else { 0 },
+                );
+                log::debug!("New resource request registered {rqv:?} as {id}");
+                self.resource_rq_to_id.insert(rqv.clone(), id);
+                self.resource_rq_from_id.insert(id, rqv.clone());
+                (id, true)
+            }
+        }
+    }*/
 }
 
 #[derive(Default, Debug)]
-pub struct ResourceMap {
+pub struct ResourceIdMap {
     resource_names: Vec<String>,
 }
 
-impl ResourceMap {
+impl ResourceIdMap {
     #[inline]
     pub fn from_vec(resource_names: Vec<String>) -> Self {
         Self { resource_names }
@@ -74,13 +155,8 @@ impl ResourceMap {
     }
 
     #[inline]
-    pub fn len(&self) -> usize {
+    pub fn size(&self) -> usize {
         self.resource_names.len()
-    }
-
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
     }
 
     #[inline]
@@ -96,5 +172,38 @@ impl ResourceMap {
         self.resource_names
             .get(index.as_num() as usize)
             .map(|s| s.as_str())
+    }
+}
+
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct ResourceRqMap(Vec<ResourceRequestVariants>);
+
+impl ResourceRqMap {
+    pub fn insert(&mut self, rqv: ResourceRequestVariants) -> ResourceRqId {
+        let id = ResourceRqId::new(self.0.len() as u32);
+        self.0.push(rqv);
+        id
+    }
+
+    #[inline]
+    pub fn get(&self, rq_id: ResourceRqId) -> &ResourceRequestVariants {
+        self.0.get(rq_id.as_usize()).unwrap()
+    }
+
+    #[cfg(test)]
+    pub fn get_or_create(&mut self, rqv: ResourceRequestVariants) -> ResourceRqId {
+        if let Some(rq_id) = self
+            .0
+            .iter()
+            .enumerate()
+            .find_map(|(rq_id, rqv2)| (&rqv == rqv2).then(|| ResourceRqId::new(rq_id as u32)))
+        {
+            rq_id
+        } else {
+            let new_id = ResourceRqId::new(self.0.len() as u32);
+            self.0.push(rqv);
+            new_id
+        }
     }
 }

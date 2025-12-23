@@ -7,14 +7,14 @@ use tako::internal::server::worker::Worker;
 use tako::internal::worker::configuration::OverviewConfiguration;
 use tako::resources::{
     CPU_RESOURCE_NAME, ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind,
+    ResourceRqId,
 };
 use tako::worker::ServerLostPolicy;
 use tako::worker::WorkerConfiguration;
 use tako::{TaskId, WorkerId};
 
-pub fn create_task(id: TaskId) -> Task {
+pub fn create_task(id: TaskId, resource_rq_id: ResourceRqId) -> Task {
     let conf = TaskConfiguration {
-        resources: Default::default(),
         user_priority: 0,
         time_limit: None,
         crash_limit: CrashLimit::default(),
@@ -23,6 +23,7 @@ pub fn create_task(id: TaskId) -> Task {
     };
     Task::new(
         id,
+        resource_rq_id,
         Default::default(),
         Default::default(),
         None,
@@ -59,11 +60,11 @@ pub fn create_worker(id: u64) -> Worker {
     )
 }
 
-pub fn add_tasks(core: &mut Core, count: u32) -> Vec<TaskId> {
+pub fn add_tasks(core: &mut Core, count: u32, resource_rq_id: ResourceRqId) -> Vec<TaskId> {
     let mut tasks = Vec::with_capacity(count as usize);
     for id in 0..count {
         let task_id = TaskId::new_test(id);
-        let task = create_task(task_id);
+        let task = create_task(task_id, resource_rq_id);
         core.add_task(task);
         tasks.push(task_id);
     }

@@ -1,8 +1,10 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use crate::internal::common::resources::map::{ResourceIdAllocator, ResourceMap};
-use crate::internal::common::resources::{ResourceId, ResourceRequestVariants};
+use crate::internal::common::resources::map::{
+    GlobalResourceMapping, ResourceIdMap, ResourceRqMap,
+};
+use crate::internal::common::resources::{ResourceId, ResourceRequestVariants, ResourceRqId};
 use crate::internal::common::{Set, WrappedRcRefCell};
 use crate::internal::scheduler::multinode::MultiNodeQueue;
 use crate::internal::server::dataobj::{DataObjectHandle, ObjsToRemoveFromWorkers};
@@ -37,7 +39,7 @@ pub struct Core {
 
     maximal_task_id: TaskId,
     worker_id_counter: u32,
-    resource_map: ResourceIdAllocator,
+    resource_map: GlobalResourceMapping,
     worker_listen_port: u16,
 
     idle_timeout: Option<Duration>,
@@ -85,15 +87,46 @@ impl Core {
     }
 
     #[inline]
+    pub fn split_tasks_workers_requests_mut(
+        &mut self,
+    ) -> (&mut TaskMap, &mut WorkerMap, &ResourceRqMap) {
+        (
+            &mut self.tasks,
+            &mut self.workers,
+            self.resource_map.get_resource_rq_map(),
+        )
+    }
+
+    #[inline]
     pub fn split_tasks_workers_dataobjs_mut(
         &mut self,
-    ) -> (&mut TaskMap, &mut WorkerMap, &mut DataObjectMap) {
-        (&mut self.tasks, &mut self.workers, &mut self.data_objects)
+    ) -> (
+        &mut TaskMap,
+        &mut WorkerMap,
+        &mut DataObjectMap,
+        &ResourceRqMap,
+    ) {
+        (
+            &mut self.tasks,
+            &mut self.workers,
+            &mut self.data_objects,
+            self.resource_map.get_resource_rq_map(),
+        )
+    }
+
+    #[cfg(test)]
+    pub fn split_tasks_resource_map_mut(&mut self) -> (&mut TaskMap, &mut GlobalResourceMapping) {
+        (&mut self.tasks, &mut self.resource_map)
     }
 
     #[inline]
     pub fn split_tasks_data_objects_mut(&mut self) -> (&mut TaskMap, &mut DataObjectMap) {
         (&mut self.tasks, &mut self.data_objects)
+    }
+
+    #[cfg(test)]
+    pub fn get_resource_map_mut(&mut self) -> &mut GlobalResourceMapping {
+        &mut self.resource_map
     }
 
     pub fn new_worker_id(&mut self) -> WorkerId {
@@ -125,6 +158,7 @@ impl Core {
         &mut self.worker_overview_listeners
     }
 
+    #[inline]
     pub(crate) fn multi_node_queue_split_mut(
         &mut self,
     ) -> (
@@ -132,12 +166,14 @@ impl Core {
         &mut TaskMap,
         &mut WorkerMap,
         &Map<String, WorkerGroup>,
+        &ResourceRqMap,
     ) {
         (
             &mut self.multi_node_queue,
             &mut self.tasks,
             &mut self.workers,
             &self.worker_groups,
+            self.resource_map.get_resource_rq_map(),
         )
     }
 
@@ -321,8 +357,13 @@ impl Core {
 
     pub fn add_ready_to_assign(&mut self, task_id: TaskId) {
         let task = self.tasks.get_task(task_id);
-        if task.configuration.resources.is_multi_node() {
-            self.multi_node_queue.add_task(task);
+        if self
+            .get_resource_rq_map()
+            .get(task.resource_rq_id)
+            .is_multi_node()
+        {
+            self.multi_node_queue
+                .add_task(task, self.resource_map.get_resource_rq_map());
         } else {
             self.single_node_ready_to_assign.push(task_id);
         }
@@ -435,7 +476,7 @@ impl Core {
             if worker.is_parked() {
                 assert!(self.parked_resources.contains(&worker.resources));
             }
-            worker.sanity_check(&self.tasks);
+            worker.sanity_check(&self.tasks, self.resource_map.get_resource_rq_map());
         }
 
         for data in self.data_objects.iter() {
@@ -511,17 +552,33 @@ impl Core {
 
     #[inline]
     pub fn get_or_create_resource_id(&mut self, name: &str) -> ResourceId {
-        self.resource_map.get_or_allocate_id(name)
+        self.resource_map.get_or_create_resource_id(name)
+    }
+
+    pub fn convert_client_resource_rq(
+        &mut self,
+        resources: &crate::gateway::ResourceRequestVariants,
+    ) -> ResourceRequestVariants {
+        self.resource_map.convert_client_resource_rq(resources)
     }
 
     #[inline]
-    pub fn create_resource_map(&self) -> ResourceMap {
-        self.resource_map.create_map()
+    pub fn resource_map_mut(&mut self) -> &mut GlobalResourceMapping {
+        &mut self.resource_map
     }
 
     #[inline]
-    pub fn resource_count(&self) -> usize {
-        self.resource_map.resource_count()
+    pub fn create_resource_map(&self) -> ResourceIdMap {
+        self.resource_map.create_resource_id_map()
+    }
+
+    pub fn get_resource_rq_map(&self) -> &ResourceRqMap {
+        self.resource_map.get_resource_rq_map()
+    }
+
+    #[inline]
+    pub fn get_resource_rq(&self, rq_id: ResourceRqId) -> &ResourceRequestVariants {
+        self.resource_map.get_resource_rq_map().get(rq_id)
     }
 
     pub fn secret_key(&self) -> Option<&Arc<SecretKey>> {
@@ -644,7 +701,8 @@ mod tests {
     #[test]
     fn add_remove() {
         let mut core = Core::default();
-        let t = task::task(101);
+        let rmap = core.get_resource_map_mut();
+        let t = task::task(101, rmap);
         core.add_task(t);
         let mut objs_to_remove = ObjsToRemoveFromWorkers::new();
         assert!(matches!(

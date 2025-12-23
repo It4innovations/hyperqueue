@@ -1,7 +1,6 @@
-use std::cmp::min;
-
 use chrono::Utc;
 use smallvec::SmallVec;
+use std::cmp::min;
 use tako::{InstanceId, ResourceVariantId, define_wrapped_type};
 use tako::{ItemId, TaskId};
 
@@ -178,42 +177,6 @@ impl State {
         let job = self.get_job_mut(id.job_id()).unwrap();
         job.set_finished_state(id.job_task_id(), now, senders);
     }
-
-    /*
-    pub fn process_task_update(&mut self, id: TaskId, state: TaskState, senders: &Senders) {
-        log::debug!("Task id={} updated {:?}", id, state);
-        match state {
-            TaskState::Running {
-                instance_id,
-                worker_ids,
-                context,
-            } => {
-                let job = self.get_job_mut(id.job_id()).unwrap();
-                let now = Utc::now();
-                job.set_running_state(id.job_task_id(), worker_ids.clone(), context, now);
-                for worker_id in &worker_ids {
-                    if let Some(worker) = self.workers.get_mut(worker_id) {
-                        worker.update_task_started(id, now);
-                    }
-                }
-                senders
-                    .events
-                    .on_task_started(id, instance_id, worker_ids.clone(), now);
-            }
-            TaskState::Finished => {
-                let now = Utc::now();
-                let job = self.get_job_mut(id.job_id()).unwrap();
-                job.set_finished_state(id.job_task_id(), now, senders);
-            }
-            TaskState::Waiting => {
-                let job = self.get_job_mut(id.job_id()).unwrap();
-                job.set_waiting_state(id.job_task_id());
-            }
-            TaskState::Invalid => {
-                unreachable!()
-            }
-        };
-    }*/
 
     pub fn process_worker_new(
         &mut self,

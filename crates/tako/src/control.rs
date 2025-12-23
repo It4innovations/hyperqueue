@@ -8,10 +8,12 @@ use tokio::net::TcpListener;
 use tokio::sync::Notify;
 
 use crate::events::EventProcessor;
+use crate::gateway::ResourceRequestVariants;
 use crate::gateway::{
     LostWorkerReason, MultiNodeAllocationResponse, TaskSubmit, WorkerRuntimeInfo,
 };
 use crate::internal::common::error::DsError;
+use crate::internal::common::resources::ResourceRqId;
 use crate::internal::messages::worker::ToWorkerMessage;
 use crate::internal::scheduler::query::compute_new_worker_query;
 use crate::internal::scheduler::state::{run_scheduling_now, scheduler_loop};
@@ -21,7 +23,7 @@ use crate::internal::server::core::{CoreRef, CustomConnectionHandler};
 use crate::internal::server::explain::{
     TaskExplanation, task_explain_for_worker, task_explain_init,
 };
-use crate::internal::server::reactor::on_cancel_tasks;
+use crate::internal::server::reactor::{get_or_create_resource_rq_id, on_cancel_tasks};
 use crate::internal::server::worker::DEFAULT_WORKER_OVERVIEW_INTERVAL;
 use crate::resources::ResourceDescriptor;
 use crate::{TaskId, WorkerId};
@@ -144,6 +146,7 @@ impl ServerRef {
             return Err(DsError::from("Task not found"));
         };
         let resource_map = core.create_resource_map();
+        let resource_rq_map = core.get_resource_rq_map();
         let now = Instant::now();
         let mut explanation = task_explain_init(task);
         explanation.workers = core
@@ -155,6 +158,7 @@ impl ServerRef {
                     .unwrap();
                 Ok(task_explain_for_worker(
                     &resource_map,
+                    resource_rq_map,
                     task,
                     worker,
                     group,
@@ -201,6 +205,25 @@ impl ServerRef {
     pub fn debug_dump(&self, now: Instant) -> serde_json::Value {
         let core = self.core_ref.get();
         core.dump(now)
+    }
+
+    #[cfg(test)]
+    pub fn get_or_create_raw_rq_id(
+        &self,
+        rqv: crate::resources::ResourceRequestVariants,
+    ) -> ResourceRqId {
+        use crate::internal::server::reactor::get_or_create_raw_resource_rq_id;
+        let mut core = self.core_ref.get_mut();
+        let mut comm = self.comm_ref.get_mut();
+        let (rq_id, _) = get_or_create_raw_resource_rq_id(&mut core, &mut *comm, rqv);
+        rq_id
+    }
+
+    pub fn get_or_create_resource_rq_id(&self, rqv: &ResourceRequestVariants) -> ResourceRqId {
+        let mut core = self.core_ref.get_mut();
+        let mut comm = self.comm_ref.get_mut();
+        let (rq_id, _) = get_or_create_resource_rq_id(&mut core, &mut *comm, rqv);
+        rq_id
     }
 }
 

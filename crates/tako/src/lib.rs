@@ -36,14 +36,15 @@ pub const MAX_FRAME_SIZE: usize = 128 * 1024 * 1024;
 pub mod resources {
     pub use crate::internal::common::resources::{
         AMD_GPU_RESOURCE_NAME, Allocation, AllocationRequest, CPU_RESOURCE_ID, CPU_RESOURCE_NAME,
-        MEM_RESOURCE_NAME, NVIDIA_GPU_RESOURCE_NAME, NumOfNodes, ResourceAllocRequest,
-        ResourceAllocation, ResourceAmount, ResourceDescriptor, ResourceDescriptorCoupling,
-        ResourceDescriptorCouplingItem, ResourceDescriptorItem, ResourceDescriptorKind,
-        ResourceFractions, ResourceGroupIdx, ResourceIndex, ResourceLabel, ResourceRequest,
-        ResourceRequestEntries, ResourceRequestVariants, ResourceUnits, TimeRequest,
+        GlobalResourceMapping, MEM_RESOURCE_NAME, NVIDIA_GPU_RESOURCE_NAME, NumOfNodes,
+        ResourceAllocRequest, ResourceAllocation, ResourceAmount, ResourceDescriptor,
+        ResourceDescriptorCoupling, ResourceDescriptorCouplingItem, ResourceDescriptorItem,
+        ResourceDescriptorKind, ResourceFractions, ResourceGroupIdx, ResourceIndex, ResourceLabel,
+        ResourceRequest, ResourceRequestEntries, ResourceRequestVariants, ResourceRqId,
+        ResourceRqMap, ResourceUnits, TimeRequest,
     };
 
-    pub use crate::internal::common::resources::map::ResourceMap;
+    pub use crate::internal::common::resources::map::ResourceIdMap;
 
     pub use crate::internal::common::resources::descriptor::DescriptorError;
 

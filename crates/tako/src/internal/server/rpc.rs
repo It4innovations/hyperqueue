@@ -157,6 +157,7 @@ async fn worker_rpc_loop(
         WorkerRegistrationResponse {
             worker_id,
             resource_names: core.create_resource_map().into_vec(),
+            resource_rq_map: core.get_resource_rq_map().clone(),
             other_workers: core
                 .get_workers()
                 .filter_map(|w| {
@@ -210,7 +211,7 @@ async fn worker_rpc_loop(
         loop {
             interval.tick().await;
             let mut core = core_ref.get_mut();
-            let (task_map, worker_map) = core.split_tasks_workers_mut();
+            let (task_map, worker_map, requests) = core.split_tasks_workers_requests_mut();
             let worker = worker_map.get_worker_mut(worker_id);
             let now = Instant::now();
             let elapsed = now - worker.last_heartbeat;
@@ -223,7 +224,7 @@ async fn worker_rpc_loop(
             if elapsed > retract_interval {
                 log::debug!("Trying to retract overtime tasks, worker={}", worker.id);
                 let mut comm = comm_ref2.get_mut();
-                worker.retract_overtime_tasks(&mut *comm, task_map, now);
+                worker.retract_overtime_tasks(&mut *comm, task_map, requests, now);
                 last_retract_check = now;
             }
 

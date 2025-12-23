@@ -268,16 +268,17 @@ fn write_node_file(ctx: &TaskBuildContext, path: &Path, short_names: bool) -> st
 }
 
 fn insert_resources_into_env(ctx: &TaskBuildContext, program: &mut ProgramDefinition) {
-    let resource_map = ctx.get_resource_map();
+    let (resource_map, resource_rq_map) = ctx.get_resource_maps();
+    let rqv = resource_rq_map.get(ctx.resource_rq_id());
 
-    if ctx.n_resource_variants() > 1 {
+    if rqv.requests().len() > 1 {
         program.env.insert(
             "HQ_RESOURCE_VARIANT".into(),
             ctx.resource_variant().to_string().into(),
         );
     }
 
-    for entry in ctx.resources().entries() {
+    for entry in rqv.requests()[ctx.resource_variant().as_usize()].entries() {
         let resource_name = resource_map.get_name(entry.resource_id).unwrap();
         program.env.insert(
             resource_env_var_name("HQ_RESOURCE_REQUEST_", resource_name),
