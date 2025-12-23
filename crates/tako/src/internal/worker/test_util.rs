@@ -72,7 +72,6 @@ impl WorkerTaskBuilder {
                 data_deps: self.data_deps,
                 entry: None,
             },
-            resources,
             ComputeTaskSharedData {
                 user_priority: self.user_priority,
                 time_limit: None,
@@ -82,6 +81,17 @@ impl WorkerTaskBuilder {
             self.task_state,
         )
     }
+}
+
+pub fn worker_task_add<T: Into<TaskId>>(
+    rbuilder: &mut ResourceQueueBuilder,
+    resource_map: &mut ResourceRqMap,
+    task_id: T,
+    resources: ResourceRequest,
+    u_priority: Priority,
+) {
+    let w = worker_task(task_id, resources, u_priority, resource_map);
+    rbuilder.add_task(resource_map, w);
 }
 
 pub fn worker_task<T: Into<TaskId>>(
@@ -109,26 +119,35 @@ impl ResourceQueueBuilder {
         }
     }
 
-    pub fn add_task(&mut self, task: Task) {
-        self.queue.add_task(&task);
+    pub fn add_task(&mut self, resource_map: &ResourceRqMap, task: Task) {
+        self.queue.add_task(resource_map, &task);
         self.task_map.insert(task);
     }
 
-    pub fn new_worker(&mut self, worker_id: WorkerId, wr: WorkerResources) {
-        self.queue.new_worker(worker_id, wr);
+    pub fn new_worker(
+        &mut self,
+        worker_id: WorkerId,
+        wr: WorkerResources,
+        resource_map: &ResourceRqMap,
+    ) {
+        self.queue.new_worker(worker_id, wr, resource_map);
     }
 
-    pub fn start_tasks(&mut self) -> Map<u32, Rc<Allocation>> {
+    pub fn start_tasks(&mut self, rqs: &ResourceRqMap) -> Map<u32, Rc<Allocation>> {
         self.queue
-            .try_start_tasks(&self.task_map, None)
+            .try_start_tasks(&self.task_map, rqs, None)
             .into_iter()
             .map(|(t, a, _)| (t.job_task_id().as_num(), a))
             .collect()
     }
 
-    pub fn start_tasks_duration(&mut self, duration: Duration) -> Map<u32, Rc<Allocation>> {
+    pub fn start_tasks_duration(
+        &mut self,
+        rqs: &ResourceRqMap,
+        duration: Duration,
+    ) -> Map<u32, Rc<Allocation>> {
         self.queue
-            .try_start_tasks(&self.task_map, Some(duration))
+            .try_start_tasks(&self.task_map, rqs, Some(duration))
             .into_iter()
             .map(|(t, a, _)| (t.job_task_id().as_num(), a))
             .collect()

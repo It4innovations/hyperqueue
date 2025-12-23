@@ -12,7 +12,6 @@ use crate::internal::tests::integration::utils::task::{
 };
 use crate::internal::tests::integration::utils::worker::WorkerConfigBuilder as WC;
 use crate::resources::ResourceDescriptor;
-use crate::tests::integration::utils::task::ResourceRequestConfigBuilder;
 use tokio::time::sleep;
 
 #[tokio::test]

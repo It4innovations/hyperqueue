@@ -201,7 +201,7 @@ impl ResourceRqMap {
         {
             rq_id
         } else {
-            let mut new_id = ResourceRqId::new(self.0.len() as u32);
+            let new_id = ResourceRqId::new(self.0.len() as u32);
             self.0.push(rqv);
             new_id
         }
