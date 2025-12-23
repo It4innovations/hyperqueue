@@ -95,10 +95,9 @@ impl GlobalResourceMapping {
         match self.resource_rq_to_id.get(&rqv) {
             Some(&id) => (id, false),
             None => {
-                let id = ResourceRqId::new(self.resource_rq_to_id.len() as u32);
+                let id = self.resource_rq_from_id.insert(rqv.clone());
                 log::debug!("New resource request registered {rqv:?} as {id}");
-                self.resource_rq_to_id.insert(rqv.clone(), id);
-                self.resource_rq_from_id.insert(id, rqv);
+                self.resource_rq_to_id.insert(rqv, id);
                 (id, true)
             }
         }
@@ -181,9 +180,10 @@ impl ResourceIdMap {
 pub struct ResourceRqMap(Vec<ResourceRequestVariants>);
 
 impl ResourceRqMap {
-    pub fn insert(&mut self, rq_id: ResourceRqId, rqv: ResourceRequestVariants) {
-        assert_eq!(rq_id.as_usize(), self.0.len());
+    pub fn insert(&mut self, rqv: ResourceRequestVariants) -> ResourceRqId {
+        let id = ResourceRqId::new(self.0.len() as u32);
         self.0.push(rqv);
+        id
     }
 
     #[inline]

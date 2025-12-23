@@ -13,12 +13,12 @@ use tako::internal::worker::rqueue::ResourceWaitQueue;
 use tako::internal::worker::state::{TaskMap, WorkerStateRef};
 use tako::internal::worker::task::{Task, TaskState};
 use tako::launcher::{StopReason, TaskBuildContext, TaskLaunchData, TaskLauncher, TaskResult};
-use tako::resources::ResourceAmount;
 use tako::resources::{
     AllocationRequest, CPU_RESOURCE_NAME, NVIDIA_GPU_RESOURCE_NAME, ResourceAllocRequest,
     ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind, ResourceRequest,
-    ResourceRequestVariants, TimeRequest,
+    ResourceRequestVariants, ResourceRqMap, TimeRequest,
 };
+use tako::resources::{ResourceAmount, ResourceRqId};
 use tokio::sync::Notify;
 use tokio::sync::mpsc::unbounded_channel;
 
@@ -38,7 +38,7 @@ impl TaskLauncher for BenchmarkTaskLauncher {
     }
 }
 
-fn create_worker_state() -> WorkerStateRef {
+fn create_worker_state(resource_rq_map: tako::resources::ResourceRqMap) -> WorkerStateRef {
     let worker = create_worker(1);
     let (tx, _) = unbounded_channel();
 
@@ -51,16 +51,18 @@ fn create_worker_state() -> WorkerStateRef {
         worker.configuration().clone(),
         None,
         Default::default(),
+        resource_rq_map,
         Box::new(BenchmarkTaskLauncher),
         "testuid".to_string(),
     )
 }
 
-fn create_worker_task(id: u32) -> Task {
+fn create_worker_task(id: u32, resource_rq_id: ResourceRqId) -> Task {
     Task::new(
         ComputeTaskSeparateData {
             shared_index: 0,
             id: TaskId::new_test(id),
+            resource_rq_id,
             instance_id: Default::default(),
             scheduler_priority: 0,
             node_list: vec![],
@@ -69,7 +71,6 @@ fn create_worker_task(id: u32) -> Task {
         },
         ComputeTaskSharedData {
             user_priority: 0,
-            resources: Default::default(),
             time_limit: None,
             data_flags: TaskDataFlags::empty(),
             body: Default::default(),
@@ -94,15 +95,16 @@ fn bench_add_task(c: &mut BenchmarkGroup<WallTime>) {
             |b, &task_count| {
                 b.iter_custom(|iters| {
                     let mut total = Duration::new(0, 0);
-
+                    let mut resource_map = ResourceRqMap::default();
+                    let rq_id = resource_map.insert(ResourceRequestVariants::new_cpu1());
                     for _ in 0..iters {
-                        let state = create_worker_state();
+                        let state = create_worker_state(resource_map.clone());
                         let mut state = state.get_mut();
 
                         for id in 0..task_count {
-                            state.add_task(create_worker_task(id));
+                            state.add_task(create_worker_task(id, rq_id));
                         }
-                        let task = create_worker_task(task_count);
+                        let task = create_worker_task(task_count, rq_id);
 
                         let duration = measure_time!({
                             state.add_task(task);
@@ -118,6 +120,8 @@ fn bench_add_task(c: &mut BenchmarkGroup<WallTime>) {
 }
 
 fn bench_add_tasks(c: &mut BenchmarkGroup<WallTime>) {
+    let mut resource_map = ResourceRqMap::default();
+    let rq_id = resource_map.insert(ResourceRequestVariants::new_cpu1());
     for task_count in [10, 1_000, 100_000] {
         c.bench_with_input(
             BenchmarkId::new("add tasks", task_count),
@@ -125,8 +129,10 @@ fn bench_add_tasks(c: &mut BenchmarkGroup<WallTime>) {
             |b, &task_count| {
                 b.iter_batched(
                     || {
-                        let state = create_worker_state();
-                        let tasks: Vec<_> = (0..task_count).map(create_worker_task).collect();
+                        let state = create_worker_state(resource_map.clone());
+                        let tasks: Vec<_> = (0..task_count)
+                            .map(|x| create_worker_task(x, rq_id))
+                            .collect();
                         (state, tasks)
                     },
                     |(state, tasks)| {
@@ -143,6 +149,8 @@ fn bench_add_tasks(c: &mut BenchmarkGroup<WallTime>) {
 }
 
 fn bench_cancel_waiting_task(c: &mut BenchmarkGroup<WallTime>) {
+    let mut resource_map = ResourceRqMap::default();
+    let rq_id = resource_map.insert(ResourceRequestVariants::new_cpu1());
     for task_count in [10, 1_000, 100_000] {
         c.bench_with_input(
             BenchmarkId::new("cancel waiting task", task_count),
@@ -150,12 +158,12 @@ fn bench_cancel_waiting_task(c: &mut BenchmarkGroup<WallTime>) {
             |b, &task_count| {
                 b.iter_batched_ref(
                     || {
-                        let state = create_worker_state();
+                        let state = create_worker_state(resource_map.clone());
 
                         {
                             let mut state = state.get_mut();
                             for id in 0..task_count {
-                                state.add_task(create_worker_task(id));
+                                state.add_task(create_worker_task(id, rq_id));
                             }
                         }
                         (state, TaskId::new_test(0))
@@ -189,41 +197,46 @@ fn create_resource_queue(num_cpus: u32) -> ResourceWaitQueue {
 }
 
 fn bench_resource_queue_add_task(c: &mut BenchmarkGroup<WallTime>) {
+    let mut resource_map = ResourceRqMap::default();
+    let rq_id = resource_map.insert(ResourceRequestVariants::new_cpu1());
     c.bench_function("add task to resource queue", |b| {
         b.iter_batched_ref(
-            || (create_resource_queue(64), create_worker_task(0)),
-            |(queue, task)| queue.add_task(task),
+            || (create_resource_queue(64), create_worker_task(0, rq_id)),
+            |(queue, task)| queue.add_task(&resource_map, task),
             BatchSize::SmallInput,
         );
     });
 }
 
 fn bench_resource_queue_release_allocation(c: &mut BenchmarkGroup<WallTime>) {
+    let mut resource_map = ResourceRqMap::default();
+    let rq_id = resource_map.insert(ResourceRequestVariants::new(smallvec![
+        ResourceRequest::new(
+            0,
+            TimeRequest::new(0, 0),
+            smallvec![
+                ResourceAllocRequest {
+                    resource_id: 0.into(),
+                    request: AllocationRequest::Compact(ResourceAmount::new_units(64)),
+                },
+                ResourceAllocRequest {
+                    resource_id: 1.into(),
+                    request: AllocationRequest::Compact(ResourceAmount::new_units(2)),
+                },
+            ],
+        )
+    ]));
     c.bench_function("release allocation from resource queue", |b| {
         b.iter_batched_ref(
             || {
                 let mut queue = create_resource_queue(64);
-                let mut task = create_worker_task(0);
-                task.resources = ResourceRequestVariants::new(smallvec![ResourceRequest::new(
-                    0,
-                    TimeRequest::new(0, 0),
-                    smallvec![
-                        ResourceAllocRequest {
-                            resource_id: 0.into(),
-                            request: AllocationRequest::Compact(ResourceAmount::new_units(64)),
-                        },
-                        ResourceAllocRequest {
-                            resource_id: 1.into(),
-                            request: AllocationRequest::Compact(ResourceAmount::new_units(2)),
-                        },
-                    ],
-                )]);
-                queue.add_task(&task);
+                let task = create_worker_task(0, rq_id);
+                queue.add_task(&resource_map, &task);
 
                 let mut map = TaskMap::default();
                 map.insert(task);
 
-                let mut started = queue.try_start_tasks(&map, None);
+                let mut started = queue.try_start_tasks(&map, &resource_map, None);
                 (queue, Some(started.pop().unwrap().1))
             },
             |(queue, allocation)| queue.release_allocation(allocation.take().unwrap()),
@@ -233,6 +246,23 @@ fn bench_resource_queue_release_allocation(c: &mut BenchmarkGroup<WallTime>) {
 }
 
 fn bench_resource_queue_start_tasks(c: &mut BenchmarkGroup<WallTime>) {
+    let mut resource_map = ResourceRqMap::default();
+    let rq_id = resource_map.insert(ResourceRequestVariants::new(smallvec![
+        ResourceRequest::new(
+            0,
+            TimeRequest::new(0, 0),
+            smallvec![
+                ResourceAllocRequest {
+                    resource_id: 0.into(),
+                    request: AllocationRequest::Compact(ResourceAmount::new_units(64)),
+                },
+                ResourceAllocRequest {
+                    resource_id: 1.into(),
+                    request: AllocationRequest::Compact(ResourceAmount::new_units(2)),
+                },
+            ],
+        )
+    ]));
     for task_count in [1, 10, 1_000, 100_000] {
         c.bench_with_input(
             BenchmarkId::new("start tasks in resource queue", task_count),
@@ -244,33 +274,14 @@ fn bench_resource_queue_start_tasks(c: &mut BenchmarkGroup<WallTime>) {
                         let mut map = TaskMap::default();
 
                         for id in 0..task_count {
-                            let mut task = create_worker_task(id);
-                            task.resources =
-                                ResourceRequestVariants::new(smallvec![ResourceRequest::new(
-                                    0,
-                                    TimeRequest::new(0, 0),
-                                    smallvec![
-                                        ResourceAllocRequest {
-                                            resource_id: 0.into(),
-                                            request: AllocationRequest::Compact(
-                                                ResourceAmount::new_units(64)
-                                            ),
-                                        },
-                                        ResourceAllocRequest {
-                                            resource_id: 1.into(),
-                                            request: AllocationRequest::Compact(
-                                                ResourceAmount::new_units(2)
-                                            ),
-                                        },
-                                    ],
-                                )]);
-                            queue.add_task(&task);
+                            let task = create_worker_task(id, rq_id);
+                            queue.add_task(&resource_map, &task);
                             map.insert(task);
                         }
 
                         (queue, map)
                     },
-                    |(queue, map)| queue.try_start_tasks(map, None),
+                    |(queue, map)| queue.try_start_tasks(map, &resource_map, None),
                     BatchSize::SmallInput,
                 );
             },

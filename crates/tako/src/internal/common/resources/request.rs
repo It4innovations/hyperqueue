@@ -7,7 +7,7 @@ use crate::internal::common::resources::{NumOfNodes, ResourceAmount, ResourceId}
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::resources::allocator::ResourceAllocator;
 use crate::resources::ResourceIdMap;
-use smallvec::SmallVec;
+use smallvec::{SmallVec, smallvec};
 use std::time::Duration;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
@@ -191,6 +191,21 @@ impl ResourceRequestVariants {
         ResourceRequestVariants { variants }
     }
 
+    pub fn new_simple(rq: ResourceRequest) -> ResourceRequestVariants {
+        ResourceRequestVariants::new(smallvec![rq])
+    }
+
+    pub fn new_cpu1() -> ResourceRequestVariants {
+        Self::new_simple(ResourceRequest::new(
+            0,
+            TimeRequest::new(0, 0),
+            smallvec![ResourceAllocRequest {
+                resource_id: crate::resources::CPU_RESOURCE_ID,
+                request: AllocationRequest::Compact(ResourceAmount::ONE),
+            }],
+        ))
+    }
+
     pub fn sort_key(&self, allocator: &ResourceAllocator) -> (f32, TimeRequest) {
         /*
           The following unwrap is ok since there has to be always at least at least one
@@ -307,11 +322,6 @@ mod tests {
     use crate::internal::tests::utils::resources::ResBuilder;
     use crate::resources::ResourceRequest;
     use smallvec::smallvec;
-    impl ResourceRequestVariants {
-        pub fn new_simple(rq: ResourceRequest) -> ResourceRequestVariants {
-            ResourceRequestVariants::new(smallvec![rq])
-        }
-    }
 
     #[test]
     fn test_resource_request_validate() {
