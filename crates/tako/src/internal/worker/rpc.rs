@@ -446,7 +446,10 @@ pub(crate) fn process_worker_message(state: &mut WorkerState, message: ToWorkerM
         ToWorkerMessage::SetOverviewIntervalOverride(r#override) => {
             state.worker_overview_interval_override = r#override;
         }
-        ToWorkerMessage::NewResourceRequest(rq_id, rqv) => state.register_resource_rq(rq_id, rqv),
+        ToWorkerMessage::NewResourceRequest(rq_id, rqv) => {
+            let new_id = state.register_resource_rq(rqv);
+            assert_eq!(rq_id, new_id);
+        }
     }
     false
 }

@@ -437,12 +437,8 @@ impl WorkerState {
         }
     }
 
-    pub fn register_resource_rq(
-        &mut self,
-        resource_rq_id: ResourceRqId,
-        rqv: ResourceRequestVariants,
-    ) {
-        self.resource_rq_map.insert(resource_rq_id, rqv)
+    pub fn register_resource_rq(&mut self, rqv: ResourceRequestVariants) -> ResourceRqId {
+        self.resource_rq_map.insert(rqv)
     }
 
     pub fn download_object(
