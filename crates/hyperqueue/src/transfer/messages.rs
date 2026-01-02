@@ -41,6 +41,10 @@ pub enum FromClientMessage {
     /// It is basically as sending JobInfo and StreamEvents, but it is done atomically,
     /// so no message is lost.
     JobInfo(JobInfoRequest, Option<StreamEvents>),
+    /// Get a list of items from the server. Response is sent as GetListResponse.
+    /// It contains boolean flags of what information you want to get.
+    /// In the current implementation it allows asking only for workers,
+    /// leaving still as flags for future extension.
     GetList {
         workers: bool,
     },
