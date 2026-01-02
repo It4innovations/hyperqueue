@@ -29,7 +29,7 @@ use tako::gateway::{
     TaskDataFlags,
 };
 use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
-use tako::resources::{AllocationRequest, NumOfNodes, ResourceAmount, ResourceRqId};
+use tako::resources::{AllocationRequest, NumOfNodes, ResourceAmount};
 use tako::{JobTaskCount, Map};
 
 #[derive(Debug, FromPyObject)]
