@@ -25,7 +25,7 @@ pub enum TaskState {
 pub struct Task {
     pub id: TaskId,
     pub state: TaskState,
-    pub priority: (Priority, Priority),
+    pub priority: Priority,
     pub instance_id: InstanceId,
 
     pub resource_rq_id: ResourceRqId,
@@ -47,7 +47,7 @@ impl Task {
         Self {
             state: task_state,
             id: task.id,
-            priority: (shared.user_priority, task.scheduler_priority),
+            priority: task.priority,
             instance_id: task.instance_id,
             resource_rq_id: task.resource_rq_id,
             time_limit: shared.time_limit,

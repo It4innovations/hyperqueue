@@ -32,7 +32,7 @@ pub struct ComputeTaskSeparateData {
     pub id: TaskId,
     pub resource_rq_id: ResourceRqId,
     pub instance_id: InstanceId,
-    pub scheduler_priority: Priority,
+    pub priority: Priority,
     pub node_list: Vec<WorkerId>,
     pub data_deps: Vec<DataObjectId>,
     pub entry: Option<EntryType>,
@@ -40,7 +40,6 @@ pub struct ComputeTaskSeparateData {
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct ComputeTaskSharedData {
-    pub user_priority: Priority,
     pub time_limit: Option<Duration>,
     pub data_flags: TaskDataFlags,
     pub body: Rc<[u8]>,

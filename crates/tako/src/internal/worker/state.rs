@@ -27,7 +27,7 @@ use crate::internal::worker::task::{RunningState, Task, TaskState};
 use crate::internal::worker::task_comm::RunningTaskComm;
 use crate::launcher::TaskLauncher;
 use crate::resources::ResourceRequestVariants;
-use crate::{PriorityTuple, TaskId};
+use crate::{Priority, TaskId};
 use orion::aead::SecretKey;
 use rand::SeedableRng;
 use rand::prelude::IndexedRandom;
@@ -441,12 +441,7 @@ impl WorkerState {
         self.resource_rq_map.insert(rqv)
     }
 
-    pub fn download_object(
-        &mut self,
-        data_id: DataObjectId,
-        task_id: TaskId,
-        priority: PriorityTuple,
-    ) {
+    pub fn download_object(&mut self, data_id: DataObjectId, task_id: TaskId, priority: Priority) {
         self.tasks_waiting_for_data
             .entry(data_id)
             .or_default()

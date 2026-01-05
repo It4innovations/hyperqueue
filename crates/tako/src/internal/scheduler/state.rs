@@ -231,7 +231,7 @@ impl SchedulerState {
             let mut task_msg_builder = ComputeTasksBuilder::default();
             task_ids.sort_by_cached_key(|&task_id| {
                 let task = task_map.get_task(task_id);
-                Reverse((task.configuration.user_priority, task.scheduler_priority))
+                Reverse(task.priority())
             });
             for task_id in task_ids {
                 let task = task_map.get_task_mut(task_id);
@@ -515,12 +515,7 @@ impl SchedulerState {
                         worker.id,
                         cost
                     );
-                    (
-                        u64::MAX - cost,
-                        task.configuration.user_priority,
-                        task.scheduler_priority,
-                        difficulty,
-                    )
+                    (u64::MAX - cost, task.priority(), difficulty)
                 });
                 let len = ts.len();
                 underload_workers.push((

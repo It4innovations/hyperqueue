@@ -17,16 +17,13 @@ pub use crate::internal::common::index::{AsIdVec, ItemId};
 pub use crate::internal::common::taskgroup::TaskGroup;
 pub use crate::internal::common::utils::format_comma_delimited;
 pub use crate::internal::common::{Map, Set};
+pub use crate::internal::common::{Priority, UserPriority};
 
 pub use crate::internal::common::ids::{
     InstanceId, JobId, JobTaskId, ResourceVariantId, TaskId, WorkerId,
 };
 
 pub type JobTaskCount = u32;
-
-// Priority: Bigger number -> Higher priority
-pub type Priority = i32;
-pub type PriorityTuple = (Priority, Priority); // user priority, scheduler priority
 
 pub type Error = internal::common::error::DsError;
 pub type Result<T> = std::result::Result<T, Error>;

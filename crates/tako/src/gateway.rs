@@ -2,7 +2,7 @@ use crate::internal::common::error::DsError;
 use crate::internal::common::resources::ResourceRqId;
 use crate::internal::datasrv::dataobj::DataObjectId;
 use crate::resources::{AllocationRequest, CPU_RESOURCE_NAME, NumOfNodes, ResourceAmount};
-use crate::{InstanceId, Map, Priority, TaskId};
+use crate::{InstanceId, Map, TaskId, UserPriority};
 use serde::{Deserialize, Serialize};
 use smallvec::{SmallVec, smallvec};
 use std::fmt::{Display, Formatter};
@@ -126,7 +126,7 @@ impl Display for CrashLimit {
 pub struct SharedTaskConfiguration {
     pub time_limit: Option<Duration>,
 
-    pub priority: Priority,
+    pub priority: UserPriority,
 
     pub crash_limit: CrashLimit,
 

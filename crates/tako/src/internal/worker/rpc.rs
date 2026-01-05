@@ -385,11 +385,7 @@ pub(crate) fn process_worker_message(state: &mut WorkerState, message: ToWorkerM
                     task.data_deps.iter().for_each(|data_id| {
                         if !state.data_storage.has_object(*data_id) {
                             waiting += 1;
-                            state.download_object(
-                                *data_id,
-                                task.id,
-                                (shared.user_priority, task.scheduler_priority),
-                            )
+                            state.download_object(*data_id, task.id, task.priority)
                         }
                     });
                     waiting

@@ -6,7 +6,6 @@ use derive_builder::Builder;
 use smallvec::smallvec;
 use thin_vec::ThinVec;
 
-use crate::TaskId;
 use crate::gateway::{
     CrashLimit, ResourceRequest, ResourceRequestEntry, ResourceRequestVariants,
     SharedTaskConfiguration, TaskConfiguration, TaskDataFlags,
@@ -15,6 +14,7 @@ use crate::internal::common::Map;
 use crate::internal::common::resources::{NumOfNodes, ResourceRqId};
 use crate::program::{ProgramDefinition, StdioDef};
 use crate::resources::{AllocationRequest, ResourceAmount};
+use crate::{TaskId, UserPriority};
 
 pub struct GraphBuilder {
     id_counter: u32,
@@ -114,7 +114,7 @@ pub fn build_task_def_from_config(
 
     let conf = SharedTaskConfiguration {
         time_limit,
-        priority: 0,
+        priority: UserPriority::new(0),
         crash_limit: CrashLimit::default(),
         data_flags: TaskDataFlags::empty(),
         body: body.into(),
