@@ -106,7 +106,7 @@ jobs:
           key: ${{ matrix.arch }}
 
       - name: Install cross
-        run: cargo install cross --git https://github.com/cross-rs/cross
+        run: cargo install cross --git https://github.com/cross-rs/cross --locked --rev d8e00ce3940124e67591346cbe234c415fcfc6eb
 
       - name: Compile
         env:
