@@ -6,12 +6,10 @@ use crate::internal::worker::resources::allocator::ResourceAllocator;
 use crate::internal::worker::state::TaskMap;
 use crate::internal::worker::task::Task;
 use crate::resources::ResourceRqId;
-use crate::{Priority, PriorityTuple, ResourceVariantId, Set, TaskId, WorkerId};
+use crate::{Priority, ResourceVariantId, Set, TaskId, WorkerId};
 use priority_queue::PriorityQueue;
 use std::rc::Rc;
 use std::time::Duration;
-
-type QueuePriorityTuple = (Priority, Priority, Priority); // user priority, resource priority, scheduler priority
 
 /// QueueForRequest is priority queue of the tasks that has the same resource request
 /// The idea is that if we cannot schedule one task from this queue, we cannot schedule
@@ -33,7 +31,7 @@ type QueuePriorityTuple = (Priority, Priority, Priority); // user priority, reso
 #[derive(Debug)]
 pub(crate) struct QueueForRequest {
     resource_priority: Priority,
-    queue: PriorityQueue<TaskId, PriorityTuple>,
+    queue: PriorityQueue<TaskId, Priority>,
     is_blocked: bool,
 }
 
@@ -46,21 +44,21 @@ impl QueueForRequest {
         self.is_blocked = true;
     }
 
-    pub fn current_priority(&self) -> Option<QueuePriorityTuple> {
+    pub fn current_priority(&self) -> Option<Priority> {
         if self.is_blocked {
             None
         } else {
-            self.peek().map(|x| x.1)
+            self.peek().map(|x| x.1.combine(self.resource_priority))
         }
     }
 
-    pub fn peek(&self) -> Option<(TaskId, QueuePriorityTuple)> {
+    pub fn peek(&self) -> Option<(TaskId, Priority)> {
         if self.is_blocked {
             return None;
         }
         self.queue
             .peek()
-            .map(|(task_id, priority)| (*task_id, (priority.0, self.resource_priority, priority.1)))
+            .map(|(task_id, priority)| (*task_id, *priority))
     }
 }
 
@@ -108,10 +106,10 @@ impl ResourceWaitQueue {
         let mut p = 0;
         for (r, s) in &self.worker_resources {
             if !r.is_capable_to_run(rqv) {
-                p += s.len() as Priority;
+                p += s.len() as u64;
             }
         }
-        p
+        Priority::new(p << 16)
     }
 
     pub fn release_allocation(&mut self, allocation: Rc<Allocation>) {
@@ -217,7 +215,7 @@ impl ResourceWaitQueue {
         resource_rq_map: &ResourceRqMap,
         out: &mut Vec<(TaskId, Rc<Allocation>, ResourceVariantId)>,
     ) -> bool {
-        let current_priority: QueuePriorityTuple = if let Some(Some(priority)) =
+        let current_priority: Priority = if let Some(Some(priority)) =
             self.queues.values().map(|qfr| qfr.current_priority()).max()
         {
             priority

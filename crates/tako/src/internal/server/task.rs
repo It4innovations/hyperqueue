@@ -6,7 +6,7 @@ use thin_vec::ThinVec;
 
 use crate::internal::common::Set;
 use crate::internal::common::stablemap::ExtractKey;
-use crate::{MAX_FRAME_SIZE, Map, ResourceVariantId, WorkerId};
+use crate::{MAX_FRAME_SIZE, Map, ResourceVariantId, UserPriority, WorkerId};
 
 use crate::gateway::{CrashLimit, EntryType, TaskDataFlags};
 use crate::internal::datasrv::dataobj::DataObjectId;
@@ -97,7 +97,7 @@ bitflags::bitflags! {
 pub struct TaskConfiguration {
     // Use Rc to avoid cloning the data when we serialize them
     pub body: Rc<[u8]>,
-    pub user_priority: Priority,
+    pub user_priority: UserPriority,
     pub time_limit: Option<Duration>,
     pub crash_limit: CrashLimit,
     pub data_flags: TaskDataFlags,
@@ -124,14 +124,13 @@ pub struct Task {
     pub flags: TaskFlags,
     pub resource_rq_id: ResourceRqId,
     pub configuration: Rc<TaskConfiguration>,
-    pub scheduler_priority: Priority,
     pub instance_id: InstanceId,
     pub crash_counter: u32,
     pub entry: Option<EntryType>,
 }
 
 // Task is a critical data structure, so we should keep its size in check
-static_assert_size!(Task, 120);
+static_assert_size!(Task, 112);
 
 impl fmt::Debug for Task {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -151,7 +150,6 @@ impl Task {
             "consumers": self.consumers,
             "task_deps": self.task_deps,
             "flags": self.flags.bits(),
-            "scheduler_priority": self.scheduler_priority,
             "instance_id": self.instance_id,
             "crash_counter": self.crash_counter,
             "configuration": self.configuration.dump(),
@@ -185,12 +183,17 @@ impl Task {
             resource_rq_id,
             configuration,
             entry,
-            scheduler_priority: Default::default(),
             state: TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 }),
             consumers: Default::default(),
             instance_id: InstanceId::new(0),
             crash_counter: 0,
         }
+    }
+
+    #[inline]
+    pub(crate) fn priority(&self) -> Priority {
+        Priority::from_user_priority(self.configuration.user_priority)
+            .remove_priority_u32(self.id.job_id().as_num())
     }
 
     #[inline]
@@ -359,24 +362,6 @@ impl Task {
             | TaskRuntimeState::Finished => None,
         }
     }
-
-    #[inline]
-    pub(crate) fn get_scheduler_priority(&self) -> i32 {
-        /*match self.state {
-            TaskRuntimeState::Waiting(winfo) => winfo.scheduler_metric,
-            _ => unreachable!()
-        }*/
-        self.scheduler_priority
-    }
-
-    #[inline]
-    pub(crate) fn set_scheduler_priority(&mut self, value: i32) {
-        /*match &mut self.state {
-            TaskRuntimeState::Waiting(WaitingInfo { ref mut scheduler_metric, ..}) => { *scheduler_metric = value },
-            _ => unreachable!()
-        }*/
-        self.scheduler_priority = value;
-    }
 }
 
 impl ExtractKey<TaskId> for Task {
@@ -424,7 +409,6 @@ impl ComputeTasksBuilder {
             .entry(conf.clone())
             .or_insert_with(|| {
                 let shared = ComputeTaskSharedData {
-                    user_priority: conf.user_priority,
                     time_limit: conf.time_limit,
                     data_flags: conf.data_flags,
                     body: conf.body.clone(),
@@ -440,7 +424,7 @@ impl ComputeTasksBuilder {
             id: task.id,
             resource_rq_id: task.resource_rq_id,
             instance_id: task.instance_id,
-            scheduler_priority: task.scheduler_priority,
+            priority: task.priority(),
             node_list,
             data_deps: task.data_deps.iter().copied().collect(),
             entry: task.entry.clone(),
@@ -488,7 +472,7 @@ fn estimate_task_data_size(data: &ComputeTaskSeparateData) -> usize {
         id,
         resource_rq_id,
         instance_id,
-        scheduler_priority,
+        priority,
         node_list,
         data_deps,
         entry,
@@ -500,7 +484,7 @@ fn estimate_task_data_size(data: &ComputeTaskSeparateData) -> usize {
         + size_of_val(id)
         + size_of_val(resource_rq_id)
         + size_of_val(instance_id)
-        + size_of_val(scheduler_priority)
+        + size_of_val(priority)
         + size_of_val(node_list.as_slice())
         + size_of_val(data_deps.as_slice())
         + entry.as_ref().map(|e| e.len()).unwrap_or_default()
@@ -509,12 +493,11 @@ fn estimate_task_data_size(data: &ComputeTaskSeparateData) -> usize {
 /// Estimate how much data it will take to serialize this shared task data
 fn estimate_shared_data_size(data: &ComputeTaskSharedData) -> usize {
     let ComputeTaskSharedData {
-        user_priority,
         time_limit,
         data_flags,
         body,
     } = data;
-    size_of_val(user_priority) + size_of_val(time_limit) + size_of_val(data_flags) + body.len()
+    size_of_val(time_limit) + size_of_val(data_flags) + body.len()
 }
 
 #[cfg(test)]

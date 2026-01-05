@@ -21,7 +21,7 @@ use tako::program::ProgramDefinition;
 use tako::resources::{ResourceDescriptor, ResourceRqId};
 use tako::server::TaskExplanation;
 use tako::worker::WorkerConfiguration;
-use tako::{JobId, JobTaskCount, JobTaskId, Map, TaskId, WorkerId, define_id_type};
+use tako::{JobId, JobTaskCount, JobTaskId, Map, TaskId, UserPriority, WorkerId, define_id_type};
 
 // Messages client -> server
 #[allow(clippy::large_enum_variant)]
@@ -152,7 +152,7 @@ define_id_type!(LocalResourceRqId, u32);
 pub struct TaskDescription {
     pub kind: TaskKind,
     pub time_limit: Option<Duration>,
-    pub priority: tako::Priority,
+    pub priority: UserPriority,
     pub crash_limit: CrashLimit,
 }
 

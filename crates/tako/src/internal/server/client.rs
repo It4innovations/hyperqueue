@@ -42,7 +42,7 @@ pub(crate) fn handle_new_tasks(
             return Err(format!("Invalid configuration index {idx}").into());
         }
         let conf = &configurations[idx];
-        let mut task = Task::new(
+        let task = Task::new(
             task.id,
             task.resource_rq_id,
             task.task_deps,
@@ -50,7 +50,6 @@ pub(crate) fn handle_new_tasks(
             task.entry,
             conf.clone(),
         );
-        task.scheduler_priority = -(task.id.job_id().as_num() as i32);
         tasks.push(task);
     }
     if !task_submit.adjust_instance_id_and_crash_counters.is_empty() {

@@ -14,7 +14,7 @@ use std::time::Duration;
 use tako::gateway::{CrashLimit, ResourceRequest, ResourceRequestEntries, ResourceRequestEntry};
 use tako::program::FileOnCloseBehavior;
 use tako::resources::{AllocationRequest, NumOfNodes, ResourceAmount};
-use tako::{JobTaskCount, JobTaskId, Map, Priority};
+use tako::{JobTaskCount, JobTaskId, Map, UserPriority};
 
 #[derive(Deserialize)]
 #[serde(untagged)]
@@ -244,7 +244,7 @@ pub struct TaskConfigDef {
     pub time_limit: Option<Duration>,
 
     #[serde(default)]
-    pub priority: Priority,
+    pub priority: UserPriority,
 
     #[serde(default, deserialize_with = "deserialize_crash_limit")]
     pub crash_limit: CrashLimit,

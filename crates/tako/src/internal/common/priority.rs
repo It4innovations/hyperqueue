@@ -1,0 +1,50 @@
+use serde::{Deserialize, Serialize};
+use std::fmt::{Display, Formatter};
+
+/// User-defined priority
+///
+/// A larger number ==> a higher priority
+/// From user perspective, negative value is allowed, but we store internally as an unsigned number,
+/// So we can easily concatenate it with scheduler priorities
+#[derive(
+    Default, Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq, Serialize, Deserialize,
+)]
+pub struct UserPriority(u32);
+
+impl UserPriority {
+    pub fn new(value: i32) -> Self {
+        Self(value as u32 ^ 0x8000_0000)
+    }
+}
+
+impl Display for UserPriority {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", (self.0 ^ 0x8000_0000) as i32)
+    }
+}
+
+/// Main priority type that mixes user priority, scheduler priority, resource priority
+///
+/// A larger number ==> a higher priority
+#[derive(
+    Default, Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq, Serialize, Deserialize,
+)]
+pub struct Priority(u64);
+
+impl Priority {
+    pub fn new(value: u64) -> Self {
+        Self(value)
+    }
+
+    pub fn from_user_priority(user_priority: UserPriority) -> Self {
+        Priority((user_priority.0 as u64) << 32)
+    }
+
+    pub fn remove_priority_u32(&self, value: u32) -> Priority {
+        Priority(self.0.saturating_add((u32::MAX - value) as u64))
+    }
+
+    pub fn combine(self, other: Priority) -> Priority {
+        Priority(self.0.saturating_add(other.0))
+    }
+}

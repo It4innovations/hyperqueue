@@ -44,7 +44,7 @@ use tako::gateway::{
 };
 use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
 use tako::resources::{AllocationRequest, CPU_RESOURCE_NAME, NumOfNodes, ResourceAmount};
-use tako::{JobId, JobTaskCount, Map};
+use tako::{JobId, JobTaskCount, Map, UserPriority};
 
 const SUBMIT_ARRAY_LIMIT: JobTaskCount = 999;
 
@@ -295,7 +295,7 @@ pub struct SubmitJobTaskConfOpts {
 
     /// Tasks priority
     #[arg(long, default_value_t = 0)]
-    priority: tako::Priority,
+    priority: i32,
 
     /// Task's time limit
     #[arg(
@@ -727,7 +727,7 @@ pub async fn submit_computation(
 
     let task_desc = TaskDescription {
         kind: task_kind,
-        priority,
+        priority: UserPriority::new(priority),
         time_limit,
         crash_limit,
     };

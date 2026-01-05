@@ -1,4 +1,4 @@
-use crate::PriorityTuple;
+use crate::Priority;
 use crate::datasrv::DataObjectId;
 use crate::internal::datasrv::{DataObjectRef, DownloadInterface, DownloadManagerRef};
 use crate::internal::worker::state::WorkerStateRef;
@@ -23,4 +23,4 @@ impl DownloadInterface for WorkerStateRef {
     }
 }
 
-pub(crate) type WorkerDownloadManagerRef = DownloadManagerRef<WorkerStateRef, PriorityTuple>;
+pub(crate) type WorkerDownloadManagerRef = DownloadManagerRef<WorkerStateRef, Priority>;

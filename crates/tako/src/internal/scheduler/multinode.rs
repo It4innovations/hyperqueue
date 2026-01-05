@@ -6,21 +6,21 @@ use crate::internal::server::worker::Worker;
 use crate::internal::server::workergroup::WorkerGroup;
 use crate::internal::server::workermap::WorkerMap;
 use crate::resources::ResourceRequest;
-use crate::{Map, PriorityTuple, TaskId, WorkerId};
+use crate::{Map, Priority, TaskId, WorkerId};
 use priority_queue::PriorityQueue;
 
 struct QueueForRequest {
-    queue: PriorityQueue<TaskId, PriorityTuple>,
+    queue: PriorityQueue<TaskId, Priority>,
     sleeping: bool,
 }
 
 impl QueueForRequest {
-    pub fn peek(&self) -> Option<(TaskId, PriorityTuple)> {
+    pub fn peek(&self) -> Option<(TaskId, Priority)> {
         self.queue
             .peek()
-            .map(|(task_id, priority)| (*task_id, (priority.0, priority.1)))
+            .map(|(task_id, priority)| (*task_id, *priority))
     }
-    pub fn current_priority(&self) -> Option<PriorityTuple> {
+    pub fn current_priority(&self) -> Option<Priority> {
         self.peek().map(|x| x.1)
     }
 }
@@ -29,13 +29,6 @@ impl QueueForRequest {
 pub(crate) struct MultiNodeQueue {
     queues: Map<ResourceRqId, QueueForRequest>,
     requests: Vec<ResourceRqId>,
-}
-
-fn task_priority_tuple(task: &Task) -> PriorityTuple {
-    (
-        task.configuration.user_priority,
-        task.get_scheduler_priority(),
-    )
 }
 
 impl MultiNodeQueue {
@@ -68,7 +61,7 @@ impl MultiNodeQueue {
                 })
                 .queue
         };
-        queue.push(task.id, task_priority_tuple(task));
+        queue.push(task.id, task.priority());
     }
 
     pub fn wakeup_sleeping_tasks(&mut self) {
@@ -184,7 +177,7 @@ impl<'a> MultiNodeAllocator<'a> {
 
     pub fn try_allocate_task(self) -> Option<(TaskId, Vec<WorkerId>)> {
         'outer: loop {
-            let current_priority: PriorityTuple = if let Some(Some(priority)) = self
+            let current_priority = if let Some(Some(priority)) = self
                 .mn_queue
                 .queues
                 .values()
