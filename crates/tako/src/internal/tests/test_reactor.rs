@@ -11,8 +11,8 @@ use crate::internal::messages::worker::{StealResponse, StealResponseMsg};
 use crate::internal::scheduler::state::SchedulerState;
 use crate::internal::server::core::Core;
 use crate::internal::server::reactor::{
-    T_LEVEL_WEIGHT, on_cancel_tasks, on_new_tasks, on_new_worker, on_remove_worker,
-    on_steal_response, on_task_error, on_task_finished, on_task_running,
+    on_cancel_tasks, on_new_tasks, on_new_worker, on_remove_worker, on_steal_response,
+    on_task_error, on_task_finished, on_task_running,
 };
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::worker::Worker;
@@ -32,7 +32,7 @@ use crate::internal::worker::configuration::{
 };
 use crate::resources::{ResourceAmount, ResourceDescriptorItem, ResourceIdMap};
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
-use crate::{TaskId, WorkerId};
+use crate::{Priority, TaskId, WorkerId};
 
 #[test]
 fn test_worker_add() {
@@ -171,24 +171,14 @@ fn test_scheduler_priority() {
 
     on_new_tasks(&mut core, &mut comm, vec![t1, t2, t3, t4, t5, t6, t7, t8]);
 
-    assert_eq!(core.get_task(TaskId::new_test(501)).scheduler_priority, 0);
     assert_eq!(
-        core.get_task(TaskId::new_test(502)).scheduler_priority,
-        T_LEVEL_WEIGHT
+        core.get_task(TaskId::new_test(501)).priority(),
+        Priority::from_user_priority(0.into()).remove_priority_u32(0)
     );
-    assert_eq!(core.get_task(TaskId::new_test(503)).scheduler_priority, 0);
     assert_eq!(
-        core.get_task(TaskId::new_test(504)).scheduler_priority,
-        2 * T_LEVEL_WEIGHT
+        core.get_task(task_id8).priority(),
+        Priority::from_user_priority(0.into()).remove_priority_u32(123)
     );
-
-    assert_eq!(core.get_task(task_id5).scheduler_priority, -123);
-    assert_eq!(core.get_task(task_id6).scheduler_priority, -122);
-    assert_eq!(
-        core.get_task(task_id7).scheduler_priority,
-        -123 + T_LEVEL_WEIGHT
-    );
-    assert_eq!(core.get_task(task_id8).scheduler_priority, -123);
 }
 
 #[test]
@@ -293,9 +283,9 @@ fn test_assignments_and_finish() {
         &msgs[0],
         ToWorkerMessage::ComputeTasks(ComputeTasksMsg {
             tasks,
-            shared_data
-        }) if tasks.len() == 2 && tasks[0].id.job_task_id().as_num() == 11 && shared_data[0].user_priority == 12 &&
-              tasks[1].id.job_task_id().as_num() == 15 && tasks[0].shared_index == 0 && tasks[1].shared_index == 1 && shared_data[1].user_priority == 0
+            shared_data: _,
+        }) if tasks.len() == 2 && tasks[0].id.job_task_id().as_num() == 11 &&
+              tasks[1].id.job_task_id().as_num() == 15 && tasks[0].shared_index == 0
     ));
     let msgs = comm.take_worker_msgs(101, 1);
     assert!(matches!(

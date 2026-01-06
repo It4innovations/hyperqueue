@@ -45,11 +45,7 @@ impl QueueForRequest {
     }
 
     pub fn current_priority(&self) -> Option<Priority> {
-        if self.is_blocked {
-            None
-        } else {
-            self.peek().map(|x| x.1.combine(self.resource_priority))
-        }
+        self.peek().map(|x| x.1)
     }
 
     pub fn peek(&self) -> Option<(TaskId, Priority)> {
@@ -58,7 +54,7 @@ impl QueueForRequest {
         }
         self.queue
             .peek()
-            .map(|(task_id, priority)| (*task_id, *priority))
+            .map(|(task_id, priority)| (*task_id, priority.combine(self.resource_priority)))
     }
 }
 
@@ -109,7 +105,7 @@ impl ResourceWaitQueue {
                 p += s.len() as u64;
             }
         }
-        Priority::new(p << 16)
+        Priority::new_resource_priority(p)
     }
 
     pub fn release_allocation(&mut self, allocation: Rc<Allocation>) {
@@ -215,6 +211,7 @@ impl ResourceWaitQueue {
         resource_rq_map: &ResourceRqMap,
         out: &mut Vec<(TaskId, Rc<Allocation>, ResourceVariantId)>,
     ) -> bool {
+        dbg!(&self.queues);
         let current_priority: Priority = if let Some(Some(priority)) =
             self.queues.values().map(|qfr| qfr.current_priority()).max()
         {
@@ -222,9 +219,11 @@ impl ResourceWaitQueue {
         } else {
             return true;
         };
+        dbg!(current_priority);
         for rqv in &self.requests {
             let qfr = self.queues.get_mut(rqv).unwrap();
             while let Some((_task_id, priority)) = qfr.peek() {
+                dbg!(priority);
                 if current_priority != priority {
                     break;
                 }

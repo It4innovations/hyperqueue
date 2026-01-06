@@ -8,7 +8,7 @@ use crate::internal::common::resources::{
 use crate::internal::messages::worker::TaskRunningMsg;
 use crate::internal::server::task::{Task, TaskConfiguration};
 use crate::resources::ResourceRequest;
-use crate::{Priority, ResourceVariantId, Set, TaskId};
+use crate::{ResourceVariantId, Set, TaskId, UserPriority};
 use smallvec::SmallVec;
 use std::rc::Rc;
 use thin_vec::ThinVec;
@@ -19,7 +19,7 @@ pub struct TaskBuilder {
     data_deps: ThinVec<DataObjectId>,
     finished_resources: Vec<ResourceRequest>,
     resources_builder: ResBuilder,
-    user_priority: Priority,
+    user_priority: UserPriority,
     crash_limit: CrashLimit,
     data_flags: TaskDataFlags,
 }
@@ -32,14 +32,14 @@ impl TaskBuilder {
             data_deps: Default::default(),
             finished_resources: vec![],
             resources_builder: Default::default(),
-            user_priority: 0,
+            user_priority: 0.into(),
             crash_limit: CrashLimit::default(),
             data_flags: TaskDataFlags::empty(),
         }
     }
 
-    pub fn user_priority(mut self, value: Priority) -> TaskBuilder {
-        self.user_priority = value;
+    pub fn user_priority<P: Into<UserPriority>>(mut self, value: P) -> TaskBuilder {
+        self.user_priority = value.into();
         self
     }
 

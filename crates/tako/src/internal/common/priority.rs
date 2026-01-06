@@ -17,6 +17,12 @@ impl UserPriority {
     }
 }
 
+impl From<i32> for UserPriority {
+    fn from(value: i32) -> Self {
+        UserPriority::new(value)
+    }
+}
+
 impl Display for UserPriority {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", (self.0 ^ 0x8000_0000) as i32)
@@ -40,11 +46,21 @@ impl Priority {
         Priority((user_priority.0 as u64) << 32)
     }
 
+    pub fn new_resource_priority(value: u64) -> Self {
+        Priority(value << 16)
+    }
+
     pub fn remove_priority_u32(&self, value: u32) -> Priority {
         Priority(self.0.saturating_add((u32::MAX - value) as u64))
     }
 
     pub fn combine(self, other: Priority) -> Priority {
         Priority(self.0.saturating_add(other.0))
+    }
+}
+
+impl From<u64> for Priority {
+    fn from(value: u64) -> Self {
+        Self(value)
     }
 }
