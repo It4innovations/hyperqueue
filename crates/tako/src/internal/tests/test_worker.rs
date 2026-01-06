@@ -17,7 +17,7 @@ use crate::internal::worker::state::WorkerStateRef;
 use crate::launcher::{StopReason, TaskBuildContext, TaskLaunchData, TaskLauncher};
 use crate::resources::{ResourceDescriptor, ResourceIdMap};
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
-use crate::{Set, TaskId, WorkerId};
+use crate::{Priority, Set, TaskId, WorkerId};
 use std::ops::Deref;
 use std::time::Duration;
 use tokio::sync::oneshot::Receiver;
@@ -89,13 +89,12 @@ fn create_dummy_compute_msg(task_id: TaskId, resource_rq_id: ResourceRqId) -> Co
             id: task_id,
             resource_rq_id,
             instance_id: Default::default(),
-            scheduler_priority: 0,
+            priority: Priority::new(0),
             node_list: vec![],
             data_deps: vec![],
             entry: None,
         }],
         shared_data: vec![ComputeTaskSharedData {
-            user_priority: 0,
             time_limit: None,
             data_flags: TaskDataFlags::empty(),
             body: Default::default(),

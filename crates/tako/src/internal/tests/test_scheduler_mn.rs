@@ -10,15 +10,8 @@ use crate::internal::tests::utils::schedule::{
 
 use crate::internal::tests::utils::task::TaskBuilder;
 use crate::resources::{ResourceDescriptor, ResourceIdMap};
-use crate::{Priority, TaskId, WorkerId};
+use crate::{TaskId, WorkerId};
 use std::time::Duration;
-
-/*fn get_mn_placement(task: &Task) -> Vec<WorkerId> {
-    match &task.state {
-        TaskRuntimeState::RunningMultiNode(ws) => ws.clone(),
-        _ => unreachable!(),
-    }
-}*/
 
 #[derive(Debug)]
 enum WorkerStatus {
@@ -68,7 +61,7 @@ fn test_schedule_mn_simple() {
     let tasks: Vec<Task> = (1..=4)
         .map(|i| {
             TaskBuilder::new(i)
-                .user_priority(i as Priority)
+                .user_priority(i as i32)
                 .n_nodes(2)
                 .build(rmap)
         })

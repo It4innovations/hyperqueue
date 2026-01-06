@@ -18,8 +18,7 @@ pub struct WorkerTaskBuilder {
     task_id: TaskId,
     instance_id: InstanceId,
     resources: Vec<ResourceRequest>,
-    user_priority: Priority,
-    server_priority: Priority,
+    priority: Priority,
     data_deps: Vec<DataObjectId>,
     data_flags: TaskDataFlags,
     task_state: TaskState,
@@ -31,8 +30,7 @@ impl WorkerTaskBuilder {
             task_id: task_id.into(),
             instance_id: 0.into(),
             resources: Vec::new(),
-            user_priority: 0,
-            server_priority: 0,
+            priority: Priority::new(0),
             data_deps: Vec::new(),
             data_flags: TaskDataFlags::empty(),
             task_state: TaskState::Waiting(0),
@@ -43,13 +41,8 @@ impl WorkerTaskBuilder {
         self
     }
 
-    pub fn user_priority(mut self, priority: Priority) -> Self {
-        self.user_priority = priority;
-        self
-    }
-
-    pub fn server_priority(mut self, priority: Priority) -> Self {
-        self.server_priority = priority;
+    pub fn priority<P: Into<Priority>>(mut self, priority: P) -> Self {
+        self.priority = priority.into();
         self
     }
 
@@ -67,13 +60,12 @@ impl WorkerTaskBuilder {
                 shared_index: 0,
                 id: self.task_id,
                 instance_id: self.instance_id,
-                scheduler_priority: self.server_priority,
+                priority: self.priority,
                 node_list: vec![],
                 data_deps: self.data_deps,
                 entry: None,
             },
             ComputeTaskSharedData {
-                user_priority: self.user_priority,
                 time_limit: None,
                 data_flags: self.data_flags,
                 body: Default::default(),
@@ -94,15 +86,15 @@ pub fn worker_task_add<T: Into<TaskId>>(
     rbuilder.add_task(resource_map, w);
 }
 
-pub fn worker_task<T: Into<TaskId>>(
+pub fn worker_task<T: Into<TaskId>, P: Into<Priority>>(
     task_id: T,
     resources: ResourceRequest,
-    u_priority: Priority,
+    u_priority: P,
     requests: &mut ResourceRqMap,
 ) -> Task {
     WorkerTaskBuilder::new(task_id)
         .resources(resources)
-        .user_priority(u_priority)
+        .priority(u_priority)
         .build(requests)
 }
 
