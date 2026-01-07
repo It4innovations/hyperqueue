@@ -547,7 +547,7 @@ mod tests {
     use tako::internal::tests::utils::sorted_vec;
     use tako::program::ProgramDefinition;
     use tako::resources::ResourceRqId;
-    use tako::{Priority, TaskId};
+    use tako::{TaskId, UserPriority};
 
     #[test]
     fn test_validate_submit() {
@@ -565,7 +565,7 @@ mod tests {
                 task_desc: JobTaskDescription::Array {
                     ids: IntArray::from_range(100, 10),
                     entries: None,
-                    task_desc: task_desc(None, 0),
+                    task_desc: task_desc(None, UserPriority::default()),
                     resource_rq: ResourceRequestVariants::default(),
                 },
                 submit_dir: Default::default(),
@@ -576,7 +576,7 @@ mod tests {
         let job_task_desc = JobTaskDescription::Array {
             ids: IntArray::from_range(109, 2),
             entries: None,
-            task_desc: task_desc(None, 0),
+            task_desc: task_desc(None, UserPriority::default()),
             resource_rq: ResourceRequestVariants::default(),
         };
         assert!(validate_submit(None, &job_task_desc).is_none());
@@ -590,7 +590,7 @@ mod tests {
             tasks: vec![TaskWithDependencies {
                 id: 102.into(),
                 resource_rq_id: LocalResourceRqId::new(0),
-                task_desc: task_desc(None, 0),
+                task_desc: task_desc(None, UserPriority::default()),
                 task_deps: vec![],
                 data_deps: vec![],
                 data_flags: TaskDataFlags::empty(),
@@ -607,7 +607,7 @@ mod tests {
                 TaskWithDependencies {
                     id: 2.into(),
                     resource_rq_id: LocalResourceRqId::new(0),
-                    task_desc: task_desc(None, 0),
+                    task_desc: task_desc(None, UserPriority::default()),
                     task_deps: vec![],
                     data_deps: vec![],
                     data_flags: TaskDataFlags::empty(),
@@ -615,7 +615,7 @@ mod tests {
                 TaskWithDependencies {
                     id: 2.into(),
                     resource_rq_id: LocalResourceRqId::new(0),
-                    task_desc: task_desc(None, 0),
+                    task_desc: task_desc(None, UserPriority::default()),
                     task_deps: vec![],
                     data_deps: vec![],
                     data_flags: TaskDataFlags::empty(),
@@ -631,7 +631,7 @@ mod tests {
             tasks: vec![TaskWithDependencies {
                 id: 2.into(),
                 resource_rq_id: LocalResourceRqId::new(0),
-                task_desc: task_desc(None, 0),
+                task_desc: task_desc(None, UserPriority::default()),
                 task_deps: vec![3.into()],
                 data_deps: vec![],
                 data_flags: TaskDataFlags::empty(),
@@ -646,7 +646,7 @@ mod tests {
             tasks: vec![TaskWithDependencies {
                 id: 2.into(),
                 resource_rq_id: LocalResourceRqId::new(0),
-                task_desc: task_desc(None, 0),
+                task_desc: task_desc(None, UserPriority::default()),
                 task_deps: vec![2.into()],
                 data_deps: vec![],
                 data_flags: TaskDataFlags::empty(),
@@ -660,7 +660,7 @@ mod tests {
 
     #[test]
     fn test_build_graph_with_dependencies() {
-        let desc = || task_desc(None, 0);
+        let desc = || task_desc(None, UserPriority::default());
         let tasks = vec![
             task(0, 0, desc(), vec![2, 1]),
             task(1, 0, desc(), vec![0]),
@@ -696,7 +696,7 @@ mod tests {
         );
     }
 
-    fn task_desc(time_limit: Option<Duration>, priority: Priority) -> TaskDescription {
+    fn task_desc(time_limit: Option<Duration>, priority: UserPriority) -> TaskDescription {
         TaskDescription {
             kind: TaskKind::ExternalProgram(TaskKindProgram {
                 program: ProgramDefinition {
