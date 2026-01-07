@@ -11,11 +11,11 @@ use tako::resources::{
 };
 use tako::worker::ServerLostPolicy;
 use tako::worker::WorkerConfiguration;
-use tako::{TaskId, WorkerId};
+use tako::{TaskId, UserPriority, WorkerId};
 
 pub fn create_task(id: TaskId, resource_rq_id: ResourceRqId) -> Task {
     let conf = TaskConfiguration {
-        user_priority: 0,
+        user_priority: UserPriority::default(),
         time_limit: None,
         crash_limit: CrashLimit::default(),
         data_flags: TaskDataFlags::empty(),
