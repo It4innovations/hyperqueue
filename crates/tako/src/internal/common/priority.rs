@@ -4,16 +4,14 @@ use std::fmt::{Display, Formatter};
 /// User-defined priority
 ///
 /// A larger number ==> a higher priority
-/// From user perspective, negative value is allowed, but we store internally as an unsigned number,
-/// So we can easily concatenate it with scheduler priorities
 #[derive(
     Default, Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq, Serialize, Deserialize,
 )]
-pub struct UserPriority(u32);
+pub struct UserPriority(i32);
 
 impl UserPriority {
     pub fn new(value: i32) -> Self {
-        Self(value as u32 ^ 0x8000_0000)
+        Self(value)
     }
 }
 
@@ -25,7 +23,7 @@ impl From<i32> for UserPriority {
 
 impl Display for UserPriority {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", (self.0 ^ 0x8000_0000) as i32)
+        write!(f, "{}", self.0)
     }
 }
 
@@ -43,7 +41,7 @@ impl Priority {
     }
 
     pub fn from_user_priority(user_priority: UserPriority) -> Self {
-        Priority((user_priority.0 as u64) << 32)
+        Priority((user_priority.0 as u64 ^ 0x8000_0000) << 32)
     }
 
     pub fn new_resource_priority(value: u64) -> Self {
