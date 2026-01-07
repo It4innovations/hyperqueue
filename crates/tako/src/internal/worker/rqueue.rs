@@ -211,7 +211,6 @@ impl ResourceWaitQueue {
         resource_rq_map: &ResourceRqMap,
         out: &mut Vec<(TaskId, Rc<Allocation>, ResourceVariantId)>,
     ) -> bool {
-        dbg!(&self.queues);
         let current_priority: Priority = if let Some(Some(priority)) =
             self.queues.values().map(|qfr| qfr.current_priority()).max()
         {
@@ -219,11 +218,9 @@ impl ResourceWaitQueue {
         } else {
             return true;
         };
-        dbg!(current_priority);
         for rqv in &self.requests {
             let qfr = self.queues.get_mut(rqv).unwrap();
             while let Some((_task_id, priority)) = qfr.peek() {
-                dbg!(priority);
                 if current_priority != priority {
                     break;
                 }
