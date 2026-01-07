@@ -30,7 +30,7 @@ use tako::gateway::{
 };
 use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
 use tako::resources::{AllocationRequest, NumOfNodes, ResourceAmount};
-use tako::{JobTaskCount, Map};
+use tako::{JobTaskCount, Map, UserPriority};
 
 #[derive(Debug, FromPyObject)]
 enum AllocationValue {
@@ -63,7 +63,7 @@ pub struct TaskDescription {
     stdin: Option<Vec<u8>>,
     dependencies: Vec<u32>,
     task_dir: bool,
-    priority: tako::Priority,
+    priority: i32,
     resource_request: Vec<ResourceRequestDescription>,
     crash_limit: Option<u16>,
 }
@@ -251,7 +251,7 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<H
             pin_mode: PinMode::None,
             task_dir: desc.task_dir,
         }),
-        priority: desc.priority,
+        priority: UserPriority::new(desc.priority),
         time_limit: None,
         crash_limit: desc
             .crash_limit

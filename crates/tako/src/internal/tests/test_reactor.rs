@@ -278,7 +278,6 @@ fn test_assignments_and_finish() {
     check_worker_tasks_exact(&core, 102, &[]);
 
     let msgs = comm.take_worker_msgs(100, 1);
-    dbg!(&msgs[0]);
     assert!(matches!(
         &msgs[0],
         ToWorkerMessage::ComputeTasks(ComputeTasksMsg {
