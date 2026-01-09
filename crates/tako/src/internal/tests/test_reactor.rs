@@ -173,11 +173,11 @@ fn test_scheduler_priority() {
 
     assert_eq!(
         core.get_task(TaskId::new_test(501)).priority(),
-        Priority::from_user_priority(0.into()).remove_priority_u32(0)
+        Priority::from_user_priority(0.into()).add_inverted_priority_u32(0)
     );
     assert_eq!(
         core.get_task(task_id8).priority(),
-        Priority::from_user_priority(0.into()).remove_priority_u32(123)
+        Priority::from_user_priority(0.into()).add_inverted_priority_u32(123)
     );
 }
 
