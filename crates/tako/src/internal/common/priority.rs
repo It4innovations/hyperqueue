@@ -41,6 +41,9 @@ impl Priority {
     }
 
     pub fn from_user_priority(user_priority: UserPriority) -> Self {
+        // We want to set user priority as high 32b bits (low bits are scheduler priority)
+        // We also need to invert sign bit (via ^0x8000_0000) to make sure to maintain ordering
+        // of priorities since we are as casting from signed integer.
         Priority((user_priority.0 as u64 ^ 0x8000_0000) << 32)
     }
 
@@ -48,7 +51,14 @@ impl Priority {
         Priority(value << 16)
     }
 
-    pub fn remove_priority_u32(&self, value: u32) -> Priority {
+    // Add priority to the lowest 32 bits,
+    pub fn add_priority_u32(&self, value: u32) -> Priority {
+        Priority(self.0.saturating_add(value as u64))
+    }
+
+    // Add "inverted" priority to the lowest 32 bits; i.e. a smaller number boosts priority more
+    // than a larger number.
+    pub fn add_inverted_priority_u32(&self, value: u32) -> Priority {
         Priority(self.0.saturating_add((u32::MAX - value) as u64))
     }
 

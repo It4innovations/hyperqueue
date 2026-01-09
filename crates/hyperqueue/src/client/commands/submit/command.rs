@@ -294,8 +294,8 @@ pub struct SubmitJobTaskConfOpts {
     array: Option<IntArray>,
 
     /// Tasks priority
-    #[arg(long, default_value_t = 0)]
-    priority: i32,
+    #[arg(long, default_value_t = UserPriority::new(0), value_parser = parse_user_priority)]
+    priority: UserPriority,
 
     /// Task's time limit
     #[arg(
@@ -375,6 +375,10 @@ impl OptsWithMatches<SubmitJobTaskConfOpts> {
             crash_limit: get_or_default(&self_matches, &other_matches, "crash_limit"),
         }
     }
+}
+
+fn parse_user_priority(s: &str) -> Result<UserPriority, anyhow::Error> {
+    Ok(UserPriority::new(s.parse()?))
 }
 
 /// Returns true if the given parameter has been specified explicitly.
@@ -727,7 +731,7 @@ pub async fn submit_computation(
 
     let task_desc = TaskDescription {
         kind: task_kind,
-        priority: UserPriority::new(priority),
+        priority,
         time_limit,
         crash_limit,
     };
