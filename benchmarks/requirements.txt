@@ -12,4 +12,4 @@ matplotlib==3.6.2
 distributed==2026.1.1
 dask==2023.11.0
 seaborn==0.13.0
-bokeh==2.4.3
+bokeh==3.8.2
