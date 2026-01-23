@@ -21,6 +21,8 @@
 * We now ensure that after a successful modifying client's operation (submit, cancel, open/close job, queues
   modification),
   the operation is immediately a part of the written journal.
+* `hq worker info` can now be used with a selector, to display information about multiple workers at once.
+  * Note that this is a breaking change for the JSON format, as it now outputs the worker infos as an array of objects. Before it was a single object.   
 
 ### Changes
 

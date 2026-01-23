@@ -57,7 +57,7 @@ impl Output for Quiet {
             println!("{} {}", worker.id, worker_status)
         }
     }
-    fn print_worker_info(&self, _worker_info: WorkerInfo) {}
+    fn print_worker_info(&self, _workers: Vec<WorkerInfo>) {}
 
     // Server
     fn print_server_info(&self, server_dir: Option<&Path>, _record: &ServerInfo) {

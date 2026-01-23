@@ -301,8 +301,9 @@ pub struct WorkerAddressOpts {
 
 #[derive(Parser)]
 pub struct WorkerInfoOpts {
-    /// Worker ID
-    pub worker_id: WorkerId,
+    /// Selects worker(s) to display
+    #[arg(value_parser = parse_last_all_range)]
+    pub selector: IdSelector,
 }
 
 #[derive(Parser)]

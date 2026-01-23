@@ -20,7 +20,7 @@ use crate::transfer::connection::accept_client;
 use crate::transfer::messages::{
     CancelJobResponse, CloseJobResponse, FromClientMessage, IdSelector, JobDetail,
     JobDetailResponse, JobInfoResponse, JobSubmitDescription, StopWorkerResponse, StreamEvents,
-    SubmitRequest, SubmitResponse, TaskSelector, ToClientMessage,
+    SubmitRequest, SubmitResponse, TaskSelector, ToClientMessage, WorkerInfo,
 };
 use crate::transfer::messages::{ForgetJobResponse, GetListResponse};
 use tako::{JobId, JobTaskCount, WorkerId};
@@ -265,7 +265,7 @@ pub async fn client_rpc_loop<
                     }
                     FromClientMessage::GetList { workers } => handle_get_list(&state_ref, workers),
                     FromClientMessage::WorkerInfo(msg) => {
-                        handle_worker_info(&state_ref, senders, msg.worker_id, msg.runtime_info)
+                        handle_worker_info(&state_ref, senders, msg.selector, msg.runtime_info)
                     }
                     FromClientMessage::StopWorker(msg) => {
                         handle_worker_stop(&state_ref, senders, msg.selector)
@@ -791,17 +791,34 @@ fn handle_get_list(state_ref: &StateRef, workers: bool) -> ToClientMessage {
 fn handle_worker_info(
     state_ref: &StateRef,
     senders: &Senders,
-    worker_id: WorkerId,
+    selector: IdSelector,
     runtime_info: bool,
 ) -> ToClientMessage {
     let state = state_ref.get();
-    ToClientMessage::WorkerInfoResponse(state.get_worker(worker_id).map(|w| {
-        w.make_info(if runtime_info && w.is_running() {
-            senders.server_control.worker_info(worker_id)
-        } else {
-            None
-        })
-    }))
+
+    let worker_ids: Vec<WorkerId> = match selector {
+        IdSelector::Specific(array) => array.iter().map(|id| id.into()).collect(),
+        IdSelector::All => state.get_workers().keys().copied().collect(),
+        IdSelector::LastN(n) => {
+            let mut ids: Vec<_> = state.get_workers().keys().copied().collect();
+            ids.sort_by_key(|&k| std::cmp::Reverse(k));
+            ids.truncate(n as usize);
+            ids
+        }
+    };
+
+    let mut responses: Vec<(WorkerId, Option<WorkerInfo>)> = Vec::new();
+    for worker_id in worker_ids {
+        let worker_info = state.get_worker(worker_id).map(|w| {
+            w.make_info(if runtime_info && w.is_running() {
+                senders.server_control.worker_info(worker_id)
+            } else {
+                None
+            })
+        });
+        responses.push((worker_id, worker_info));
+    }
+    ToClientMessage::WorkerInfoResponse(responses)
 }
 
 pub(crate) fn handle_server_dump(senders: &Senders, path: &Path) -> ToClientMessage {

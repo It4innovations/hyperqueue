@@ -267,137 +267,142 @@ impl Output for CliOutput {
         self.print_horizontal_table(rows, header);
     }
 
-    fn print_worker_info(&self, worker_info: WorkerInfo) {
-        let state = worker_status(&worker_info);
-        let WorkerInfo {
-            id,
-            configuration,
-            started,
-            ended: _ended,
-            runtime_info,
-            last_task_started,
-        } = worker_info;
+    fn print_worker_info(&self, workers: Vec<WorkerInfo>) {
+        for (i, worker_info) in workers.into_iter().enumerate() {
+            if i > 0 {
+                println!();
+            }
+            let state = worker_status(&worker_info);
+            let WorkerInfo {
+                id,
+                configuration,
+                started,
+                ended: _ended,
+                runtime_info,
+                last_task_started,
+            } = worker_info;
 
-        let manager_info = configuration.get_manager_info();
-        let mut rows = vec![
-            vec!["Worker".cell().bold(true), id.cell()],
-            vec!["State".cell().bold(true), state],
-            vec!["Hostname".cell().bold(true), configuration.hostname.cell()],
-            vec!["Started".cell().bold(true), format_datetime(started).cell()],
-            vec![
-                "Data provider".cell().bold(true),
-                configuration.listen_address.cell(),
-            ],
-            vec![
-                "Working directory".cell().bold(true),
-                configuration.work_dir.display().cell(),
-            ],
-            vec![
-                "Heartbeat".cell().bold(true),
-                format_duration(configuration.heartbeat_interval)
-                    .to_string()
+            let manager_info = configuration.get_manager_info();
+            let mut rows = vec![
+                vec!["Worker".cell().bold(true), id.cell()],
+                vec!["State".cell().bold(true), state],
+                vec!["Hostname".cell().bold(true), configuration.hostname.cell()],
+                vec!["Started".cell().bold(true), format_datetime(started).cell()],
+                vec![
+                    "Data provider".cell().bold(true),
+                    configuration.listen_address.cell(),
+                ],
+                vec![
+                    "Working directory".cell().bold(true),
+                    configuration.work_dir.display().cell(),
+                ],
+                vec![
+                    "Heartbeat".cell().bold(true),
+                    format_duration(configuration.heartbeat_interval)
+                        .to_string()
+                        .cell(),
+                ],
+                vec![
+                    "Idle timeout".cell().bold(true),
+                    configuration
+                        .idle_timeout
+                        .map(|x| format_duration(x).to_string())
+                        .unwrap_or_else(|| "None".to_string())
+                        .cell(),
+                ],
+                vec![
+                    "Overview interval".cell().bold(true),
+                    configuration
+                        .overview_configuration
+                        .send_interval
+                        .map(|x| format_duration(x).to_string())
+                        .unwrap_or_else(|| "None".to_string())
+                        .cell(),
+                ],
+                vec![
+                    "Resources".cell().bold(true),
+                    resources_summary(&configuration.resources, true).cell(),
+                ],
+                vec![
+                    "Time Limit".cell().bold(true),
+                    configuration
+                        .time_limit
+                        .map(|x| format_duration(x).to_string())
+                        .unwrap_or_else(|| "None".to_string())
+                        .cell(),
+                ],
+                vec![
+                    "Process pid".cell().bold(true),
+                    configuration
+                        .extra
+                        .get(WORKER_EXTRA_PROCESS_PID)
+                        .cloned()
+                        .unwrap_or_else(|| "N/A".to_string())
+                        .cell(),
+                ],
+                vec!["Group".cell().bold(true), configuration.group.cell()],
+                vec![
+                    "Downloads".cell().bold(true),
+                    format!(
+                        "{} parallel; max {} fails + {} delay",
+                        configuration.max_parallel_downloads,
+                        configuration.max_download_tries,
+                        format_duration(configuration.wait_between_download_tries)
+                    )
                     .cell(),
-            ],
-            vec![
-                "Idle timeout".cell().bold(true),
-                configuration
-                    .idle_timeout
-                    .map(|x| format_duration(x).to_string())
-                    .unwrap_or_else(|| "None".to_string())
-                    .cell(),
-            ],
-            vec![
-                "Overview interval".cell().bold(true),
-                configuration
-                    .overview_configuration
-                    .send_interval
-                    .map(|x| format_duration(x).to_string())
-                    .unwrap_or_else(|| "None".to_string())
-                    .cell(),
-            ],
-            vec![
-                "Resources".cell().bold(true),
-                resources_summary(&configuration.resources, true).cell(),
-            ],
-            vec![
-                "Time Limit".cell().bold(true),
-                configuration
-                    .time_limit
-                    .map(|x| format_duration(x).to_string())
-                    .unwrap_or_else(|| "None".to_string())
-                    .cell(),
-            ],
-            vec![
-                "Process pid".cell().bold(true),
-                configuration
-                    .extra
-                    .get(WORKER_EXTRA_PROCESS_PID)
-                    .cloned()
-                    .unwrap_or_else(|| "N/A".to_string())
-                    .cell(),
-            ],
-            vec!["Group".cell().bold(true), configuration.group.cell()],
-            vec![
-                "Downloads".cell().bold(true),
-                format!(
-                    "{} parallel; max {} fails + {} delay",
-                    configuration.max_parallel_downloads,
-                    configuration.max_download_tries,
-                    format_duration(configuration.wait_between_download_tries)
-                )
-                .cell(),
-            ],
-            vec![
-                "Manager".cell().bold(true),
-                manager_info
-                    .as_ref()
-                    .map(|info| info.manager.to_string())
-                    .unwrap_or_else(|| "None".to_string())
-                    .cell(),
-            ],
-            vec![
-                "Manager Job ID".cell().bold(true),
-                manager_info
-                    .as_ref()
-                    .map(|info| info.allocation_id.as_str())
-                    .unwrap_or("N/A")
-                    .cell(),
-            ],
-            vec![
-                "Last task started".cell().bold(true),
-                last_task_started
-                    .map(|t| format!("{}; Time: {}", t.task_id, format_datetime(t.time)).cell())
-                    .unwrap_or_else(|| "".cell()),
-            ],
-        ];
-        if let Some(runtime_info) = runtime_info {
-            let mut s = String::with_capacity(60);
-            match runtime_info {
-                WorkerRuntimeInfo::SingleNodeTasks {
-                    running_tasks,
-                    assigned_tasks,
-                    is_reserved,
-                } => {
-                    write!(s, "assigned tasks: {assigned_tasks}").unwrap();
-                    if running_tasks > 0 {
-                        write!(s, "; running tasks: {running_tasks}").unwrap();
+                ],
+                vec![
+                    "Manager".cell().bold(true),
+                    manager_info
+                        .as_ref()
+                        .map(|info| info.manager.to_string())
+                        .unwrap_or_else(|| "None".to_string())
+                        .cell(),
+                ],
+                vec![
+                    "Manager Job ID".cell().bold(true),
+                    manager_info
+                        .as_ref()
+                        .map(|info| info.allocation_id.as_str())
+                        .unwrap_or("N/A")
+                        .cell(),
+                ],
+                vec![
+                    "Last task started".cell().bold(true),
+                    last_task_started
+                        .map(|t| format!("{}; Time: {}", t.task_id, format_datetime(t.time)).cell())
+                        .unwrap_or_else(|| "".cell()),
+                ],
+            ];
+            if let Some(runtime_info) = runtime_info {
+                let mut s = String::with_capacity(60);
+                match runtime_info {
+                    WorkerRuntimeInfo::SingleNodeTasks {
+                        running_tasks,
+                        assigned_tasks,
+                        is_reserved,
+                    } => {
+                        write!(s, "assigned tasks: {assigned_tasks}").unwrap();
+                        if running_tasks > 0 {
+                            write!(s, "; running tasks: {running_tasks}").unwrap();
+                        }
+                        if is_reserved {
+                            write!(s, "; reserved for a multi-node task").unwrap();
+                        }
                     }
-                    if is_reserved {
-                        write!(s, "; reserved for a multi-node task").unwrap();
+                    WorkerRuntimeInfo::MultiNodeTask { main_node } => {
+                        write!(s, "running multinode task; ").unwrap();
+                        if main_node {
+                            write!(s, "main node").unwrap();
+                        } else {
+                            write!(s, "secondary node").unwrap();
+                        }
                     }
-                }
-                WorkerRuntimeInfo::MultiNodeTask { main_node } => {
-                    write!(s, "running multinode task; ").unwrap();
-                    if main_node {
-                        write!(s, "main node").unwrap();
-                    } else {
-                        write!(s, "secondary node").unwrap();
-                    }
-                }
-            };
-            rows.push(vec!["Runtime Info".cell().bold(true), s.cell()]);
+                };
+                rows.push(vec!["Runtime Info".cell().bold(true), s.cell()]);
+            }
+            self.print_vertical_table(rows);
         }
-        self.print_vertical_table(rows);
     }
 
     fn print_server_info(&self, server_dir: Option<&Path>, info: &ServerInfo) {

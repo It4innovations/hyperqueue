@@ -379,7 +379,7 @@ def test_worker_no_detect_cpus_error(hq_env: HqEnv):
 
 
 def get_worker_resources(hq_env: HqEnv, id=1) -> Dict[str, Any]:
-    resources = hq_env.command(["worker", "info", str(id), "--output-mode", "json"], as_json=True)
+    resources = hq_env.command(["worker", "info", str(id), "--output-mode", "json"], as_json=True)[0]
     resources = resources["configuration"]["resources"]["resources"]
     return {r["name"]: r for r in resources}
 

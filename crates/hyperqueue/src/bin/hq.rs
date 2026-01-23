@@ -263,13 +263,21 @@ async fn command_worker_info(
     opts: WorkerInfoOpts,
 ) -> anyhow::Result<()> {
     let mut session = get_client_session(gsettings.server_directory()).await?;
-    let response = get_worker_info(&mut session, opts.worker_id, true).await?;
+    let mut responses = get_worker_info(&mut session, opts.selector, true).await?;
+    responses.sort_unstable_by_key(|(id, _)| *id);
 
-    if let Some(worker) = response {
-        gsettings.printer().print_worker_info(worker);
-    } else {
-        log::error!("Worker {} not found", opts.worker_id);
-    }
+    let workers: Vec<_> = responses
+        .into_iter()
+        .filter_map(|(id, worker)| match worker {
+            Some(w) => Some(w),
+            None => {
+                log::error!("Worker {id} not found");
+                None
+            }
+        })
+        .collect();
+
+    gsettings.printer().print_worker_info(workers);
     Ok(())
 }
 
@@ -312,11 +320,16 @@ async fn command_worker_address(
     gsettings: &GlobalSettings,
     opts: WorkerAddressOpts,
 ) -> anyhow::Result<()> {
-    let mut session = get_client_session(gsettings.server_directory()).await?;
-    let response = get_worker_info(&mut session, opts.worker_id, false).await?;
+    use hyperqueue::common::arraydef::IntArray;
+    use hyperqueue::transfer::messages::IdSelector;
 
-    match response {
-        Some(info) => println!("{}", info.configuration.hostname),
+    let mut session = get_client_session(gsettings.server_directory()).await?;
+    let selector = IdSelector::Specific(IntArray::from_id(opts.worker_id.as_num()));
+    let response = get_worker_info(&mut session, selector, false).await?;
+
+    match response.into_iter().next() {
+        Some((_, Some(info))) => println!("{}", info.configuration.hostname),
+        Some((id, None)) => anyhow::bail!("Worker {} not found", id),
         None => anyhow::bail!("Worker {} not found", opts.worker_id),
     }
 
