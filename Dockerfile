@@ -12,6 +12,8 @@ FROM chef AS builder
 WORKDIR /build
 COPY --from=planner /app/recipe.json recipe.json
 
+RUN apt-get update && apt-get install -y cmake libclang-dev
+
 # Build dependencies and cache them in a Docker layer
 RUN cargo chef cook --release --recipe-path recipe.json
 
