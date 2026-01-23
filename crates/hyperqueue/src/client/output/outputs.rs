@@ -36,7 +36,7 @@ pub enum OutputStream {
 pub trait Output {
     // Workers
     fn print_worker_list(&self, workers: Vec<WorkerInfo>);
-    fn print_worker_info(&self, worker_info: WorkerInfo);
+    fn print_worker_info(&self, workers: Vec<WorkerInfo>);
 
     // Server
     fn print_server_info(&self, server_dir: Option<&Path>, record: &ServerInfo);

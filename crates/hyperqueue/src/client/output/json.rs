@@ -52,8 +52,8 @@ impl Output for JsonOutput {
     fn print_worker_list(&self, workers: Vec<WorkerInfo>) {
         self.print(workers.into_iter().map(format_worker_info).collect());
     }
-    fn print_worker_info(&self, worker_info: WorkerInfo) {
-        self.print(format_worker_info(worker_info));
+    fn print_worker_info(&self, workers: Vec<WorkerInfo>) {
+        self.print(workers.into_iter().map(format_worker_info).collect());
     }
 
     fn print_server_info(&self, server_dir: Option<&Path>, info: &ServerInfo) {

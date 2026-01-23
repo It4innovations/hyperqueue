@@ -310,14 +310,14 @@ pub async fn start_hq_worker(
 
     let worker = initialize_worker(gsettings.server_directory(), configuration).await?;
 
-    gsettings.printer().print_worker_info(WorkerInfo {
+    gsettings.printer().print_worker_info(vec![WorkerInfo {
         id: worker.id,
         configuration: worker.configuration.clone(),
         started: Utc::now(),
         ended: None,
         runtime_info: None,
         last_task_started: None,
-    });
+    }]);
     worker.run().await?;
     log::info!("Worker stopping");
     Ok(())
@@ -527,13 +527,13 @@ pub async fn get_worker_list(
 
 pub async fn get_worker_info(
     session: &mut ClientSession,
-    worker_id: WorkerId,
+    selector: IdSelector,
     runtime_info: bool,
-) -> crate::Result<Option<WorkerInfo>> {
+) -> crate::Result<Vec<(WorkerId, Option<WorkerInfo>)>> {
     let msg = rpc_call!(
         session.connection(),
         FromClientMessage::WorkerInfo(WorkerInfoRequest {
-            worker_id,
+            selector,
             runtime_info,
         }),
         ToClientMessage::WorkerInfoResponse(r) => r

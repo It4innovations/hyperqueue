@@ -192,10 +192,10 @@ If you also want to include workers that are offline (i.e. that have crashed or 
 
 ### Display worker information
 
-You can display information about a specific worker using the [`hq worker info`](cli:hq.worker.info) command:
+You can display information about a set of workers using the [`hq worker info`](cli:hq.worker.info) command:
 
 ```bash
-$ hq worker info <worker-id>
+$ hq worker info <worker-selector>
 ```
 
 ### Detect hardware resources

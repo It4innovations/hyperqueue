@@ -218,6 +218,26 @@ def test_worker_info(hq_env: HqEnv):
     table.check_row_value("Group", "default")
 
 
+def test_worker_info_selector_range(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_workers(3)
+    wait_for_worker_state(hq_env, [1, 2, 3], "RUNNING")
+
+    table = hq_env.command(["worker", "info", "1-3"], as_table=True)
+    table[0].check_row_value("Worker", "1")
+    table[1].check_row_value("Worker", "2")
+    table[2].check_row_value("Worker", "3")
+
+
+def test_worker_info_selector_last(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_workers(3)
+    wait_for_worker_state(hq_env, [1, 2, 3], "RUNNING")
+
+    table = hq_env.command(["worker", "info", "last"], as_table=True)
+    table.check_row_value("Worker", "3")
+
+
 def test_worker_group(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker(cpus="10", args=["--group", "test_1"])

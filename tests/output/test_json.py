@@ -39,39 +39,38 @@ def test_print_worker_info(hq_env: HqEnv):
     output = parse_json_output(hq_env, ["--output-mode=json", "worker", "info", "1"])
 
     schema = Schema(
-        {
-            "configuration": {
-                "heartbeat_interval": 8.0,
-                "hostname": "worker1",
-                "idle_timeout": None,
-                "listen_address": str,
-                "resources": {"resources": RESOURCE_DESCRIPTOR_SCHEMA, "coupling": {"weights": list}},
-                "time_limit": None,
-                "work_dir": str,
-                "group": str,
-                "on_server_lost": "stop",
-                "max_download_tries": int,
-                "max_parallel_downloads": int,
-                "wait_between_download_tries": float,
-            },
-            "allocation": None,
-            "started": str,
-            "ended": None,
-            "runtime_info": {"SingleNodeTasks": {"assigned_tasks": 0, "is_reserved": False, "running_tasks": 0}},
-            "last_task_started": None,
-            "id": 1,
-        }
+        [
+            {
+                "configuration": {
+                    "heartbeat_interval": 8.0,
+                    "hostname": "worker1",
+                    "idle_timeout": None,
+                    "listen_address": str,
+                    "resources": {"resources": RESOURCE_DESCRIPTOR_SCHEMA, "coupling": {"weights": list}},
+                    "time_limit": None,
+                    "work_dir": str,
+                    "group": str,
+                    "on_server_lost": "stop",
+                    "max_download_tries": int,
+                    "max_parallel_downloads": int,
+                    "wait_between_download_tries": float,
+                },
+                "allocation": None,
+                "started": str,
+                "ended": None,
+                "runtime_info": {"SingleNodeTasks": {"assigned_tasks": 0, "is_reserved": False, "running_tasks": 0}},
+                "last_task_started": None,
+                "id": 1,
+            }
+        ]
     )
-    import json
-
-    print(json.dumps(output, indent=2, sort_keys=True))
     schema.validate(output)
 
 
 def test_print_worker_info_pbs_allocation(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker(env={"PBS_ENVIRONMENT": "PBS_BATCH", "PBS_JOBID": "x1234"})
-    output = parse_json_output(hq_env, ["--output-mode=json", "worker", "info", "1"])
+    output = parse_json_output(hq_env, ["--output-mode=json", "worker", "info", "1"])[0]
 
     schema = Schema(
         {

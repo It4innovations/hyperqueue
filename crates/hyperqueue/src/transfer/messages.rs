@@ -328,7 +328,7 @@ pub struct StopWorkerMessage {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WorkerInfoRequest {
-    pub worker_id: WorkerId,
+    pub selector: IdSelector,
     pub runtime_info: bool,
 }
 
@@ -400,7 +400,7 @@ pub enum ToClientMessage {
     SubmitResponse(SubmitResponse),
     ResourceRqIdResponse(Vec<ResourceRqId>),
     GetListResponse(GetListResponse),
-    WorkerInfoResponse(Option<WorkerInfo>),
+    WorkerInfoResponse(Vec<(WorkerId, Option<WorkerInfo>)>),
     StopWorkerResponse(Vec<(WorkerId, StopWorkerResponse)>),
     CancelJobResponse(Vec<(JobId, CancelJobResponse)>),
     ForgetJobResponse(ForgetJobResponse),

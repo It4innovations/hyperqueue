@@ -42,7 +42,7 @@ def test_coupling_output(hq_env: HqEnv):
     table = hq_env.command(["worker", "info", "1"], as_table=True)
     table.check_row_value("Resources", "cpus: 2x3 [coupled]\nddd: 123\nfoo: 2x3 [coupled]")
 
-    result = hq_env.command(["--output-mode=json", "worker", "info", "1"], as_json=True)
+    result = hq_env.command(["--output-mode=json", "worker", "info", "1"], as_json=True)[0]
     assert result["configuration"]["resources"]["coupling"] == {
         "weights": [
             {"group1_idx": 0, "group2_idx": 0, "resource1_idx": 0, "resource2_idx": 2, "weight": 256},
