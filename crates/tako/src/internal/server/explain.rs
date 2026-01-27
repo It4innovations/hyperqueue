@@ -191,15 +191,15 @@ mod tests {
         };
 
         let task_id = 1;
-        let task = TaskBuilder::new(task_id).build(&mut rqs);
+        let task = TaskBuilder::new().build(task_id, &mut rqs);
         let r = explain(&task, &rqs, &worker1, now);
         assert_eq!(r.variants.len(), 1);
         assert_eq!(r.variants[0].len(), 1);
         assert_eq!(r.n_enabled_variants(), 1);
 
-        let task = TaskBuilder::new(task_id)
+        let task = TaskBuilder::new()
             .time_request(20_000)
-            .build(&mut rqs);
+            .build(task_id, &mut rqs);
         let r = explain(&task, &rqs, &worker1, now);
         assert_eq!(r.variants.len(), 1);
         assert_eq!(r.variants[0].len(), 2);
@@ -228,11 +228,11 @@ mod tests {
         ));
         assert_eq!(r.n_enabled_variants(), 0);
 
-        let task = TaskBuilder::new(task_id)
+        let task = TaskBuilder::new()
             .time_request(20_000)
-            .cpus_compact(30)
+            .cpus(30)
             .add_resource(1, 3)
-            .build(&mut rqs);
+            .build(task_id, &mut rqs);
         let r = explain(&task, &rqs, &worker2, now);
         assert_eq!(r.variants.len(), 1);
         assert_eq!(r.variants[0].len(), 3);
@@ -244,14 +244,14 @@ mod tests {
         ));
         assert_eq!(r.n_enabled_variants(), 0);
 
-        let task = TaskBuilder::new(task_id)
+        let task = TaskBuilder::new()
             .time_request(30_000)
-            .cpus_compact(15)
+            .cpus(15)
             .add_resource(1, 8)
             .next_resources()
-            .cpus_compact(2)
+            .cpus(2)
             .add_resource(1, 32)
-            .build(&mut rqs);
+            .build(task_id, &mut rqs);
         let r = explain(&task, &rqs, &worker2, now2);
         assert_eq!(r.variants.len(), 2);
         assert_eq!(r.variants[0].len(), 3);
@@ -291,7 +291,7 @@ mod tests {
 
         let wcfg = create_test_worker_config(1.into(), ResourceDescriptor::simple_cpus(4));
         let worker = Worker::new(1.into(), wcfg, &resource_map, now);
-        let task = TaskBuilder::new(1).n_nodes(4).build(&mut rqs);
+        let task = TaskBuilder::new().n_nodes(4).build(1, &mut rqs);
         let mut wset = Set::new();
         wset.insert(WorkerId::new(1));
         wset.insert(WorkerId::new(2));

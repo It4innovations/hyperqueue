@@ -507,7 +507,8 @@ mod tests {
     use crate::internal::server::task::{Task, TaskRuntimeState};
     use crate::internal::tests::utils::schedule::submit_test_tasks;
     use crate::internal::tests::utils::task;
-    use crate::internal::tests::utils::task::task_with_deps;
+    use crate::tests::utils::env::TestEnv;
+    use crate::tests::utils::task::TaskBuilder;
     use std::default::Default;
 
     impl Task {
@@ -521,29 +522,27 @@ mod tests {
 
     #[test]
     fn task_consumers_empty() {
-        let mut rmap = GlobalResourceMapping::default();
-        let a = task::task(0, &mut rmap);
+        let mut rt = TestEnv::new();
+        let a = rt.new_task_default(0);
         let mut s = crate::Set::new();
-        a.collect_recursive_consumers(&Default::default(), &mut s);
+        rt.task(a)
+            .collect_recursive_consumers(&Default::default(), &mut s);
         assert!(s.is_empty());
     }
 
     #[test]
     fn task_recursive_consumers() {
-        let mut core = Core::default();
-        let rmap = core.get_resource_map_mut();
-        let a = task::task(0, rmap);
-        let b = task_with_deps(1, &[&a], rmap);
-        let c = task_with_deps(2, &[&b], rmap);
-        let d = task_with_deps(3, &[&b], rmap);
-        let e = task_with_deps(4, &[&c, &d], rmap);
+        let mut rt = TestEnv::new();
+        let a = rt.new_task_default(0);
+        let b = rt.new_task(1, &TaskBuilder::new().task_deps(&[a]));
+        let c = rt.new_task(2, &TaskBuilder::new().task_deps(&[b]));
+        let d = rt.new_task(3, &TaskBuilder::new().task_deps(&[b]));
+        let e = rt.new_task(4, &TaskBuilder::new().task_deps(&[c, d]));
 
-        let expected_ids = vec![b.id, c.id, d.id, e.id];
-        submit_test_tasks(&mut core, vec![a, b, c, d, e]);
-
+        let expected_ids = vec![b, c, d, e];
         let mut s = crate::Set::new();
-        core.get_task(0.into())
-            .collect_recursive_consumers(core.task_map(), &mut s);
+        let tasks = rt.task_map();
+        rt.task(0).collect_recursive_consumers(tasks, &mut s);
         assert_eq!(s, expected_ids.into_iter().collect());
     }
 }

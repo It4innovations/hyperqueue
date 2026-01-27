@@ -13,8 +13,8 @@ use smallvec::SmallVec;
 use std::rc::Rc;
 use thin_vec::ThinVec;
 
+#[derive(Clone)]
 pub struct TaskBuilder {
-    id: TaskId,
     task_deps: Set<TaskId>,
     data_deps: ThinVec<DataObjectId>,
     finished_resources: Vec<ResourceRequest>,
@@ -25,9 +25,8 @@ pub struct TaskBuilder {
 }
 
 impl TaskBuilder {
-    pub fn new<T: Into<TaskId>>(id: T) -> TaskBuilder {
+    pub fn new() -> TaskBuilder {
         TaskBuilder {
-            id: id.into(),
             task_deps: Default::default(),
             data_deps: Default::default(),
             finished_resources: vec![],
@@ -43,15 +42,15 @@ impl TaskBuilder {
         self
     }
 
-    pub fn task_deps(mut self, deps: &[&Task]) -> TaskBuilder {
-        self.task_deps = deps.iter().map(|&tr| tr.id).collect();
+    pub fn task_deps(mut self, deps: &[TaskId]) -> TaskBuilder {
+        self.task_deps = deps.iter().copied().collect();
         self
     }
 
-    pub fn data_dep(mut self, task: &Task, data_id: u32) -> TaskBuilder {
-        self.task_deps.insert(task.id);
+    pub fn data_dep(mut self, task_id: TaskId, data_id: u32) -> TaskBuilder {
+        self.task_deps.insert(task_id);
         self.data_deps
-            .push(DataObjectId::new(task.id, data_id.into()));
+            .push(DataObjectId::new(task_id, data_id.into()));
         self
     }
 
@@ -72,7 +71,7 @@ impl TaskBuilder {
         self
     }
 
-    pub fn cpus_compact<A: Into<ResourceAmount>>(mut self, count: A) -> TaskBuilder {
+    pub fn cpus<A: Into<ResourceAmount>>(mut self, count: A) -> TaskBuilder {
         self.resources_builder = self.resources_builder.cpus(count);
         self
     }
@@ -91,9 +90,14 @@ impl TaskBuilder {
         self
     }
 
-    pub fn build(self, resource_map: &mut GlobalResourceMapping) -> Task {
-        let last_resource = self.resources_builder.finish();
-        let mut resources: SmallVec<[ResourceRequest; 1]> = self.finished_resources.into();
+    pub fn build<T: Into<TaskId>>(
+        &self,
+        task_id: T,
+        resource_map: &mut GlobalResourceMapping,
+    ) -> Task {
+        let last_resource = self.resources_builder.clone().finish();
+        let mut resources: SmallVec<[ResourceRequest; 1]> =
+            self.finished_resources.iter().cloned().collect();
         resources.push(last_resource);
         for rq in &resources {
             rq.validate().unwrap();
@@ -101,10 +105,10 @@ impl TaskBuilder {
         let resources = ResourceRequestVariants::new(resources);
         let (rq_id, _) = resource_map.get_or_create_rq_id(resources);
         Task::new(
-            self.id,
+            task_id.into(),
             rq_id,
-            self.task_deps.into_iter().collect(),
-            self.data_deps,
+            self.task_deps.iter().copied().collect(),
+            self.data_deps.clone(),
             None,
             Rc::new(TaskConfiguration {
                 time_limit: None,
@@ -115,20 +119,6 @@ impl TaskBuilder {
             }),
         )
     }
-}
-
-pub fn task<T: Into<TaskId>>(id: T, resource_map: &mut GlobalResourceMapping) -> Task {
-    TaskBuilder::new(id.into()).build(resource_map)
-}
-
-pub fn task_with_deps<T: Into<TaskId>>(
-    id: T,
-    deps: &[&Task],
-    resource_map: &mut GlobalResourceMapping,
-) -> Task {
-    TaskBuilder::new(id.into())
-        .task_deps(deps)
-        .build(resource_map)
 }
 
 pub fn task_running_msg<T: Into<TaskId>>(task_id: T) -> TaskRunningMsg {

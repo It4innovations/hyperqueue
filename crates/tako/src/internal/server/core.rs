@@ -620,6 +620,8 @@ mod tests {
     use crate::internal::server::worker::Worker;
     use crate::internal::server::workergroup::WorkerGroup;
     use crate::internal::tests::utils::task;
+    use crate::tests::utils::env::TestEnv;
+    use crate::tests::utils::task::TaskBuilder;
     use crate::{TaskId, WorkerId};
 
     impl Core {
@@ -700,15 +702,13 @@ mod tests {
 
     #[test]
     fn add_remove() {
-        let mut core = Core::default();
-        let rmap = core.get_resource_map_mut();
-        let t = task::task(101, rmap);
-        core.add_task(t);
+        let mut rt = TestEnv::new();
+        rt.new_task_default(101);
         let mut objs_to_remove = ObjsToRemoveFromWorkers::new();
         assert!(matches!(
-            core.remove_task(101.into(), &mut objs_to_remove),
+            rt.core().remove_task(101.into(), &mut objs_to_remove),
             TaskRuntimeState::Waiting(_)
         ));
-        assert_eq!(core.find_task(101.into()), None);
+        assert_eq!(rt.core().find_task(101.into()), None);
     }
 }

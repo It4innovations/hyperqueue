@@ -37,9 +37,9 @@ fn test_query_enough_workers() {
     create_test_workers(&mut core, &[2, 3]);
 
     let rmap = core.get_resource_map_mut();
-    let t1 = TaskBuilder::new(1).cpus_compact(3).build(rmap);
-    let t2 = TaskBuilder::new(2).cpus_compact(1).build(rmap);
-    let t3 = TaskBuilder::new(3).cpus_compact(1).build(rmap);
+    let t1 = TaskBuilder::new().cpus(3).build(1, rmap);
+    let t2 = TaskBuilder::new().cpus(1).build(2, rmap);
+    let t3 = TaskBuilder::new().cpus(1).build(3, rmap);
     submit_test_tasks(&mut core, vec![t1, t2, t3]);
 
     let mut scheduler = create_test_scheduler();
@@ -68,9 +68,9 @@ fn test_query_no_enough_workers1() {
     create_test_workers(&mut core, &[2, 3]);
 
     let rmap = core.get_resource_map_mut();
-    let t1 = TaskBuilder::new(1).cpus_compact(3).build(rmap);
-    let t2 = TaskBuilder::new(2).cpus_compact(3).build(rmap);
-    let t3 = TaskBuilder::new(3).cpus_compact(1).build(rmap);
+    let t1 = TaskBuilder::new().cpus(3).build(1, rmap);
+    let t2 = TaskBuilder::new().cpus(3).build(2, rmap);
+    let t3 = TaskBuilder::new().cpus(1).build(3, rmap);
     submit_test_tasks(&mut core, vec![t1, t2, t3]);
 
     let mut scheduler = create_test_scheduler();
@@ -108,8 +108,8 @@ fn test_query_enough_workers2() {
 
     rt.new_workers(&[2]);
 
-    rt.new_task_running(TaskBuilder::new(10).cpus_compact(1), 100);
-    rt.new_task_assigned(TaskBuilder::new(11).cpus_compact(1), 100);
+    rt.new_task_running(10, &TaskBuilder::new(), 100);
+    rt.new_task_assigned(11, &TaskBuilder::new(), 100);
     rt.schedule();
 
     let r = compute_new_worker_query(
@@ -143,9 +143,10 @@ fn test_query_not_enough_workers3() {
 
     rt.new_workers(&[2]);
 
-    rt.new_task_running(TaskBuilder::new(10).cpus_compact(1), 100);
-    rt.new_task_running(TaskBuilder::new(12).cpus_compact(1), 100);
-    rt.new_task_assigned(TaskBuilder::new(11).cpus_compact(1), 100);
+    let t = TaskBuilder::new().cpus(1);
+    rt.new_task_running(10, &t, 100);
+    rt.new_task_running(12, &t, 100);
+    rt.new_task_assigned(11, &t, 100);
     rt.schedule();
 
     let r = compute_new_worker_query(
@@ -180,7 +181,7 @@ fn test_query_many_workers_needed() {
     rt.new_workers(&[4, 4, 4]);
 
     for i in 1..=100 {
-        rt.new_task(TaskBuilder::new(i).cpus_compact(1));
+        rt.new_task_default(i);
     }
     rt.schedule();
 
@@ -224,18 +225,18 @@ fn test_query_multi_node_tasks() {
     rt.new_workers(&[4, 4, 4]);
 
     for i in 0..5 {
-        rt.new_task(TaskBuilder::new(i).n_nodes(3));
+        rt.new_task(i, &TaskBuilder::new().n_nodes(3));
     }
     for i in 5..15 {
-        rt.new_task(TaskBuilder::new(i).n_nodes(6));
+        rt.new_task(i, &TaskBuilder::new().n_nodes(6));
     }
     for i in 15..20 {
-        rt.new_task(TaskBuilder::new(i).n_nodes(12));
+        rt.new_task(i, &TaskBuilder::new().n_nodes(12));
     }
     for i in 20..40 {
-        rt.new_task(TaskBuilder::new(i).n_nodes(3).user_priority(10));
+        rt.new_task(i, &TaskBuilder::new().n_nodes(3).user_priority(10));
     }
-    rt.new_task(TaskBuilder::new(1000).n_nodes(1));
+    rt.new_task(1000, &TaskBuilder::new().n_nodes(1));
 
     rt.schedule();
 
@@ -279,7 +280,7 @@ fn test_query_multi_node_tasks() {
 fn test_query_multi_node_time_limit() {
     let mut rt = TestEnv::new();
 
-    rt.new_task(TaskBuilder::new(1).n_nodes(4).time_request(750));
+    rt.new_task(1, &TaskBuilder::new().n_nodes(4).time_request(750));
     rt.schedule();
 
     for (secs, allocs) in [(740, 0), (760, 1)] {
@@ -300,17 +301,14 @@ fn test_query_multi_node_time_limit() {
 
 #[test]
 fn test_query_min_utilization1() {
-    let mut core = Core::default();
-
-    let rmap = core.get_resource_map_mut();
-    let t1 = TaskBuilder::new(1).cpus_compact(3).build(rmap);
-    let t2 = TaskBuilder::new(2).cpus_compact(1).build(rmap);
-    let t3 = TaskBuilder::new(3).cpus_compact(1).build(rmap);
-    submit_test_tasks(&mut core, vec![t1, t2, t3]);
+    let mut rt = TestEnv::new();
+    rt.new_task_cpus(1, 3);
+    rt.new_task_cpus(2, 1);
+    rt.new_task_cpus(3, 1);
 
     let mut scheduler = create_test_scheduler();
     let mut comm = create_test_comm();
-    scheduler.run_scheduling(&mut core, &mut comm);
+    scheduler.run_scheduling(&mut rt.core(), &mut comm);
 
     for (min_utilization, alloc_value, cpus) in &[
         (0.5, 0, 12),
@@ -321,7 +319,7 @@ fn test_query_min_utilization1() {
         (0.7, 1, 3),
     ] {
         let r = compute_new_worker_query(
-            &mut core,
+            &mut rt.core(),
             &[WorkerTypeQuery {
                 partial: false,
                 descriptor: ResourceDescriptor::simple_cpus(*cpus),
@@ -338,22 +336,14 @@ fn test_query_min_utilization1() {
 
 #[test]
 fn test_query_min_utilization2() {
-    let mut core = Core::default();
-
-    let rmap = core.get_resource_map_mut();
-    let t1 = TaskBuilder::new(1)
-        .cpus_compact(1)
-        .add_resource(1, 10)
-        .build(rmap);
-    let t2 = TaskBuilder::new(2)
-        .cpus_compact(1)
-        .add_resource(1, 10)
-        .build(rmap);
-    submit_test_tasks(&mut core, vec![t1, t2]);
+    let mut rt = TestEnv::new();
+    let t = TaskBuilder::new().cpus(1).add_resource(1, 10);
+    rt.new_task(1, &t);
+    rt.new_task(2, &t);
 
     let mut scheduler = create_test_scheduler();
     let mut comm = create_test_comm();
-    scheduler.run_scheduling(&mut core, &mut comm);
+    scheduler.run_scheduling(rt.core(), &mut comm);
 
     for (min_utilization, alloc_value, cpus, gpus) in &[
         (0.5, 1, 12, 30),
@@ -375,7 +365,7 @@ fn test_query_min_utilization2() {
             Default::default(),
         );
         let r = compute_new_worker_query(
-            &mut core,
+            rt.core(),
             &[WorkerTypeQuery {
                 partial: false,
                 descriptor,
@@ -392,12 +382,10 @@ fn test_query_min_utilization2() {
 
 #[test]
 fn test_query_min_utilization3() {
-    let mut core = Core::default();
-
-    let rmap = core.get_resource_map_mut();
-    let t1 = TaskBuilder::new(1).cpus_compact(2).build(rmap);
-    let t2 = TaskBuilder::new(2).cpus_compact(2).build(rmap);
-    submit_test_tasks(&mut core, vec![t1, t2]);
+    let mut rt = TestEnv::new();
+    let t = TaskBuilder::new().cpus(2);
+    rt.new_task(1, &t);
+    rt.new_task(2, &t);
 
     let descriptor = ResourceDescriptor::new(
         vec![ResourceDescriptorItem {
@@ -407,7 +395,7 @@ fn test_query_min_utilization3() {
         Default::default(),
     );
     let r = compute_new_worker_query(
-        &mut core,
+        rt.core(),
         &[WorkerTypeQuery {
             partial: false,
             descriptor,
@@ -437,26 +425,17 @@ fn test_query_min_utilization_vs_partial() {
         (0, 3, 1),
         (0, 0, 0),
     ] {
-        let mut core = Core::default();
-        let rmap = core.get_resource_map_mut();
-        let tasks: Vec<_> = (1..=cpu_tasks)
-            .map(|task_id| TaskBuilder::new(task_id).cpus_compact(2).build(rmap))
-            .collect();
-        if !tasks.is_empty() {
-            submit_test_tasks(&mut core, tasks);
-        }
-        let rmap = core.get_resource_map_mut();
-        let tasks: Vec<_> = (10..10 + gpu_tasks)
-            .map(|task_id| {
-                TaskBuilder::new(task_id)
-                    .cpus_compact(2)
-                    .add_resource(1, 1)
-                    .build(rmap)
-            })
-            .collect();
-        if !tasks.is_empty() {
-            submit_test_tasks(&mut core, tasks);
-        }
+        let mut rt = TestEnv::new();
+        let t = TaskBuilder::new().cpus(2);
+        (1..=cpu_tasks).for_each(|task_id| {
+            rt.new_task(task_id, &t);
+        });
+        let t = TaskBuilder::new().cpus(2).add_resource(1, 1);
+
+        (10..10 + gpu_tasks).for_each(|task_id| {
+            rt.new_task(task_id, &t);
+        });
+
         let descriptor = ResourceDescriptor::new(
             vec![ResourceDescriptorItem {
                 name: "cpus".into(),
@@ -465,7 +444,7 @@ fn test_query_min_utilization_vs_partial() {
             Default::default(),
         );
         let r = compute_new_worker_query(
-            &mut core,
+            rt.core(),
             &[WorkerTypeQuery {
                 partial: true,
                 descriptor,
@@ -482,20 +461,18 @@ fn test_query_min_utilization_vs_partial() {
 
 #[test]
 fn test_query_min_time2() {
-    let mut core = Core::default();
-    let rmap = core.get_resource_map_mut();
-    let t1 = TaskBuilder::new(1)
-        .cpus_compact(1)
+    let mut rt = TestEnv::new();
+    let t1 = TaskBuilder::new()
+        .cpus(1)
         .time_request(100)
         .next_resources()
-        .cpus_compact(4)
-        .time_request(50)
-        .build(rmap);
-    submit_test_tasks(&mut core, vec![t1]);
+        .cpus(4)
+        .time_request(50);
+    rt.new_task(1, &t1);
 
     let mut scheduler = create_test_scheduler();
     let mut comm = create_test_comm();
-    scheduler.run_scheduling(&mut core, &mut comm);
+    scheduler.run_scheduling(rt.core(), &mut comm);
 
     for (cpus, secs, alloc) in [(2, 75, 0), (1, 100, 1), (4, 50, 1)] {
         let descriptor = ResourceDescriptor::new(
@@ -506,7 +483,7 @@ fn test_query_min_time2() {
             Default::default(),
         );
         let r = compute_new_worker_query(
-            &mut core,
+            rt.core(),
             &[WorkerTypeQuery {
                 partial: false,
                 descriptor: descriptor.clone(),
@@ -523,21 +500,13 @@ fn test_query_min_time2() {
 
 #[test]
 fn test_query_min_time1() {
-    let mut core = Core::default();
-    let rmap = core.get_resource_map_mut();
-    let t1 = TaskBuilder::new(1)
-        .cpus_compact(1)
-        .time_request(100)
-        .build(rmap);
-    let t2 = TaskBuilder::new(2)
-        .cpus_compact(10)
-        .time_request(100)
-        .build(rmap);
-    submit_test_tasks(&mut core, vec![t1, t2]);
+    let mut rt = TestEnv::new();
+    rt.new_task(1, &TaskBuilder::new().cpus(1).time_request(100));
+    rt.new_task(2, &TaskBuilder::new().cpus(10).time_request(100));
 
     let mut scheduler = create_test_scheduler();
     let mut comm = create_test_comm();
-    scheduler.run_scheduling(&mut core, &mut comm);
+    scheduler.run_scheduling(rt.core(), &mut comm);
 
     let descriptor = ResourceDescriptor::new(
         vec![ResourceDescriptorItem {
@@ -547,7 +516,7 @@ fn test_query_min_time1() {
         Default::default(),
     );
     let r = compute_new_worker_query(
-        &mut core,
+        rt.core(),
         &[WorkerTypeQuery {
             partial: false,
             descriptor: descriptor.clone(),
@@ -561,7 +530,7 @@ fn test_query_min_time1() {
     assert!(r.multi_node_allocations.is_empty());
 
     let r = compute_new_worker_query(
-        &mut core,
+        &mut rt.core(),
         &[WorkerTypeQuery {
             partial: false,
             descriptor: descriptor.clone(),
@@ -582,7 +551,7 @@ fn test_query_min_time1() {
         Default::default(),
     );
     let r = compute_new_worker_query(
-        &mut core,
+        rt.core(),
         &[WorkerTypeQuery {
             partial: false,
             descriptor,
@@ -603,7 +572,7 @@ fn test_query_sn_leftovers1() {
 
         rt.new_workers(&[4]);
         for i in 1..=n {
-            rt.new_task(TaskBuilder::new(i).cpus_compact(1).time_request(5_000));
+            rt.new_task(i, &TaskBuilder::new().cpus(1).time_request(5_000));
         }
         rt.schedule();
 
@@ -637,7 +606,7 @@ fn test_query_sn_leftovers2() {
     for (cpus, out) in [(1, 0), (2, 3)] {
         let mut rt = TestEnv::new();
         for i in 1..=100 {
-            rt.new_task(TaskBuilder::new(i).cpus_compact(2));
+            rt.new_task_cpus(i, 2);
         }
         rt.schedule();
 
@@ -660,8 +629,8 @@ fn test_query_sn_leftovers2() {
 fn test_query_sn_leftovers() {
     let mut rt = TestEnv::new();
 
-    rt.new_task(TaskBuilder::new(1).cpus_compact(4).time_request(750));
-    rt.new_task(TaskBuilder::new(2).cpus_compact(8).time_request(1750));
+    rt.new_task(1, &TaskBuilder::new().cpus(4).time_request(750));
+    rt.new_task(2, &TaskBuilder::new().cpus(8).time_request(1750));
     rt.schedule();
 
     let r = compute_new_worker_query(
@@ -700,9 +669,9 @@ fn test_query_sn_leftovers() {
 fn test_query_partial_query_cpus() {
     let mut rt = TestEnv::new();
 
-    rt.new_task(TaskBuilder::new(1).cpus_compact(4));
+    rt.new_task_cpus(1, 4);
     for i in 2..=5 {
-        rt.new_task(TaskBuilder::new(i).cpus_compact(8));
+        rt.new_task_cpus(i, 8);
     }
     rt.schedule();
 
@@ -749,12 +718,12 @@ fn test_query_partial_query_gpus1() {
         (100, true, 1),
     ] {
         let mut rt = TestEnv::new();
+        let mut builder = TaskBuilder::new().cpus(1).add_resource(1, 2);
+        if has_extra {
+            builder = builder.add_resource(2, 1);
+        }
         for i in 1..=10 {
-            let mut builder = TaskBuilder::new(i).cpus_compact(1).add_resource(1, 2);
-            if has_extra {
-                builder = builder.add_resource(2, 1);
-            }
-            rt.new_task(builder);
+            rt.new_task(i, &builder);
         }
         rt.schedule();
 
@@ -788,10 +757,10 @@ fn test_query_partial_query_gpus1() {
 #[test]
 fn test_query_unknown_do_not_add_extra() {
     let mut rt = TestEnv::new();
-    rt.new_task(TaskBuilder::new(1).cpus_compact(1));
-    rt.new_task(TaskBuilder::new(2).cpus_compact(1).add_resource(1, 1));
-    rt.new_task(TaskBuilder::new(3).cpus_compact(1));
-    rt.new_task(TaskBuilder::new(4).cpus_compact(1).add_resource(1, 1));
+    rt.new_task_default(1);
+    rt.new_task(2, &TaskBuilder::new().cpus(1).add_resource(1, 1));
+    rt.new_task_default(3);
+    rt.new_task(4, &TaskBuilder::new().cpus(1).add_resource(1, 1));
 
     let r = compute_new_worker_query(
         rt.core(),
@@ -810,9 +779,7 @@ fn test_query_unknown_do_not_add_extra() {
 #[test]
 fn test_query_after_task_cancel() {
     let mut rt = TestEnv::new();
-    let rmap = rt.core().get_resource_map_mut();
-    let t1 = TaskBuilder::new(1).cpus_compact(10).build(rmap);
-    submit_test_tasks(rt.core(), vec![t1]);
+    rt.new_task_cpus(1, 10);
     create_test_worker(rt.core(), 102.into(), 1);
     rt.schedule();
     let mut comm = create_test_comm();
