@@ -1,10 +1,8 @@
 use crate::internal::server::core::Core;
-use crate::internal::tests::utils::schedule::submit_test_tasks;
-use crate::internal::tests::utils::task;
 use crate::internal::tests::utils::task::TaskBuilder;
-use task::task_with_deps;
+use crate::tests::utils::env::TestEnv;
 
-pub fn submit_example_1(core: &mut Core) {
+pub fn submit_example_1(rt: &mut TestEnv) {
     /*
        11  12
         \  / \
@@ -14,42 +12,16 @@ pub fn submit_example_1(core: &mut Core) {
         |
         17
     */
-    let rmap = core.get_resource_map_mut();
-    let t1 = task::task(11, rmap);
-    let t2 = task::task(12, rmap);
-    let t3 = task_with_deps(13, &[&t1, &t2], rmap);
-    let t4 = task_with_deps(14, &[&t2], rmap);
-    let t5 = task_with_deps(15, &[&t3, &t4], rmap);
-    let t6 = task_with_deps(16, &[&t3], rmap);
-    let t7 = task_with_deps(17, &[&t6], rmap);
-    submit_test_tasks(core, vec![t1, t2, t3, t4, t5, t6, t7]);
+    let t1 = rt.new_task_default(11);
+    let t2 = rt.new_task_default(12);
+    let t3 = rt.new_task(13, &TaskBuilder::new().task_deps(&[t1, t2]));
+    let t4 = rt.new_task(14, &TaskBuilder::new().task_deps(&[t2]));
+    let _t5 = rt.new_task(15, &TaskBuilder::new().task_deps(&[t3, t4]));
+    let t6 = rt.new_task(16, &TaskBuilder::new().task_deps(&[t3]));
+    let _t7 = rt.new_task(17, &TaskBuilder::new().task_deps(&[t6]));
 }
 
-pub fn submit_example_2(core: &mut Core) {
-    /*
-         T1
-        /  \
-       T2   T3
-       |  / |\
-       T4   | T6
-        \      \
-         \ /   T7
-          T5
-    */
-
-    let rmap = core.get_resource_map_mut();
-    let t1 = task_with_deps(1, &[], rmap);
-    let t2 = task_with_deps(2, &[&t1], rmap);
-    let t3 = task_with_deps(3, &[&t1], rmap);
-    let t4 = task_with_deps(4, &[&t2, &t3], rmap);
-    let t5 = task_with_deps(5, &[&t4], rmap);
-    let t6 = task_with_deps(6, &[&t3], rmap);
-    let t7 = task_with_deps(7, &[&t6], rmap);
-
-    submit_test_tasks(core, vec![t1, t2, t3, t4, t5, t6, t7]);
-}
-
-pub fn submit_example_3(core: &mut Core) {
+pub fn submit_example_3(rt: &mut TestEnv) {
     /* Task deps
          T1   T2
         / |\ /  \
@@ -58,18 +30,16 @@ pub fn submit_example_3(core: &mut Core) {
           \   /
            T6
     */
-    let rmap = core.get_resource_map_mut();
-    let t1 = TaskBuilder::new(1).task_deps(&[]).build(rmap);
-    let t2 = TaskBuilder::new(2).task_deps(&[]).build(rmap);
-    let t3 = TaskBuilder::new(3).task_deps(&[&t1]).build(rmap);
-    let t4 = TaskBuilder::new(4).task_deps(&[&t1, &t2]).build(rmap);
-    let t5 = TaskBuilder::new(5).task_deps(&[&t2]).build(rmap);
-    let t6 = TaskBuilder::new(6).task_deps(&[&t1, &t5, &t3]).build(rmap);
 
-    submit_test_tasks(core, vec![t1, t2, t3, t4, t5, t6]);
+    let t1 = rt.new_task_default(1);
+    let t2 = rt.new_task_default(2);
+    let t3 = rt.new_task(3, &TaskBuilder::new().task_deps(&[t1]));
+    let _t4 = rt.new_task(4, &TaskBuilder::new().task_deps(&[t1, t2]));
+    let t5 = rt.new_task(5, &TaskBuilder::new().task_deps(&[t2]));
+    let _t6 = rt.new_task(6, &TaskBuilder::new().task_deps(&[t1, t5, t3]));
 }
 
-pub fn submit_example_4(core: &mut Core) {
+pub fn submit_example_4(rt: &mut TestEnv) {
     /* Task DATA deps
        T1  T2
         |  |\
@@ -78,14 +48,13 @@ pub fn submit_example_4(core: &mut Core) {
          T3
     */
 
-    let rmap = core.get_resource_map_mut();
-    let t1 = TaskBuilder::new(1).build(rmap);
-    let t2 = TaskBuilder::new(2).build(rmap);
-    let t3 = TaskBuilder::new(3)
-        .data_dep(&t1, 0)
-        .data_dep(&t2, 0)
-        .data_dep(&t2, 1)
-        .build(rmap);
-
-    submit_test_tasks(core, vec![t1, t2, t3]);
+    let t1 = rt.new_task_default(1);
+    let t2 = rt.new_task_default(2);
+    let _t3 = rt.new_task(
+        3,
+        &TaskBuilder::new()
+            .data_dep(t1, 0)
+            .data_dep(t2, 0)
+            .data_dep(t2, 1),
+    );
 }

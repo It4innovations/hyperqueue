@@ -1,4 +1,10 @@
+use crate::datasrv::DataObjectId;
+use crate::gateway::{CrashLimit, TaskDataFlags};
 use crate::internal::messages::worker::FromWorkerMessage;
+use crate::resources::ResourceRequest;
+use crate::tests::utils::resources::ResBuilder;
+use crate::{Set, TaskId, UserPriority};
+use thin_vec::ThinVec;
 
 pub struct TestWorkerComm {
     messages: Vec<FromWorkerMessage>,
