@@ -1,16 +1,12 @@
 use crate::internal::messages::worker::ToWorkerMessage;
-use crate::internal::server::core::Core;
 use crate::internal::server::task::Task;
 use crate::internal::tests::utils::env::{TestComm, TestEnv, create_test_comm};
 use crate::internal::tests::utils::resources::ResBuilder;
-use crate::internal::tests::utils::schedule::{
-    create_test_scheduler, create_test_worker, create_test_worker_config, create_test_workers,
-    finish_on_worker, new_test_worker, submit_test_tasks,
-};
+use crate::internal::tests::utils::schedule::{create_test_scheduler, finish_on_worker};
 
+use crate::WorkerId;
 use crate::internal::tests::utils::task::TaskBuilder;
-use crate::resources::{ResourceDescriptor, ResourceIdMap};
-use crate::{TaskId, WorkerId};
+use crate::tests::utils::worker::WorkerBuilder;
 use std::time::Duration;
 
 #[derive(Debug)]
@@ -56,7 +52,7 @@ fn check_worker_status_change(s1: WorkerStatus, s2: WorkerStatus, ms: &[ToWorker
 #[test]
 fn test_schedule_mn_simple() {
     let mut rt = TestEnv::new();
-    create_test_workers(rt.core(), &[5, 5, 5, 5, 5]);
+    rt.new_workers_cpus(&[5, 5, 5, 5, 5]);
     (1..=4).for_each(|i| {
         rt.new_task(i, &TaskBuilder::new().user_priority(i as i32).n_nodes(2));
     });
@@ -107,7 +103,7 @@ fn test_schedule_mn_simple() {
 #[test]
 fn test_schedule_mn_reserve() {
     let mut rt = TestEnv::new();
-    create_test_workers(rt.core(), &[1, 1, 1]);
+    rt.new_workers_cpus(&[1, 1, 1]);
 
     rt.new_task(1, &TaskBuilder::new().user_priority(10).n_nodes(3));
     rt.new_task(2, &TaskBuilder::new().user_priority(5).n_nodes(2));
@@ -169,11 +165,7 @@ fn test_schedule_mn_reserve() {
 fn test_schedule_mn_fill() {
     let mut rt = TestEnv::new();
     let mut comm = create_test_comm();
-
-    create_test_workers(
-        rt.core(),
-        &[/* 11 workers */ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
-    );
+    rt.new_workers_cpus(&[/* 11 workers */ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
     rt.new_task(1, &TaskBuilder::new().n_nodes(3));
     rt.new_task(2, &TaskBuilder::new().n_nodes(5));
     rt.new_task(3, &TaskBuilder::new().n_nodes(1));
@@ -194,12 +186,12 @@ fn test_mn_not_enough() {
     let mut rt = TestEnv::new();
     let mut comm = create_test_comm();
 
-    create_test_workers(rt.core(), &[4]);
+    rt.new_workers_cpus(&[4]);
     rt.new_task(1, &TaskBuilder::new().n_nodes(3));
     rt.new_task(2, &TaskBuilder::new().n_nodes(5));
     rt.new_task(3, &TaskBuilder::new().n_nodes(11));
     rt.new_task(4, &TaskBuilder::new().n_nodes(2));
-    let rmap = rt.core().get_resource_map_mut();
+    let rmap = rt.core().resource_map_mut();
     let r1 = rmap.get_resource_rq_id(&ResBuilder::default().n_nodes(3).finish_v());
     let r2 = rmap.get_resource_rq_id(&ResBuilder::default().n_nodes(5).finish_v());
     let r3 = rmap.get_resource_rq_id(&ResBuilder::default().n_nodes(11).finish_v());
@@ -227,7 +219,7 @@ fn test_mn_sleep_wakeup_one_by_one() {
     let mut comm = create_test_comm();
 
     rt.new_task(1, &TaskBuilder::new().n_nodes(4).user_priority(10));
-    create_test_workers(rt.core(), &[4, 1]);
+    rt.new_workers_cpus(&[4, 1]);
 
     let mut scheduler = create_test_scheduler();
     scheduler.run_scheduling(rt.core(), &mut comm);
@@ -242,8 +234,8 @@ fn test_mn_sleep_wakeup_one_by_one() {
 
     let w = rt.task(2).mn_root_worker().unwrap();
     finish_on_worker(rt.core(), 2, w);
-    create_test_worker(rt.core(), 500.into(), 1);
-    create_test_worker(rt.core(), 501.into(), 1);
+    rt.new_worker_with_id(500, &WorkerBuilder::new(1));
+    rt.new_worker_with_id(501, &WorkerBuilder::new(1));
     scheduler.run_scheduling(rt.core(), &mut comm);
     rt.sanity_check();
     assert!(rt.task_map().get_task(1.into()).is_mn_running());
@@ -253,8 +245,7 @@ fn test_mn_sleep_wakeup_one_by_one() {
 fn test_mn_sleep_wakeup_at_once() {
     let mut rt = TestEnv::new();
     let mut comm = create_test_comm();
-
-    create_test_workers(rt.core(), &[4, 1]);
+    rt.new_workers_cpus(&[4, 1]);
     rt.new_task(1, &TaskBuilder::new().n_nodes(4).user_priority(10));
     rt.new_task(2, &TaskBuilder::new().n_nodes(2).user_priority(1));
 
@@ -269,16 +260,8 @@ fn test_mn_sleep_wakeup_at_once() {
 fn test_mn_schedule_on_groups() {
     let mut rt = TestEnv::new();
 
-    let resource_map = ResourceIdMap::from_vec(vec!["cpus".to_string()]);
-    let worker_id = WorkerId::new(100);
-    let mut wcfg1 = create_test_worker_config(worker_id, ResourceDescriptor::simple_cpus(1));
-    wcfg1.group = "group1".to_string();
-    new_test_worker(rt.core(), worker_id, wcfg1, &resource_map);
-
-    let worker_id = WorkerId::new(101);
-    let mut wcfg2 = create_test_worker_config(worker_id, ResourceDescriptor::simple_cpus(1));
-    wcfg2.group = "group2".to_string();
-    new_test_worker(rt.core(), worker_id, wcfg2, &resource_map);
+    rt.new_worker(&WorkerBuilder::new(1).group("group1"));
+    rt.new_worker(&WorkerBuilder::new(1).group("group2"));
 
     let mut comm = create_test_comm();
     rt.new_task(1, &TaskBuilder::new().n_nodes(2));
@@ -292,11 +275,11 @@ fn test_mn_schedule_on_groups() {
 #[test]
 fn test_schedule_mn_time_request1() {
     let mut rt = TestEnv::new();
-    rt.new_workers_ext(&[
-        (1, None, Vec::new()),
-        (1, Some(Duration::new(29_999, 0)), Vec::new()),
-        (1, Some(Duration::new(30_001, 0)), Vec::new()),
-    ]);
+
+    rt.new_worker(&WorkerBuilder::new(1));
+    rt.new_worker(&WorkerBuilder::new(1).time_limit(Duration::new(29_999, 0)));
+    rt.new_worker(&WorkerBuilder::new(1).time_limit(Duration::new(30_001, 0)));
+
     rt.new_task(1, &TaskBuilder::new().n_nodes(3).time_request(30_000));
     rt.schedule();
     assert!(rt.task(1).is_waiting());
@@ -310,11 +293,9 @@ fn test_schedule_mn_time_request1() {
 #[test]
 fn test_schedule_mn_time_request2() {
     let mut rt = TestEnv::new();
-    rt.new_workers_ext(&[
-        (1, Some(Duration::new(59_999, 0)), Vec::new()),
-        (1, Some(Duration::new(29_999, 0)), Vec::new()),
-        (1, Some(Duration::new(30_001, 0)), Vec::new()),
-    ]);
+    rt.new_worker(&WorkerBuilder::new(1).time_limit(Duration::new(59_999, 0)));
+    rt.new_worker(&WorkerBuilder::new(1).time_limit(Duration::new(29_999, 0)));
+    rt.new_worker(&WorkerBuilder::new(1).time_limit(Duration::new(30_001, 0)));
     rt.new_task(1, &TaskBuilder::new().n_nodes(3).time_request(23_998));
     rt.schedule();
     assert!(rt.task(1).is_mn_running());

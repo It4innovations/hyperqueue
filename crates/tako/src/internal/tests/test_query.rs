@@ -4,12 +4,10 @@ use crate::internal::scheduler::query::compute_new_worker_query;
 use crate::internal::server::core::Core;
 use crate::internal::server::reactor::on_cancel_tasks;
 use crate::internal::tests::utils::env::{TestEnv, create_test_comm};
-use crate::internal::tests::utils::schedule::{
-    create_test_scheduler, create_test_workers, submit_test_tasks,
-};
+use crate::internal::tests::utils::schedule::create_test_scheduler;
 use crate::internal::tests::utils::task::TaskBuilder;
 use crate::resources::{ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind};
-use crate::tests::utils::schedule::create_test_worker;
+use crate::tests::utils::worker::WorkerBuilder;
 use std::time::Duration;
 
 #[test]
@@ -32,22 +30,19 @@ fn test_query_no_tasks() {
 
 #[test]
 fn test_query_enough_workers() {
-    let mut core = Core::default();
+    let mut rt = TestEnv::new();
+    rt.new_workers_cpus(&[2, 3]);
 
-    create_test_workers(&mut core, &[2, 3]);
-
-    let rmap = core.get_resource_map_mut();
-    let t1 = TaskBuilder::new().cpus(3).build(1, rmap);
-    let t2 = TaskBuilder::new().cpus(1).build(2, rmap);
-    let t3 = TaskBuilder::new().cpus(1).build(3, rmap);
-    submit_test_tasks(&mut core, vec![t1, t2, t3]);
+    rt.new_task_cpus(1, 3);
+    rt.new_task_cpus(2, 1);
+    rt.new_task_cpus(3, 1);
 
     let mut scheduler = create_test_scheduler();
     let mut comm = create_test_comm();
-    scheduler.run_scheduling(&mut core, &mut comm);
+    scheduler.run_scheduling(rt.core(), &mut comm);
 
     let r = compute_new_worker_query(
-        &mut core,
+        rt.core(),
         &[WorkerTypeQuery {
             partial: false,
             descriptor: ResourceDescriptor::simple_cpus(4),
@@ -63,22 +58,19 @@ fn test_query_enough_workers() {
 
 #[test]
 fn test_query_no_enough_workers1() {
-    let mut core = Core::default();
+    let mut rt = TestEnv::new();
+    rt.new_workers_cpus(&[2, 3]);
 
-    create_test_workers(&mut core, &[2, 3]);
-
-    let rmap = core.get_resource_map_mut();
-    let t1 = TaskBuilder::new().cpus(3).build(1, rmap);
-    let t2 = TaskBuilder::new().cpus(3).build(2, rmap);
-    let t3 = TaskBuilder::new().cpus(1).build(3, rmap);
-    submit_test_tasks(&mut core, vec![t1, t2, t3]);
+    rt.new_task_cpus(1, 3);
+    rt.new_task_cpus(2, 3);
+    rt.new_task_cpus(3, 1);
 
     let mut scheduler = create_test_scheduler();
     let mut comm = create_test_comm();
-    scheduler.run_scheduling(&mut core, &mut comm);
+    scheduler.run_scheduling(rt.core(), &mut comm);
 
     let r = compute_new_worker_query(
-        &mut core,
+        rt.core(),
         &[
             WorkerTypeQuery {
                 partial: false,
@@ -106,7 +98,7 @@ fn test_query_no_enough_workers1() {
 fn test_query_enough_workers2() {
     let mut rt = TestEnv::new();
 
-    rt.new_workers(&[2]);
+    rt.new_workers_cpus(&[2]);
 
     rt.new_task_running(10, &TaskBuilder::new(), 100);
     rt.new_task_assigned(11, &TaskBuilder::new(), 100);
@@ -141,7 +133,7 @@ fn test_query_enough_workers2() {
 fn test_query_not_enough_workers3() {
     let mut rt = TestEnv::new();
 
-    rt.new_workers(&[2]);
+    rt.new_workers_cpus(&[2]);
 
     let t = TaskBuilder::new().cpus(1);
     rt.new_task_running(10, &t, 100);
@@ -178,7 +170,7 @@ fn test_query_not_enough_workers3() {
 fn test_query_many_workers_needed() {
     let mut rt = TestEnv::new();
 
-    rt.new_workers(&[4, 4, 4]);
+    rt.new_workers_cpus(&[4, 4, 4]);
 
     for i in 1..=100 {
         rt.new_task_default(i);
@@ -222,7 +214,7 @@ fn test_query_many_workers_needed() {
 fn test_query_multi_node_tasks() {
     let mut rt = TestEnv::new();
 
-    rt.new_workers(&[4, 4, 4]);
+    rt.new_workers_cpus(&[4, 4, 4]);
 
     for i in 0..5 {
         rt.new_task(i, &TaskBuilder::new().n_nodes(3));
@@ -570,7 +562,7 @@ fn test_query_sn_leftovers1() {
     for (n, m) in [(1, 0), (4, 0), (8, 0), (9, 1), (12, 1)] {
         let mut rt = TestEnv::new();
 
-        rt.new_workers(&[4]);
+        rt.new_workers_cpus(&[4]);
         for i in 1..=n {
             rt.new_task(i, &TaskBuilder::new().cpus(1).time_request(5_000));
         }
@@ -780,7 +772,7 @@ fn test_query_unknown_do_not_add_extra() {
 fn test_query_after_task_cancel() {
     let mut rt = TestEnv::new();
     rt.new_task_cpus(1, 10);
-    create_test_worker(rt.core(), 102.into(), 1);
+    rt.new_worker_with_id(102, &WorkerBuilder::new(1));
     rt.schedule();
     let mut comm = create_test_comm();
     on_cancel_tasks(rt.core(), &mut comm, &[TaskId::new_test(1)]);

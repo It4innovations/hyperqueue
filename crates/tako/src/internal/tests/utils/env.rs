@@ -2,7 +2,7 @@ use crate::events::EventProcessor;
 use crate::gateway::LostWorkerReason;
 use crate::internal::common::Map;
 use crate::internal::common::index::ItemId;
-use crate::internal::common::resources::ResourceDescriptor;
+use crate::internal::common::resources::ResourceId;
 use crate::internal::common::utils::format_comma_delimited;
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{ToWorkerMessage, WorkerOverview};
@@ -15,21 +15,15 @@ use crate::internal::server::taskmap::TaskMap;
 use crate::internal::server::worker::Worker;
 use crate::internal::server::workerload::WorkerLoad;
 use crate::internal::tests::utils;
-use crate::internal::tests::utils::resources::cpus_compact;
 use crate::internal::tests::utils::schedule;
 use crate::internal::tests::utils::task::TaskBuilder;
 use crate::internal::transfer::auth::{deserialize, serialize};
-use crate::internal::worker::configuration::{
-    DEFAULT_MAX_DOWNLOAD_TRIES, DEFAULT_MAX_PARALLEL_DOWNLOADS,
-    DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES, OverviewConfiguration,
-};
-use crate::resources::{
-    ResourceAmount, ResourceDescriptorItem, ResourceDescriptorKind, ResourceUnits,
-};
+use crate::resources::{ResourceAmount, ResourceUnits};
 use crate::task::SerializedTaskContext;
-use crate::worker::{ServerLostPolicy, WorkerConfiguration};
+use crate::tests::utils::worker::WorkerBuilder;
+use crate::worker::WorkerConfiguration;
 use crate::{InstanceId, ResourceVariantId, TaskId, WorkerId};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 pub struct TestEnv {
     core: Core,
@@ -76,7 +70,7 @@ impl TestEnv {
 
     pub fn new_task<T: Into<TaskId>>(&mut self, task_id: T, builder: &TaskBuilder) -> TaskId {
         let task_id = task_id.into();
-        let task = builder.build(task_id, self.core.get_resource_map_mut());
+        let task = builder.build(task_id, self.core.resource_map_mut());
         schedule::submit_test_tasks(&mut self.core, vec![task]);
         task_id
     }
@@ -93,6 +87,10 @@ impl TestEnv {
         for i in 0..count {
             self.core.get_or_create_resource_id(&format!("Res{i}"));
         }
+    }
+
+    pub fn new_named_resource(&mut self, name: &str) -> ResourceId {
+        self.core.get_or_create_resource_id(name)
     }
 
     pub fn new_task_assigned<W: Into<WorkerId>, T: Into<TaskId>>(
@@ -140,57 +138,27 @@ impl TestEnv {
         self.core.get_worker_by_id_or_panic(worker_id.into())
     }
 
-    pub fn new_workers_ext(
-        &mut self,
-        defs: &[(u32, Option<Duration>, Vec<ResourceDescriptorItem>)],
-    ) {
-        for (i, (c, time_limit, rs)) in defs.iter().enumerate() {
-            let worker_id = WorkerId::new(self.worker_id_counter);
-            self.worker_id_counter += 1;
-
-            let mut rs = rs.clone();
-            rs.insert(
-                0,
-                ResourceDescriptorItem {
-                    name: "cpus".to_string(),
-                    kind: ResourceDescriptorKind::simple_indices(*c),
-                },
-            );
-            let rd = ResourceDescriptor::new(rs, Default::default());
-
-            let wcfg = WorkerConfiguration {
-                resources: rd,
-                listen_address: format!("1.1.1.{i}:123"),
-                hostname: format!("test{i}"),
-                group: "default".to_string(),
-                work_dir: Default::default(),
-                heartbeat_interval: Duration::from_millis(1000),
-                overview_configuration: OverviewConfiguration {
-                    send_interval: Some(Duration::from_millis(1000)),
-                    gpu_families: Default::default(),
-                },
-                idle_timeout: None,
-                time_limit: *time_limit,
-                on_server_lost: ServerLostPolicy::Stop,
-                max_parallel_downloads: DEFAULT_MAX_PARALLEL_DOWNLOADS,
-                max_download_tries: DEFAULT_MAX_DOWNLOAD_TRIES,
-                wait_between_download_tries: DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES,
-                extra: Default::default(),
-            };
-
-            let worker = Worker::new(
-                worker_id,
-                wcfg,
-                &self.core.create_resource_map(),
-                Instant::now(),
-            );
-            on_new_worker(&mut self.core, &mut TestComm::default(), worker);
-        }
+    pub fn new_worker_with_id<W: Into<WorkerId>>(&mut self, worker_id: W, builder: &WorkerBuilder) {
+        let worker_id = worker_id.into();
+        let resource_id_map = self.core.create_resource_map();
+        let worker = builder.build(worker_id, &&resource_id_map, Instant::now());
+        on_new_worker(&mut self.core, &mut TestComm::default(), worker);
     }
 
-    pub fn new_workers(&mut self, cpus: &[u32]) {
-        let defs: Vec<_> = cpus.iter().map(|c| (*c, None, Vec::new())).collect();
-        self.new_workers_ext(&defs);
+    pub fn new_worker(&mut self, builder: &WorkerBuilder) {
+        let worker_id = WorkerId::new(self.worker_id_counter);
+        self.worker_id_counter += 1;
+        self.new_worker_with_id(worker_id, builder);
+    }
+
+    pub fn new_workers(&mut self, n: usize, builder: &WorkerBuilder) {
+        (0..n).for_each(|_| self.new_worker(builder));
+    }
+
+    pub fn new_workers_cpus(&mut self, cpus: &[u32]) {
+        for c in cpus {
+            self.new_worker(&WorkerBuilder::new(*c))
+        }
     }
 
     pub fn _test_assign(&mut self, task_id: TaskId, worker_id: WorkerId) {
