@@ -9,6 +9,8 @@ pub mod task;
 #[cfg(test)]
 pub mod worker;
 #[cfg(test)]
+pub mod worker_comm;
+#[cfg(test)]
 pub mod workflows;
 
 pub mod shared;

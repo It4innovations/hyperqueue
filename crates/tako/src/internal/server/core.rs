@@ -124,11 +124,6 @@ impl Core {
         (&mut self.tasks, &mut self.data_objects)
     }
 
-    #[cfg(test)]
-    pub fn get_resource_map_mut(&mut self) -> &mut GlobalResourceMapping {
-        &mut self.resource_map
-    }
-
     pub fn new_worker_id(&mut self) -> WorkerId {
         self.worker_id_counter += 1;
         WorkerId::new(self.worker_id_counter)
@@ -619,9 +614,9 @@ mod tests {
     use crate::internal::server::task::TaskRuntimeState;
     use crate::internal::server::worker::Worker;
     use crate::internal::server::workergroup::WorkerGroup;
-    use crate::internal::tests::utils::task;
+
     use crate::tests::utils::env::TestEnv;
-    use crate::tests::utils::task::TaskBuilder;
+
     use crate::{TaskId, WorkerId};
 
     impl Core {

@@ -1,74 +1,12 @@
-use crate::internal::common::resources::ResourceDescriptor;
 use crate::internal::messages::worker::{TaskFinishedMsg, TaskOutput};
 use crate::internal::scheduler::state::SchedulerState;
 use crate::internal::server::core::Core;
-use crate::internal::server::reactor::{
-    on_new_tasks, on_new_worker, on_task_finished, on_task_running,
-};
+use crate::internal::server::reactor::{on_new_tasks, on_task_finished, on_task_running};
 use crate::internal::server::task::Task;
-use crate::internal::server::worker::Worker;
 use crate::internal::tests::utils::env::TestComm;
 use crate::internal::tests::utils::task::task_running_msg;
-use crate::internal::worker::configuration::{
-    DEFAULT_MAX_DOWNLOAD_TRIES, DEFAULT_MAX_PARALLEL_DOWNLOADS,
-    DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES, OverviewConfiguration,
-};
-use crate::resources::ResourceIdMap;
-use crate::worker::{ServerLostPolicy, WorkerConfiguration};
 use crate::{TaskId, WorkerId};
-use std::time::{Duration, Instant};
-
-pub fn create_test_worker_config(
-    worker_id: WorkerId,
-    resources: ResourceDescriptor,
-) -> WorkerConfiguration {
-    WorkerConfiguration {
-        resources,
-        listen_address: format!("1.1.1.{worker_id}:123"),
-        hostname: format!("test{worker_id}"),
-        group: "default".to_string(),
-        work_dir: Default::default(),
-        heartbeat_interval: Duration::from_millis(1000),
-        overview_configuration: OverviewConfiguration {
-            send_interval: Some(Duration::from_millis(1000)),
-            gpu_families: Default::default(),
-        },
-        idle_timeout: None,
-        time_limit: None,
-        on_server_lost: ServerLostPolicy::Stop,
-        max_parallel_downloads: DEFAULT_MAX_PARALLEL_DOWNLOADS,
-        max_download_tries: DEFAULT_MAX_DOWNLOAD_TRIES,
-        wait_between_download_tries: DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES,
-        extra: Default::default(),
-    }
-}
-
-pub fn new_test_worker(
-    core: &mut Core,
-    worker_id: WorkerId,
-    configuration: WorkerConfiguration,
-    resource_map: &ResourceIdMap,
-) {
-    let worker = Worker::new(worker_id, configuration, resource_map, Instant::now());
-    on_new_worker(core, &mut TestComm::default(), worker);
-}
-
-pub fn create_test_worker(core: &mut Core, worker_id: WorkerId, cpus: u32) {
-    let wcfg = create_test_worker_config(worker_id, ResourceDescriptor::simple_cpus(cpus));
-    new_test_worker(
-        core,
-        worker_id,
-        wcfg,
-        &ResourceIdMap::from_vec(vec!["cpus".to_string()]),
-    );
-}
-
-pub fn create_test_workers(core: &mut Core, cpus: &[u32]) {
-    for (i, c) in cpus.iter().enumerate() {
-        let worker_id = WorkerId::new((100 + i) as u32);
-        create_test_worker(core, worker_id, *c);
-    }
-}
+use std::time::Instant;
 
 pub fn submit_test_tasks(core: &mut Core, tasks: Vec<Task>) {
     on_new_tasks(core, &mut TestComm::default(), tasks);

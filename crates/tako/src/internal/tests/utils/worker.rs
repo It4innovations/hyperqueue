@@ -1,55 +1,81 @@
-use crate::datasrv::DataObjectId;
-use crate::gateway::{CrashLimit, TaskDataFlags};
-use crate::internal::messages::worker::FromWorkerMessage;
-use crate::resources::ResourceRequest;
-use crate::tests::utils::resources::ResBuilder;
-use crate::{Set, TaskId, UserPriority};
-use thin_vec::ThinVec;
+use crate::WorkerId;
+use crate::internal::server::worker::Worker;
+use crate::internal::worker::configuration::{
+    DEFAULT_MAX_DOWNLOAD_TRIES, DEFAULT_MAX_PARALLEL_DOWNLOADS,
+    DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES, OverviewConfiguration,
+};
+use crate::resources::{ResourceDescriptor, ResourceDescriptorItem, ResourceIdMap};
+use crate::worker::{ServerLostPolicy, WorkerConfiguration};
+use std::time::{Duration, Instant};
 
-pub struct TestWorkerComm {
-    messages: Vec<FromWorkerMessage>,
-    worker_is_empty_notifications: usize,
-    start_task_notifications: usize,
+pub struct WorkerBuilder {
+    descriptor: ResourceDescriptor,
+    time_limit: Option<Duration>,
+    group: Option<String>,
 }
 
-impl Default for TestWorkerComm {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl TestWorkerComm {
-    pub fn new() -> Self {
-        TestWorkerComm {
-            messages: Vec::new(),
-            worker_is_empty_notifications: 0,
-            start_task_notifications: 0,
+impl WorkerBuilder {
+    pub fn empty() -> Self {
+        WorkerBuilder {
+            descriptor: ResourceDescriptor::new(Default::default(), Default::default()),
+            time_limit: None,
+            group: None,
         }
     }
 
-    pub fn check_emptiness(&self) {
-        assert!(self.messages.is_empty());
-        assert_eq!(self.worker_is_empty_notifications, 0);
-        assert_eq!(self.start_task_notifications, 0);
+    pub fn new(cpus: u32) -> Self {
+        WorkerBuilder {
+            descriptor: ResourceDescriptor::simple_cpus(cpus),
+            time_limit: None,
+            group: None,
+        }
     }
 
-    pub fn take_start_task_notifications(&mut self) -> usize {
-        std::mem::take(&mut self.start_task_notifications)
+    pub fn time_limit(mut self, duration: Duration) -> Self {
+        self.time_limit = Some(duration);
+        self
     }
 
-    pub fn check_start_task_notifications(&mut self, count: usize) {
-        assert_eq!(self.take_start_task_notifications(), count);
+    pub fn group(mut self, group: &str) -> Self {
+        self.group = Some(group.to_string());
+        self
     }
 
-    pub fn send_message_to_server(&mut self, message: FromWorkerMessage) {
-        self.messages.push(message);
+    pub fn res_sum(mut self, name: &str, amount: u32) -> Self {
+        self.descriptor
+            .resources
+            .push(ResourceDescriptorItem::sum(name, amount));
+        self
     }
 
-    pub fn notify_worker_is_empty(&mut self) {
-        self.worker_is_empty_notifications += 1;
+    pub fn res_range(mut self, name: &str, start: u32, end: u32) -> Self {
+        self.descriptor
+            .resources
+            .push(ResourceDescriptorItem::range(name, start, end));
+        self
     }
 
-    pub fn notify_start_task(&mut self) {
-        self.start_task_notifications += 1;
+    pub fn build(&self, worker_id: WorkerId, resource_map: &ResourceIdMap, now: Instant) -> Worker {
+        let config = WorkerConfiguration {
+            resources: self.descriptor.clone(),
+            listen_address: format!("1.1.1.{worker_id}:123"),
+            hostname: format!("test{worker_id}"),
+            group: self.group.as_deref().unwrap_or("default").to_string(),
+            work_dir: Default::default(),
+            heartbeat_interval: Duration::from_millis(1000),
+            overview_configuration: OverviewConfiguration {
+                send_interval: Some(Duration::from_millis(1000)),
+                gpu_families: Default::default(),
+            },
+            idle_timeout: None,
+            time_limit: self.time_limit,
+            on_server_lost: ServerLostPolicy::Stop,
+            max_parallel_downloads: DEFAULT_MAX_PARALLEL_DOWNLOADS,
+            max_download_tries: DEFAULT_MAX_DOWNLOAD_TRIES,
+            wait_between_download_tries: DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES,
+            extra: Default::default(),
+        };
+
+        Worker::new(worker_id, config, resource_map, now)
     }
 }

@@ -502,11 +502,9 @@ fn estimate_shared_data_size(data: &ComputeTaskSharedData) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use crate::internal::common::resources::map::GlobalResourceMapping;
-    use crate::internal::server::core::Core;
+
     use crate::internal::server::task::{Task, TaskRuntimeState};
-    use crate::internal::tests::utils::schedule::submit_test_tasks;
-    use crate::internal::tests::utils::task;
+
     use crate::tests::utils::env::TestEnv;
     use crate::tests::utils::task::TaskBuilder;
     use std::default::Default;

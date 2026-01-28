@@ -14,7 +14,7 @@ pub struct RealWorkerComm {
 pub enum WorkerComm {
     Real(RealWorkerComm),
     #[cfg(test)]
-    Test(crate::internal::tests::utils::worker::TestWorkerComm),
+    Test(crate::internal::tests::utils::worker_comm::TestWorkerComm),
 }
 
 impl WorkerComm {
@@ -28,11 +28,11 @@ impl WorkerComm {
 
     #[cfg(test)]
     pub fn new_test_comm() -> Self {
-        WorkerComm::Test(crate::internal::tests::utils::worker::TestWorkerComm::new())
+        WorkerComm::Test(crate::internal::tests::utils::worker_comm::TestWorkerComm::new())
     }
 
     #[cfg(test)]
-    pub fn test(&mut self) -> &mut crate::internal::tests::utils::worker::TestWorkerComm {
+    pub fn test(&mut self) -> &mut crate::internal::tests::utils::worker_comm::TestWorkerComm {
         match self {
             Self::Real(_) => panic!("Cannot get testing testing comm"),
             Self::Test(comm) => comm,
