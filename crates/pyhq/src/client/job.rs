@@ -21,7 +21,7 @@ use pyo3::exceptions::PyException;
 use pyo3::prelude::PyAnyMethods;
 use pyo3::types::PyTuple;
 use pyo3::{Bound, IntoPyObject, PyAny, PyResult, Python};
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tako::gateway::{
@@ -273,23 +273,21 @@ pub struct JobWaitStatus {
 pub fn wait_for_jobs_impl(
     py: Python,
     ctx: ClientContextPtr,
-    job_ids: Vec<PyJobId>,
+    mut job_ids: Vec<PyJobId>,
     callback: &Bound<'_, PyAny>,
 ) -> PyResult<Vec<PyJobId>> {
     run_future(async move {
-        let mut remaining_job_ids: BTreeSet<PyJobId> = job_ids.iter().copied().collect();
+        job_ids.sort_unstable();
+        let selector = IdSelector::Specific(IntArray::from_sorted_ids(job_ids.into_iter()));
 
         let mut ctx = borrow_mut!(py, ctx);
         let mut response: JobInfoResponse;
 
         loop {
-            let selector =
-                IdSelector::Specific(IntArray::from_sorted_ids(remaining_job_ids.iter().copied()));
-
             response = rpc_call!(
                 ctx.session.connection(),
                 FromClientMessage::JobInfo(JobInfoRequest {
-                    selector,
+                    selector: selector.clone(),
                     include_running_tasks: false
                 }, None),
                 ToClientMessage::JobInfoResponse(r) => r
@@ -297,11 +295,7 @@ pub fn wait_for_jobs_impl(
             .await
             .map_py_err()?;
 
-            for job in response.jobs.iter() {
-                if is_terminated(job) {
-                    remaining_job_ids.remove(&PyJobId::from(job.id));
-                }
-            }
+            let completed = response.jobs.iter().all(is_terminated);
 
             let status: HashMap<PyJobId, JobWaitStatus> = response
                 .jobs
@@ -320,7 +314,7 @@ pub fn wait_for_jobs_impl(
             let args = PyTuple::new(py, &[status.into_pyobject(py)?])?;
             callback.call1(args)?;
 
-            if remaining_job_ids.is_empty() {
+            if completed {
                 break;
             }
 
