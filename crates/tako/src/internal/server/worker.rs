@@ -49,8 +49,7 @@ pub struct Worker {
     // This is list of single node assigned tasks
     // !! In case of stealing T from W1 to W2, T is in "tasks" of W2, even T was not yet canceled from W1.
     sn_tasks: Set<TaskId>,
-    pub(crate) sn_load: WorkerLoad,
-    pub(crate) difficulty: Map<ResourceRqId, u64>,
+    pub(crate) free_resources: WorkerResources,
     pub(crate) resources: WorkerResources,
     pub(crate) flags: WorkerFlags,
     // When the worker will be terminated
@@ -72,7 +71,6 @@ impl fmt::Debug for Worker {
         f.debug_struct("Worker")
             .field("id", &self.id)
             .field("resources", &self.configuration.resources)
-            .field("load", &self.sn_load)
             .field("tasks", &self.sn_tasks)
             .finish()
     }
@@ -145,8 +143,6 @@ impl Worker {
 
     pub fn insert_sn_task(&mut self, task: &Task, rqv: &ResourceRequestVariants) {
         assert!(self.sn_tasks.insert(task.id));
-        self.sn_load
-            .add_request(task.id, rqv, task.running_variant(), &self.resources);
     }
 
     pub fn remove_sn_task(&mut self, task: &Task, rqv: &ResourceRequestVariants) {
@@ -154,7 +150,6 @@ impl Worker {
         if self.sn_tasks.is_empty() {
             self.idle_timestamp = Instant::now();
         }
-        self.sn_load.remove_request(task.id, rqv, &self.resources);
     }
 
     pub fn sanity_check(&self, task_map: &TaskMap, request_map: &ResourceRqMap) {
@@ -167,31 +162,16 @@ impl Worker {
             trivial &= rqv.is_trivial();
             check_load.add_request(task_id, rqv, task.running_variant(), &self.resources);
         }
-        if trivial {
-            assert_eq!(self.sn_load, check_load);
-        }
-    }
-
-    pub fn load(&self) -> &WorkerLoad {
-        &self.sn_load
-    }
-
-    pub fn is_underloaded(&self) -> bool {
-        self.sn_load.is_underloaded(&self.resources) && self.mn_task.is_none()
-    }
-
-    pub fn is_overloaded(&self) -> bool {
-        self.sn_load.is_overloaded(&self.resources)
     }
 
     pub fn have_immediate_resources_for_rq(&self, request: &ResourceRequest) -> bool {
-        self.sn_load
-            .have_immediate_resources_for_rq(request, &self.resources)
+        self.free_resources.is_capable_to_run_request(request)
     }
 
     pub fn have_immediate_resources_for_rqv(&self, rqv: &ResourceRequestVariants) -> bool {
-        self.sn_load
-            .have_immediate_resources_for_rqv(rqv, &self.resources)
+        todo!()
+        // self.sn_load
+        //     .have_immediate_resources_for_rqv(rqv, &self.resources)
     }
 
     pub fn have_immediate_resources_for_rqv_now(
@@ -199,19 +179,22 @@ impl Worker {
         rqv: &ResourceRequestVariants,
         now: Instant,
     ) -> bool {
-        self.has_time_to_run_for_rqv(rqv, now)
-            && self
-                .sn_load
-                .have_immediate_resources_for_rqv(rqv, &self.resources)
+        /*self.has_time_to_run_for_rqv(rqv, now)
+        && self
+            .sn_load
+            .have_immediate_resources_for_rqv(rqv, &self.resources)*/
+        todo!()
     }
 
     pub fn have_immediate_resources_for_lb(&self, rrb: &ResourceRequestLowerBound) -> bool {
-        self.sn_load
-            .have_immediate_resources_for_lb(rrb, &self.resources)
+        todo!()
+        /*self.sn_load
+        .have_immediate_resources_for_lb(rrb, &self.resources)*/
     }
 
     pub fn load_wrt_rqv(&self, rqv: &ResourceRequestVariants) -> u32 {
-        self.sn_load.load_wrt_rqv(&self.resources, rqv)
+        todo!()
+        //self.sn_load.load_wrt_rqv(&self.resources, rqv)
     }
 
     pub fn set_parked_flag(&mut self, value: bool) {
@@ -321,15 +304,14 @@ impl Worker {
             id,
             termination_time: configuration.time_limit.map(|duration| now + duration),
             configuration,
+            free_resources: resources.clone(),
             resources,
-            sn_load: load,
             sn_tasks: Default::default(),
             flags: WorkerFlags::empty(),
             stop_reason: None,
             last_heartbeat: now,
             mn_task: None,
             idle_timestamp: now,
-            difficulty: Map::new(),
         }
     }
 
@@ -337,7 +319,6 @@ impl Worker {
         json! ({
             "id": self.id,
             "sn_tasks": self.sn_tasks,
-            "sn_load": self.sn_load.dump(),
             "flags": self.flags.bits(),
             "termination_time": self.termination_time.map(|x| x - now),
             "mn_task": self.mn_task.as_ref().map(|t| {

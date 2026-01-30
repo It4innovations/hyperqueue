@@ -28,7 +28,6 @@ pub(crate) fn force_assign_mn(
     workers: Vec<WorkerId>,
     task_id: TaskId,
 ) {
-    core.remove_from_ready_to_assign(task_id);
     let (task_map, worker_map) = core.split_tasks_workers_mut();
     let task = task_map.get_task_mut(task_id);
     scheduler.assign_multinode(worker_map, task, workers);

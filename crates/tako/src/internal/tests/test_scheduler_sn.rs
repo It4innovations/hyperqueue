@@ -112,9 +112,6 @@ fn test_no_deps_distribute_with_balance() {
     let ws = rt.new_workers_cpus(&[2, 2, 2]);
 
     assert_eq!(rt.core().get_worker_map().len(), 3);
-    for w in rt.core().get_workers() {
-        assert!(w.is_underloaded());
-    }
 
     let mut active_ids: Set<TaskId> = (1..=300).map(|_| rt.new_task_default()).collect();
 
@@ -131,10 +128,6 @@ fn test_no_deps_distribute_with_balance() {
     assert!(matches!(&m1[0], ToWorkerMessage::ComputeTasks(msg) if msg.tasks.len() >= 29));
     assert!(matches!(&m2[0], ToWorkerMessage::ComputeTasks(msg) if msg.tasks.len() >= 29));
     assert!(matches!(&m3[0], ToWorkerMessage::ComputeTasks(msg) if msg.tasks.len() >= 29));
-
-    for w in rt.core().get_workers() {
-        assert!(!w.is_underloaded());
-    }
 
     let mut finish_all = |core: &mut Core, msgs, worker_id| {
         for m in msgs {
