@@ -88,7 +88,12 @@ fn test_schedule_mn_simple() {
 
     assert!(!rt.task_exists(t3));
     for w in ws3 {
-        assert!(rt.core().get_worker_by_id_or_panic(w).mn_task().is_none());
+        assert!(
+            rt.core()
+                .get_worker_by_id_or_panic(w)
+                .mn_assignment()
+                .is_none()
+        );
     }
 
     scheduler.run_scheduling(rt.core(), &mut comm);
@@ -175,7 +180,7 @@ fn test_schedule_mn_fill() {
     scheduler.run_scheduling(rt.core(), &mut comm);
     rt.sanity_check();
     for w in rt.core().get_workers() {
-        assert!(w.mn_task().is_some());
+        assert!(w.mn_assignment().is_some());
     }
     for t in &[t1, t2, t3, t4] {
         assert!(rt.task(*t).is_mn_running());
@@ -201,7 +206,7 @@ fn test_mn_not_enough() {
     scheduler.run_scheduling(rt.core(), &mut comm);
     rt.sanity_check();
     for w in rt.core().get_workers() {
-        assert!(w.mn_task().is_none());
+        assert!(w.mn_assignment().is_none());
     }
     for t in &[t1, t2, t3, t4] {
         assert!(rt.task(*t).is_waiting());

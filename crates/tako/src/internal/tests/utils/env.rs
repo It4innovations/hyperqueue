@@ -5,15 +5,15 @@ use crate::internal::common::index::ItemId;
 use crate::internal::common::resources::ResourceId;
 use crate::internal::common::utils::format_comma_delimited;
 use crate::internal::messages::common::TaskFailInfo;
-use crate::internal::messages::worker::{ToWorkerMessage, WorkerOverview};
+use crate::internal::messages::worker::{TaskRunningMsg, ToWorkerMessage, WorkerOverview};
 use crate::internal::scheduler::state::SchedulerState;
 use crate::internal::scheduler2::{
     TaskBatch, WorkerTaskMapping, create_task_batches, run_scheduling_solver,
 };
 use crate::internal::server::comm::Comm;
 use crate::internal::server::core::Core;
-use crate::internal::server::reactor::on_new_worker;
-use crate::internal::server::task::Task;
+use crate::internal::server::reactor::{on_new_worker, on_task_running};
+use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::taskmap::TaskMap;
 use crate::internal::server::worker::Worker;
 use crate::internal::server::workerload::WorkerLoad;
@@ -23,6 +23,7 @@ use crate::internal::tests::utils::task::TaskBuilder;
 use crate::internal::transfer::auth::{deserialize, serialize};
 use crate::resources::{ResourceAmount, ResourceUnits};
 use crate::task::SerializedTaskContext;
+use crate::tests::utils::task::task_running_msg;
 use crate::tests::utils::worker::WorkerBuilder;
 use crate::worker::WorkerConfiguration;
 use crate::{InstanceId, JobId, JobTaskId, ResourceVariantId, TaskId, WorkerId};
@@ -83,7 +84,7 @@ impl TestEnv {
     pub fn new_task(&mut self, builder: &TaskBuilder) -> TaskId {
         let task_id = TaskId::new(self.job_id, JobTaskId::new(self.task_id_counter));
         self.task_id_counter += 1;
-        let task = builder.build(task_id, self.core.resource_map_mut());
+        let task = builder.build(task_id, &mut self.core);
         schedule::submit_test_tasks(&mut self.core, vec![task]);
         task_id
     }
@@ -118,7 +119,8 @@ impl TestEnv {
 
     pub fn new_task_running(&mut self, builder: &TaskBuilder, worker_id: WorkerId) -> TaskId {
         let task_id = self.new_task(builder);
-        schedule::start_on_worker_running(&mut self.core, task_id, worker_id.into());
+        self.assign_task(task_id, worker_id);
+        self.start_task(task_id, ResourceVariantId::new(0));
         task_id
     }
 
@@ -179,23 +181,13 @@ impl TestEnv {
         self._test_assign(task_id.into(), worker_id.into());
     }
 
-    pub fn get_worker_tasks(&self, worker_id: WorkerId) -> Vec<TaskId> {
-        utils::sorted_vec(
-            self.core
-                .get_worker_by_id_or_panic(worker_id.into())
-                .sn_tasks()
-                .iter()
-                .copied()
-                .collect(),
-        )
-    }
-
     pub fn check_worker_tasks(&self, worker_id: WorkerId, tasks: &[TaskId]) {
-        let ids = self.get_worker_tasks(worker_id);
+        todo!()
+        /*let ids = self.get_worker_tasks(worker_id);
         assert_eq!(
             ids,
             utils::sorted_vec(tasks.iter().map(|&id| id.into()).collect())
-        );
+        );*/
     }
 
     pub fn worker_load(&self, worker_id: WorkerId) -> &WorkerLoad {
@@ -216,7 +208,8 @@ impl TestEnv {
     }
 
     pub fn finish_scheduling(&mut self) {
-        let mut comm = create_test_comm();
+        todo!()
+        /*let mut comm = create_test_comm();
         self.scheduler.finish_scheduling(&mut self.core, &mut comm);
         self.core.sanity_check();
         println!("-------------");
@@ -231,7 +224,45 @@ impl TestEnv {
                         .map(|&task_id| format!("{}", task_id,))
                 )
             );
+        }*/
+    }
+
+    pub fn assign_task(&mut self, task_id: TaskId, worker_id: WorkerId) {
+        let task = self.core.get_task_mut(task_id);
+        match &task.state {
+            TaskRuntimeState::Waiting(i) => {
+                if i.unfinished_deps > 0 {
+                    panic!("Task {} is not ready", task_id);
+                }
+                task.state = TaskRuntimeState::Assigned(worker_id)
+            }
+
+            _ => {
+                panic!("Task {} is not waiting", task_id);
+            }
         }
+        let w = self.core.get_worker_mut_by_id_or_panic(worker_id.into());
+        w.insert_sn_task(task_id);
+        self.core.remove_from_ready_queue(task_id);
+    }
+
+    pub fn start_task<V: Into<ResourceVariantId>>(&mut self, task_id: TaskId, variant: V) {
+        let task = self.core.get_task(task_id);
+        let worker_id = match task.state {
+            TaskRuntimeState::Assigned(worker_id) => worker_id,
+            _ => panic!("Task {} is not assigned", task_id),
+        };
+        let mut comm = TestComm::default();
+        on_task_running(
+            &mut self.core,
+            &mut comm,
+            worker_id,
+            TaskRunningMsg {
+                id: task_id,
+                rv_id: variant.into(),
+                context: Default::default(),
+            },
+        );
     }
 
     pub fn create_task_batches(&mut self) -> Vec<TaskBatch> {

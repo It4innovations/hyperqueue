@@ -427,7 +427,7 @@ fn test_query_min_time2() {
     let t1 = TaskBuilder::new()
         .cpus(1)
         .time_request(100)
-        .next_resources()
+        .next_variant()
         .cpus(4)
         .time_request(50);
     rt.new_task(&t1);
