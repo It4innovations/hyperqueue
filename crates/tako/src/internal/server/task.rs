@@ -83,16 +83,6 @@ impl TaskRuntimeState {
     }
 }
 
-bitflags::bitflags! {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    pub struct TaskFlags: u32 {
-        const FRESH   = 0b00000001;
-
-        // This is utilized inside scheduler, it has no meaning between scheduler calls
-        const TAKE   = 0b00000010;
-    }
-}
-
 #[derive(Debug, Eq, PartialEq, Hash)]
 pub struct TaskConfiguration {
     // Use Rc to avoid cloning the data when we serialize them
@@ -121,7 +111,6 @@ pub struct Task {
     consumers: Set<TaskId>,
     pub task_deps: ThinVec<TaskId>,
     pub data_deps: ThinVec<DataObjectId>,
-    pub flags: TaskFlags,
     pub resource_rq_id: ResourceRqId,
     pub configuration: Rc<TaskConfiguration>,
     pub instance_id: InstanceId,
@@ -149,7 +138,6 @@ impl Task {
             "state": self.state.dump(),
             "consumers": self.consumers,
             "task_deps": self.task_deps,
-            "flags": self.flags.bits(),
             "instance_id": self.instance_id,
             "crash_counter": self.crash_counter,
             "configuration": self.configuration.dump(),
@@ -172,14 +160,10 @@ impl Task {
             &dataobj_deps,
         );
 
-        let mut flags = TaskFlags::empty();
-        flags.set(TaskFlags::FRESH, true);
-
         Self {
             id,
             task_deps,
             data_deps: dataobj_deps,
-            flags,
             resource_rq_id,
             configuration,
             entry,
@@ -247,26 +231,6 @@ impl Task {
     #[inline]
     pub(crate) fn get_consumers(&self) -> &Set<TaskId> {
         &self.consumers
-    }
-
-    #[inline]
-    pub(crate) fn set_take_flag(&mut self, value: bool) {
-        self.flags.set(TaskFlags::TAKE, value);
-    }
-
-    #[inline]
-    pub(crate) fn set_fresh_flag(&mut self, value: bool) {
-        self.flags.set(TaskFlags::FRESH, value);
-    }
-
-    #[inline]
-    pub(crate) fn is_fresh(&self) -> bool {
-        self.flags.contains(TaskFlags::FRESH)
-    }
-
-    #[inline]
-    pub(crate) fn is_taken(&self) -> bool {
-        self.flags.contains(TaskFlags::TAKE)
     }
 
     pub(crate) fn collect_recursive_consumers(&self, taskmap: &TaskMap, out: &mut Set<TaskId>) {

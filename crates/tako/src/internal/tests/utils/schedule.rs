@@ -18,7 +18,6 @@ pub(crate) fn force_assign(
     task_id: TaskId,
     worker_id: WorkerId,
 ) {
-    core.remove_from_ready_to_assign(task_id);
     scheduler.assign(core, task_id, worker_id.into());
 }
 

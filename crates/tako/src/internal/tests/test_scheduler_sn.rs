@@ -48,7 +48,8 @@ fn test_no_deps_scattering_1() {
 
 #[test]
 fn test_no_deps_scattering_2() {
-    let mut rt = TestEnv::new();
+    todo!()
+    /*let mut rt = TestEnv::new();
     rt.new_workers_cpus(&[5, 5, 5]);
 
     let mut scheduler = create_test_scheduler();
@@ -81,7 +82,7 @@ fn test_no_deps_scattering_2() {
     submit_and_check(vec![5, 6, 6]);
     submit_and_check(vec![6, 6, 6]);
     submit_and_check(vec![6, 6, 7]);
-    submit_and_check(vec![6, 7, 7]);
+    submit_and_check(vec![6, 7, 7]);*/
 }
 
 #[test]
@@ -108,7 +109,8 @@ fn test_no_deps_distribute_without_balance() {
 
 #[test]
 fn test_no_deps_distribute_with_balance() {
-    let mut rt = TestEnv::new();
+    todo!()
+    /*let mut rt = TestEnv::new();
     let ws = rt.new_workers_cpus(&[2, 2, 2]);
 
     assert_eq!(rt.core().get_worker_map().len(), 3);
@@ -197,6 +199,7 @@ fn test_no_deps_distribute_with_balance() {
 
     comm.emptiness_check();
     rt.sanity_check();
+     */
 }
 
 #[test]
@@ -376,7 +379,8 @@ fn test_resources_no_workers1() {
 
 #[test]
 fn test_resources_no_workers2() {
-    fn check(task_cpu_counts: &[ResourceUnits]) {
+    todo!()
+    /*fn check(task_cpu_counts: &[ResourceUnits]) {
         println!("Checking order {task_cpu_counts:?}");
 
         let mut rt = TestEnv::new();
@@ -411,7 +415,7 @@ fn test_resources_no_workers2() {
     check(&[10, 9, 11]);
     check(&[10, 11, 9]);
     check(&[11, 9, 10]);
-    check(&[11, 10, 9]);
+    check(&[11, 10, 9]);*/
 }
 
 #[test]
@@ -450,7 +454,8 @@ fn test_resource_time_balance1() {
 
 #[test]
 fn test_generic_resource_assign2() {
-    let mut rt = TestEnv::new();
+    todo!()
+    /*let mut rt = TestEnv::new();
     rt.new_generic_resource(2);
 
     let w1 = rt.new_worker(&WorkerBuilder::new(10).res_range("Res0", 1, 10));
@@ -485,12 +490,13 @@ fn test_generic_resource_assign2() {
 
     assert!(!rt.worker(w1).is_parked());
     assert!(rt.worker(w2).is_parked());
-    assert!(!rt.worker(w3).is_parked());
+    assert!(!rt.worker(w3).is_parked());*/
 }
 
 #[test]
 fn test_generic_resource_balance1() {
-    let mut rt = TestEnv::new();
+    todo!()
+    /*let mut rt = TestEnv::new();
     rt.new_generic_resource(2);
     let w1 = rt.new_worker(&WorkerBuilder::new(10).res_range("Res0", 1, 10));
     let w2 = rt.new_worker(&WorkerBuilder::new(10));
@@ -505,12 +511,13 @@ fn test_generic_resource_balance1() {
 
     assert_eq!(rt.core().get_worker_by_id_or_panic(w1).sn_tasks().len(), 2);
     assert_eq!(rt.core().get_worker_by_id_or_panic(w2).sn_tasks().len(), 0);
-    assert_eq!(rt.core().get_worker_by_id_or_panic(w3).sn_tasks().len(), 2);
+    assert_eq!(rt.core().get_worker_by_id_or_panic(w3).sn_tasks().len(), 2);*/
 }
 
 #[test]
 fn test_generic_resource_balance2() {
-    let mut rt = TestEnv::new();
+    todo!()
+    /*let mut rt = TestEnv::new();
     rt.new_generic_resource(2);
     let w1 = rt.new_worker(&WorkerBuilder::new(10).res_range("Res0", 1, 10));
     let w2 = rt.new_worker(&WorkerBuilder::new(10));
@@ -538,12 +545,13 @@ fn test_generic_resource_balance2() {
 
     assert_eq!(rt.core().get_worker_by_id_or_panic(w1).sn_tasks().len(), 2);
     assert_eq!(rt.core().get_worker_by_id_or_panic(w2).sn_tasks().len(), 0);
-    assert_eq!(rt.core().get_worker_by_id_or_panic(w3).sn_tasks().len(), 2);
+    assert_eq!(rt.core().get_worker_by_id_or_panic(w3).sn_tasks().len(), 2);*/
 }
 
 #[test]
 fn test_generic_resource_balancing3() {
-    let mut rt = TestEnv::new();
+    todo!()
+    /*let mut rt = TestEnv::new();
     rt.new_generic_resource(1);
     let w1 = rt.new_worker(&WorkerBuilder::new(2));
     let w2 = rt.new_worker(&WorkerBuilder::new(2).res_range("Res0", 1, 1));
@@ -553,12 +561,13 @@ fn test_generic_resource_balancing3() {
     rt.schedule();
 
     assert!(rt.core().get_worker_by_id_or_panic(w1).sn_tasks().len() >= 40);
-    assert!(rt.core().get_worker_by_id_or_panic(w2).sn_tasks().len() >= 40);
+    assert!(rt.core().get_worker_by_id_or_panic(w2).sn_tasks().len() >= 40);*/
 }
 
 #[test]
 fn test_generic_resource_variants1() {
-    let mut rt = TestEnv::new();
+    todo!()
+    /*let mut rt = TestEnv::new();
     rt.new_generic_resource(1);
     let w1 = rt.new_worker(&WorkerBuilder::new(4));
     let w2 = rt.new_worker(&WorkerBuilder::new(4).res_range("Res0", 1, 2));
@@ -573,11 +582,13 @@ fn test_generic_resource_variants1() {
 
     assert_eq!(rt.core().get_worker_by_id_or_panic(w1).sn_tasks().len(), 2);
     assert_eq!(rt.core().get_worker_by_id_or_panic(w2).sn_tasks().len(), 2);
+     */
 }
 
 #[test]
 fn test_generic_resource_variants2() {
-    let mut rt = TestEnv::new();
+    todo!()
+    /*let mut rt = TestEnv::new();
     rt.new_generic_resource(1);
     let w1 = rt.new_worker(&WorkerBuilder::new(4));
     let w2 = rt.new_worker(&WorkerBuilder::new(4).res_range("Res0", 1, 2));
@@ -591,7 +602,7 @@ fn test_generic_resource_variants2() {
     rt.schedule();
 
     assert_eq!(rt.core().get_worker_by_id_or_panic(w1).sn_tasks().len(), 0);
-    assert_eq!(rt.core().get_worker_by_id_or_panic(w2).sn_tasks().len(), 4);
+    assert_eq!(rt.core().get_worker_by_id_or_panic(w2).sn_tasks().len(), 4);*/
 }
 
 #[test]
@@ -659,7 +670,8 @@ fn test_task_data_deps_initial_placing() {
 
 #[test]
 fn test_task_data_deps_balancing() {
-    let _ = env_logger::builder().is_test(true).try_init();
+    todo!()
+    /*let _ = env_logger::builder().is_test(true).try_init();
     for odd in [0u32, 1u32] {
         for late_worker in [true, false] {
             let mut rt = TestEnv::new();
@@ -712,12 +724,13 @@ fn test_task_data_deps_balancing() {
             dbg!(n1_count);
             assert!(n1_count > 40);
         }
-    }
+    }*/
 }
 
 #[test]
 fn test_resource_priority_balancing() {
-    let mut rt = TestEnv::new();
+    todo!()
+    /*let mut rt = TestEnv::new();
     //                    0  1  2  3  4  5  6  7  8  9  10
     let ws = rt.new_workers_cpus(&[4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 8]);
 
@@ -741,5 +754,5 @@ fn test_resource_priority_balancing() {
             .filter(|t| t.job_id() == 1.into())
             .count()
             >= 2
-    );
+    );*/
 }

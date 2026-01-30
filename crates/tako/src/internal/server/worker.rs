@@ -1,5 +1,6 @@
 use std::fmt;
 
+use crate::gateway::WorkerRuntimeInfo::SingleNodeTasks;
 use crate::gateway::{LostWorkerReason, WorkerRuntimeInfo};
 use crate::internal::common::Set;
 use crate::internal::common::resources::map::{ResourceIdMap, ResourceRqMap};
@@ -41,22 +42,39 @@ pub struct MultiNodeTaskAssignment {
     pub reservation_only: bool,
 }
 
+pub struct SingleNodeTaskAssignment {
+    // This is list of single node assigned tasks
+    // !! In case of stealing T from W1 to W2, T is in "tasks" of W2, even T was not yet canceled from W1.
+    pub assign_tasks: Set<TaskId>,
+    pub free_resources: WorkerResources,
+}
+
+pub enum WorkerAssignment {
+    Sn(SingleNodeTaskAssignment),
+    Mn(MultiNodeTaskAssignment),
+}
+
+impl WorkerAssignment {
+    fn empty_sn(wr: &WorkerResources) -> Self {
+        Self::Sn(SingleNodeTaskAssignment {
+            assign_tasks: Default::default(),
+            free_resources: wr.clone(),
+        })
+    }
+}
+
 pub const DEFAULT_WORKER_OVERVIEW_INTERVAL: Duration = Duration::from_secs(2);
 
 pub struct Worker {
     pub(crate) id: WorkerId,
 
-    // This is list of single node assigned tasks
-    // !! In case of stealing T from W1 to W2, T is in "tasks" of W2, even T was not yet canceled from W1.
-    sn_tasks: Set<TaskId>,
-    pub(crate) free_resources: WorkerResources,
+    assignment: WorkerAssignment,
+
     pub(crate) resources: WorkerResources,
     pub(crate) flags: WorkerFlags,
     // When the worker will be terminated
     pub(crate) termination_time: Option<Instant>,
     pub(crate) stop_reason: Option<(LostWorkerReason, Instant)>,
-
-    pub(crate) mn_task: Option<MultiNodeTaskAssignment>,
 
     // Saved timestamp when a worker is put into an idle state
     pub(crate) idle_timestamp: Instant,
@@ -71,7 +89,6 @@ impl fmt::Debug for Worker {
         f.debug_struct("Worker")
             .field("id", &self.id)
             .field("resources", &self.configuration.resources)
-            .field("tasks", &self.sn_tasks)
             .finish()
     }
 }
@@ -85,45 +102,59 @@ impl Worker {
         &self.configuration
     }
 
-    pub fn sn_tasks(&self) -> &Set<TaskId> {
-        &self.sn_tasks
+    pub fn assignment(&self) -> &WorkerAssignment {
+        &self.assignment
     }
 
-    pub fn mn_task(&self) -> Option<&MultiNodeTaskAssignment> {
-        self.mn_task.as_ref()
+    #[inline]
+    pub fn sn_assignment(&self) -> Option<&SingleNodeTaskAssignment> {
+        match &self.assignment {
+            WorkerAssignment::Sn(a) => Some(a),
+            WorkerAssignment::Mn(_) => None,
+        }
+    }
+
+    #[inline]
+    pub fn mn_assignment(&self) -> Option<&MultiNodeTaskAssignment> {
+        match &self.assignment {
+            WorkerAssignment::Sn(_) => None,
+            WorkerAssignment::Mn(a) => Some(a),
+        }
     }
 
     pub fn set_mn_task(&mut self, task_id: TaskId, reservation_only: bool) {
-        assert!(self.mn_task.is_none() && self.sn_tasks.is_empty());
-        self.mn_task = Some(MultiNodeTaskAssignment {
+        assert!(self.sn_assignment().unwrap().assign_tasks.is_empty());
+        self.assignment = WorkerAssignment::Mn(MultiNodeTaskAssignment {
             task_id,
             reservation_only,
         });
     }
 
     pub fn worker_info(&self, task_map: &TaskMap) -> WorkerRuntimeInfo {
-        if let Some(mn_task) = &self.mn_task {
-            WorkerRuntimeInfo::MultiNodeTask {
-                main_node: !mn_task.reservation_only,
+        match &self.assignment {
+            WorkerAssignment::Sn(a) => {
+                todo!()
+                /*let mut running_tasks = 0;
+                self.sn_tasks.iter().for_each(|task_id| {
+                    if task_map.get_task(*task_id).is_sn_running() {
+                        running_tasks += 1;
+                    }
+                });
+                let assigned_tasks = self.sn_tasks.len() as u32;
+                WorkerRuntimeInfo::SingleNodeTasks {
+                    assigned_tasks,
+                    running_tasks,
+                    is_reserved: self.is_reserved(),
+                }*/
             }
-        } else {
-            let mut running_tasks = 0;
-            self.sn_tasks.iter().for_each(|task_id| {
-                if task_map.get_task(*task_id).is_sn_running() {
-                    running_tasks += 1;
-                }
-            });
-            let assigned_tasks = self.sn_tasks.len() as u32;
-            WorkerRuntimeInfo::SingleNodeTasks {
-                assigned_tasks,
-                running_tasks,
-                is_reserved: self.is_reserved(),
-            }
+            WorkerAssignment::Mn(a) => WorkerRuntimeInfo::MultiNodeTask {
+                main_node: !a.reservation_only,
+            },
         }
     }
 
     pub fn reset_mn_task(&mut self) {
-        self.mn_task = None;
+        self.assignment = WorkerAssignment::empty_sn(&self.resources);
         self.idle_timestamp = Instant::now();
     }
 
@@ -138,34 +169,58 @@ impl Worker {
     }
 
     pub fn is_free(&self) -> bool {
-        self.sn_tasks.is_empty() && self.mn_task.is_none() && !self.is_stopping()
+        (match &self.assignment {
+            WorkerAssignment::Sn(a) => a.assign_tasks.is_empty(),
+            WorkerAssignment::Mn(a) => true,
+        }) && !self.is_stopping()
     }
 
-    pub fn insert_sn_task(&mut self, task: &Task, rqv: &ResourceRequestVariants) {
-        assert!(self.sn_tasks.insert(task.id));
-    }
-
-    pub fn remove_sn_task(&mut self, task: &Task, rqv: &ResourceRequestVariants) {
-        assert!(self.sn_tasks.remove(&task.id));
-        if self.sn_tasks.is_empty() {
-            self.idle_timestamp = Instant::now();
+    pub fn insert_sn_task(&mut self, task_id: TaskId) {
+        match &mut self.assignment {
+            WorkerAssignment::Sn(a) => {
+                assert!(a.assign_tasks.insert(task_id));
+            }
+            WorkerAssignment::Mn(_) => unreachable!(),
         }
     }
 
+    pub fn start_task(&mut self, rq: &ResourceRequest) {
+        match &mut self.assignment {
+            WorkerAssignment::Sn(a) => {
+                a.free_resources.remove(rq);
+            }
+            WorkerAssignment::Mn(_) => {
+                unreachable!()
+            }
+        }
+    }
+
+    pub fn remove_sn_task(&mut self, task_id: TaskId, rq: Option<&ResourceRequest>) {
+        todo!()
+        /*assert!(self.sn_tasks.remove(&task_id));
+        if self.sn_tasks.is_empty() {
+            self.idle_timestamp = Instant::now();
+        }*/
+    }
+
     pub fn sanity_check(&self, task_map: &TaskMap, request_map: &ResourceRqMap) {
-        assert!(self.sn_tasks.is_empty() || self.mn_task.is_none());
         let mut check_load = WorkerLoad::new(&self.resources);
         let mut trivial = true;
-        for &task_id in &self.sn_tasks {
-            let task = task_map.get_task(task_id);
-            let rqv = request_map.get(task.resource_rq_id);
-            trivial &= rqv.is_trivial();
-            check_load.add_request(task_id, rqv, task.running_variant(), &self.resources);
+        if let Some(a) = self.sn_assignment() {
+            for &task_id in &a.assign_tasks {
+                let task = task_map.get_task(task_id);
+                let rqv = request_map.get(task.resource_rq_id);
+                trivial &= rqv.is_trivial();
+                check_load.add_request(task_id, rqv, task.running_variant(), &self.resources);
+            }
         }
     }
 
     pub fn have_immediate_resources_for_rq(&self, request: &ResourceRequest) -> bool {
-        self.free_resources.is_capable_to_run_request(request)
+        let Some(a) = self.sn_assignment() else {
+            return false;
+        };
+        a.free_resources.is_capable_to_run_request(request)
     }
 
     pub fn have_immediate_resources_for_rqv(&self, rqv: &ResourceRequestVariants) -> bool {
@@ -246,11 +301,13 @@ impl Worker {
         request_map: &ResourceRqMap,
         now: Instant,
     ) {
-        if self.termination_time.is_none() || self.mn_task.is_some() {
+        if self.termination_time.is_none() || self.mn_assignment().is_some() {
             return;
         }
         let task_ids: Vec<TaskId> = self
-            .sn_tasks
+            .sn_assignment()
+            .unwrap()
+            .assign_tasks
             .iter()
             .copied()
             .filter(|task_id| {
@@ -270,7 +327,7 @@ impl Worker {
             .collect();
         if !task_ids.is_empty() {
             for task_id in &task_ids {
-                self.sn_tasks.remove(task_id);
+                self.remove_sn_task(*task_id, None);
             }
             comm.send_worker_message(
                 self.id,
@@ -304,13 +361,11 @@ impl Worker {
             id,
             termination_time: configuration.time_limit.map(|duration| now + duration),
             configuration,
-            free_resources: resources.clone(),
+            assignment: WorkerAssignment::empty_sn(&resources),
             resources,
-            sn_tasks: Default::default(),
             flags: WorkerFlags::empty(),
             stop_reason: None,
             last_heartbeat: now,
-            mn_task: None,
             idle_timestamp: now,
         }
     }
@@ -318,15 +373,17 @@ impl Worker {
     pub(crate) fn dump(&self, now: Instant) -> serde_json::Value {
         json! ({
             "id": self.id,
-            "sn_tasks": self.sn_tasks,
+            "assignment": match &self.assignment {
+                WorkerAssignment::Sn(a) => json! ({
+                    "assigned_tasks": &a.assign_tasks
+                }),
+                WorkerAssignment::Mn(a) => json! ({
+                    "task_id": a.task_id,
+                    "reservation_only": a.reservation_only,
+                })
+            },
             "flags": self.flags.bits(),
             "termination_time": self.termination_time.map(|x| x - now),
-            "mn_task": self.mn_task.as_ref().map(|t| {
-                json!({
-                    "task_id": t.task_id,
-                    "reservation_only": t.reservation_only,
-                })
-            }),
             "idle_timestamp": now - self.idle_timestamp,
             "last_heartbeat": now - self.last_heartbeat,
             "configuration": self.configuration,
