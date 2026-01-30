@@ -1,8 +1,7 @@
 use crate::internal::common::resources::ResourceId;
+use crate::internal::solver::{LpInnerSolver, LpSolution, LpSolver};
 use crate::internal::worker::resources::concise::ConciseFreeResources;
 use crate::internal::worker::resources::pool::{FAST_MAX_COUPLED_RESOURCES, FAST_MAX_GROUPS};
-use crate::internal::worker::resources::solver::create_solver;
-use crate::internal::worker::resources::solver::{LpSolution, LpSolver};
 use crate::resources::{FRACTIONS_PER_UNIT, ResourceGroupIdx};
 use smallvec::SmallVec;
 
@@ -64,7 +63,7 @@ pub fn group_solver(
     entries: &[&crate::resources::ResourceAllocRequest],
     weights: &[CouplingWeightItem],
 ) -> Option<(SelectedGroups, f64)> {
-    let mut solver = create_solver();
+    let mut solver = LpSolver::new(true);
     let vars: SmallVec<[SmallVec<_>; FAST_MAX_COUPLED_RESOURCES]> = entries
         .iter()
         .map(|entry| {
@@ -75,7 +74,7 @@ pub fn group_solver(
                     .units_per_group()
                     .map(|u| solver.add_bool_variable(-1024.0 - (u as f64) / 32.0))
                     .collect::<SmallVec<[_; FAST_MAX_GROUPS]>>();
-                solver.add_constraint(
+                solver.add_min_constraint(
                     units as f64,
                     vs.iter()
                         .zip(r.units_per_group())
@@ -98,14 +97,14 @@ pub fn group_solver(
                         }
                     })
                     .collect();
-                solver.add_constraint(
+                solver.add_min_constraint(
                     (units + 1) as f64,
                     vs.iter()
                         .zip(amounts.iter())
                         .map(|(v, (u, f))| (*v, if *f >= fractions { u + 1 } else { *u } as f64)),
                 );
                 if units > 0 && need_second_check {
-                    solver.add_constraint(
+                    solver.add_min_constraint(
                         units as f64,
                         vs.iter()
                             .zip(r.units_per_group())
@@ -126,10 +125,10 @@ pub fn group_solver(
         let v1 = vars[r1][w.group1.as_num() as usize];
         let v2 = vars[r2][w.group2.as_num() as usize];
         let v3 = solver.add_variable(w.weight, 0.0, 1.0);
-        solver.add_constraint(0.0, [(v1, 1.0), (v3, -1.0)].into_iter());
-        solver.add_constraint(0.0, [(v2, 1.0), (v3, -1.0)].into_iter());
+        solver.add_min_constraint(0.0, [(v1, 1.0), (v3, -1.0)].into_iter());
+        solver.add_min_constraint(0.0, [(v2, 1.0), (v3, -1.0)].into_iter());
     }
-    let (solution, objective_value) = solver.solve()?;
+    let (solution, objective_value): (_, _) = solver.solve()?;
     let values = solution.get_values();
     let mut index = 0;
     Some((

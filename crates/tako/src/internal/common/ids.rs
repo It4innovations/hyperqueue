@@ -8,6 +8,12 @@ define_id_type!(WorkerId, u32);
 define_id_type!(InstanceId, u32);
 define_id_type!(ResourceVariantId, u8);
 
+impl ResourceVariantId {
+    pub fn is_first(&self) -> bool {
+        self.0 == 0
+    }
+}
+
 #[derive(Default, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TaskId {
     job_id: JobId,

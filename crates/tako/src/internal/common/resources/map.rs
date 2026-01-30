@@ -72,6 +72,10 @@ impl GlobalResourceMapping {
         }
     }
 
+    pub fn n_resources(&self) -> usize {
+        self.resource_names.len()
+    }
+
     /// Create an immutable snapshot of resource name map.
     #[inline]
     pub fn create_resource_id_map(&self) -> ResourceIdMap {
@@ -205,5 +209,13 @@ impl ResourceRqMap {
             self.0.push(rqv);
             new_id
         }
+    }
+
+    pub fn size(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &ResourceRequestVariants> {
+        self.0.iter()
     }
 }

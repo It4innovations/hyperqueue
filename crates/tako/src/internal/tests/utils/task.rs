@@ -6,8 +6,11 @@ use crate::internal::common::resources::{
     NumOfNodes, ResourceAmount, ResourceId, ResourceRequestVariants,
 };
 use crate::internal::messages::worker::TaskRunningMsg;
+use crate::internal::server::core::Core;
+use crate::internal::server::reactor::get_or_create_raw_resource_rq_id;
 use crate::internal::server::task::{Task, TaskConfiguration};
-use crate::resources::ResourceRequest;
+use crate::resources::{ResourceRequest, ResourceRqId};
+use crate::tests::utils::env::TestComm;
 use crate::{ResourceVariantId, Set, TaskId, UserPriority};
 use smallvec::SmallVec;
 use std::rc::Rc;
@@ -90,16 +93,18 @@ impl TaskBuilder {
         self
     }
 
-    pub fn build(&self, task_id: TaskId, resource_map: &mut GlobalResourceMapping) -> Task {
+    pub fn build(&self, task_id: TaskId, core: &mut Core) -> Task {
         let last_resource = self.resources_builder.clone().finish();
         let mut resources: SmallVec<[ResourceRequest; 1]> =
             self.finished_resources.iter().cloned().collect();
+
         resources.push(last_resource);
         for rq in &resources {
             rq.validate().unwrap();
         }
         let resources = ResourceRequestVariants::new(resources);
-        let (rq_id, _) = resource_map.get_or_create_rq_id(resources);
+        let (rq_id, _) =
+            get_or_create_raw_resource_rq_id(core, &mut TestComm::default(), resources);
         Task::new(
             task_id.into(),
             rq_id,

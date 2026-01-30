@@ -167,7 +167,8 @@ mod tests {
                 .res_range("gpus", 1, 4)
                 .time_limit(Duration::from_secs(40_000)),
         );
-
+        todo!();
+        /*
         let resource_map = rt.core().create_resource_map();
         let explain = |rt: &mut TestEnv, task: TaskId, worker: WorkerId, now| {
             let group = WorkerGroup::new(Set::new());
@@ -274,7 +275,7 @@ mod tests {
             TaskExplainItem::Resources {
                 resource, request_amount, worker_amount
             } if resource == "gpus" && *request_amount == ResourceAmount::new_units(32) && *worker_amount == ResourceAmount::new_units(4)
-        ));
+        ));*/
     }
 
     #[test]

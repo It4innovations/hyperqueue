@@ -7,6 +7,7 @@ use crate::internal::common::resources::map::{
 use crate::internal::common::resources::{ResourceId, ResourceRequestVariants, ResourceRqId};
 use crate::internal::common::{Set, WrappedRcRefCell};
 use crate::internal::scheduler::multinode::MultiNodeQueue;
+use crate::internal::scheduler2::TaskQueue;
 use crate::internal::server::dataobj::{DataObjectHandle, ObjsToRemoveFromWorkers};
 use crate::internal::server::dataobjmap::DataObjectMap;
 use crate::internal::server::rpc::ConnectionDescriptor;
@@ -30,11 +31,15 @@ pub struct Core {
     data_objects: DataObjectMap,
 
     /* Scheduler items */
+    task_queues: Vec<TaskQueue>,
+
+    // TODO: Remove parked_resources
     parked_resources: Set<WorkerResources>, // Resources of workers that has flag NOTHING_TO_LOAD
-    // TODO: benchmark and possibly replace with a set
-    single_node_ready_to_assign: Vec<TaskId>,
+
+    // TODO: Remove multi_node_queue
     multi_node_queue: MultiNodeQueue,
 
+    // TODO: Remove sleeping tasks
     sleeping_sn_tasks: Vec<TaskId>, // Tasks that cannot be scheduled to any available worker
 
     maximal_task_id: TaskId,
@@ -94,6 +99,25 @@ impl Core {
             &mut self.tasks,
             &mut self.workers,
             self.resource_map.get_resource_rq_map(),
+        )
+    }
+
+    #[inline]
+    pub fn split_all(
+        &mut self,
+    ) -> (
+        &mut TaskMap,
+        &mut WorkerMap,
+        &mut [TaskQueue],
+        &ResourceRqMap,
+        &mut DataObjectMap,
+    ) {
+        (
+            &mut self.tasks,
+            &mut self.workers,
+            &mut self.task_queues,
+            self.resource_map.get_resource_rq_map(),
+            &mut self.data_objects,
         )
     }
 
@@ -177,7 +201,8 @@ impl Core {
     }
 
     pub fn park_workers(&mut self) {
-        for worker in self.workers.values_mut() {
+        todo!()
+        /*for worker in self.workers.values_mut() {
             if worker.is_underloaded()
                 && worker
                     .sn_tasks()
@@ -188,7 +213,7 @@ impl Core {
                 worker.set_parked_flag(true);
                 self.parked_resources.insert(worker.resources.clone());
             }
-        }
+        }*/
     }
 
     pub fn add_sleeping_sn_task(&mut self, task_id: TaskId) {
@@ -211,14 +236,6 @@ impl Core {
         std::mem::take(&mut self.sleeping_sn_tasks)
     }
 
-    pub fn sn_ready_to_assign(&self) -> &[TaskId] {
-        &self.single_node_ready_to_assign
-    }
-
-    pub fn take_single_node_ready_to_assign(&mut self) -> Vec<TaskId> {
-        std::mem::take(&mut self.single_node_ready_to_assign)
-    }
-
     pub fn get_worker_listen_port(&self) -> u16 {
         self.worker_listen_port
     }
@@ -226,12 +243,6 @@ impl Core {
     pub fn new_worker(&mut self, worker: Worker) {
         /* Wake up sleeping tasks */
         let mut sleeping_sn_tasks = self.take_sleeping_tasks();
-        if self.single_node_ready_to_assign.is_empty() {
-            self.single_node_ready_to_assign = sleeping_sn_tasks;
-        } else {
-            self.single_node_ready_to_assign
-                .append(&mut sleeping_sn_tasks);
-        }
         self.multi_node_queue.wakeup_sleeping_tasks();
         let worker_id = worker.id;
         if let Some(g) = self.worker_groups.get_mut(&worker.configuration.group) {
@@ -327,6 +338,11 @@ impl Core {
         }
     }
 
+    pub fn add_task_queue(&mut self) {
+        let resource_rq_id = ResourceRqId::new(self.task_queues.len() as u32);
+        self.task_queues.push(TaskQueue::new(resource_rq_id));
+    }
+
     #[inline(never)]
     pub fn wakeup_parked_resources(&mut self) {
         log::debug!("Waking up parked resources");
@@ -357,10 +373,11 @@ impl Core {
             .get(task.resource_rq_id)
             .is_multi_node()
         {
-            self.multi_node_queue
-                .add_task(task, self.resource_map.get_resource_rq_map());
+            /*self.multi_node_queue
+            .add_task(task, self.resource_map.get_resource_rq_map());*/
+            todo!()
         } else {
-            self.single_node_ready_to_assign.push(task_id);
+            self.task_queues[task.resource_rq_id.as_usize()].add(task);
         }
     }
 
@@ -373,7 +390,7 @@ impl Core {
         &mut self,
         task_id: TaskId,
         objs_to_remove: &mut ObjsToRemoveFromWorkers,
-    ) -> TaskRuntimeState {
+    ) -> (TaskRuntimeState, ResourceRqId) {
         let task = self
             .tasks
             .remove(task_id)
@@ -391,7 +408,7 @@ impl Core {
                     .try_decrease_ref_count(*data_id, objs_to_remove);
             }
         }
-        task.state
+        (task.state, task.resource_rq_id)
     }
 
     /// Removes multiple tasks at once, to reduce memory consumption
@@ -401,11 +418,10 @@ impl Core {
         objs_to_remove: &mut ObjsToRemoveFromWorkers,
     ) {
         for &task_id in tasks {
-            let _ = self.remove_task(task_id, objs_to_remove);
+            let resource_rq_id = self.remove_task(task_id, objs_to_remove).1;
+            todo!() // REMOVE FROM TASKS QUEUES
+            //self.task_queues[resource_rq_id.as_usize()].remove(task);
         }
-
-        self.single_node_ready_to_assign
-            .retain(|t| !tasks.contains(t));
     }
 
     #[inline]
@@ -585,7 +601,9 @@ impl Core {
         self.workers.shrink_to_fit();
         self.worker_groups.shrink_to_fit();
         self.parked_resources.shrink_to_fit();
-        self.single_node_ready_to_assign.shrink_to_fit();
+        for task_queue in &mut self.task_queues {
+            task_queue.shrink_to_fit();
+        }
         self.sleeping_sn_tasks.shrink_to_fit();
         self.multi_node_queue.shrink_to_fit();
     }
@@ -599,7 +617,6 @@ impl Core {
                 })).collect::<Vec<_>>(),
             "tasks": self.tasks.tasks().map(|t| t.dump()).collect::<Vec<_>>(),
             "parked_resources": self.parked_resources.iter().map(|r| r.dump()).collect::<Vec<_>>(),
-            "sn_ready_to_assign": self.single_node_ready_to_assign,
             "mn_queue": self.multi_node_queue.dump(),
             "sleeping_sn_tasks": self.sleeping_sn_tasks,
         })
@@ -622,14 +639,6 @@ mod tests {
     impl Core {
         pub fn worker_group(&self, group_name: &str) -> Option<&WorkerGroup> {
             self.worker_groups.get(group_name)
-        }
-
-        pub fn get_ready_to_assign(&self) -> &[TaskId] {
-            &self.single_node_ready_to_assign
-        }
-
-        pub fn remove_from_ready_to_assign(&mut self, task_id: TaskId) {
-            self.single_node_ready_to_assign.retain(|&id| id != task_id);
         }
 
         pub fn assert_task_condition<F: Fn(&Task) -> bool>(&self, task_ids: &[TaskId], op: F) {
@@ -677,11 +686,13 @@ mod tests {
         }
 
         pub fn assert_underloaded(&self, worker_ids: &[WorkerId]) {
-            self.assert_worker_condition(worker_ids, |w| w.is_underloaded());
+            todo!()
+            //self.assert_worker_condition(worker_ids, |w| w.is_underloaded());
         }
 
         pub fn assert_not_underloaded(&self, worker_ids: &[WorkerId]) {
-            self.assert_worker_condition(worker_ids, |w| !w.is_underloaded());
+            todo!()
+            //self.assert_worker_condition(worker_ids, |w| !w.is_underloaded());
         }
 
         pub fn task(&self, id: TaskId) -> &Task {
@@ -695,7 +706,7 @@ mod tests {
         let t = rt.new_task_default();
         let mut objs_to_remove = ObjsToRemoveFromWorkers::new();
         assert!(matches!(
-            rt.core().remove_task(t, &mut objs_to_remove),
+            rt.core().remove_task(t, &mut objs_to_remove).0,
             TaskRuntimeState::Waiting(_)
         ));
         assert_eq!(rt.core().find_task(t), None);

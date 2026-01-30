@@ -7,6 +7,9 @@ use crate::internal::common::utils::format_comma_delimited;
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{ToWorkerMessage, WorkerOverview};
 use crate::internal::scheduler::state::SchedulerState;
+use crate::internal::scheduler2::{
+    TaskBatch, WorkerTaskMapping, create_task_batches, run_scheduling_solver,
+};
 use crate::internal::server::comm::Comm;
 use crate::internal::server::core::Core;
 use crate::internal::server::reactor::on_new_worker;
@@ -31,6 +34,7 @@ pub struct TestEnv {
     job_id: JobId,
     task_id_counter: u32,
     worker_id_counter: <WorkerId as ItemId>::IdType,
+    now: Instant,
 }
 
 impl Default for TestEnv {
@@ -44,6 +48,7 @@ impl TestEnv {
         TestEnv {
             core: Default::default(),
             scheduler: schedule::create_test_scheduler(),
+            now: Instant::now(),
             job_id: JobId::new(1),
             task_id_counter: 1,
             worker_id_counter: 50,
@@ -168,7 +173,6 @@ impl TestEnv {
 
     pub fn _test_assign(&mut self, task_id: TaskId, worker_id: WorkerId) {
         self.scheduler.assign(&mut self.core, task_id, worker_id);
-        self.core.remove_from_ready_to_assign(task_id);
     }
 
     pub fn test_assign(&mut self, task_id: TaskId, worker_id: WorkerId) {
@@ -195,14 +199,11 @@ impl TestEnv {
     }
 
     pub fn worker_load(&self, worker_id: WorkerId) -> &WorkerLoad {
-        &self
-            .core
-            .get_worker_by_id_or_panic(worker_id.into())
-            .sn_load
+        todo!()
     }
 
     pub fn check_worker_load_lower_bounds(&self, cpus: &[ResourceAmount]) {
-        let found_cpus: Vec<ResourceAmount> = utils::sorted_vec(
+        /*let found_cpus: Vec<ResourceAmount> = utils::sorted_vec(
             self.core
                 .get_workers()
                 .map(|w| w.sn_load.get(0.into()))
@@ -210,7 +211,8 @@ impl TestEnv {
         );
         for (c, f) in cpus.iter().zip(found_cpus.iter()) {
             assert!(c <= f);
-        }
+        }*/
+        todo!()
     }
 
     pub fn finish_scheduling(&mut self) {
@@ -232,6 +234,10 @@ impl TestEnv {
         }
     }
 
+    pub fn create_task_batches(&mut self) -> Vec<TaskBatch> {
+        create_task_batches(&mut self.core, self.now)
+    }
+
     pub fn schedule(&mut self) {
         let mut comm = create_test_comm();
         self.scheduler.run_scheduling(&mut self.core, &mut comm);
@@ -241,6 +247,11 @@ impl TestEnv {
     pub fn balance(&mut self) {
         self.scheduler.balance(&mut self.core);
         self.finish_scheduling();
+    }
+
+    pub fn schedule_mapping(&mut self) -> WorkerTaskMapping {
+        let batches = create_task_batches(&mut self.core, self.now);
+        run_scheduling_solver(&mut self.core, self.now, &batches)
     }
 }
 
