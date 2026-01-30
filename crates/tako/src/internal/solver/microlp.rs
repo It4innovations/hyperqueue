@@ -26,8 +26,26 @@ impl LpSolver for MicrolpSolver {
     }
 
     #[inline]
-    fn add_constraint(&mut self, min: f64, variables: impl Iterator<Item = (Self::Variable, f64)>) {
+    fn add_nat_variable(&mut self, weight: f64) -> Self::Variable {
+        self.0.add_integer_var(weight, 0, i32::MAX)
+    }
+
+    #[inline]
+    fn add_min_constraint(
+        &mut self,
+        min: f64,
+        variables: impl Iterator<Item = (Self::Variable, f64)>,
+    ) {
         self.0.add_constraint(variables, ComparisonOp::Ge, min)
+    }
+
+    #[inline]
+    fn add_max_constraint(
+        &mut self,
+        max: f64,
+        variables: impl Iterator<Item = (Self::Variable, f64)>,
+    ) {
+        self.0.add_constraint(variables, ComparisonOp::Le, max)
     }
 
     fn solve(self) -> Option<(Self::Solution, f64)> {

@@ -4,9 +4,10 @@ use std::fmt;
 use crate::internal::common::error::DsError;
 use crate::internal::common::resources::{NumOfNodes, ResourceAmount, ResourceId};
 
+use crate::ResourceVariantId;
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::resources::allocator::ResourceAllocator;
-use crate::resources::ResourceIdMap;
+use crate::resources::{ResourceIdMap, ResourceRqId, ResourceRqMap};
 use smallvec::{SmallVec, smallvec};
 use std::time::Duration;
 
@@ -260,6 +261,22 @@ impl ResourceRequestVariants {
 
     pub fn requests(&self) -> &[ResourceRequest] {
         &self.variants
+    }
+
+    #[inline]
+    pub fn get(&self, variant: ResourceVariantId) -> &ResourceRequest {
+        &self.variants[variant.as_usize()]
+    }
+
+    pub fn requests_with_ids(&self) -> impl Iterator<Item = (ResourceVariantId, &ResourceRequest)> {
+        self.variants
+            .iter()
+            .enumerate()
+            .map(|(i, rq)| (ResourceVariantId::new(i as u8), rq))
+    }
+
+    pub fn variant_ids(&self) -> impl Iterator<Item = ResourceVariantId> {
+        (0u8..self.variants.len() as u8).map(|v| ResourceVariantId::new(v))
     }
 
     pub fn validate(&self) -> crate::Result<()> {

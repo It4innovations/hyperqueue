@@ -8,6 +8,7 @@ use crate::internal::messages::worker::{
     NewWorkerMsg, StealResponse, StealResponseMsg, TaskFinishedMsg, TaskIdsMsg, TaskRunningMsg,
     ToWorkerMessage,
 };
+use crate::internal::scheduler2::TaskQueue;
 use crate::internal::server::comm::Comm;
 use crate::internal::server::core::Core;
 use crate::internal::server::dataobj::{DataObjectHandle, ObjsToRemoveFromWorkers, RefCount};
@@ -351,7 +352,7 @@ pub(crate) fn on_task_finished(
         comm.ask_for_scheduling();
     }
     let mut objs_to_remove = ObjsToRemoveFromWorkers::new();
-    let state = core.remove_task(msg.id, &mut objs_to_remove);
+    let state = core.remove_task(msg.id, &mut objs_to_remove).0;
     assert!(matches!(state, TaskRuntimeState::Finished));
 
     for data in msg.outputs {
@@ -488,11 +489,11 @@ fn fail_task_helper(
     for &consumer in &consumers {
         log::debug!("Task={consumer} canceled because of failed dependency");
         assert!(matches!(
-            core.remove_task(consumer, &mut objs_to_remove),
+            core.remove_task(consumer, &mut objs_to_remove).0,
             TaskRuntimeState::Waiting(_)
         ));
     }
-    let state = core.remove_task(task_id, &mut objs_to_remove);
+    let state = core.remove_task(task_id, &mut objs_to_remove).0;
     if worker_id.is_some() {
         assert!(matches!(
             state,
@@ -617,6 +618,8 @@ pub(crate) fn get_or_create_raw_resource_rq_id(
     let map = core.resource_map_mut();
     let (rq_id, is_new) = map.get_or_create_rq_id(rqv);
     if is_new {
+        core.add_task_queue();
+        let map = core.resource_map_mut();
         let msg = ToWorkerMessage::NewResourceRequest(
             rq_id,
             map.get_resource_rq_map().get(rq_id).clone(),

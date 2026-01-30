@@ -278,7 +278,7 @@ fn insert_resources_into_env(ctx: &TaskBuildContext, program: &mut ProgramDefini
         );
     }
 
-    for entry in rqv.requests()[ctx.resource_variant().as_usize()].entries() {
+    for entry in rqv.get(ctx.resource_variant()).entries() {
         let resource_name = resource_map.get_name(entry.resource_id).unwrap();
         program.env.insert(
             resource_env_var_name("HQ_RESOURCE_REQUEST_", resource_name),

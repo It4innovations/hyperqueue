@@ -378,7 +378,8 @@ impl SchedulerState {
 
     /// Returns true if balancing is needed.
     fn schedule_available_tasks(&mut self, core: &mut Core) -> bool {
-        if !core.has_workers() {
+        todo!()
+        /*if !core.has_workers() {
             return false;
         }
         log::debug!("Scheduling started");
@@ -433,12 +434,13 @@ impl SchedulerState {
             .any(|w| !w.is_parked() && w.is_underloaded());
 
         log::debug!("Scheduling finished");
-        has_underload_workers
+        has_underload_workers*/
     }
 
     pub fn balance(&mut self, core: &mut Core) {
+        todo!()
         // This method is called only if at least one worker is underloaded
-
+        /*
         log::debug!("Balancing started");
 
         let mut balanced_tasks: Vec<TaskId> = Vec::new();
@@ -633,7 +635,7 @@ impl SchedulerState {
             core.park_workers();
         }
 
-        log::debug!("Balancing finished");
+        log::debug!("Balancing finished");*/
     }
 }
 

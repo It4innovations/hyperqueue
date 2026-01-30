@@ -1,4 +1,4 @@
-use crate::internal::worker::resources::solver::{LpSolution, LpSolver};
+use crate::internal::solver::{LpInnerSolver, LpSolution};
 use highs::Sense;
 
 pub(crate) struct HighsSolver(highs::RowProblem);
@@ -9,7 +9,7 @@ impl HighsSolver {
     }
 }
 
-impl LpSolver for HighsSolver {
+impl LpInnerSolver for HighsSolver {
     type Variable = highs::Col;
     type Solution = highs::Solution;
 
@@ -24,8 +24,26 @@ impl LpSolver for HighsSolver {
     }
 
     #[inline]
-    fn add_constraint(&mut self, min: f64, variables: impl Iterator<Item = (Self::Variable, f64)>) {
+    fn add_nat_variable(&mut self, weight: f64) -> Self::Variable {
+        self.0.add_integer_column(weight, 0..)
+    }
+
+    #[inline]
+    fn add_min_constraint(
+        &mut self,
+        min: f64,
+        variables: impl Iterator<Item = (Self::Variable, f64)>,
+    ) {
         self.0.add_row(min.., variables);
+    }
+
+    #[inline]
+    fn add_max_constraint(
+        &mut self,
+        max: f64,
+        variables: impl Iterator<Item = (Self::Variable, f64)>,
+    ) {
+        self.0.add_row(..=max, variables);
     }
 
     fn solve(self) -> Option<(Self::Solution, f64)> {

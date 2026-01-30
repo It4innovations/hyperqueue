@@ -186,11 +186,10 @@ fn test_submit_jobs() {
     let mut rt = TestEnv::new();
     let mut comm = create_test_comm();
 
-    let rmap = rt.core().resource_map_mut();
     let t1 = TaskId::new(100.into(), 501.into());
     let t2 = TaskId::new(100.into(), 502.into());
-    let task1 = TaskBuilder::new().build(t1, rmap);
-    let task2 = TaskBuilder::new().task_deps(&[t1]).build(t2, rmap);
+    let task1 = TaskBuilder::new().build(t1, rt.core());
+    let task2 = TaskBuilder::new().task_deps(&[t1]).build(t2, rt.core());
 
     on_new_tasks(rt.core(), &mut comm, vec![task1, task2]);
 
@@ -209,12 +208,12 @@ fn test_submit_jobs() {
     let t4 = TaskId::new(100.into(), 503.into());
     let t5 = TaskId::new(100.into(), 603.into());
     let t6 = TaskId::new(100.into(), 601.into());
-    let task3 = TaskBuilder::new().build(t3, rmap);
-    let task4 = TaskBuilder::new().task_deps(&[t1, t3]).build(t4, rmap);
-    let task5 = TaskBuilder::new().task_deps(&[t3]).build(t5, rmap);
+    let task3 = TaskBuilder::new().build(t3, rt.core());
+    let task4 = TaskBuilder::new().task_deps(&[t1, t3]).build(t4, rt.core());
+    let task5 = TaskBuilder::new().task_deps(&[t3]).build(t5, rt.core());
     let task6 = TaskBuilder::new()
         .task_deps(&[t3, t4, t5, t2])
-        .build(t6, rmap);
+        .build(t6, rt.core());
 
     on_new_tasks(rt.core(), &mut comm, vec![task3, task4, task5, task6]);
 
@@ -810,15 +809,6 @@ fn test_running_before_steal_response() {
     assert!(!worker_has_task(rt.core(), ws[2], t1));
 }
 
-#[test]
-fn test_ready_to_assign_is_empty_after_cancel() {
-    let mut rt = TestEnv::new();
-    let t1 = rt.new_task_default();
-    cancel_tasks(rt.core(), &[t1]);
-    assert!(rt.core().take_single_node_ready_to_assign().is_empty());
-}
-
-#[test]
 fn test_after_cancel_messages() {
     let mut rt = TestEnv::new();
     let ws = rt.new_workers_cpus(&[1, 1, 1]);
@@ -898,7 +888,6 @@ fn lost_worker_with_running_and_assign_tasks() {
 
     assert_eq!(comm.client.take_lost_workers(), vec![(ws[1], vec![wf[1]])]);
 
-    assert_eq!(rt.core().take_single_node_ready_to_assign().len(), 3);
     rt.core().assert_ready(&[wf[0], wf[1]]);
     assert_eq!(rt.task(wf[1]).instance_id, 1.into());
     assert!(rt.task(t1).is_ready());
@@ -926,7 +915,6 @@ fn lost_worker_with_running_and_assign_tasks() {
         },
     );
 
-    assert_eq!(rt.core().take_single_node_ready_to_assign().len(), 1);
     rt.core().assert_ready(&[t2]);
     rt.core().assert_fresh(&[t2]);
 
@@ -999,8 +987,8 @@ fn check_task_consumers_exact(task: &Task, consumers: &[&Task]) {
 #[test]
 fn test_task_deps() {
     let mut rt = TestEnv::new();
+
     let wf = submit_example_3(&mut rt);
-    assert_eq!(rt.core().get_ready_to_assign().len(), 2);
     let w1 = rt.new_worker_cpus(1);
     start_and_finish_on_worker(rt.core(), wf[1], w1);
     rt.core().assert_waiting(&[wf[2], wf[3], wf[5]]);

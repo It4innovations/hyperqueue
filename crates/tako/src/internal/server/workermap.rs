@@ -24,6 +24,11 @@ impl WorkerMap {
     pub fn get_workers_mut(&mut self) -> impl Iterator<Item = &mut Worker> {
         self.workers.values_mut()
     }
+
+    #[inline]
+    pub fn get_workers(&self) -> impl Iterator<Item = &Worker> {
+        self.workers.values()
+    }
 }
 
 impl Deref for WorkerMap {

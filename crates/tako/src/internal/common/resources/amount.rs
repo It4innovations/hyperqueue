@@ -79,9 +79,18 @@ impl ResourceAmount {
         self.0 as f32 / FRACTIONS_PER_UNIT as f32
     }
 
+    pub fn as_f64(&self) -> f64 {
+        self.0 as f64 / FRACTIONS_PER_UNIT as f64
+    }
+
     #[inline]
     pub fn saturating_sub(&self, rhs: ResourceAmount) -> ResourceAmount {
         ResourceAmount(self.0.saturating_sub(rhs.0))
+    }
+
+    #[inline]
+    pub fn div(&self, rhs: ResourceAmount) -> u64 {
+        self.0 / rhs.0
     }
 }
 
