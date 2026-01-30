@@ -90,11 +90,7 @@ impl TaskBuilder {
         self
     }
 
-    pub fn build<T: Into<TaskId>>(
-        &self,
-        task_id: T,
-        resource_map: &mut GlobalResourceMapping,
-    ) -> Task {
+    pub fn build(&self, task_id: TaskId, resource_map: &mut GlobalResourceMapping) -> Task {
         let last_resource = self.resources_builder.clone().finish();
         let mut resources: SmallVec<[ResourceRequest; 1]> =
             self.finished_resources.iter().cloned().collect();
@@ -121,9 +117,9 @@ impl TaskBuilder {
     }
 }
 
-pub fn task_running_msg<T: Into<TaskId>>(task_id: T) -> TaskRunningMsg {
+pub fn task_running_msg(task_id: TaskId) -> TaskRunningMsg {
     TaskRunningMsg {
-        id: task_id.into(),
+        id: task_id,
         rv_id: ResourceVariantId::new(0),
         context: Default::default(),
     }

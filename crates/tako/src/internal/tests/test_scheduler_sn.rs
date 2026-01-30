@@ -26,10 +26,7 @@ fn task_count(msg: &ToWorkerMessage) -> usize {
 fn test_no_deps_scattering_1() {
     let mut rt = TestEnv::new();
     rt.new_workers_cpus(&[5, 5, 5]);
-
-    (1..=4).for_each(|id| {
-        rt.new_task_default(id);
-    });
+    rt.new_tasks(4, &TaskBuilder::new());
 
     let mut scheduler = create_test_scheduler();
     let mut comm = create_test_comm();
@@ -56,8 +53,8 @@ fn test_no_deps_scattering_2() {
 
     let mut scheduler = create_test_scheduler();
     let mut comm = create_test_comm();
-    let mut submit_and_check = |id, expected| {
-        let _t = rt.new_task_default(id);
+    let mut submit_and_check = |expected| {
+        let _t = rt.new_task_default();
         scheduler.run_scheduling_without_balancing(rt.core(), &mut comm);
         let mut counts: Vec<_> = rt
             .core()
@@ -69,32 +66,29 @@ fn test_no_deps_scattering_2() {
     };
 
     for i in 1..=5 {
-        submit_and_check(i, vec![0, 0, i as usize])
+        submit_and_check(vec![0, 0, i as usize])
     }
 
     for i in 1..=5 {
-        submit_and_check(i + 100, vec![0, i as usize, 5]);
+        submit_and_check(vec![0, i as usize, 5]);
     }
 
     for i in 1..=5 {
-        submit_and_check(i + 200, vec![i as usize, 5, 5]);
+        submit_and_check(vec![i as usize, 5, 5]);
     }
 
-    submit_and_check(300, vec![5, 5, 6]);
-    submit_and_check(301, vec![5, 6, 6]);
-    submit_and_check(302, vec![6, 6, 6]);
-    submit_and_check(303, vec![6, 6, 7]);
-    submit_and_check(304, vec![6, 7, 7]);
+    submit_and_check(vec![5, 5, 6]);
+    submit_and_check(vec![5, 6, 6]);
+    submit_and_check(vec![6, 6, 6]);
+    submit_and_check(vec![6, 6, 7]);
+    submit_and_check(vec![6, 7, 7]);
 }
 
 #[test]
 fn test_no_deps_distribute_without_balance() {
     let mut rt = TestEnv::new();
     rt.new_workers_cpus(&[10, 10, 10]);
-
-    (1..=150).for_each(|id| {
-        rt.new_task_default(id);
-    });
+    rt.new_tasks(150, &TaskBuilder::new());
 
     let mut scheduler = create_test_scheduler();
     let mut comm = create_test_comm();
@@ -122,7 +116,7 @@ fn test_no_deps_distribute_with_balance() {
         assert!(w.is_underloaded());
     }
 
-    let mut active_ids: Set<TaskId> = (1..301).map(|id| rt.new_task_default(id)).collect();
+    let mut active_ids: Set<TaskId> = (1..=300).map(|_| rt.new_task_default()).collect();
 
     let mut scheduler = create_test_scheduler();
     let mut comm = create_test_comm();
@@ -220,18 +214,17 @@ fn test_resource_balancing1() {
     let mut rt = TestEnv::new();
     rt.new_workers_cpus(&[4, 6]);
 
-    // 10 - 3, 11 - 4, 12 - 2
-    rt.new_assigned_tasks_cpus(&[&[3, 4, 2]]);
+    let ts = &rt.new_assigned_tasks_cpus(&[&[3, 4, 2]])[0];
     rt.balance();
-    rt.check_worker_tasks(100, &[10]);
-    rt.check_worker_tasks(101, &[11, 12]);
+    rt.check_worker_tasks(100, &[ts[1]]);
+    rt.check_worker_tasks(101, &[ts[0], ts[2]]);
 
     let mut rt = TestEnv::new();
     rt.new_workers_cpus(&[6, 3]);
-    rt.new_assigned_tasks_cpus(&[&[3, 4, 2]]);
+    let ts = &rt.new_assigned_tasks_cpus(&[&[3, 4, 2]])[0];
     rt.balance();
-    rt.check_worker_tasks(100, &[11, 12]);
-    rt.check_worker_tasks(101, &[10]);
+    rt.check_worker_tasks(100, &[ts[1], ts[2]]);
+    rt.check_worker_tasks(101, &[ts[0]]);
 }
 
 #[test]
@@ -320,18 +313,18 @@ fn test_resource_balancing7() {
 
     rt.new_workers_cpus(&[12, 12, 12]);
 
-    rt.new_task_running(10, &TaskBuilder::new().cpus(2), 100);
-    rt.new_task_running(11, &TaskBuilder::new().cpus(2), 100);
-    rt.new_task_running(12, &TaskBuilder::new().cpus(4), 100);
+    rt.new_task_running(&TaskBuilder::new().cpus(2), 100);
+    rt.new_task_running(&TaskBuilder::new().cpus(2), 100);
+    rt.new_task_running(&TaskBuilder::new().cpus(4), 100);
 
-    rt.new_task_running(20, &TaskBuilder::new().cpus(4), 101);
-    rt.new_task_assigned(21, &TaskBuilder::new().cpus(4), 101); // <- only assigned
-    rt.new_task_running(22, &TaskBuilder::new().cpus(4), 101);
-    rt.new_task_running(23, &TaskBuilder::new().cpus(4), 101);
+    rt.new_task_running(&TaskBuilder::new().cpus(4), 101);
+    rt.new_task_assigned(&TaskBuilder::new().cpus(4), 101); // <- only assigned
+    rt.new_task_running(&TaskBuilder::new().cpus(4), 101);
+    rt.new_task_running(&TaskBuilder::new().cpus(4), 101);
 
-    rt.new_task_running(30, &TaskBuilder::new().cpus(4), 102);
-    rt.new_task_running(31, &TaskBuilder::new().cpus(4), 102);
-    rt.new_task_running(33, &TaskBuilder::new().cpus(4), 102);
+    rt.new_task_running(&TaskBuilder::new().cpus(4), 102);
+    rt.new_task_running(&TaskBuilder::new().cpus(4), 102);
+    rt.new_task_running(&TaskBuilder::new().cpus(4), 102);
 
     rt.schedule();
     rt.check_worker_load_lower_bounds(&[u(12), u(12), u(12)]);
@@ -401,12 +394,10 @@ fn test_resources_no_workers2() {
         let unschedulable_index = task_cpu_counts
             .iter()
             .position(|&count| count > 10)
-            .unwrap() as u32
-            + rt.task_id_counter;
+            .unwrap();
 
         rt.new_workers_cpus(&[8, 8, 8]);
-
-        rt.new_tasks_cpus(task_cpu_counts);
+        let task_ids = rt.new_tasks_cpus(task_cpu_counts);
         rt.schedule();
         assert!(rt.worker_load(100).get(0.into()).is_zero());
         assert!(rt.worker_load(101).get(0.into()).is_zero());
@@ -422,7 +413,7 @@ fn test_resources_no_workers2() {
 
         let sn = rt.core().take_sleeping_tasks();
         assert_eq!(sn.len(), 1);
-        assert_eq!(sn[0], TaskId::new_test(unschedulable_index));
+        assert_eq!(sn[0], task_ids[unschedulable_index]);
     }
 
     check(&[9, 10, 11]);
@@ -439,13 +430,13 @@ fn test_resource_time_assign() {
 
     rt.new_worker(&WorkerBuilder::new(1).time_limit(Duration::new(100, 0)));
 
-    rt.new_task(10, &TaskBuilder::new().time_request(170));
-    rt.new_task_default(11);
-    rt.new_task(12, &TaskBuilder::new().time_request(99));
+    let t1 = rt.new_task(&TaskBuilder::new().time_request(170));
+    let t2 = rt.new_task_default();
+    let t3 = rt.new_task(&TaskBuilder::new().time_request(99));
 
     rt.schedule();
     rt.finish_scheduling();
-    rt.check_worker_tasks(100, &[11, 12]);
+    rt.check_worker_tasks(100, &[t2, t3]);
 }
 
 #[test]
@@ -457,19 +448,14 @@ fn test_resource_time_balance1() {
     rt.new_worker(&WorkerBuilder::new(1).time_limit(Duration::new(200, 0)));
     rt.new_worker(&WorkerBuilder::new(1).time_limit(Duration::new(100, 0)));
 
-    rt.new_task(10, &TaskBuilder::new().time_request(170));
-    rt.new_task_default(11);
-    rt.new_task(12, &TaskBuilder::new().time_request(99));
+    let t1 = rt.new_task_assigned(&TaskBuilder::new().time_request(170), 101);
+    let t2 = rt.new_task_assigned(&TaskBuilder::new(), 101);
+    let t3 = rt.new_task_assigned(&TaskBuilder::new().time_request(99), 102);
 
-    rt.test_assign(10, 101);
-    rt.test_assign(11, 101);
-    rt.test_assign(12, 102);
-
-    //rt.schedule();
     rt.balance();
-    rt.check_worker_tasks(100, &[11]);
-    rt.check_worker_tasks(101, &[10]);
-    rt.check_worker_tasks(102, &[12]);
+    rt.check_worker_tasks(100, &[t2]);
+    rt.check_worker_tasks(101, &[t1]);
+    rt.check_worker_tasks(102, &[t3]);
 }
 
 #[test]
@@ -488,12 +474,9 @@ fn test_generic_resource_assign2() {
             .res_sum("Res1", 1_000_000),
     );
 
-    for i in 0..50 {
-        rt.new_task(i, &TaskBuilder::new().add_resource(1, 1));
-    }
-    for i in 50..100 {
-        rt.new_task(i, &TaskBuilder::new().add_resource(2, 2));
-    }
+    rt.new_tasks(50, &TaskBuilder::new().add_resource(1, 1));
+    rt.new_tasks(50, &TaskBuilder::new().add_resource(2, 2));
+
     rt.schedule();
 
     assert_eq!(
@@ -562,11 +545,7 @@ fn test_generic_resource_balance1() {
             .res_sum("Res1", 1_000_000),
     );
 
-    let t = TaskBuilder::new().cpus(1).add_resource(1, 5);
-    rt.new_task(1, &t);
-    rt.new_task(2, &t);
-    rt.new_task(3, &t);
-    rt.new_task(4, &t);
+    rt.new_tasks(4, &TaskBuilder::new().cpus(1).add_resource(1, 5));
     rt.schedule();
 
     assert_eq!(
@@ -607,17 +586,15 @@ fn test_generic_resource_balance2() {
             .res_sum("Res1", 1_000_000),
     );
 
-    rt.new_task(1, &TaskBuilder::new().cpus(1).add_resource(1, 5));
+    rt.new_task(&TaskBuilder::new().cpus(1).add_resource(1, 5));
     rt.new_task(
-        2,
         &TaskBuilder::new()
             .cpus(1)
             .add_resource(1, 5)
             .add_resource(2, 500_000),
     );
-    rt.new_task(3, &TaskBuilder::new().cpus(1).add_resource(1, 5));
+    rt.new_task(&TaskBuilder::new().cpus(1).add_resource(1, 5));
     rt.new_task(
-        4,
         &TaskBuilder::new()
             .cpus(1)
             .add_resource(1, 5)
@@ -657,14 +634,8 @@ fn test_generic_resource_balancing3() {
     // Worker 101
     rt.new_worker(&WorkerBuilder::new(2).res_range("Res0", 1, 1));
 
-    for i in 1..=80 {
-        rt.new_task_default(i);
-    }
-
-    let t = TaskBuilder::new().cpus(1).add_resource(1, 1);
-    for i in 81..=100 {
-        rt.new_task(i, &t);
-    }
+    rt.new_tasks(80, &TaskBuilder::new());
+    rt.new_tasks(20, &TaskBuilder::new().cpus(1).add_resource(1, 1));
 
     rt.schedule();
 
@@ -698,9 +669,7 @@ fn test_generic_resource_variants1() {
         .next_resources()
         .cpus(1)
         .add_resource(1, 1);
-    for i in 1..=4 {
-        rt.new_task(i, &task);
-    }
+    rt.new_tasks(4, &task);
     rt.schedule();
 
     assert_eq!(
@@ -733,9 +702,7 @@ fn test_generic_resource_variants2() {
         .next_resources()
         .cpus(2)
         .add_resource(1, 1);
-    for i in 1..=4 {
-        rt.new_task(i, &task);
-    }
+    rt.new_tasks(4, &task);
     rt.schedule();
 
     assert_eq!(
@@ -779,11 +746,11 @@ fn test_task_data_deps_initial_placing() {
 
     for (worker1, worker2, size1, size2a, size2b, target_worker) in &test_data2 {
         let mut rt = TestEnv::new();
-        submit_example_4(&mut rt);
+        let wf = submit_example_4(&mut rt);
         rt.new_workers_cpus(&[1, 1, 1]);
         start_and_finish_on_worker_with_data(
             rt.core(),
-            1,
+            wf[0],
             *worker1,
             vec![TaskOutput {
                 id: 0.into(),
@@ -792,7 +759,7 @@ fn test_task_data_deps_initial_placing() {
         );
         start_and_finish_on_worker_with_data(
             rt.core(),
-            2,
+            wf[1],
             *worker2,
             vec![
                 TaskOutput {
@@ -805,12 +772,12 @@ fn test_task_data_deps_initial_placing() {
                 },
             ],
         );
-        rt.core().assert_ready(&[3]);
+        rt.core().assert_ready(&[wf[2]]);
         let mut comm = create_test_comm();
         let mut scheduler = create_test_scheduler();
         scheduler.run_scheduling(rt.core(), &mut comm);
         assert_eq!(
-            rt.task(3).get_assigned_worker(),
+            rt.task(wf[2]).get_assigned_worker(),
             Some((*target_worker).into())
         );
         rt.sanity_check();
@@ -823,29 +790,22 @@ fn test_task_data_deps_balancing() {
     for odd in [0u32, 1u32] {
         for late_worker in [true, false] {
             let mut rt = TestEnv::new();
-            let t1 = rt.new_task_default(1);
-            let t2 = rt.new_task_default(2);
-            let mut ts: Vec<_> = (10u32..110u32)
-                .map(|i| {
-                    rt.new_task(
-                        i,
-                        &TaskBuilder::new().data_dep(t1, i - 10).data_dep(t2, i - 10),
-                    )
-                })
+            let t1 = rt.new_task_default();
+            let t2 = rt.new_task_default();
+            let ts: Vec<_> = (0..100u32)
+                .map(|i| rt.new_task(&TaskBuilder::new().data_dep(t1, i).data_dep(t2, i)))
                 .collect();
-            ts.insert(0, t1);
-            ts.insert(0, t2);
             if late_worker {
                 rt.new_workers_cpus(&[1]);
             } else {
                 rt.new_workers_cpus(&[1, 1]);
             }
-            let mut set_data = |task_id: u32, worker_id: u32| {
+            let mut set_data = |task_id: TaskId, worker_id: u32| {
                 start_and_finish_on_worker_with_data(
                     rt.core(),
                     task_id,
                     worker_id,
-                    (0u32..100u32)
+                    (0..100u32)
                         .map(|i| TaskOutput {
                             id: i.into(),
                             size: if (i % 2) == odd { 100 } else { 5_000 },
@@ -853,13 +813,12 @@ fn test_task_data_deps_balancing() {
                         .collect(),
                 )
             };
-            set_data(1, 100);
-            set_data(2, 100);
+            set_data(t1, 100);
+            set_data(t2, 100);
 
-            let ids: Vec<_> = (10..110).collect();
-            rt.core().assert_ready(&ids);
+            rt.core().assert_ready(&ts);
             if late_worker {
-                rt.new_worker_with_id(101, &WorkerBuilder::new(1));
+                rt.new_worker_cpus(1);
             }
             let mut comm = create_test_comm();
             let mut scheduler = create_test_scheduler();
@@ -870,13 +829,14 @@ fn test_task_data_deps_balancing() {
                 .sn_tasks()
                 .iter()
                 .map(|task_id| {
-                    if task_id.job_task_id().as_num() % 2 == odd {
+                    if (task_id.job_task_id().as_num() + 1) % 2 == odd {
                         1
                     } else {
                         0
                     }
                 })
                 .sum::<u32>();
+            dbg!(n1_count);
             assert!(n1_count > 40);
         }
     }
@@ -888,27 +848,17 @@ fn test_resource_priority_balancing() {
     //                    0  1  2  3  4  5  6  7  8  9  10
     rt.new_workers_cpus(&[4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 8]);
 
-    let job_id = JobId::new(7);
+    rt.set_job(7, 100);
     for i in 0..=9 {
-        rt.new_task_running(
-            TaskId::new(job_id, (100 * i).into()),
-            &TaskBuilder::new().cpus(4),
-            100 + i,
-        );
-        for j in 1..(4 + i) {
-            rt.new_task_assigned(
-                TaskId::new(job_id, (100 * i + j).into()),
-                &TaskBuilder::new().cpus(4),
-                100 + i,
-            );
+        rt.new_task_running(&TaskBuilder::new().cpus(4), 100 + i);
+        for _j in 1..(4 + i) {
+            rt.new_task_assigned(&TaskBuilder::new().cpus(4), 100 + i);
         }
     }
-    for i in 1..=3 {
-        rt.new_task_assigned(
-            TaskId::new(JobId::new(1), i.into()),
-            &TaskBuilder::new().cpus(4),
-            100,
-        );
+
+    rt.set_job(1, 1);
+    for _ in 1..=3 {
+        rt.new_task_assigned(&TaskBuilder::new().cpus(4), 100);
     }
 
     rt.balance();

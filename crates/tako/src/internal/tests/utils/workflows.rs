@@ -1,59 +1,62 @@
+use crate::TaskId;
 use crate::internal::tests::utils::task::TaskBuilder;
 use crate::tests::utils::env::TestEnv;
 
-pub fn submit_example_1(rt: &mut TestEnv) {
+pub fn submit_example_1(rt: &mut TestEnv) -> Vec<TaskId> {
     /*
-       11  12
+        0   1
         \  / \
-         13  14
+         2   3
          /\  /
-        16 15
+        5   4
         |
-        17
+        6
     */
-    let t1 = rt.new_task_default(11);
-    let t2 = rt.new_task_default(12);
-    let t3 = rt.new_task(13, &TaskBuilder::new().task_deps(&[t1, t2]));
-    let t4 = rt.new_task(14, &TaskBuilder::new().task_deps(&[t2]));
-    let _t5 = rt.new_task(15, &TaskBuilder::new().task_deps(&[t3, t4]));
-    let t6 = rt.new_task(16, &TaskBuilder::new().task_deps(&[t3]));
-    let _t7 = rt.new_task(17, &TaskBuilder::new().task_deps(&[t6]));
+    let t0 = rt.new_task_default();
+    let t1 = rt.new_task_default();
+    let t2 = rt.new_task(&TaskBuilder::new().task_deps(&[t0, t1]));
+    let t3 = rt.new_task(&TaskBuilder::new().task_deps(&[t1]));
+    let t4 = rt.new_task(&TaskBuilder::new().task_deps(&[t2, t3]));
+    let t5 = rt.new_task(&TaskBuilder::new().task_deps(&[t2]));
+    let t6 = rt.new_task(&TaskBuilder::new().task_deps(&[t5]));
+    [t0, t1, t2, t3, t4, t5, t6].to_vec()
 }
 
-pub fn submit_example_3(rt: &mut TestEnv) {
+pub fn submit_example_3(rt: &mut TestEnv) -> Vec<TaskId> {
     /* Task deps
-         T1   T2
+         T0   T1
         / |\ /  \
-       T3 | T4  T5
+       T2 | T3  T4
          \|    /
           \   /
-           T6
+           T5
     */
 
-    let t1 = rt.new_task_default(1);
-    let t2 = rt.new_task_default(2);
-    let t3 = rt.new_task(3, &TaskBuilder::new().task_deps(&[t1]));
-    let _t4 = rt.new_task(4, &TaskBuilder::new().task_deps(&[t1, t2]));
-    let t5 = rt.new_task(5, &TaskBuilder::new().task_deps(&[t2]));
-    let _t6 = rt.new_task(6, &TaskBuilder::new().task_deps(&[t1, t5, t3]));
+    let t0 = rt.new_task_default();
+    let t1 = rt.new_task_default();
+    let t2 = rt.new_task(&TaskBuilder::new().task_deps(&[t0]));
+    let t3 = rt.new_task(&TaskBuilder::new().task_deps(&[t0, t1]));
+    let t4 = rt.new_task(&TaskBuilder::new().task_deps(&[t1]));
+    let t5 = rt.new_task(&TaskBuilder::new().task_deps(&[t0, t2, t4]));
+    [t0, t1, t2, t3, t4, t5].to_vec()
 }
 
-pub fn submit_example_4(rt: &mut TestEnv) {
+pub fn submit_example_4(rt: &mut TestEnv) -> Vec<TaskId> {
     /* Task DATA deps
-       T1  T2
+       T0  T1
         |  |\
         0  0 1
         \ / /
-         T3
+         T2
     */
 
-    let t1 = rt.new_task_default(1);
-    let t2 = rt.new_task_default(2);
-    let _t3 = rt.new_task(
-        3,
+    let t1 = rt.new_task_default();
+    let t2 = rt.new_task_default();
+    let t3 = rt.new_task(
         &TaskBuilder::new()
             .data_dep(t1, 0)
             .data_dep(t2, 0)
             .data_dep(t2, 1),
     );
+    [t1, t2, t3].to_vec()
 }
