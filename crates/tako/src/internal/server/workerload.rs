@@ -6,7 +6,9 @@ use crate::internal::common::resources::{
     ResourceVec,
 };
 use crate::internal::messages::worker::WorkerResourceCounts;
+use crate::resources::ResourceRqId;
 use crate::{Map, ResourceVariantId, Set, TaskId};
+use futures::TryFutureExt;
 use serde_json::json;
 use std::ops::Deref;
 
@@ -29,6 +31,10 @@ impl WorkerResources {
             .get(resource_id)
             .copied()
             .unwrap_or(ResourceAmount::ZERO)
+    }
+
+    pub(crate) fn iter(&self) -> impl Iterator<Item = ResourceAmount> {
+        self.n_resources.iter().copied()
     }
 
     pub(crate) fn get_or_none(&self, resource_id: ResourceId) -> Option<ResourceAmount> {
@@ -144,6 +150,33 @@ impl WorkerResources {
             "n_resources": self.n_resources.iter().map(|x| x.total_fractions()).collect::<Vec<_>>(),
         })
     }
+    fn task_max_count_for_request(&self, request: &ResourceRequest) -> u32 {
+        request
+            .entries()
+            .iter()
+            .map(|e| {
+                if let Some(requested) = e.request.amount_or_none_if_all() {
+                    self.n_resources
+                        .get(e.resource_id)
+                        .copied()
+                        .unwrap_or(ResourceAmount::ZERO)
+                        .div(requested) as u32
+                } else {
+                    1
+                }
+            })
+            .min()
+            .unwrap_or(0)
+    }
+
+    pub fn task_max_count(&self, rqv: &ResourceRequestVariants) -> u32 {
+        // TODO: More precise computation when we have more than 1 variant
+        // TODO: Cache this value in Worker
+        rqv.requests()
+            .iter()
+            .map(|r| self.task_max_count_for_request(r))
+            .sum::<u32>()
+    }
 }
 
 // This represents a current worker load from server perspective
@@ -196,17 +229,14 @@ impl WorkerLoad {
             return;
         }
         if let Some(rv_id) = rv_id {
-            let idx = rv_id.as_usize();
-            self._add(&rqv.requests()[idx], wr);
-            if idx != 0 {
+            self._add(&rqv.get(rv_id), wr);
+            if !rv_id.is_first() {
                 self.non_first_rq.insert(task_id, rv_id);
             }
             return;
         }
-        let idx: usize = rqv
-            .requests()
-            .iter()
-            .enumerate()
+        let variant = rqv
+            .requests_with_ids()
             .find_map(|(i, rq)| {
                 if self.have_immediate_resources_for_rq(rq, wr) {
                     Some(i)
@@ -215,14 +245,14 @@ impl WorkerLoad {
                 }
             })
             .unwrap_or_else(|| {
-                let v = self.round_robin_counter.wrapping_add(1);
+                todo!()
+                /*let v = self.round_robin_counter.wrapping_add(1);
                 self.round_robin_counter = v;
-                v % rqv.requests().len()
+                ResourceRqId::new((v % rqv.requests().len()) as u8)*/
             });
-        self._add(&rqv.requests()[idx], wr);
-        if idx != 0 {
-            self.non_first_rq
-                .insert(task_id, ResourceVariantId::new(idx as u8));
+        self._add(&rqv.get(variant), wr);
+        if !variant.is_first() {
+            self.non_first_rq.insert(task_id, variant);
         }
     }
 
