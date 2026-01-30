@@ -12,11 +12,11 @@ pub fn submit_test_tasks(core: &mut Core, tasks: Vec<Task>) {
     on_new_tasks(core, &mut TestComm::default(), tasks);
 }
 
-pub(crate) fn force_assign<W: Into<WorkerId>>(
+pub(crate) fn force_assign(
     core: &mut Core,
     scheduler: &mut SchedulerState,
     task_id: TaskId,
-    worker_id: W,
+    worker_id: WorkerId,
 ) {
     core.remove_from_ready_to_assign(task_id);
     scheduler.assign(core, task_id, worker_id.into());
@@ -46,19 +46,19 @@ pub(crate) fn start_mn_task_on_worker(core: &mut Core, task_id: TaskId, worker_i
     scheduler.finish_scheduling(core, &mut comm);
 }
 
-pub fn set_as_running<W: Into<WorkerId>>(core: &mut Core, task_id: TaskId, worker_id: W) {
+pub fn set_as_running(core: &mut Core, task_id: TaskId, worker_id: WorkerId) {
     let mut comm = TestComm::default();
-    on_task_running(core, &mut comm, worker_id.into(), task_running_msg(task_id));
+    on_task_running(core, &mut comm, worker_id, task_running_msg(task_id));
 }
 
-pub fn assign_to_worker<W: Into<WorkerId>>(core: &mut Core, task_id: TaskId, worker_id: W) {
+pub fn assign_to_worker(core: &mut Core, task_id: TaskId, worker_id: WorkerId) {
     let mut scheduler = create_test_scheduler();
     let mut comm = TestComm::default();
-    force_assign(core, &mut scheduler, task_id, worker_id.into());
+    force_assign(core, &mut scheduler, task_id, worker_id);
     scheduler.finish_scheduling(core, &mut comm);
 }
 
-pub fn start_on_worker_running<W: Into<WorkerId>>(core: &mut Core, task_id: TaskId, worker_id: W) {
+pub fn start_on_worker_running(core: &mut Core, task_id: TaskId, worker_id: WorkerId) {
     let worker_id = worker_id.into();
 
     let mut scheduler = create_test_scheduler();
@@ -68,14 +68,14 @@ pub fn start_on_worker_running<W: Into<WorkerId>>(core: &mut Core, task_id: Task
     on_task_running(core, &mut comm, worker_id, task_running_msg(task_id));
 }
 
-pub fn finish_on_worker<W: Into<WorkerId>>(core: &mut Core, task_id: TaskId, worker_id: W) {
+pub fn finish_on_worker(core: &mut Core, task_id: TaskId, worker_id: WorkerId) {
     finish_on_worker_with_data(core, task_id, worker_id, Vec::new());
 }
 
-pub fn finish_on_worker_with_data<W: Into<WorkerId>>(
+pub fn finish_on_worker_with_data(
     core: &mut Core,
     task_id: TaskId,
-    worker_id: W,
+    worker_id: WorkerId,
     outputs: Vec<TaskOutput>,
 ) {
     let mut comm = TestComm::default();
@@ -90,18 +90,14 @@ pub fn finish_on_worker_with_data<W: Into<WorkerId>>(
     );
 }
 
-pub fn start_and_finish_on_worker<W: Into<WorkerId>>(
-    core: &mut Core,
-    task_id: TaskId,
-    worker_id: W,
-) {
+pub fn start_and_finish_on_worker(core: &mut Core, task_id: TaskId, worker_id: WorkerId) {
     start_and_finish_on_worker_with_data(core, task_id, worker_id, Vec::new());
 }
 
-pub fn start_and_finish_on_worker_with_data<W: Into<WorkerId>>(
+pub fn start_and_finish_on_worker_with_data(
     core: &mut Core,
     task_id: TaskId,
-    worker_id: W,
+    worker_id: WorkerId,
     outputs: Vec<TaskOutput>,
 ) {
     let task_id = task_id.into();

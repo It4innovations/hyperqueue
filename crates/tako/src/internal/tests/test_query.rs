@@ -1,4 +1,3 @@
-use crate::TaskId;
 use crate::control::WorkerTypeQuery;
 use crate::internal::scheduler::query::compute_new_worker_query;
 use crate::internal::server::core::Core;
@@ -92,10 +91,10 @@ fn test_query_no_enough_workers1() {
 fn test_query_enough_workers2() {
     let mut rt = TestEnv::new();
 
-    rt.new_workers_cpus(&[2]);
+    let w1 = rt.new_worker_cpus(2);
 
-    rt.new_task_running(&TaskBuilder::new(), 100);
-    rt.new_task_assigned(&TaskBuilder::new(), 100);
+    rt.new_task_running(&TaskBuilder::new(), w1);
+    rt.new_task_assigned(&TaskBuilder::new(), w1);
     rt.schedule();
 
     let r = compute_new_worker_query(
@@ -736,7 +735,7 @@ fn test_query_unknown_do_not_add_extra() {
 fn test_query_after_task_cancel() {
     let mut rt = TestEnv::new();
     let t1 = rt.new_task_cpus(10);
-    rt.new_worker_with_id(102, &WorkerBuilder::new(1));
+    rt.new_worker(&WorkerBuilder::new(1));
     rt.schedule();
     let mut comm = create_test_comm();
     on_cancel_tasks(rt.core(), &mut comm, &[t1]);
