@@ -269,12 +269,7 @@ fn test_assignments_and_finish() {
     force_assign(rt.core(), &mut scheduler, t2, ws[1]);
     force_assign(rt.core(), &mut scheduler, t5, ws[0]);
 
-    rt.core().assert_fresh(&[t1, t3]);
-
     scheduler.finish_scheduling(rt.core(), &mut comm);
-
-    rt.core().assert_not_fresh(&[t1]);
-    rt.core().assert_fresh(&[t3]);
 
     check_worker_tasks_exact(rt.core(), ws[0], &[t1, t5]);
     check_worker_tasks_exact(rt.core(), ws[1], &[t2]);
@@ -665,7 +660,7 @@ fn test_task_mn_fail() {
         assert!(
             rt.core()
                 .get_worker_by_id_or_panic((*w).into())
-                .mn_task()
+                .mn_assignment()
                 .is_none()
         );
     }
@@ -693,7 +688,7 @@ fn test_task_mn_cancel() {
 
     assert!(!rt.task_exists(t1));
     for w in rt.core().get_workers() {
-        assert!(w.mn_task.is_none());
+        assert!(w.mn_assignment().is_none());
     }
 }
 
@@ -880,9 +875,6 @@ fn lost_worker_with_running_and_assign_tasks() {
     rt.core().assert_running(&[wf[1]]);
     assert_eq!(rt.task(wf[1]).instance_id, 0.into());
 
-    rt.core()
-        .assert_task_condition(&[wf[0], wf[1], t1, t2], |t| !t.is_fresh());
-
     let mut comm = create_test_comm();
     on_remove_worker(rt.core(), &mut comm, ws[1], LostWorkerReason::HeartbeatLost);
 
@@ -892,7 +884,6 @@ fn lost_worker_with_running_and_assign_tasks() {
     assert_eq!(rt.task(wf[1]).instance_id, 1.into());
     assert!(rt.task(t1).is_ready());
     rt.core().assert_ready(&[t1]);
-    rt.core().assert_fresh(&[wf[0], wf[1], t1]);
     assert!(matches!(
         rt.task(t2).state,
         TaskRuntimeState::Stealing(w, None) if w == ws[0]
@@ -916,7 +907,6 @@ fn lost_worker_with_running_and_assign_tasks() {
     );
 
     rt.core().assert_ready(&[t2]);
-    rt.core().assert_fresh(&[t2]);
 
     comm.check_need_scheduling();
     comm.emptiness_check();
@@ -962,17 +952,21 @@ fn cancel_tasks<T: Into<TaskId> + Copy>(core: &mut Core, task_ids: &[T]) {
 }
 
 fn check_worker_tasks_exact(core: &Core, worker_id: WorkerId, tasks: &[TaskId]) {
-    let worker = core.get_worker_by_id_or_panic(worker_id.into());
+    todo!()
+    /*let worker = core.get_worker_by_id_or_panic(worker_id.into());
     assert_eq!(worker.sn_tasks().len(), tasks.len());
     for task in tasks {
         assert!(worker.sn_tasks().contains(task));
-    }
+    }*/
 }
 
 fn worker_has_task(core: &Core, worker_id: WorkerId, task_id: TaskId) -> bool {
+    todo!()
+    /*
     core.get_worker_by_id_or_panic(worker_id.into())
         .sn_tasks()
         .contains(&task_id)
+     */
 }
 
 fn check_task_consumers_exact(task: &Task, consumers: &[&Task]) {

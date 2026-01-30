@@ -1,18 +1,9 @@
-use crate::internal::common::resources::ResourceVec;
-use crate::internal::scheduler2::{
-    PriorityCut, TaskBatch, TaskQueue, WorkerTaskMapping, create_task_batches,
-};
-use crate::internal::server::core::Core;
-use crate::internal::server::task::Task;
-use crate::internal::server::taskmap::TaskMap;
-use crate::internal::server::worker::Worker;
-use crate::resources::{ResourceAmount, ResourceRqId, ResourceRqMap};
-use crate::tests::utils::env::{TestEnv, create_test_comm};
-use crate::tests::utils::schedule::{create_test_scheduler, submit_test_tasks};
-use crate::tests::utils::sorted_vec;
+use crate::internal::scheduler2::{PriorityCut, create_task_batches};
+use crate::internal::tests::utils::scheduler::TestCase;
+use crate::resources::ResourceRqId;
+use crate::tests::utils::env::TestEnv;
 use crate::tests::utils::task::TaskBuilder;
-use crate::{Priority, ResourceVariantId, TaskGroup, TaskId, WorkerId};
-use std::collections::BTreeMap;
+use crate::tests::utils::worker::WorkerBuilder;
 
 #[test]
 fn test_task_grouping_basic() {
@@ -118,369 +109,405 @@ fn test_task_group_saturation() {
 }
 
 #[test]
+fn test_task_batching2() {
+    let mut rt = TestEnv::new();
+    let ws = rt.new_workers_cpus(&[3, 3, 3]);
+    rt.new_task_running(&TaskBuilder::new().cpus(1), ws[0]);
+    rt.new_task_running(&TaskBuilder::new().cpus(2), ws[1]);
+    rt.new_task_running(&TaskBuilder::new().cpus(3), ws[2]);
+
+    rt.new_task(&TaskBuilder::new().cpus(2));
+    rt.new_task(&TaskBuilder::new().cpus(1));
+    rt.new_task(&TaskBuilder::new().cpus(3));
+    let now = std::time::Instant::now();
+    let a = create_task_batches(rt.core(), now);
+    dbg!(&a);
+    assert_eq!(a.len(), 2);
+    assert!(a[0].cuts.is_empty());
+    assert!(a[1].cuts.is_empty());
+}
+
+#[test]
 fn test_schedule_no_priorities() {
-    for (tasks, expected) in [
-        (vec![2], vec![(100, vec![1])]), // 1x 2cpus -> all to worker 100
-        (vec![2, 2], vec![(100, vec![1, 2])]), // 2x 2cpus -> all to worker 100
-        (vec![2, 2, 2], vec![(100, vec![1, 3]), (101, vec![2])]),
-        (vec![2, 2, 2, 2], vec![(100, vec![1, 3]), (101, vec![2, 4])]),
-        (
-            vec![2, 2, 2, 2, 2],
-            vec![(100, vec![1, 3]), (101, vec![2, 4])],
-        ),
-        (vec![2, 3], vec![(100, vec![2]), (101, vec![1])]),
-        (vec![4], vec![(100, vec![1])]),
-        (vec![4, 4], vec![(100, vec![1]), (101, vec![2])]),
-        (vec![5], vec![]),
-        (vec![], vec![]),
-        (vec![5, 1, 1, 1, 1], vec![(100, vec![2, 3, 4, 5])]),
-        (
-            vec![5, 1, 1, 1, 1, 1],
-            vec![(100, vec![2, 4, 5, 6]), (101, vec![3])],
-        ),
-        (vec![3, 4, 2], vec![(100, vec![2]), (101, vec![1])]),
-    ] {
-        let mut rt = TestEnv::new();
-        rt.new_workers_cpus(&[4, 4]);
-        for (idx, cpus) in tasks.iter().enumerate() {
-            let task_id = TaskId::new_test(idx as u32 + 1);
-            rt.new_task_cpus(task_id, *cpus);
-        }
+    let w3 = WorkerBuilder::new(3);
+    let w4 = WorkerBuilder::new(4);
 
-        let map = rt.schedule_mapping();
-        assert_eq!(map.task_to_workers.len(), expected.len());
-        todo!()
-        /*for (w_id, tasks) in expected {
-            assert_eq!(
-                map.task_to_workers.get(&WorkerId::new(w_id)).unwrap(),
-                &tasks
-                    .iter()
-                    .copied()
-                    .map(TaskId::new_test)
-                    .collect::<Vec<_>>()
-            );
-        }*/
-    }
-}
+    let mut c = TestCase::new();
+    c.w(&w4);
+    c.w(&w3);
+    c.check();
 
-// fn res_counts(
-//     task_map: &TaskMap,
-//     resource_rq_map: &ResourceRqMap,
-//     n_resources: usize,
-//     task_id: &[(TaskId, ResourceVariantId)],
-//     worker: &Worker,
-// ) -> ResourceVec<ResourceAmount> {
-//     let mut result: ResourceVec<_> = vec![ResourceAmount::ZERO; n_resources].into();
-//     for (task_id, variant) in task_id.iter() {
-//         let rq = resource_rq_map
-//             .get(task_map.get_task(*task_id).resource_rq_id)
-//             .get(*variant);
-//         for entry in rq.entries() {
-//             result[entry.resource_id] = result[entry.resource_id]
-//                 + entry
-//                     .request
-//                     .amount(worker.resources.get(entry.resource_id));
-//         }
-//     }
-//     result
-// }
-//
-// fn normalize_mapping(resource_rq_map: &ResourceRqMap, task_map: &TaskMap, map: &WorkerTaskMapping) {
-//     let mut items: Vec<_> = map
-//         .task_to_workers
-//         .iter()
-//         .map(|(w_id, tasks)| (*w_id, tasks.clone()))
-//         .collect();
-//     items.sort_unstable_by_key(|x| x.0);
-//     for (idx, item) in items.iter().enumerate().skip(1) {}
-// }
+    let mut c = TestCase::new();
+    let ts = c.c_tasks(&[3]);
+    c.w(&w3).expect_tasks(&[ts[0]]);
+    c.check();
 
-#[must_use]
-struct TestCase {
-    rt: TestEnv,
-    task_id: u32,
-}
+    let mut c = TestCase::new();
+    let ts = c.c_tasks(&[2]);
+    c.w(&w4).expect_tasks(&[ts[0]]);
+    c.w(&w4);
+    c.check();
 
-impl TestCase {
-    pub fn new(rt: TestEnv) -> Self {
-        TestCase { rt, task_id: 0 }
-    }
+    let mut c = TestCase::new();
+    let ts = c.c_tasks(&[2, 2]);
+    c.w(&w4).expect_tasks(&ts);
+    c.w(&w4);
+    c.check();
 
-    pub fn task(mut self, builder: &TaskBuilder) -> Self {
-        self.task_id += 1;
-        self.rt.new_task(self.task_id, builder);
-        self
-    }
+    let mut c = TestCase::new();
+    let ts = c.c_tasks(&[2, 2, 2]);
+    c.w(&w4).expect_tasks(&[ts[0], ts[2]]);
+    c.w(&w4).expect_tasks(&[ts[1]]);
+    c.check();
 
-    // priority + cpu tasks
-    pub fn pc_tasks(mut self, tasks: &[(i32, u32)]) -> Self {
-        let mut tc = self;
-        for (p, c) in tasks {
-            tc = tc.task(&TaskBuilder::new().cpus(*c).user_priority(*p));
-        }
-        tc
-    }
+    let mut c = TestCase::new();
+    let ts = c.c_tasks(&[2, 2, 2, 2]);
+    c.w(&w4).expect_tasks(&[ts[0], ts[2]]);
+    c.w(&w4).expect_tasks(&[ts[1], ts[3]]);
+    c.check();
 
-    pub fn expect(self, tasks: &[u32]) -> WorkerAssert {
-        WorkerAssert::new(self.rt).expect(tasks)
-    }
+    let mut c = TestCase::new();
+    let ts = c.c_tasks(&[2, 2, 2, 2, 2]);
+    c.w(&w4).expect_tasks(&[ts[0], ts[2]]);
+    c.w(&w4).expect_tasks(&[ts[1], ts[3]]);
+    c.check();
 
-    pub fn check(self) {
-        WorkerAssert::new(self.rt).check();
-    }
-}
+    let mut c = TestCase::new();
+    let ts = c.c_tasks(&[2, 3]);
+    c.w(&w4).expect_tasks(&[ts[1]]);
+    c.w(&w4).expect_tasks(&[ts[0]]);
+    c.check();
 
-#[must_use]
-struct WorkerAssert {
-    mapping: WorkerTaskMapping,
-    worker_id: u32,
-    checked: bool,
-}
+    let mut c = TestCase::new();
+    let ts = c.c_tasks(&[2, 3]);
+    c.w(&w3).expect_tasks(&[ts[1]]);
+    c.w(&w4).expect_tasks(&[ts[0]]);
+    c.check();
 
-impl WorkerAssert {
-    pub fn new(mut rt: TestEnv) -> Self {
-        WorkerAssert {
-            mapping: rt.schedule_mapping(),
-            worker_id: 100,
-            checked: false,
-        }
-    }
+    let mut c = TestCase::new();
+    let ts = c.c_tasks(&[5, 5, 1, 1, 1, 1, 1]);
+    c.w(&w4).expect_tasks(&[ts[2], ts[4], ts[5], ts[6]]);
+    c.w(&w4).expect_tasks(&[ts[3]]);
+    c.check();
 
-    pub fn expect(mut self, tasks: &[u32]) -> Self {
-        let worker_tasks = self
-            .mapping
-            .task_to_workers
-            .remove(&WorkerId::new(self.worker_id))
-            .unwrap_or_else(|| panic!("Mapping for worker {} not found", self.worker_id))
-            .iter()
-            .map(|x| x.0)
-            .collect::<Vec<_>>();
-        let expected_tasks = tasks
-            .iter()
-            .map(|id| TaskId::new_test(*id))
-            .collect::<Vec<_>>();
-        assert_eq!(worker_tasks, expected_tasks);
-        self.worker_id += 1;
-        self
-    }
-
-    pub fn check(mut self) {
-        self.checked = true;
-        if !self.mapping.task_to_workers.is_empty() {
-            panic!(
-                "Unchecked worker mapping: {:?}",
-                self.mapping.task_to_workers
-            )
-        }
-    }
-}
-
-impl Drop for WorkerAssert {
-    fn drop(&mut self) {
-        if !self.checked {
-            panic!("Assert created but not checked",)
-        }
-    }
+    let mut c = TestCase::new();
+    let ts = c.c_tasks(&[3, 4, 2]);
+    c.w(&w4).expect_tasks(&[ts[1]]);
+    c.w(&w4).expect_tasks(&[ts[0]]);
+    c.check();
 }
 
 #[test]
-fn test_schedule_priorities1() {
-    fn setup() -> TestCase {
-        let mut rt = TestEnv::new();
-        rt.new_workers_cpus(&[4, 4]);
-        TestCase::new(rt)
-    }
+fn test_schedule_priorities() {
+    let w4 = WorkerBuilder::new(4);
+    let w10 = WorkerBuilder::new(10);
 
-    setup().pc_tasks(&[(1, 2), (1, 2)]).expect(&[1, 2]).check();
-    setup().pc_tasks(&[(1, 2), (2, 2)]).expect(&[2, 1]).check();
+    let mut c = TestCase::new();
+    let ts = c.pc_tasks(&[(1, 2), (1, 2)]);
+    c.w(&w4).expect_tasks(&[ts[0], ts[1]]);
+    c.w(&w4);
+    c.check();
 
-    setup()
-        .pc_tasks(&[(0, 4), (0, 4), (1, 2), (2, 3)])
-        .expect(&[4])
-        .expect(&[3])
-        .check();
+    let mut c = TestCase::new();
+    let ts = c.pc_tasks(&[(1, 2), (2, 2)]);
+    c.w(&w4).expect_tasks(&[ts[1], ts[0]]);
+    c.w(&w4);
+    c.check();
 
-    setup()
-        .pc_tasks(&[(0, 4), (0, 4), (1, 2), (1, 3)])
-        .expect(&[4])
-        .expect(&[3])
-        .check();
+    let mut c = TestCase::new();
+    let ts = c.pc_tasks(&[(0, 4), (0, 4), (1, 2), (2, 3)]);
+    c.w(&w4).expect_tasks(&[ts[3]]);
+    c.w(&w4).expect_tasks(&[ts[2]]);
+    c.check();
 
-    setup()
-        .pc_tasks(&[(1, 4), (1, 4), (1, 2), (1, 3)])
-        .expect(&[1])
-        .expect(&[2])
-        .check();
+    let mut c = TestCase::new();
+    let ts = c.pc_tasks(&[(0, 4), (0, 4), (1, 2), (1, 3)]);
+    c.w(&w4).expect_tasks(&[ts[3]]);
+    c.w(&w4).expect_tasks(&[ts[2]]);
+    c.check();
 
-    setup()
-        .pc_tasks(&[(0, 2), (4, 2), (3, 1), (2, 3)])
-        .expect(&[3, 4])
-        .expect(&[2, 1])
-        .check();
+    let mut c = TestCase::new();
+    let ts = c.pc_tasks(&[(1, 4), (1, 4), (1, 2), (1, 3)]);
+    c.w(&w4).eq_class(0).expect_tasks(&[ts[0]]);
+    c.w(&w4).eq_class(0).expect_tasks(&[ts[1]]);
+    c.check();
 
-    setup()
-        .pc_tasks(&[(0, 2), (4, 2), (3, 1), (2, 3)])
-        .expect(&[3, 4])
-        .expect(&[2, 1])
-        .check();
+    let mut c = TestCase::new();
+    let ts = c.pc_tasks(&[(0, 2), (4, 2), (3, 1), (2, 3)]);
+    c.w(&w4).eq_class(0).expect_tasks(&[ts[1], ts[0]]);
+    c.w(&w4).eq_class(0).expect_tasks(&[ts[2], ts[3]]);
+    c.check();
 
-    /*
-    //T().w(4)
-    // tasks = [(priority, cpus), ...]
-    // expected = [(worker_id, task_ids), ...]
-    for (tasks, expected) in [
-        (vec![(1, 2), (1, 2)], vec![(100, vec![1, 2])]),
-        (vec![(1, 2), (2, 2)], vec![(100, vec![2, 1])]),
-        (
-            vec![(0, 4), (0, 4), (1, 2), (2, 3)],
-            vec![(100, vec![4]), (101, vec![3])],
-        ),
-        (
-            vec![(0, 4), (0, 4), (1, 2), (1, 3)],
-            vec![(100, vec![4]), (101, vec![3])],
-        ),
-        (
-            vec![(1, 4), (1, 4), (1, 2), (1, 3)],
-            vec![(100, vec![1]), (101, vec![2])],
-        ),
-        (
-            vec![(0, 2), (4, 2), (3, 1), (2, 3)],
-            vec![(100, vec![3, 4]), (101, vec![2, 1])],
-        ),
-        (vec![(1, 5), (0, 4)], vec![(100, vec![2])]),
-        (
-            vec![(1, 3), (1, 3), (1, 3), (2, 4), (0, 1)],
-            vec![(100, vec![])],
-        ),
-    ] {
-        let mut rt = TestEnv::new();
-        rt.new_workers_cpus(&[4, 4]);
-        for (idx, (p, cpus)) in tasks.iter().enumerate() {
-            let task_id = TaskId::new_test(idx as u32 + 1);
-            rt.new_task(task_id, &TaskBuilder::new().cpus(*cpus).user_priority(*p));
-        }
+    let mut c = TestCase::new();
+    let ts = c.pc_tasks(&[(1, 5), (0, 4)]);
+    c.w(&w4).expect_tasks(&[ts[1]]);
+    c.w(&w4);
+    c.check();
 
-        let map = rt.schedule_mapping();
-        dbg!(&map);
-        assert_eq!(map.task_to_workers.len(), expected.len());
-        for (w_id, assigned) in expected {
-            assert_eq!(
-                &map.task_to_workers
-                    .get(&WorkerId::new(w_id))
-                    .unwrap()
-                    .iter()
-                    .map(|(t, _)| *t)
-                    .collect::<Vec<_>>(),
-                &assigned
-                    .iter()
-                    .copied()
-                    .map(TaskId::new_test)
-                    .collect::<Vec<_>>()
-            );
-        }
-    }*/
+    let mut c = TestCase::new();
+    let ts = c.pc_tasks(&[(0, 2), (4, 2), (2, 4)]);
+    c.w(&w4).eq_class(0).expect_tasks(&[ts[1], ts[0]]);
+    c.w(&w4).eq_class(0).expect_tasks(&[ts[2]]);
+    c.check();
+
+    let mut c = TestCase::new();
+    let ts = c.pc_tasks(&[(9, 2), (7, 1), (6, 2)]);
+    c.w(&w4).expect_tasks(&ts[..2]);
+    c.check();
+
+    let mut c = TestCase::new();
+    let ts = c.pc_tasks(&[(9, 2), (7, 1), (6, 2), (5, 1)]);
+    c.w(&w4).expect_tasks(&ts[..2]);
+    c.check();
+
+    let mut c = TestCase::new();
+    let ts = c.pc_tasks(&[
+        (9, 2), // cumsum: 2
+        (8, 1), // cumsum: 3
+        (7, 2), // cumsum: 5
+        (6, 1), // cumsum: 6
+        (5, 2), // cumsum: 8
+        (4, 1), // cumsum: 9
+        (3, 2), // cumsum: 11
+        (2, 1), // cumsum: 12
+    ]);
+    c.w(&w10).expect_tasks(&ts[..6]);
+    c.check();
+
+    let mut c = TestCase::new();
+    let ts = c.pc_tasks(&[(1, 3), (1, 3), (1, 3), (0, 1)]);
+    c.w(&w4).expect_tasks(&[ts[0]]);
+    c.check();
 }
 
 #[test]
-fn test_schedule_priorities2() {
-    // tasks = [(priority, cpus), ...]
-    // expected = [[(worker_id, task_ids)...], ...]
-    for (tasks, expected) in [
-        (
-            vec![(0, 2), (4, 2), (3, 1), (2, 3)],
-            vec![
-                vec![(100, vec![3, 4]), (101, vec![2, 1])],
-                vec![(100, vec![3, 4]), (101, vec![2, 1])],
-            ],
-        ),
-        (
-            vec![(0, 2), (4, 2), (2, 4)],
-            vec![
-                vec![(100, vec![1, 2]), (101, vec![3])],
-                vec![(100, vec![3]), (101, vec![2, 1])],
-            ],
-        ),
-        (
-            vec![(0, 3), (4, 3), (2, 4), (0, 3)],
-            vec![vec![(100, vec![3]), (101, vec![2])]],
-        ),
-    ] {
-        let mut rt = TestEnv::new();
-        rt.new_workers_cpus(&[4, 4]);
-        for (idx, (p, cpus)) in tasks.iter().enumerate() {
-            let task_id = TaskId::new_test(idx as u32 + 1);
-            rt.new_task(task_id, &TaskBuilder::new().cpus(*cpus).user_priority(*p));
-        }
+fn test_schedule_no_irrelevant_blocking() {
+    let w3 = WorkerBuilder::new(3);
+    let w5 = WorkerBuilder::new(5);
 
-        let map = rt.schedule_mapping();
-        dbg!(&expected);
-        dbg!(&map);
-        assert!(expected.iter().any(|e| {
-            assert_eq!(map.task_to_workers.len(), e.len());
-            e.iter().all(|(w_id, assigned)| {
-                &map.task_to_workers
-                    .get(&WorkerId::new(*w_id))
-                    .unwrap()
-                    .iter()
-                    .map(|(t, _)| *t)
-                    .collect::<Vec<_>>()
-                    == &assigned
-                        .iter()
-                        .copied()
-                        .map(TaskId::new_test)
-                        .collect::<Vec<_>>()
-            })
-        }))
-    }
+    let mut c = TestCase::new();
+    let ts = c.pc_tasks(&[(10, 5), (0, 1)]);
+    c.w(&w3).expect_tasks(&[ts[1]]);
+    c.check();
+
+    let mut c = TestCase::new();
+    let ts = c.pc_tasks(&[(10, 5), (9, 5), (0, 1)]);
+    c.w(&w3).expect_tasks(&[ts[2]]);
+    c.w(&w5).expect_tasks(&[ts[0]]);
+    c.check();
+
+    let mut c = TestCase::new();
+    let ts = c.pc_tasks(&[(10, 3), (9, 2), (8, 5), (0, 1)]);
+    c.w(&w5).expect_tasks(&[ts[0], ts[1]]);
+    c.w(&w3).expect_tasks(&[ts[3]]);
+    c.check();
 }
 
 #[test]
-fn test_schedule_priorities3() {
-    // tasks = [(priority, cpus), ...]
-    // expected = [[(worker_id, task_ids)...], ...]
-    for (tasks, expected) in [
-        (
-            vec![(0, 2), (4, 2), (3, 1), (2, 3)],
-            vec![
-                vec![(100, vec![3, 4]), (101, vec![2, 1])],
-                vec![(100, vec![3, 4]), (101, vec![2, 1])],
-            ],
-        ),
-        (
-            vec![(0, 2), (4, 2), (2, 4)],
-            vec![
-                vec![(100, vec![1, 2]), (101, vec![3])],
-                vec![(100, vec![3]), (101, vec![2, 1])],
-            ],
-        ),
-        (
-            vec![(0, 3), (4, 3), (2, 4), (0, 3)],
-            vec![vec![(100, vec![3]), (101, vec![2])]],
-        ),
-    ] {
-        let mut rt = TestEnv::new();
-        rt.new_workers_cpus(&[4, 4]);
-        for (idx, (p, cpus)) in tasks.iter().enumerate() {
-            let task_id = TaskId::new_test(idx as u32 + 1);
-            rt.new_task(task_id, &TaskBuilder::new().cpus(*cpus).user_priority(*p));
-        }
+fn test_schedule_some_tasks_running() {
+    let w3 = WorkerBuilder::new(3);
+    let mut c = TestCase::new();
+    c.pc_tasks(&[(1, 3)]);
+    c.w(&w3).running_c(1).expect_tasks(&[]);
+    c.check();
 
-        let map = rt.schedule_mapping();
-        assert!(expected.iter().any(|e| {
-            assert_eq!(map.task_to_workers.len(), e.len());
-            e.iter().all(|(w_id, assigned)| {
-                &map.task_to_workers
-                    .get(&WorkerId::new(*w_id))
-                    .unwrap()
-                    .iter()
-                    .map(|(t, _)| *t)
-                    .collect::<Vec<_>>()
-                    == &assigned
-                        .iter()
-                        .copied()
-                        .map(TaskId::new_test)
-                        .collect::<Vec<_>>()
-            })
-        }))
-    }
+    let mut c = TestCase::new();
+    let ts = c.pc_tasks(&[(1, 2)]);
+    c.w(&w3).running_c(1).expect_tasks(&[ts[0]]);
+    c.check();
+
+    let mut c = TestCase::new();
+    c.pc_tasks(&[(1, 3), (0, 1)]);
+    c.w(&w3).running_c(1).expect_tasks(&[]);
+    c.check();
+
+    let mut c = TestCase::new();
+    let ts = c.c_tasks(&[2, 1, 3]);
+    c.w(&w3).running_c(1).expect_tasks(&[ts[0]]);
+    c.w(&w3).running_c(2).expect_tasks(&[ts[1]]);
+    c.w(&w3).running_c(2).running_c(1).expect_tasks(&[]);
+    c.check();
+
+    /* Enable when reservations are implemented
+    let mut c = TestCase::new();
+    let ts = c.c_tasks(&[2, 1]);
+    c.pc_tasks(&[(1, 3)]);
+    c.w(&w3).running_c(1).expect_tasks(&[ts[0]]);
+    c.w(&w3).running_c(2).expect_tasks(&[ts[1]]);
+    c.w(&w3).running_c(2).running_c(1).expect_tasks(&[]);
+    c.check();
+     */
+}
+
+// TODO: Nemozny scheduling neblokuje
+// TODO: Vice zdroju
+// TODO: Vice variant
+// TODO: Rezervace
+// TODO: worker.expect_cpus()
+
+#[test]
+fn test_schedule_gap_filling() {
+    let w6 = WorkerBuilder::new(6);
+    let w12 = WorkerBuilder::new(12);
+
+    /*    let mut c = TestCase::new();
+    let ts = c.pc_tasks(&[(1, 8), (1, 8), (0, 4)]);
+    c.w(&w12).expect_tasks(&[ts[0], ts[2]]);
+    c.check();
+
+    let mut c = TestCase::new();
+    let ts = c.pc_tasks(&[(1, 3), (1, 3), (1, 3), (0, 2)]);
+    c.w(&w6).expect_tasks(&[ts[0], ts[2]]);
+    c.check();*/
+}
+
+#[test]
+fn test_schedule_multiple_resources1() {
+    let w4_1 = WorkerBuilder::new(4).res_range("gpus", 1, 1);
+    let w4_2 = WorkerBuilder::new(4).res_range("gpus", 1, 2);
+    let tb2_1 = TaskBuilder::new().cpus(2).add_resource(1, 1);
+    let tb1_2 = TaskBuilder::new().cpus(1).add_resource(1, 2);
+    let tb2 = TaskBuilder::new().cpus(2);
+
+    let create = || TestCase::new().resources(&["gpus"]);
+
+    let mut c = create();
+    let t1 = c.t(&tb2_1);
+    let t2 = c.t(&tb2_1);
+    c.w(&w4_2).expect_tasks(&[t1, t2]);
+    c.check();
+
+    let mut c = create();
+    let t1 = c.t(&tb2_1);
+    c.t(&tb2_1);
+    c.w(&w4_1).expect_tasks(&[t1]);
+    c.check();
+
+    let mut c = create();
+    let t1 = c.t(&tb2);
+    c.w(&w4_2).expect_tasks(&[t1]);
+    c.check();
+
+    let mut c = create();
+    let t1 = c.t(&tb1_2);
+    c.w(&w4_2).expect_tasks(&[t1]);
+    c.check();
+
+    let mut c = create();
+    let t1 = c.t(&tb1_2);
+    c.w(&w4_1).expect_tasks(&[]);
+    c.check();
+
+    let mut c = TestCase::new().resources(&["gpus", "foo"]);
+    let ta = TaskBuilder::new().cpus(2).add_resource(1, 1); // 2 cpus + 1 foo
+    let tb = TaskBuilder::new().add_resource(1, 1).add_resource(2, 2); // 1 cpus + 1 gpus + 2 foo
+    let tc = TaskBuilder::new().cpus(4); // 4 cpus
+    c.t(&ta);
+    c.ts(2, &tb);
+    c.ts(2, &tc);
+    c.t(&tb);
+    c.w(&WorkerBuilder::new(6)).expect_request(1, &tc);
+    c.w(&WorkerBuilder::new(3).res_sum("gpus", 2))
+        .expect_request(1, &ta);
+    c.w(&WorkerBuilder::new(5).res_sum("gpus", 20).res_sum("foo", 4))
+        .expect_request(2, &tb);
+    c.check();
+}
+
+#[test]
+fn test_schedule_multiple_resources2() {
+    let tb2_1 = TaskBuilder::new().cpus(2).add_resource(1, 1);
+    let tb2 = TaskBuilder::new().cpus(2);
+
+    let create = || {
+        let mut c = TestCase::new().resources(&["gpus"]);
+        c.ts(10, &tb2);
+        c.ts(10, &tb2_1);
+        c
+    };
+
+    let mut c = create();
+    c.w(&WorkerBuilder::new(6)).expect_request(3, &tb2);
+    c.check();
+
+    let mut c = create();
+    c.w(&WorkerBuilder::new(6).res_sum("gpus", 10))
+        .expect_request(3, &tb2_1);
+    c.check();
+
+    let mut c = create();
+    c.w(&WorkerBuilder::new(6).res_sum("gpus", 2))
+        .expect_request(2, &tb2_1)
+        .expect_request(1, &tb2);
+    c.check();
+
+    let mut c = create();
+    c.w(&WorkerBuilder::new(6).res_sum("gpus", 2))
+        .expect_request(2, &tb2_1)
+        .expect_request(1, &tb2);
+    c.w(&WorkerBuilder::new(6)).expect_request(3, &tb2);
+    c.check();
+}
+
+#[test]
+fn test_schedule_variants1() {
+    let tb1 = TaskBuilder::new().cpus(2).next_variant().cpus(5);
+
+    let mut c = TestCase::new();
+    c.ts(2, &tb1);
+    c.w(&WorkerBuilder::new(11)).expect_request_v(2, &tb1, 1);
+    c.check();
+
+    let mut c = TestCase::new();
+    c.ts(3, &tb1);
+    c.w(&WorkerBuilder::new(11)).expect_request_v(2, &tb1, 1);
+    c.check();
+
+    let mut c = TestCase::new();
+    c.ts(3, &tb1);
+    c.w(&WorkerBuilder::new(14))
+        .expect_request_v(2, &tb1, 1)
+        .expect_request_v(1, &tb1, 0);
+    c.check();
+
+    let mut c = TestCase::new();
+    c.ts(10, &tb1);
+    c.w(&WorkerBuilder::new(8)).expect_request_v(4, &tb1, 0);
+    c.check();
+
+    let mut c = TestCase::new();
+    c.ts(3, &tb1);
+    c.w(&WorkerBuilder::new(8))
+        .expect_request_v(1, &tb1, 0)
+        .expect_request_v(1, &tb1, 1);
+    c.check();
+}
+
+#[test]
+fn test_schedule_variants2() {
+    let tb1 = TaskBuilder::new()
+        .cpus(6)
+        .next_variant()
+        .cpus(2)
+        .add_resource(1, 2);
+
+    let create = || TestCase::new().resources(&["gpus"]);
+
+    let mut c = create();
+    c.ts(10, &tb1);
+    c.w(&WorkerBuilder::new(12)).expect_request_v(2, &tb1, 0);
+    c.check();
+
+    let mut c = create();
+    c.ts(10, &tb1);
+    c.w(&WorkerBuilder::new(12).res_sum("gpus", 4))
+        .expect_request_v(1, &tb1, 0)
+        .expect_request_v(2, &tb1, 1);
+    c.check();
+
+    let mut c = create();
+    c.ts(10, &tb1);
+    c.w(&WorkerBuilder::new(12).res_sum("gpus", 20))
+        .expect_request_v(6, &tb1, 1);
+    c.check();
 }
