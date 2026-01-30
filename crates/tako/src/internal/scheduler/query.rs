@@ -5,6 +5,7 @@ use crate::internal::server::task::Task;
 use crate::internal::server::workerload::{WorkerLoad, WorkerResources};
 use std::time::Duration;
 
+#[derive(Debug)]
 struct WorkerTypeState {
     partial: bool,
     loads: Vec<WorkerLoad>,
@@ -78,10 +79,18 @@ pub(crate) fn compute_new_worker_query(
         let mut load = WorkerLoad::new(&worker.resources);
         for task_id in worker.sn_tasks() {
             let task = core.get_task(*task_id);
+            if task.is_sn_running() {
+                let request = core.get_resource_rq(task.resource_rq_id);
+                load.add_request(task.id, request, task.running_variant(), &worker.resources);
+            }
+        }
+        for task_id in worker.sn_tasks() {
+            let task = core.get_task(*task_id);
+            if task.is_sn_running() {
+                continue;
+            }
             let request = core.get_resource_rq(task.resource_rq_id);
-            if task.is_sn_running()
-                || load.have_immediate_resources_for_rqv(request, &worker.resources)
-            {
+            if load.have_immediate_resources_for_rqv(request, &worker.resources) {
                 load.add_request(task.id, request, task.running_variant(), &worker.resources);
                 continue;
             }
