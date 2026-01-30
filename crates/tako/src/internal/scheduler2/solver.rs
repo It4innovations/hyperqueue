@@ -3,13 +3,31 @@ use crate::internal::scheduler2::TaskBatch;
 use crate::internal::server::core::Core;
 use crate::internal::solver::{LpInnerSolver, LpSolution, LpSolver, Variable};
 use crate::resources::ResourceRqId;
-use crate::{Map, ResourceVariantId, TaskId, WorkerId};
+use crate::{Map, ResourceVariantId, Set, TaskId, WorkerId};
 use hashbrown::Equivalent;
+use std::cmp::Reverse;
 use std::collections::BTreeMap;
 
 #[derive(Debug, Default)]
 pub(crate) struct WorkerTaskMapping {
     pub(crate) task_to_workers: Map<WorkerId, Vec<(TaskId, ResourceVariantId)>>,
+}
+
+impl WorkerTaskMapping {
+    pub fn dump(&mut self) {
+        println!("=======================");
+        for (w, ts) in &self.task_to_workers {
+            print!("w{w}:");
+            for (task_id, variant) in ts {
+                if variant.is_first() {
+                    print!(" {}", task_id)
+                } else {
+                    print!(" {}/{}", task_id, variant)
+                }
+            }
+            println!();
+        }
+    }
 }
 
 pub(crate) fn run_scheduling_solver(
@@ -20,9 +38,9 @@ pub(crate) fn run_scheduling_solver(
     let n_resources = core.resource_map_mut().n_resources();
 
     let (task_map, worker_map, task_queues, resource_map, _) = core.split_all();
-    let Some(n_variants) = resource_map.iter().map(|r| r.requests().len()).max() else {
+    if resource_map.is_empty() {
         return WorkerTaskMapping::default();
-    };
+    }
     let mut global_resource_sums = vec![0f64; n_resources];
 
     let mut workers = worker_map.get_workers().collect::<Vec<_>>();
@@ -30,12 +48,11 @@ pub(crate) fn run_scheduling_solver(
     workers.iter().for_each(|worker| {
         global_resource_sums
             .iter_mut()
-            .zip(worker.free_resources.iter())
+            .zip(worker.sn_assignment().unwrap().free_resources.iter())
             .for_each(|(s, c)| *s += c.as_f64())
     });
 
     let n_workers = worker_map.len();
-    let n_batches = task_batches.len();
 
     let mut solver = LpSolver::new(true);
 
@@ -51,7 +68,7 @@ pub(crate) fn run_scheduling_solver(
     let mut worker_res_constraint = vec![Vec::new(); n_resources];
     // Create worker-task placements
     for (w_idx, worker) in workers.iter().enumerate() {
-        for (b_idx, batch) in task_batches.iter().enumerate() {
+        for batch in task_batches.iter() {
             let rqv = resource_map.get(batch.resource_rq_id);
             for (v_idx, rq) in rqv.requests_with_ids() {
                 assert!(!rq.is_multi_node());
@@ -76,7 +93,7 @@ pub(crate) fn run_scheduling_solver(
                         .sum::<f64>()
                         * (n_workers - w_idx) as f64
                         / n_workers as f64;
-                    solver.name_var(|| {
+                    solver.set_name(|| {
                         let mut s = format!("p{}:{}", worker.id, batch.resource_rq_id);
                         if v_idx.is_first() {
                             use std::fmt::Write;
@@ -106,8 +123,11 @@ pub(crate) fn run_scheduling_solver(
         // Create worker constraints
         for (r, c) in worker_res_constraint.iter_mut().enumerate() {
             if !c.is_empty() {
+                solver.set_name(|| format!("w{} resource limit", worker.id));
                 solver.add_max_constraint(
                     worker
+                        .sn_assignment()
+                        .unwrap()
                         .free_resources
                         .get(ResourceId::new(r as u32))
                         .as_f64(),
@@ -121,35 +141,98 @@ pub(crate) fn run_scheduling_solver(
     // blocking_variable_vars[(rq_id, s)] is True only if there is at least
     // `s` tasks of `rq_id` scheduled
     let mut blocked_priority_vars: Map<(ResourceRqId, u32), _> = Map::new();
-    //let mut tmp = Vec::new();
+
+    let mut zero_cond = Vec::new();
 
     for batch in task_batches.iter() {
-        let rqv = resource_map.get(batch.resource_rq_id);
-        let vars = batch_vars.get(&batch.resource_rq_id).unwrap();
+        let batch_rqv = resource_map.get(batch.resource_rq_id);
+        let Some(vars) = batch_vars.get(&batch.resource_rq_id) else {
+            continue;
+        };
         if !batch.limit_reached && !vars.is_empty() {
+            solver.set_name(|| format!("size limit for rq{}", batch.resource_rq_id));
             solver.add_max_constraint(batch.size as f64, vars.iter().map(|v| (*v, 1.0)))
         }
         let batch_size = batch.size as f64;
+        let mut blocked_by_unbounded: Set<ResourceRqId> = Set::new();
         for cut in &batch.cuts {
-            //tmp.clear();
-            //dbg!(cut);
             for (rq_id, size) in &cut.blockers {
+                zero_cond.clear();
+                for w in &workers {
+                    let rqv = resource_map.get(*rq_id);
+                    if !w.is_capable_to_run_rqv(rqv, now) {
+                        continue;
+                    }
+                    for v_id in batch_rqv.variant_ids() {
+                        if let Some((var, _)) = placements.get(&(w.id, batch.resource_rq_id, v_id))
+                        {
+                            zero_cond.push(*var);
+                        }
+                    }
+                }
+                if zero_cond.is_empty() {
+                    continue;
+                }
                 if let Some(s) = size {
                     let blocking_v =
                         *blocked_priority_vars
                             .entry((*rq_id, *s))
                             .or_insert_with(|| {
                                 // Create a new blocking variable
-                                solver.name_var(|| format!("B{}~{}", rq_id, s));
+                                solver.set_name(|| format!("B{}~{}", rq_id, s));
                                 let new_v = solver.add_bool_variable(0.0);
                                 let vars = batch_vars.get(rq_id).unwrap();
                                 let bound = *s as f64;
-                                min_extra_var(&mut solver, bound, &vars, new_v, -bound);
+                                solver.set_name(|| format!("blocker {rq_id} at {s}"));
+                                min_extra_var(&mut solver, bound, &vars, new_v, bound);
                                 new_v
                             });
-                    max_extra_var(&mut solver, batch_size, &vars, blocking_v, batch_size);
-                } else {
-                    todo!()
+                    // let vars: Vec<_> = workers
+                    //     .iter()
+                    //     .filter_map(|w| {
+                    //         let rqv = resource_map.get(*rq_id);
+                    //         if !w.is_capable_to_run_rqv(rqv, now) {
+                    //             return None;
+                    //         }
+                    //
+                    //     })
+                    //     .collect();
+                    solver.set_name(|| {
+                        format!(
+                            "if #rq{rq_id} < {s} then limit #rq{} to {} where both rqs may run",
+                            batch.resource_rq_id, cut.size
+                        )
+                    });
+                    let cut_size = cut.size as f64;
+                    max_extra_var(
+                        &mut solver,
+                        cut_size + batch_size,
+                        &zero_cond,
+                        blocking_v,
+                        batch_size,
+                    );
+                } else if !blocked_by_unbounded.contains(rq_id) {
+                    solver.set_name(|| {
+                        format!(
+                            "limit #rq{} to {} where it can run with rq{rq_id}",
+                            batch.resource_rq_id, cut.size
+                        )
+                    });
+                    solver.add_max_constraint(cut.size as f64, zero_cond.iter().map(|v| (*v, 1.0)));
+                    /*let other_rqv = resource_map.get(*rq_id);
+                    //blocked_by_unbounded
+                    for worker in &workers {
+                        if other_rqv.
+                        if let Some(p) = placements.get(&(worker.id, batch.resource_rq_id, ))
+                    }*/
+                    /*blocked_by_unbounded.insert(rq_id);
+                    solver.add_max_constraint(
+                        cut.size as f64,
+                        vars.iter()
+                            .map(|v| (*v, 1.0))
+                            .chain(std::iter::once((var, coef))),
+                    );
+                    max_extra_var(&mut solver, batch_size, &vars, blocking_v, batch_size);*/
                 }
             }
         }
@@ -215,6 +298,13 @@ pub(crate) fn run_scheduling_solver(
             };
         }
     }*/
+
+    if task_batches.len() > 1 {
+        // Tasks are sorted by priority within batch, so when there is just one batch, we do not need aditional sorting
+        result.task_to_workers.iter_mut().for_each(|(_, tasks)| {
+            tasks.sort_by_key(|(task, _)| Reverse(task_map.get_task(*task).priority()));
+        });
+    }
 
     result
 }

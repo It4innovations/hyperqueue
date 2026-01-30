@@ -177,6 +177,27 @@ impl WorkerResources {
             .map(|r| self.task_max_count_for_request(r))
             .sum::<u32>()
     }
+
+    pub fn remove(&mut self, rq: &ResourceRequest) {
+        for entry in rq.entries() {
+            if let Some(amount) = entry.request.amount_or_none_if_all() {
+                assert!(self.n_resources[entry.resource_id] >= amount);
+                self.n_resources[entry.resource_id] -= amount;
+            } else {
+                self.n_resources[entry.resource_id] = ResourceAmount::ZERO;
+            }
+        }
+    }
+
+    pub fn add(&mut self, rq: &ResourceRequest, all: &WorkerResources) {
+        for entry in rq.entries() {
+            if let Some(amount) = entry.request.amount_or_none_if_all() {
+                self.n_resources[entry.resource_id] += amount;
+            } else {
+                self.n_resources[entry.resource_id] = all.get(entry.resource_id);
+            }
+        }
+    }
 }
 
 // This represents a current worker load from server perspective

@@ -13,7 +13,7 @@ use crate::internal::server::dataobjmap::DataObjectMap;
 use crate::internal::server::rpc::ConnectionDescriptor;
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::taskmap::TaskMap;
-use crate::internal::server::worker::Worker;
+use crate::internal::server::worker::{Worker, WorkerAssignment};
 use crate::internal::server::workergroup::WorkerGroup;
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::server::workermap::WorkerMap;
@@ -32,6 +32,8 @@ pub struct Core {
 
     /* Scheduler items */
     task_queues: Vec<TaskQueue>,
+
+    tasks_in_stealing: Set<TaskId>,
 
     // TODO: Remove parked_resources
     parked_resources: Set<WorkerResources>, // Resources of workers that has flag NOTHING_TO_LOAD
@@ -471,13 +473,17 @@ impl Core {
 
         let worker_check_sn = |core: &Core, task_id: TaskId, wid: WorkerId| {
             for (worker_id, worker) in core.workers.iter() {
-                if let Some(mn) = worker.mn_task() {
-                    assert_ne!(mn.task_id, task_id);
-                }
-                if wid == *worker_id {
-                    assert!(worker.sn_tasks().contains(&task_id));
-                } else {
-                    assert!(!worker.sn_tasks().contains(&task_id));
+                match worker.assignment() {
+                    WorkerAssignment::Sn(s) => {
+                        if wid == *worker_id {
+                            assert!(s.assign_tasks.contains(&task_id));
+                        } else {
+                            assert!(!s.assign_tasks.contains(&task_id));
+                        }
+                    }
+                    WorkerAssignment::Mn(m) => {
+                        assert_ne!(m.task_id, task_id);
+                    }
                 }
             }
         };
@@ -514,18 +520,15 @@ impl Core {
                     }
                     assert_eq!(winfo.unfinished_deps, count);
                     worker_check_sn(self, task.id, 0.into());
-                    assert!(task.is_fresh());
                 }
 
                 TaskRuntimeState::Assigned(wid)
                 | TaskRuntimeState::Running { worker_id: wid, .. } => {
-                    assert!(!task.is_fresh());
                     fw_check(task);
                     worker_check_sn(self, task.id, *wid);
                 }
 
                 TaskRuntimeState::Stealing(_, target) => {
-                    assert!(!task.is_fresh());
                     fw_check(task);
                     worker_check_sn(self, task.id, target.unwrap_or(WorkerId::new(0)));
                 }
@@ -545,14 +548,17 @@ impl Core {
                     }
                     for (worker_id, worker) in self.workers.iter() {
                         if set.contains(worker_id) {
-                            assert!(worker.sn_tasks().is_empty());
-                            let mn = worker.mn_task().unwrap();
+                            let mn = worker.mn_assignment().unwrap();
                             assert_eq!(mn.task_id, task_id);
                             assert_eq!(ws[0] != *worker_id, mn.reservation_only);
                         } else {
-                            assert!(!worker.sn_tasks().contains(&task_id));
-                            if let Some(mn) = worker.mn_task() {
-                                assert_ne!(mn.task_id, task_id);
+                            match worker.assignment() {
+                                WorkerAssignment::Sn(sn) => {
+                                    assert!(!sn.assign_tasks.contains(&task_id));
+                                }
+                                WorkerAssignment::Mn(mn) => {
+                                    assert_ne!(mn.task_id, task_id);
+                                }
                             }
                         }
                     }
@@ -673,14 +679,6 @@ mod tests {
             self.assert_task_condition(task_ids, |t| t.is_assigned());
         }
 
-        pub fn assert_fresh(&self, task_ids: &[TaskId]) {
-            self.assert_task_condition(task_ids, |t| t.is_fresh());
-        }
-
-        pub fn assert_not_fresh(&self, task_ids: &[TaskId]) {
-            self.assert_task_condition(task_ids, |t| !t.is_fresh());
-        }
-
         pub fn assert_running(&self, task_ids: &[TaskId]) {
             self.assert_task_condition(task_ids, |t| t.is_sn_running());
         }
@@ -695,8 +693,11 @@ mod tests {
             //self.assert_worker_condition(worker_ids, |w| !w.is_underloaded());
         }
 
-        pub fn task(&self, id: TaskId) -> &Task {
-            self.tasks.get_task(id)
+        pub fn remove_from_ready_queue(&mut self, task_id: TaskId) {
+            let task = self.get_task(task_id);
+            let resource_rq_id = task.resource_rq_id;
+            let priority = task.priority();
+            self.task_queues[resource_rq_id.as_usize()].remove(task_id, priority);
         }
     }
 

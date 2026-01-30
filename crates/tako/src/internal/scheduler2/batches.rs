@@ -98,7 +98,12 @@ pub(crate) fn create_task_batches(core: &mut Core, now: Instant) -> Vec<TaskBatc
             let resource = resource_map.get(q.resource_rq_id);
             worker_map
                 .get_workers()
-                .map(|w| w.resources.task_max_count(&resource))
+                .map(|w| {
+                    w.sn_assignment()
+                        .unwrap()
+                        .free_resources
+                        .task_max_count(&resource)
+                })
                 .sum::<u32>()
         })
         .collect();
@@ -113,8 +118,7 @@ pub(crate) fn create_task_batches(core: &mut Core, now: Instant) -> Vec<TaskBatc
     let mut found = Vec::new();
     let mut batches: Vec<_> = queues
         .iter()
-        .zip(limits.iter())
-        .map(|(q, limit)| TaskBatch::new(q.resource_rq_id, *limit == 0))
+        .map(|q| TaskBatch::new(q.resource_rq_id, false))
         .collect();
     loop {
         found.clear();

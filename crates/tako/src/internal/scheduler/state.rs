@@ -176,7 +176,8 @@ impl SchedulerState {
     }
 
     pub fn finish_scheduling(&mut self, core: &mut Core, comm: &mut impl Comm) {
-        let mut task_steals: Map<WorkerId, Vec<TaskId>> = Default::default();
+        todo!()
+        /*let mut task_steals: Map<WorkerId, Vec<TaskId>> = Default::default();
         let mut task_computes: Map<WorkerId, Vec<TaskId>> = Default::default();
         let (task_map, worker_map) = core.split_tasks_workers_mut();
         for (task_id, old_state) in self.dirty_tasks.drain() {
@@ -249,7 +250,7 @@ impl SchedulerState {
         for worker in worker_map.get_workers_mut() {
             if worker.is_reserved() {
                 let unreserve = worker
-                    .mn_task()
+                    .mn_assignment()
                     .map(|mn| {
                         let task = task_map.get_task(mn.task_id);
                         task.mn_root_worker().unwrap() == worker.id
@@ -259,7 +260,7 @@ impl SchedulerState {
                     worker.set_reservation(false);
                 }
             }
-        }
+        }*/
     }
 
     pub fn assign_multinode(
@@ -278,53 +279,27 @@ impl SchedulerState {
         self.dirty_tasks.entry(task.id).or_insert(old_state);
     }
 
-    // This function assumes that potential removal of an assigned is already done
-    fn assign_into(&mut self, task: &mut Task, rqv: &ResourceRequestVariants, worker: &mut Worker) {
-        worker.insert_sn_task(task, rqv);
+    pub fn assign(&mut self, core: &mut Core, task_id: TaskId, worker_id: WorkerId) {
+        todo!()
+        /*let (tasks, workers) = core.split_tasks_workers_mut();
+        let task = tasks.get_task_mut(task_id);
+        log::debug!("Assignment of task={} to worker={}", task_id, worker_id);
+        let worker = workers.get_worker_mut(worker_id);
+        // This function assumes that potential removal of an assigned is already done
         let new_state = match task.state {
-            TaskRuntimeState::Waiting(_) => TaskRuntimeState::Assigned(worker.id),
-            TaskRuntimeState::Assigned(old_w) => {
-                if task.is_fresh() {
-                    TaskRuntimeState::Assigned(worker.id)
-                } else {
-                    TaskRuntimeState::Stealing(old_w, Some(worker.id))
-                }
+            TaskRuntimeState::Waiting(_) => {
+                worker.insert_sn_task(task_id);
+                TaskRuntimeState::Assigned(worker.id)
             }
-            TaskRuntimeState::Stealing(from_w, _) => {
-                TaskRuntimeState::Stealing(from_w, Some(worker.id))
-            }
-            TaskRuntimeState::Running { .. }
+            TaskRuntimeState::Assigned(_)
+            | TaskRuntimeState::Stealing(_, _)
+            | TaskRuntimeState::Running { .. }
             | TaskRuntimeState::RunningMultiNode(_)
             | TaskRuntimeState::Finished => {
                 panic!("Invalid state {:?}", task.state);
             }
         };
-        let old_state = std::mem::replace(&mut task.state, new_state);
-        self.dirty_tasks.entry(task.id).or_insert(old_state);
-    }
-
-    pub fn assign(&mut self, core: &mut Core, task_id: TaskId, worker_id: WorkerId) {
-        let (tasks, workers, requests) = core.split_tasks_workers_requests_mut();
-        let task = tasks.get_task_mut(task_id);
-        let assigned_worker = task.get_assigned_worker();
-        let rqv = requests.get(task.resource_rq_id);
-        if let Some(w_id) = assigned_worker {
-            log::debug!(
-                "Changing assignment of task={} from worker={} to worker={}",
-                task.id,
-                w_id,
-                worker_id
-            );
-            assert_ne!(w_id, worker_id);
-            workers.get_worker_mut(w_id).remove_sn_task(task, rqv);
-        } else {
-            log::debug!(
-                "Fresh assignment of task={} to worker={}",
-                task.id,
-                worker_id
-            );
-        }
-        self.assign_into(task, rqv, workers.get_worker_mut(worker_id));
+        task.state = new_state;*/
     }
 
     // fn assign_multi_node_task(

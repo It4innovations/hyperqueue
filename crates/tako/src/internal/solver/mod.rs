@@ -44,7 +44,7 @@ pub(crate) struct LpSolver {
     #[cfg(not(build = "release"))]
     var_name_map: crate::Map<Variable, usize>,
     #[cfg(not(build = "release"))]
-    name_for_next_variable: Option<String>,
+    name_config: Option<String>,
     #[cfg(not(build = "release"))]
     variables: Vec<(String, f64)>,
 }
@@ -52,16 +52,16 @@ pub(crate) struct LpSolver {
 #[cfg(not(build = "release"))]
 impl LpSolver {
     #[inline]
-    pub fn name_var<F>(&mut self, create_name: F)
+    pub fn set_name<F>(&mut self, create_name: F)
     where
         F: FnOnce() -> String,
     {
-        self.name_for_next_variable = Some(create_name());
+        self.name_config = Some(create_name());
     }
 
     #[inline]
     fn new_var(&mut self, variable: Variable, weight: f64) -> Variable {
-        let name = self.name_for_next_variable.take();
+        let name = self.name_config.take();
         if let Some(name) = name {
             self.var_name_map.insert(variable, self.variables.len());
             self.variables.push((name, weight));
@@ -75,7 +75,7 @@ impl LpSolver {
             solver: LpInnerSolverImpl::new(),
             var_name_map: Default::default(),
             variables: Default::default(),
-            name_for_next_variable: None,
+            name_config: None,
         }
     }
 
@@ -109,9 +109,12 @@ impl LpSolver {
         }
     }
 
-    fn print_constraint(&self, variable: &[(Variable, f64)], op: &str, bound: f64) {
+    fn print_constraint(&mut self, variable: &[(Variable, f64)], op: &str, bound: f64) {
         use std::fmt::Write;
         let mut s = String::new();
+        if let Some(name) = self.name_config.take() {
+            write!(s, "{}\n    ", name).unwrap();
+        }
         for (i, (var, weight)) in variable.iter().enumerate() {
             let name = &self.variables[*self.var_name_map.get(var).unwrap()].0;
             write!(
@@ -141,7 +144,7 @@ impl LpSolver {
         if let Some((s, _)) = &s
             && self.verbose
         {
-            println!("Solution:");
+            println!("==== Solution: ====");
             for ((name, weight), value) in self.variables.iter().zip(s.get_values()) {
                 if *weight == 0.0 {
                     println!("{} = {}", name, value);
@@ -157,7 +160,7 @@ impl LpSolver {
 #[cfg(build = "release")]
 impl LpSolver {
     #[inline]
-    pub fn name_var<F>(&mut self, create_name: F)
+    pub fn set_name<F>(&mut self, create_name: F)
     where
         F: FnOnce() -> String,
     {

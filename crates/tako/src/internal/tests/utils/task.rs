@@ -57,7 +57,7 @@ impl TaskBuilder {
         self
     }
 
-    pub fn next_resources(mut self) -> TaskBuilder {
+    pub fn next_variant(mut self) -> TaskBuilder {
         self.finished_resources
             .push(self.resources_builder.finish());
         self.resources_builder = ResBuilder::default();
@@ -93,7 +93,7 @@ impl TaskBuilder {
         self
     }
 
-    pub fn build(&self, task_id: TaskId, core: &mut Core) -> Task {
+    pub fn build_resource_rq_id(&self, core: &mut Core) -> ResourceRqId {
         let last_resource = self.resources_builder.clone().finish();
         let mut resources: SmallVec<[ResourceRequest; 1]> =
             self.finished_resources.iter().cloned().collect();
@@ -105,6 +105,11 @@ impl TaskBuilder {
         let resources = ResourceRequestVariants::new(resources);
         let (rq_id, _) =
             get_or_create_raw_resource_rq_id(core, &mut TestComm::default(), resources);
+        rq_id
+    }
+
+    pub fn build(&self, task_id: TaskId, core: &mut Core) -> Task {
+        let rq_id = self.build_resource_rq_id(core);
         Task::new(
             task_id.into(),
             rq_id,
