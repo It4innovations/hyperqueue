@@ -521,7 +521,7 @@ mod tests {
     #[test]
     fn task_consumers_empty() {
         let mut rt = TestEnv::new();
-        let a = rt.new_task_default(0);
+        let a = rt.new_task_default();
         let mut s = crate::Set::new();
         rt.task(a)
             .collect_recursive_consumers(&Default::default(), &mut s);
@@ -531,16 +531,16 @@ mod tests {
     #[test]
     fn task_recursive_consumers() {
         let mut rt = TestEnv::new();
-        let a = rt.new_task_default(0);
-        let b = rt.new_task(1, &TaskBuilder::new().task_deps(&[a]));
-        let c = rt.new_task(2, &TaskBuilder::new().task_deps(&[b]));
-        let d = rt.new_task(3, &TaskBuilder::new().task_deps(&[b]));
-        let e = rt.new_task(4, &TaskBuilder::new().task_deps(&[c, d]));
+        let a = rt.new_task_default();
+        let b = rt.new_task(&TaskBuilder::new().task_deps(&[a]));
+        let c = rt.new_task(&TaskBuilder::new().task_deps(&[b]));
+        let d = rt.new_task(&TaskBuilder::new().task_deps(&[b]));
+        let e = rt.new_task(&TaskBuilder::new().task_deps(&[c, d]));
 
         let expected_ids = vec![b, c, d, e];
         let mut s = crate::Set::new();
         let tasks = rt.task_map();
-        rt.task(0).collect_recursive_consumers(tasks, &mut s);
+        rt.task(a).collect_recursive_consumers(tasks, &mut s);
         assert_eq!(s, expected_ids.into_iter().collect());
     }
 }

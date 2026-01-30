@@ -170,13 +170,13 @@ mod tests {
         );
 
         let resource_map = rt.core().create_resource_map();
-        let explain = |rt: &mut TestEnv, task, worker, now| {
+        let explain = |rt: &mut TestEnv, task: TaskId, worker, now| {
             let group = WorkerGroup::new(Set::new());
             let (task_map, worker_map, rqs) = rt.core().split_tasks_workers_requests_mut();
             task_explain_for_worker(
                 &resource_map,
                 rqs,
-                task_map.get_task(TaskId::new_test(task)),
+                task_map.get_task(task),
                 worker_map.get_worker(WorkerId::new(worker)),
                 &group,
                 now,
@@ -185,31 +185,31 @@ mod tests {
 
         let _rqs = rt.core().resource_map_mut();
         let now = Instant::now();
-        rt.new_task(1, &TaskBuilder::new());
+        let t1 = rt.new_task(&TaskBuilder::new());
         let (_task_map, _worker_map, _rqs) = rt.core().split_tasks_workers_requests_mut();
-        let r = explain(&mut rt, 1, 1, now);
+        let r = explain(&mut rt, t1, 1, now);
         assert_eq!(r.variants.len(), 1);
         assert_eq!(r.variants[0].len(), 1);
         assert_eq!(r.n_enabled_variants(), 1);
 
-        rt.new_task(2, &TaskBuilder::new().time_request(20_000));
-        let r = explain(&mut rt, 2, 1, now);
+        let t2 = rt.new_task(&TaskBuilder::new().time_request(20_000));
+        let r = explain(&mut rt, t2, 1, now);
         assert_eq!(r.variants.len(), 1);
         assert_eq!(r.variants[0].len(), 2);
         assert_eq!(r.n_enabled_variants(), 1);
 
-        let r = explain(&mut rt, 2, 2, now);
+        let r = explain(&mut rt, t2, 2, now);
         assert_eq!(r.variants.len(), 1);
         assert_eq!(r.variants[0].len(), 2);
         assert_eq!(r.n_enabled_variants(), 1);
 
         let now2 = now + Duration::from_secs(21_000);
-        let r = explain(&mut rt, 2, 1, now2);
+        let r = explain(&mut rt, t2, 1, now2);
         assert_eq!(r.variants.len(), 1);
         assert_eq!(r.variants[0].len(), 2);
         assert_eq!(r.n_enabled_variants(), 1);
 
-        let r = explain(&mut rt, 2, 2, now2);
+        let r = explain(&mut rt, t2, 2, now2);
         assert_eq!(r.variants.len(), 1);
         assert_eq!(r.variants[0].len(), 2);
         assert!(matches!(
@@ -221,14 +221,13 @@ mod tests {
         ));
         assert_eq!(r.n_enabled_variants(), 0);
 
-        rt.new_task(
-            3,
+        let t3 = rt.new_task(
             &TaskBuilder::new()
                 .time_request(20_000)
                 .cpus(30)
                 .add_resource(1, 3),
         );
-        let r = explain(&mut rt, 3, 2, now);
+        let r = explain(&mut rt, t3, 2, now);
         assert_eq!(r.variants.len(), 1);
         assert_eq!(r.variants[0].len(), 3);
         assert!(matches!(
@@ -239,8 +238,7 @@ mod tests {
         ));
         assert_eq!(r.n_enabled_variants(), 0);
 
-        rt.new_task(
-            4,
+        let t4 = rt.new_task(
             &TaskBuilder::new()
                 .time_request(30_000)
                 .cpus(15)
@@ -249,7 +247,7 @@ mod tests {
                 .cpus(2)
                 .add_resource(1, 32),
         );
-        let r = explain(&mut rt, 4, 2, now2);
+        let r = explain(&mut rt, t4, 2, now2);
         assert_eq!(r.variants.len(), 2);
         assert_eq!(r.variants[0].len(), 3);
         assert_eq!(r.variants[1].len(), 2);
@@ -287,7 +285,7 @@ mod tests {
 
         rt.new_worker_with_id(1, &WorkerBuilder::new(4));
 
-        let _task = rt.new_task(1, &TaskBuilder::new().n_nodes(4));
+        let t1 = rt.new_task(&TaskBuilder::new().n_nodes(4));
         let mut wset = Set::new();
         wset.insert(WorkerId::new(1));
         wset.insert(WorkerId::new(2));
@@ -299,7 +297,7 @@ mod tests {
         let r = task_explain_for_worker(
             &resource_map,
             rqs,
-            task_map.get_task(TaskId::new_test(1)),
+            task_map.get_task(t1),
             worker_map.get_worker(WorkerId::new(1)),
             &group,
             now,
@@ -315,7 +313,7 @@ mod tests {
         let r = task_explain_for_worker(
             &resource_map,
             rqs,
-            task_map.get_task(TaskId::new_test(1)),
+            task_map.get_task(t1),
             worker_map.get_worker(WorkerId::new(1)),
             &group,
             now,

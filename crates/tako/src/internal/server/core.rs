@@ -698,12 +698,12 @@ mod tests {
     #[test]
     fn add_remove() {
         let mut rt = TestEnv::new();
-        rt.new_task_default(101);
+        let t = rt.new_task_default();
         let mut objs_to_remove = ObjsToRemoveFromWorkers::new();
         assert!(matches!(
-            rt.core().remove_task(101.into(), &mut objs_to_remove),
+            rt.core().remove_task(t, &mut objs_to_remove),
             TaskRuntimeState::Waiting(_)
         ));
-        assert_eq!(rt.core().find_task(101.into()), None);
+        assert_eq!(rt.core().find_task(t), None);
     }
 }

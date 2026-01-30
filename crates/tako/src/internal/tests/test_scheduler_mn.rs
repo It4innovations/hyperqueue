@@ -53,9 +53,10 @@ fn check_worker_status_change(s1: WorkerStatus, s2: WorkerStatus, ms: &[ToWorker
 fn test_schedule_mn_simple() {
     let mut rt = TestEnv::new();
     rt.new_workers_cpus(&[5, 5, 5, 5, 5]);
-    (1..=4).for_each(|i| {
-        rt.new_task(i, &TaskBuilder::new().user_priority(i as i32).n_nodes(2));
-    });
+    let t1 = rt.new_task(&TaskBuilder::new().user_priority(1).n_nodes(2));
+    let t2 = rt.new_task(&TaskBuilder::new().user_priority(2).n_nodes(2));
+    let t3 = rt.new_task(&TaskBuilder::new().user_priority(3).n_nodes(2));
+    let t4 = rt.new_task(&TaskBuilder::new().user_priority(4).n_nodes(2));
     rt.sanity_check();
     let mut scheduler = create_test_scheduler();
     let mut comm = create_test_comm();
@@ -73,19 +74,19 @@ fn test_schedule_mn_simple() {
         ws
     };
 
-    let ws3 = test_mn_task(rt.task(3), &mut comm);
-    let ws4 = test_mn_task(rt.task(4), &mut comm);
+    let ws3 = test_mn_task(rt.task(t3), &mut comm);
+    let ws4 = test_mn_task(rt.task(t4), &mut comm);
     for w in &ws4 {
         assert!(!ws3.contains(w));
     }
-    assert!(rt.task(2).is_waiting());
-    assert!(rt.task(1).is_waiting());
+    assert!(rt.task(t2).is_waiting());
+    assert!(rt.task(t1).is_waiting());
     comm.emptiness_check();
 
-    finish_on_worker(rt.core(), 3, ws3[0]);
+    finish_on_worker(rt.core(), t3, ws3[0]);
     rt.sanity_check();
 
-    assert!(!rt.task_exists(3));
+    assert!(!rt.task_exists(t3));
     for w in ws3 {
         assert!(rt.core().get_worker_by_id_or_panic(w).mn_task().is_none());
     }
@@ -93,10 +94,10 @@ fn test_schedule_mn_simple() {
     scheduler.run_scheduling(rt.core(), &mut comm);
     rt.sanity_check();
 
-    let ws2 = test_mn_task(rt.task(2), &mut comm);
+    let ws2 = test_mn_task(rt.task(t2), &mut comm);
     comm.emptiness_check();
 
-    finish_on_worker(rt.core(), 3, ws2[0]);
+    finish_on_worker(rt.core(), t3, ws2[0]);
     rt.sanity_check();
 }
 
@@ -105,16 +106,16 @@ fn test_schedule_mn_reserve() {
     let mut rt = TestEnv::new();
     rt.new_workers_cpus(&[1, 1, 1]);
 
-    rt.new_task(1, &TaskBuilder::new().user_priority(10).n_nodes(3));
-    rt.new_task(2, &TaskBuilder::new().user_priority(5).n_nodes(2));
-    rt.new_task(3, &TaskBuilder::new().user_priority(0).n_nodes(3));
+    let t1 = rt.new_task(&TaskBuilder::new().user_priority(10).n_nodes(3));
+    let t2 = rt.new_task(&TaskBuilder::new().user_priority(5).n_nodes(2));
+    let t3 = rt.new_task(&TaskBuilder::new().user_priority(0).n_nodes(3));
     rt.sanity_check();
     let mut scheduler = create_test_scheduler();
     let mut comm = create_test_comm();
     scheduler.run_scheduling(rt.core(), &mut comm);
     rt.sanity_check();
 
-    let ws1 = rt.task(1).mn_placement().unwrap().to_vec();
+    let ws1 = rt.task(t1).mn_placement().unwrap().to_vec();
     assert!(matches!(
         comm.take_worker_msgs(ws1[0], 1)[0],
         ToWorkerMessage::ComputeTasks(_)
@@ -123,10 +124,10 @@ fn test_schedule_mn_reserve() {
     assert!(rt.core().get_worker_by_id_or_panic(ws1[1]).is_reserved());
     assert!(rt.core().get_worker_by_id_or_panic(ws1[2]).is_reserved());
     comm.emptiness_check();
-    finish_on_worker(rt.core(), 1, ws1[0]);
+    finish_on_worker(rt.core(), t1, ws1[0]);
     scheduler.run_scheduling(rt.core(), &mut comm);
 
-    let ws2 = rt.task(2).mn_placement().unwrap().to_vec();
+    let ws2 = rt.task(t2).mn_placement().unwrap().to_vec();
     for w in &[100, 101, 102] {
         let s1 = get_worker_status(&ws1, (*w).into());
         let s2 = get_worker_status(&ws2, (*w).into());
@@ -136,9 +137,9 @@ fn test_schedule_mn_reserve() {
     comm.emptiness_check();
     rt.sanity_check();
 
-    finish_on_worker(rt.core(), 2, ws2[0]);
+    finish_on_worker(rt.core(), t2, ws2[0]);
     scheduler.run_scheduling(rt.core(), &mut comm);
-    let ws3 = rt.task(3).mn_placement().unwrap().to_vec();
+    let ws3 = rt.task(t3).mn_placement().unwrap().to_vec();
 
     for w in &[100, 101, 102] {
         let s1 = get_worker_status(&ws2, (*w).into());
@@ -149,7 +150,7 @@ fn test_schedule_mn_reserve() {
     comm.emptiness_check();
     rt.sanity_check();
 
-    finish_on_worker(rt.core(), 3, ws3[0]);
+    finish_on_worker(rt.core(), t3, ws3[0]);
     scheduler.run_scheduling(rt.core(), &mut comm);
 
     for w in &[100, 101, 102] {
@@ -166,17 +167,17 @@ fn test_schedule_mn_fill() {
     let mut rt = TestEnv::new();
     let mut comm = create_test_comm();
     rt.new_workers_cpus(&[/* 11 workers */ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
-    rt.new_task(1, &TaskBuilder::new().n_nodes(3));
-    rt.new_task(2, &TaskBuilder::new().n_nodes(5));
-    rt.new_task(3, &TaskBuilder::new().n_nodes(1));
-    rt.new_task(4, &TaskBuilder::new().n_nodes(2));
+    let t1 = rt.new_task(&TaskBuilder::new().n_nodes(3));
+    let t2 = rt.new_task(&TaskBuilder::new().n_nodes(5));
+    let t3 = rt.new_task(&TaskBuilder::new().n_nodes(1));
+    let t4 = rt.new_task(&TaskBuilder::new().n_nodes(2));
     let mut scheduler = create_test_scheduler();
     scheduler.run_scheduling(rt.core(), &mut comm);
     rt.sanity_check();
     for w in rt.core().get_workers() {
         assert!(w.mn_task().is_some());
     }
-    for t in &[1, 2, 3, 4] {
+    for t in &[t1, t2, t3, t4] {
         assert!(rt.task(*t).is_mn_running());
     }
 }
@@ -187,10 +188,10 @@ fn test_mn_not_enough() {
     let mut comm = create_test_comm();
 
     rt.new_workers_cpus(&[4]);
-    rt.new_task(1, &TaskBuilder::new().n_nodes(3));
-    rt.new_task(2, &TaskBuilder::new().n_nodes(5));
-    rt.new_task(3, &TaskBuilder::new().n_nodes(11));
-    rt.new_task(4, &TaskBuilder::new().n_nodes(2));
+    let t1 = rt.new_task(&TaskBuilder::new().n_nodes(3));
+    let t2 = rt.new_task(&TaskBuilder::new().n_nodes(5));
+    let t3 = rt.new_task(&TaskBuilder::new().n_nodes(11));
+    let t4 = rt.new_task(&TaskBuilder::new().n_nodes(2));
     let rmap = rt.core().resource_map_mut();
     let r1 = rmap.get_resource_rq_id(&ResBuilder::default().n_nodes(3).finish_v());
     let r2 = rmap.get_resource_rq_id(&ResBuilder::default().n_nodes(5).finish_v());
@@ -202,7 +203,7 @@ fn test_mn_not_enough() {
     for w in rt.core().get_workers() {
         assert!(w.mn_task().is_none());
     }
-    for t in &[1, 2, 3, 4] {
+    for t in &[t1, t2, t3, t4] {
         assert!(rt.task(*t).is_waiting());
     }
 
@@ -218,27 +219,27 @@ fn test_mn_sleep_wakeup_one_by_one() {
     let mut rt = TestEnv::new();
     let mut comm = create_test_comm();
 
-    rt.new_task(1, &TaskBuilder::new().n_nodes(4).user_priority(10));
+    let t1 = rt.new_task(&TaskBuilder::new().n_nodes(4).user_priority(10));
     rt.new_workers_cpus(&[4, 1]);
 
     let mut scheduler = create_test_scheduler();
     scheduler.run_scheduling(rt.core(), &mut comm);
     rt.sanity_check();
-    assert!(rt.task(1).is_waiting());
+    assert!(rt.task(t1).is_waiting());
 
-    rt.new_task(2, &TaskBuilder::new().n_nodes(2).user_priority(1));
+    let t2 = rt.new_task(&TaskBuilder::new().n_nodes(2).user_priority(1));
     scheduler.run_scheduling(rt.core(), &mut comm);
     rt.sanity_check();
-    assert!(rt.task(1).is_waiting());
-    assert!(rt.task(2).is_mn_running());
+    assert!(rt.task(t1).is_waiting());
+    assert!(rt.task(t2).is_mn_running());
 
-    let w = rt.task(2).mn_root_worker().unwrap();
-    finish_on_worker(rt.core(), 2, w);
+    let w = rt.task(t2).mn_root_worker().unwrap();
+    finish_on_worker(rt.core(), t2, w);
     rt.new_worker_with_id(500, &WorkerBuilder::new(1));
     rt.new_worker_with_id(501, &WorkerBuilder::new(1));
     scheduler.run_scheduling(rt.core(), &mut comm);
     rt.sanity_check();
-    assert!(rt.task_map().get_task(1.into()).is_mn_running());
+    assert!(rt.task(t1).is_mn_running());
 }
 
 #[test]
@@ -246,14 +247,14 @@ fn test_mn_sleep_wakeup_at_once() {
     let mut rt = TestEnv::new();
     let mut comm = create_test_comm();
     rt.new_workers_cpus(&[4, 1]);
-    rt.new_task(1, &TaskBuilder::new().n_nodes(4).user_priority(10));
-    rt.new_task(2, &TaskBuilder::new().n_nodes(2).user_priority(1));
+    let t1 = rt.new_task(&TaskBuilder::new().n_nodes(4).user_priority(10));
+    let t2 = rt.new_task(&TaskBuilder::new().n_nodes(2).user_priority(1));
 
     let mut scheduler = create_test_scheduler();
     scheduler.run_scheduling(rt.core(), &mut comm);
     rt.sanity_check();
-    assert!(rt.task(1).is_waiting());
-    assert!(rt.task(2).is_mn_running());
+    assert!(rt.task(t1).is_waiting());
+    assert!(rt.task(t2).is_mn_running());
 }
 
 #[test]
@@ -264,12 +265,12 @@ fn test_mn_schedule_on_groups() {
     rt.new_worker(&WorkerBuilder::new(1).group("group2"));
 
     let mut comm = create_test_comm();
-    rt.new_task(1, &TaskBuilder::new().n_nodes(2));
+    let t1 = rt.new_task(&TaskBuilder::new().n_nodes(2));
 
     let mut scheduler = create_test_scheduler();
     scheduler.run_scheduling(rt.core(), &mut comm);
     rt.sanity_check();
-    assert!(rt.task(1).is_waiting());
+    assert!(rt.task(t1).is_waiting());
 }
 
 #[test]
@@ -280,14 +281,14 @@ fn test_schedule_mn_time_request1() {
     rt.new_worker(&WorkerBuilder::new(1).time_limit(Duration::new(29_999, 0)));
     rt.new_worker(&WorkerBuilder::new(1).time_limit(Duration::new(30_001, 0)));
 
-    rt.new_task(1, &TaskBuilder::new().n_nodes(3).time_request(30_000));
+    let t1 = rt.new_task(&TaskBuilder::new().n_nodes(3).time_request(30_000));
     rt.schedule();
-    assert!(rt.task(1).is_waiting());
+    assert!(rt.task(t1).is_waiting());
 
-    rt.new_task(2, &TaskBuilder::new().n_nodes(2).time_request(30_000));
+    let t2 = rt.new_task(&TaskBuilder::new().n_nodes(2).time_request(30_000));
     rt.schedule();
-    assert!(rt.task(1).is_waiting());
-    assert!(rt.task(2).is_mn_running());
+    assert!(rt.task(t1).is_waiting());
+    assert!(rt.task(t2).is_mn_running());
 }
 
 #[test]
@@ -296,7 +297,7 @@ fn test_schedule_mn_time_request2() {
     rt.new_worker(&WorkerBuilder::new(1).time_limit(Duration::new(59_999, 0)));
     rt.new_worker(&WorkerBuilder::new(1).time_limit(Duration::new(29_999, 0)));
     rt.new_worker(&WorkerBuilder::new(1).time_limit(Duration::new(30_001, 0)));
-    rt.new_task(1, &TaskBuilder::new().n_nodes(3).time_request(23_998));
+    let t1 = rt.new_task(&TaskBuilder::new().n_nodes(3).time_request(23_998));
     rt.schedule();
-    assert!(rt.task(1).is_mn_running());
+    assert!(rt.task(t1).is_mn_running());
 }

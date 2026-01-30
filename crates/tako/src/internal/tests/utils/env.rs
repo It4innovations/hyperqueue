@@ -22,13 +22,14 @@ use crate::resources::{ResourceAmount, ResourceUnits};
 use crate::task::SerializedTaskContext;
 use crate::tests::utils::worker::WorkerBuilder;
 use crate::worker::WorkerConfiguration;
-use crate::{InstanceId, ResourceVariantId, TaskId, WorkerId};
+use crate::{InstanceId, JobId, JobTaskId, ResourceVariantId, TaskId, WorkerId};
 use std::time::Instant;
 
 pub struct TestEnv {
     core: Core,
     scheduler: SchedulerState,
-    pub task_id_counter: u32,
+    job_id: JobId,
+    task_id_counter: u32,
     worker_id_counter: <WorkerId as ItemId>::IdType,
 }
 
@@ -43,21 +44,27 @@ impl TestEnv {
         TestEnv {
             core: Default::default(),
             scheduler: schedule::create_test_scheduler(),
-            task_id_counter: 10,
+            job_id: JobId::new(1),
+            task_id_counter: 1,
             worker_id_counter: 100,
         }
+    }
+
+    pub fn set_job<J: Into<JobId>>(&mut self, job_id: J, task_id_counter: u32) {
+        self.job_id = job_id.into();
+        self.task_id_counter = self.task_id_counter;
     }
 
     pub fn core(&mut self) -> &mut Core {
         &mut self.core
     }
 
-    pub fn task<T: Into<TaskId>>(&self, task_id: T) -> &Task {
-        self.core.get_task(task_id.into())
+    pub fn task(&self, task_id: TaskId) -> &Task {
+        self.core.get_task(task_id)
     }
 
-    pub fn task_exists<T: Into<TaskId>>(&self, task_id: T) -> bool {
-        self.core.find_task(task_id.into()).is_some()
+    pub fn task_exists(&self, task_id: TaskId) -> bool {
+        self.core.find_task(task_id).is_some()
     }
 
     pub(crate) fn task_map(&self) -> &TaskMap {
@@ -68,19 +75,20 @@ impl TestEnv {
         self.core.sanity_check();
     }
 
-    pub fn new_task<T: Into<TaskId>>(&mut self, task_id: T, builder: &TaskBuilder) -> TaskId {
-        let task_id = task_id.into();
+    pub fn new_task(&mut self, builder: &TaskBuilder) -> TaskId {
+        let task_id = TaskId::new(self.job_id, JobTaskId::new(self.task_id_counter));
+        self.task_id_counter += 1;
         let task = builder.build(task_id, self.core.resource_map_mut());
         schedule::submit_test_tasks(&mut self.core, vec![task]);
         task_id
     }
 
-    pub fn new_task_cpus<T: Into<TaskId>>(&mut self, task_id: T, cpus: u32) -> TaskId {
-        self.new_task(task_id, &TaskBuilder::new().cpus(cpus))
+    pub fn new_task_cpus(&mut self, cpus: u32) -> TaskId {
+        self.new_task(&TaskBuilder::new().cpus(cpus))
     }
 
-    pub fn new_task_default<T: Into<TaskId>>(&mut self, task_id: T) -> TaskId {
-        self.new_task(task_id, &TaskBuilder::new())
+    pub fn new_task_default(&mut self) -> TaskId {
+        self.new_task(&TaskBuilder::new())
     }
 
     pub fn new_generic_resource(&mut self, count: usize) {
@@ -93,45 +101,50 @@ impl TestEnv {
         self.core.get_or_create_resource_id(name)
     }
 
-    pub fn new_task_assigned<W: Into<WorkerId>, T: Into<TaskId>>(
-        &mut self,
-        task_id: T,
-        builder: &TaskBuilder,
-        worker_id: W,
-    ) {
-        let task_id = self.new_task(task_id, builder);
-        schedule::assign_to_worker(&mut self.core, task_id, worker_id.into());
+    pub fn new_tasks(&mut self, n: usize, task_builder: &TaskBuilder) -> Vec<TaskId> {
+        (0..n).map(|_| self.new_task(task_builder)).collect()
     }
 
-    pub fn new_task_running<W: Into<WorkerId>, T: Into<TaskId>>(
+    pub fn new_task_assigned<W: Into<WorkerId>>(
         &mut self,
-        task_id: T,
         builder: &TaskBuilder,
         worker_id: W,
-    ) {
-        let task_id = self.new_task(task_id, builder);
+    ) -> TaskId {
+        let task_id = self.new_task(builder);
+        schedule::assign_to_worker(&mut self.core, task_id, worker_id.into());
+        task_id
+    }
+
+    pub fn new_task_running<W: Into<WorkerId>>(
+        &mut self,
+        builder: &TaskBuilder,
+        worker_id: W,
+    ) -> TaskId {
+        let task_id = self.new_task(builder);
         schedule::start_on_worker_running(&mut self.core, task_id, worker_id.into());
+        task_id
     }
 
     pub fn new_tasks_cpus(&mut self, tasks: &[ResourceUnits]) -> Vec<TaskId> {
         tasks
             .iter()
-            .map(|n_cpus| {
-                let task_id = self.task_id_counter;
-                self.task_id_counter += 1;
-                self.new_task_cpus(task_id, *n_cpus)
-            })
+            .map(|n_cpus| self.new_task_cpus(*n_cpus))
             .collect()
     }
 
-    pub fn new_assigned_tasks_cpus(&mut self, tasks: &[&[ResourceUnits]]) {
-        for (i, tdefs) in tasks.iter().enumerate() {
-            let w_id = WorkerId::new(100 + i as u32);
-            let task_ids = self.new_tasks_cpus(tdefs);
-            for task_id in task_ids {
-                self._test_assign(task_id, w_id);
-            }
-        }
+    pub fn new_assigned_tasks_cpus(&mut self, tasks: &[&[ResourceUnits]]) -> Vec<Vec<TaskId>> {
+        tasks
+            .iter()
+            .enumerate()
+            .map(|(i, tdefs)| {
+                let w_id = WorkerId::new(100 + i as u32);
+                let task_ids = self.new_tasks_cpus(tdefs);
+                for task_id in &task_ids {
+                    self._test_assign(*task_id, w_id);
+                }
+                task_ids
+            })
+            .collect()
     }
 
     pub fn worker<W: Into<WorkerId>>(&self, worker_id: W) -> &Worker {
@@ -145,20 +158,25 @@ impl TestEnv {
         on_new_worker(&mut self.core, &mut TestComm::default(), worker);
     }
 
-    pub fn new_worker(&mut self, builder: &WorkerBuilder) {
+    pub fn new_worker(&mut self, builder: &WorkerBuilder) -> WorkerId {
         let worker_id = WorkerId::new(self.worker_id_counter);
         self.worker_id_counter += 1;
         self.new_worker_with_id(worker_id, builder);
+        worker_id
     }
 
-    pub fn new_workers(&mut self, n: usize, builder: &WorkerBuilder) {
-        (0..n).for_each(|_| self.new_worker(builder));
+    pub fn new_workers(&mut self, n: usize, builder: &WorkerBuilder) -> Vec<WorkerId> {
+        (0..n).map(|_| self.new_worker(builder)).collect()
     }
 
-    pub fn new_workers_cpus(&mut self, cpus: &[u32]) {
-        for c in cpus {
-            self.new_worker(&WorkerBuilder::new(*c))
-        }
+    pub fn new_worker_cpus(&mut self, cpus: u32) -> WorkerId {
+        self.new_worker(&WorkerBuilder::new(cpus))
+    }
+
+    pub fn new_workers_cpus(&mut self, cpus: &[u32]) -> Vec<WorkerId> {
+        cpus.iter()
+            .map(|c| self.new_worker(&WorkerBuilder::new(*c)))
+            .collect()
     }
 
     pub fn _test_assign(&mut self, task_id: TaskId, worker_id: WorkerId) {
@@ -181,11 +199,7 @@ impl TestEnv {
         )
     }
 
-    pub fn check_worker_tasks<W: Into<WorkerId>, T: Into<TaskId> + Copy>(
-        &self,
-        worker_id: W,
-        tasks: &[T],
-    ) {
+    pub fn check_worker_tasks<W: Into<WorkerId>>(&self, worker_id: W, tasks: &[TaskId]) {
         let worker_id = worker_id.into();
         let ids = self.get_worker_tasks(worker_id);
         assert_eq!(
@@ -220,13 +234,14 @@ impl TestEnv {
         println!("-------------");
         for worker in self.core.get_workers() {
             println!(
-                "Worker {} {}",
+                "Worker {} | {}",
                 worker.id,
-                format_comma_delimited(worker.sn_tasks().iter().map(|&task_id| format!(
-                    "{} -> {}",
-                    task_id,
-                    self.core.get_task(task_id).resource_rq_id
-                )))
+                format_comma_delimited(
+                    worker
+                        .sn_tasks()
+                        .iter()
+                        .map(|&task_id| format!("{}", task_id,))
+                )
             );
         }
     }
