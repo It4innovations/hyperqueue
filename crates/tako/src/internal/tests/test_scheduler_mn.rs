@@ -104,7 +104,7 @@ fn test_schedule_mn_simple() {
 #[test]
 fn test_schedule_mn_reserve() {
     let mut rt = TestEnv::new();
-    rt.new_workers_cpus(&[1, 1, 1]);
+    let ws = rt.new_workers_cpus(&[1, 1, 1]);
 
     let t1 = rt.new_task(&TaskBuilder::new().user_priority(10).n_nodes(3));
     let t2 = rt.new_task(&TaskBuilder::new().user_priority(5).n_nodes(2));
@@ -128,7 +128,7 @@ fn test_schedule_mn_reserve() {
     scheduler.run_scheduling(rt.core(), &mut comm);
 
     let ws2 = rt.task(t2).mn_placement().unwrap().to_vec();
-    for w in &[100, 101, 102] {
+    for w in &ws {
         let s1 = get_worker_status(&ws1, (*w).into());
         let s2 = get_worker_status(&ws2, (*w).into());
         let ms = comm.take_worker_msgs(*w, 0);
@@ -141,7 +141,7 @@ fn test_schedule_mn_reserve() {
     scheduler.run_scheduling(rt.core(), &mut comm);
     let ws3 = rt.task(t3).mn_placement().unwrap().to_vec();
 
-    for w in &[100, 101, 102] {
+    for w in &ws {
         let s1 = get_worker_status(&ws2, (*w).into());
         let s2 = get_worker_status(&ws3, (*w).into());
         let ms = comm.take_worker_msgs(*w, 0);
@@ -153,7 +153,7 @@ fn test_schedule_mn_reserve() {
     finish_on_worker(rt.core(), t3, ws3[0]);
     scheduler.run_scheduling(rt.core(), &mut comm);
 
-    for w in &[100, 101, 102] {
+    for w in &ws {
         let s = get_worker_status(&ws3, (*w).into());
         let ms = comm.take_worker_msgs(*w, 0);
         check_worker_status_change(s, WorkerStatus::None, ms.as_slice());
@@ -235,8 +235,8 @@ fn test_mn_sleep_wakeup_one_by_one() {
 
     let w = rt.task(t2).mn_root_worker().unwrap();
     finish_on_worker(rt.core(), t2, w);
-    rt.new_worker_with_id(500, &WorkerBuilder::new(1));
-    rt.new_worker_with_id(501, &WorkerBuilder::new(1));
+    rt.new_worker(&WorkerBuilder::new(1));
+    rt.new_worker(&WorkerBuilder::new(1));
     scheduler.run_scheduling(rt.core(), &mut comm);
     rt.sanity_check();
     assert!(rt.task(t1).is_mn_running());

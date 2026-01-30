@@ -46,13 +46,13 @@ impl TestEnv {
             scheduler: schedule::create_test_scheduler(),
             job_id: JobId::new(1),
             task_id_counter: 1,
-            worker_id_counter: 100,
+            worker_id_counter: 50,
         }
     }
 
     pub fn set_job<J: Into<JobId>>(&mut self, job_id: J, task_id_counter: u32) {
         self.job_id = job_id.into();
-        self.task_id_counter = self.task_id_counter;
+        self.task_id_counter = task_id_counter;
     }
 
     pub fn core(&mut self) -> &mut Core {
@@ -105,21 +105,13 @@ impl TestEnv {
         (0..n).map(|_| self.new_task(task_builder)).collect()
     }
 
-    pub fn new_task_assigned<W: Into<WorkerId>>(
-        &mut self,
-        builder: &TaskBuilder,
-        worker_id: W,
-    ) -> TaskId {
+    pub fn new_task_assigned(&mut self, builder: &TaskBuilder, worker_id: WorkerId) -> TaskId {
         let task_id = self.new_task(builder);
         schedule::assign_to_worker(&mut self.core, task_id, worker_id.into());
         task_id
     }
 
-    pub fn new_task_running<W: Into<WorkerId>>(
-        &mut self,
-        builder: &TaskBuilder,
-        worker_id: W,
-    ) -> TaskId {
+    pub fn new_task_running(&mut self, builder: &TaskBuilder, worker_id: WorkerId) -> TaskId {
         let task_id = self.new_task(builder);
         schedule::start_on_worker_running(&mut self.core, task_id, worker_id.into());
         task_id
@@ -137,7 +129,7 @@ impl TestEnv {
             .iter()
             .enumerate()
             .map(|(i, tdefs)| {
-                let w_id = WorkerId::new(100 + i as u32);
+                let w_id = WorkerId::new(50 + i as u32);
                 let task_ids = self.new_tasks_cpus(tdefs);
                 for task_id in &task_ids {
                     self._test_assign(*task_id, w_id);
@@ -151,17 +143,12 @@ impl TestEnv {
         self.core.get_worker_by_id_or_panic(worker_id.into())
     }
 
-    pub fn new_worker_with_id<W: Into<WorkerId>>(&mut self, worker_id: W, builder: &WorkerBuilder) {
-        let worker_id = worker_id.into();
-        let resource_id_map = self.core.create_resource_map();
-        let worker = builder.build(worker_id, &&resource_id_map, Instant::now());
-        on_new_worker(&mut self.core, &mut TestComm::default(), worker);
-    }
-
     pub fn new_worker(&mut self, builder: &WorkerBuilder) -> WorkerId {
         let worker_id = WorkerId::new(self.worker_id_counter);
         self.worker_id_counter += 1;
-        self.new_worker_with_id(worker_id, builder);
+        let resource_id_map = self.core.create_resource_map();
+        let worker = builder.build(worker_id, &&resource_id_map, Instant::now());
+        on_new_worker(&mut self.core, &mut TestComm::default(), worker);
         worker_id
     }
 
@@ -184,11 +171,11 @@ impl TestEnv {
         self.core.remove_from_ready_to_assign(task_id);
     }
 
-    pub fn test_assign<T: Into<TaskId>, W: Into<WorkerId>>(&mut self, task_id: T, worker_id: W) {
+    pub fn test_assign(&mut self, task_id: TaskId, worker_id: WorkerId) {
         self._test_assign(task_id.into(), worker_id.into());
     }
 
-    pub fn get_worker_tasks<W: Into<WorkerId>>(&self, worker_id: W) -> Vec<TaskId> {
+    pub fn get_worker_tasks(&self, worker_id: WorkerId) -> Vec<TaskId> {
         utils::sorted_vec(
             self.core
                 .get_worker_by_id_or_panic(worker_id.into())
@@ -199,8 +186,7 @@ impl TestEnv {
         )
     }
 
-    pub fn check_worker_tasks<W: Into<WorkerId>>(&self, worker_id: W, tasks: &[TaskId]) {
-        let worker_id = worker_id.into();
+    pub fn check_worker_tasks(&self, worker_id: WorkerId, tasks: &[TaskId]) {
         let ids = self.get_worker_tasks(worker_id);
         assert_eq!(
             ids,
@@ -208,7 +194,7 @@ impl TestEnv {
         );
     }
 
-    pub fn worker_load<W: Into<WorkerId>>(&self, worker_id: W) -> &WorkerLoad {
+    pub fn worker_load(&self, worker_id: WorkerId) -> &WorkerLoad {
         &self
             .core
             .get_worker_by_id_or_panic(worker_id.into())
@@ -312,12 +298,7 @@ pub struct TestComm {
 }
 
 impl TestComm {
-    pub fn take_worker_msgs<T: Into<WorkerId>>(
-        &mut self,
-        worker_id: T,
-        len: usize,
-    ) -> Vec<ToWorkerMessage> {
-        let worker_id: WorkerId = worker_id.into();
+    pub fn take_worker_msgs(&mut self, worker_id: WorkerId, len: usize) -> Vec<ToWorkerMessage> {
         let msgs = self.worker_msgs.remove(&worker_id).unwrap_or_default();
         if len != 0 {
             assert_eq!(msgs.len(), len);

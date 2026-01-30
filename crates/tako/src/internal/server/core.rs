@@ -632,66 +632,60 @@ mod tests {
             self.single_node_ready_to_assign.retain(|&id| id != task_id);
         }
 
-        pub fn assert_task_condition<T: Copy + Into<TaskId>, F: Fn(&Task) -> bool>(
-            &self,
-            task_ids: &[T],
-            op: F,
-        ) {
+        pub fn assert_task_condition<F: Fn(&Task) -> bool>(&self, task_ids: &[TaskId], op: F) {
             for task_id in task_ids {
-                let task_id: TaskId = (*task_id).into();
-                if !op(self.get_task(task_id)) {
+                if !op(self.get_task(*task_id)) {
                     panic!("Task {task_id} does not satisfy the condition");
                 }
             }
         }
 
-        pub fn assert_worker_condition<W: Copy + Into<WorkerId>, F: Fn(&Worker) -> bool>(
+        pub fn assert_worker_condition<F: Fn(&Worker) -> bool>(
             &self,
-            worker_ids: &[W],
+            worker_ids: &[WorkerId],
             op: F,
         ) {
             for worker_id in worker_ids {
-                let worker_id: WorkerId = (*worker_id).into();
-                if !op(self.get_worker_by_id_or_panic(worker_id)) {
+                if !op(self.get_worker_by_id_or_panic(*worker_id)) {
                     panic!("Worker {worker_id} does not satisfy the condition");
                 }
             }
         }
 
-        pub fn assert_waiting<T: Copy + Into<TaskId>>(&self, task_ids: &[T]) {
+        pub fn assert_waiting(&self, task_ids: &[TaskId]) {
             self.assert_task_condition(task_ids, |t| t.is_waiting());
         }
 
-        pub fn assert_ready<T: Copy + Into<TaskId>>(&self, task_ids: &[T]) {
+        pub fn assert_ready(&self, task_ids: &[TaskId]) {
             self.assert_task_condition(task_ids, |t| t.is_ready());
         }
 
-        pub fn assert_assigned<T: Copy + Into<TaskId>>(&self, task_ids: &[T]) {
+        pub fn assert_assigned(&self, task_ids: &[TaskId]) {
             self.assert_task_condition(task_ids, |t| t.is_assigned());
         }
 
-        pub fn assert_fresh<T: Copy + Into<TaskId>>(&self, task_ids: &[T]) {
+        pub fn assert_fresh(&self, task_ids: &[TaskId]) {
             self.assert_task_condition(task_ids, |t| t.is_fresh());
         }
 
-        pub fn assert_not_fresh<T: Copy + Into<TaskId>>(&self, task_ids: &[T]) {
+        pub fn assert_not_fresh(&self, task_ids: &[TaskId]) {
             self.assert_task_condition(task_ids, |t| !t.is_fresh());
         }
 
-        pub fn assert_running<T: Copy + Into<TaskId>>(&self, task_ids: &[T]) {
+        pub fn assert_running(&self, task_ids: &[TaskId]) {
             self.assert_task_condition(task_ids, |t| t.is_sn_running());
         }
 
-        pub fn assert_underloaded<W: Copy + Into<WorkerId>>(&self, worker_ids: &[W]) {
+        pub fn assert_underloaded(&self, worker_ids: &[WorkerId]) {
             self.assert_worker_condition(worker_ids, |w| w.is_underloaded());
         }
 
-        pub fn assert_not_underloaded<W: Copy + Into<WorkerId>>(&self, worker_ids: &[W]) {
+        pub fn assert_not_underloaded(&self, worker_ids: &[WorkerId]) {
             self.assert_worker_condition(worker_ids, |w| !w.is_underloaded());
         }
 
-        pub fn task<T: Into<TaskId>>(&self, id: T) -> &Task {
-            self.tasks.get_task(id.into())
+        pub fn task(&self, id: TaskId) -> &Task {
+            self.tasks.get_task(id)
         }
     }
 
