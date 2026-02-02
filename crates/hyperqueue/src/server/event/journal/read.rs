@@ -67,7 +67,7 @@ impl JournalReader {
 }
 
 impl Iterator for &mut JournalReader {
-    type Item = Result<Event, bincode::Error>;
+    type Item = Result<Event, anyhow::Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.position = self.source.stream_position().unwrap();
@@ -83,7 +83,10 @@ impl Iterator for &mut JournalReader {
                     self.partial_data_error = true;
                     None
                 }
-                _ => Some(Err(error)),
+                _ => Some(Err(anyhow!(
+                    "Load journal event failed at position: {}. Deserialization error: {error:?}",
+                    self.position
+                ))),
             },
         }
     }
