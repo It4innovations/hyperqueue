@@ -318,7 +318,10 @@ impl Worker {
                     log::debug!(
                         "Retracting task={task_id}, time request cannot be fulfilled anymore"
                     );
-                    task.state = TaskRuntimeState::Stealing(self.id, None);
+                    task.state = TaskRuntimeState::Stealing {
+                        source: self.id,
+                        target: None,
+                    };
                     true
                 } else {
                     false

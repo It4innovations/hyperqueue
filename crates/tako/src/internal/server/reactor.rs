@@ -67,19 +67,22 @@ pub(crate) fn on_remove_worker(
                     continue;
                 }
             }
-            TaskRuntimeState::Stealing(from_id, to_id) => {
-                if *from_id == worker_id {
+            TaskRuntimeState::Stealing { source, target } => {
+                if *source == worker_id {
                     log::debug!("Canceling steal of task={task_id} from lost worker");
 
-                    if let Some(to_id) = to_id {
+                    if let Some(to_id) = target {
                         removes.push((*to_id, task_id));
                     }
                     task.increment_instance_id();
                     ready_to_assign.push(task_id);
                     TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 })
-                } else if *to_id == Some(worker_id) {
+                } else if *target == Some(worker_id) {
                     log::debug!("Task={task_id} is stealing target for lost worker");
-                    TaskRuntimeState::Stealing(*from_id, None)
+                    TaskRuntimeState::Stealing {
+                        source: *source,
+                        target: None,
+                    }
                 } else {
                     continue;
                 }
@@ -208,7 +211,11 @@ pub(crate) fn on_task_running(
     let simple_worker_list = &[worker_id];
     if let Some(task) = tasks.find_task_mut(task_id) {
         let worker_ids = match &task.state {
-            TaskRuntimeState::Assigned(w_id) | TaskRuntimeState::Stealing(w_id, None) => {
+            TaskRuntimeState::Assigned(w_id)
+            | TaskRuntimeState::Stealing {
+                source: w_id,
+                target: None,
+            } => {
                 assert_eq!(*w_id, worker_id);
                 task.state = TaskRuntimeState::Running {
                     worker_id,
@@ -222,7 +229,10 @@ pub(crate) fn on_task_running(
 
                 simple_worker_list.as_slice()
             }
-            TaskRuntimeState::Stealing(w_id, Some(_)) => {
+            TaskRuntimeState::Stealing {
+                source: w_id,
+                target: Some(_),
+            } => {
                 assert_eq!(*w_id, worker_id);
                 let worker = workers.get_worker_mut(*w_id);
                 worker.insert_sn_task(task_id);
@@ -307,10 +317,16 @@ pub(crate) fn on_task_finished(
                     assert_eq!(ws[0], worker_id);
                     reset_mn_task_workers(workers, ws, task_id);
                 }
-                TaskRuntimeState::Stealing(w_id, Some(_target)) => {
+                TaskRuntimeState::Stealing {
+                    source: w_id,
+                    target: Some(_),
+                } => {
                     assert_eq!(*w_id, worker_id);
                 }
-                TaskRuntimeState::Stealing(w_id, None) => {
+                TaskRuntimeState::Stealing {
+                    source: w_id,
+                    target: None,
+                } => {
                     assert_eq!(*w_id, worker_id);
                     /* Do nothing */
                 }
@@ -417,9 +433,9 @@ pub(crate) fn on_steal_response(
                     log::debug!("Received trace response for finished task={task_id}");
                     continue;
                 }
-                if let TaskRuntimeState::Stealing(from_w, to_w) = &task.state {
-                    assert_eq!(*from_w, worker_id);
-                    *to_w
+                if let TaskRuntimeState::Stealing { source, target } = &task.state {
+                    assert_eq!(*source, worker_id);
+                    *target
                 } else {
                     log::debug!("Invalid state of task={task_id} when steal response occurred");
                     continue;
@@ -529,7 +545,7 @@ fn fail_task_helper(
             state,
             TaskRuntimeState::Assigned(_)
                 | TaskRuntimeState::Running { .. }
-                | TaskRuntimeState::Stealing(_, _)
+                | TaskRuntimeState::Stealing { .. }
                 | TaskRuntimeState::RunningMultiNode(_)
         ));
     } else {
@@ -588,8 +604,8 @@ pub(crate) fn on_cancel_tasks(core: &mut Core, comm: &mut impl Comm, task_ids: &
                     }
                     running_ids.entry(ws[0]).or_default().push(task_id);
                 }
-                TaskRuntimeState::Stealing(from_id, _to_id) => {
-                    running_ids.entry(from_id).or_default().push(task_id);
+                TaskRuntimeState::Stealing { source, target: _ } => {
+                    running_ids.entry(source).or_default().push(task_id);
                 }
                 TaskRuntimeState::Finished => unreachable!(),
             };

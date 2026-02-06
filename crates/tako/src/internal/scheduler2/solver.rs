@@ -1,5 +1,6 @@
 use crate::internal::common::resources::ResourceId;
 use crate::internal::scheduler2::TaskBatch;
+use crate::internal::scheduler2::mapping::WorkerTaskMapping;
 use crate::internal::server::core::Core;
 use crate::internal::solver::{LpInnerSolver, LpSolution, LpSolver, Variable};
 use crate::resources::ResourceRqId;
@@ -8,38 +9,21 @@ use hashbrown::Equivalent;
 use std::cmp::Reverse;
 use std::collections::BTreeMap;
 
-#[derive(Debug, Default)]
-pub(crate) struct WorkerTaskMapping {
-    pub(crate) task_to_workers: Map<WorkerId, Vec<(TaskId, ResourceVariantId)>>,
-}
-
-impl WorkerTaskMapping {
-    pub fn dump(&mut self) {
-        println!("=======================");
-        for (w, ts) in &self.task_to_workers {
-            print!("w{w}:");
-            for (task_id, variant) in ts {
-                if variant.is_first() {
-                    print!(" {}", task_id)
-                } else {
-                    print!(" {}/{}", task_id, variant)
-                }
-            }
-            println!();
-        }
-    }
+#[derive(Default)]
+pub(crate) struct SchedulingSolution {
+    pub(crate) sn_counts: Vec<(ResourceRqId, ResourceVariantId, Vec<(WorkerId, u32)>)>,
 }
 
 pub(crate) fn run_scheduling_solver(
-    core: &mut Core,
+    core: &Core,
     now: std::time::Instant,
     task_batches: &[TaskBatch],
-) -> WorkerTaskMapping {
-    let n_resources = core.resource_map_mut().n_resources();
+) -> SchedulingSolution {
+    let n_resources = core.resource_map().n_resources();
 
     let (task_map, worker_map, task_queues, resource_map, _) = core.split_all();
     if resource_map.is_empty() {
-        return WorkerTaskMapping::default();
+        return SchedulingSolution::default();
     }
     let mut global_resource_sums = vec![0f64; n_resources];
 
@@ -238,13 +222,41 @@ pub(crate) fn run_scheduling_solver(
         }
     }
 
-    let mut result = WorkerTaskMapping::default();
+    let mut result = SchedulingSolution::default();
     let Some((solution, _)) = solver.solve() else {
         return result;
     };
 
     let values = solution.get_values();
 
+    for batch in task_batches {
+        let resource_rq_id = batch.resource_rq_id;
+        let rqv = resource_map.get(resource_rq_id);
+        for v_id in rqv.variant_ids() {
+            let counts: Vec<_> = workers
+                .iter()
+                .filter_map(|w| {
+                    placements
+                        .get(&(w.id, resource_rq_id, v_id))
+                        .and_then(|(_, var_idx)| {
+                            let count = values[*var_idx as usize].round() as u32;
+                            if count > 0 {
+                                Some((w.id, values[*var_idx as usize].round() as u32))
+                            } else {
+                                None
+                            }
+                        })
+                })
+                .collect();
+            if !counts.is_empty() {
+                result.sn_counts.push((resource_rq_id, v_id, counts));
+            }
+        }
+    }
+    result
+}
+
+/*
     for batch in task_batches {
         let resource_rq_id = batch.resource_rq_id;
         let rqv = resource_map.get(batch.resource_rq_id);
@@ -307,7 +319,7 @@ pub(crate) fn run_scheduling_solver(
     }
 
     result
-}
+}*/
 
 fn min_extra_var(
     solver: &mut LpSolver,

@@ -13,4 +13,5 @@ mod test_worker;
 
 pub mod integration;
 
+mod test_scheduler_mapping;
 pub mod utils;

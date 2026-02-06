@@ -29,7 +29,10 @@ pub struct WaitingInfo {
 pub enum TaskRuntimeState {
     Waiting(WaitingInfo),
     Assigned(WorkerId),
-    Stealing(WorkerId, Option<WorkerId>), // (from, to)
+    Stealing {
+        source: WorkerId,
+        target: Option<WorkerId>,
+    },
     Running {
         worker_id: WorkerId,
         rv_id: ResourceVariantId,
@@ -44,7 +47,7 @@ impl fmt::Debug for TaskRuntimeState {
         match self {
             Self::Waiting(info) => write!(f, "W({})", info.unfinished_deps),
             Self::Assigned(w_id) => write!(f, "A({w_id})"),
-            Self::Stealing(from_w, to_w) => write!(f, "S({from_w}, {to_w:?})"),
+            Self::Stealing { source, target } => write!(f, "S({source}, {target:?})"),
             Self::Running { worker_id, .. } => write!(f, "R({worker_id})"),
             Self::RunningMultiNode(ws) => write!(f, "M({ws:?})"),
             Self::Finished => write!(f, "F"),
@@ -63,10 +66,10 @@ impl TaskRuntimeState {
                 "state": "Assigned",
                 "worker_id": w_id,
             }),
-            Self::Stealing(from_w, to_w) => json!({
+            Self::Stealing { source, target } => json!({
                 "state": "Stealing",
-                "from_worker": from_w,
-                "to_worker": to_w,
+                "from_worker": source,
+                "to_worker": target,
             }),
             Self::Running { worker_id, .. } => json!({
                 "state": "Running",
@@ -295,7 +298,10 @@ impl Task {
         match &self.state {
             TaskRuntimeState::Assigned(w)
             | TaskRuntimeState::Running { worker_id: w, .. }
-            | TaskRuntimeState::Stealing(w, _) => worker_id == *w,
+            | TaskRuntimeState::Stealing {
+                source: w,
+                target: _,
+            } => worker_id == *w,
             TaskRuntimeState::RunningMultiNode(ws) => ws[0] == worker_id,
             _ => false,
         }
@@ -319,9 +325,15 @@ impl Task {
         match &self.state {
             TaskRuntimeState::Assigned(id)
             | TaskRuntimeState::Running { worker_id: id, .. }
-            | TaskRuntimeState::Stealing(_, Some(id)) => Some(*id),
+            | TaskRuntimeState::Stealing {
+                source: _,
+                target: Some(id),
+            } => Some(*id),
             TaskRuntimeState::Waiting(_)
-            | TaskRuntimeState::Stealing(_, None)
+            | TaskRuntimeState::Stealing {
+                source: _,
+                target: None,
+            }
             | TaskRuntimeState::RunningMultiNode(_)
             | TaskRuntimeState::Finished => None,
         }

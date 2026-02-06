@@ -106,6 +106,25 @@ impl Core {
 
     #[inline]
     pub fn split_all(
+        &self,
+    ) -> (
+        &TaskMap,
+        &WorkerMap,
+        &[TaskQueue],
+        &ResourceRqMap,
+        &DataObjectMap,
+    ) {
+        (
+            &self.tasks,
+            &self.workers,
+            &self.task_queues,
+            self.resource_map.get_resource_rq_map(),
+            &self.data_objects,
+        )
+    }
+
+    #[inline]
+    pub fn split_all_mut(
         &mut self,
     ) -> (
         &mut TaskMap,
@@ -528,7 +547,7 @@ impl Core {
                     worker_check_sn(self, task.id, *wid);
                 }
 
-                TaskRuntimeState::Stealing(_, target) => {
+                TaskRuntimeState::Stealing { source: _, target } => {
                     fw_check(task);
                     worker_check_sn(self, task.id, target.unwrap_or(WorkerId::new(0)));
                 }
@@ -577,6 +596,11 @@ impl Core {
         resources: &crate::gateway::ResourceRequestVariants,
     ) -> ResourceRequestVariants {
         self.resource_map.convert_client_resource_rq(resources)
+    }
+
+    #[inline]
+    pub fn resource_map(&self) -> &GlobalResourceMapping {
+        &self.resource_map
     }
 
     #[inline]
