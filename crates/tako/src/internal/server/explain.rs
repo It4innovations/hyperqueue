@@ -88,7 +88,7 @@ pub fn task_explain_init(task: &Task) -> TaskExplanation {
     TaskExplanation {
         n_task_deps: task.task_deps.len() as u32,
         n_waiting_deps: match &task.state {
-            TaskRuntimeState::Waiting(w) => w.unfinished_deps,
+            TaskRuntimeState::Waiting { unfinished_deps } => *unfinished_deps,
             _ => 0,
         },
         workers: Vec::new(),
@@ -150,6 +150,7 @@ mod tests {
     use crate::internal::server::workergroup::WorkerGroup;
     use crate::internal::tests::utils::task::TaskBuilder;
 
+    use crate::internal::server::core::CoreSplitMut;
     use crate::resources::ResourceAmount;
     use crate::tests::utils::env::TestEnv;
     use crate::tests::utils::worker::WorkerBuilder;
@@ -293,10 +294,15 @@ mod tests {
         wset.insert(WorkerId::new(1004));
         let group = WorkerGroup::new(wset);
         let resource_map = rt.core().create_resource_map();
-        let (task_map, worker_map, rqs) = rt.core().split_tasks_workers_requests_mut();
+        let CoreSplitMut {
+            task_map,
+            worker_map,
+            request_map,
+            ..
+        } = rt.core().split_mut();
         let r = task_explain_for_worker(
             &resource_map,
-            rqs,
+            request_map,
             task_map.get_task(t1),
             worker_map.get_worker(w1),
             &group,
@@ -312,7 +318,7 @@ mod tests {
         let group = WorkerGroup::new(wset);
         let r = task_explain_for_worker(
             &resource_map,
-            rqs,
+            request_map,
             task_map.get_task(t1),
             worker_map.get_worker(w1),
             &group,

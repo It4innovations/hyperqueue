@@ -7,7 +7,7 @@ use crate::internal::common::resources::map::{
 use crate::internal::common::resources::{ResourceId, ResourceRequestVariants, ResourceRqId};
 use crate::internal::common::{Set, WrappedRcRefCell};
 use crate::internal::scheduler::multinode::MultiNodeQueue;
-use crate::internal::scheduler2::TaskQueue;
+use crate::internal::scheduler2::{TaskQueue, TaskQueues};
 use crate::internal::server::dataobj::{DataObjectHandle, ObjsToRemoveFromWorkers};
 use crate::internal::server::dataobjmap::DataObjectMap;
 use crate::internal::server::rpc::ConnectionDescriptor;
@@ -23,30 +23,35 @@ use serde_json::json;
 
 pub(crate) type CustomConnectionHandler = Box<dyn Fn(ConnectionDescriptor)>;
 
+pub(crate) struct CoreSplitMut<'a> {
+    pub task_map: &'a mut TaskMap,
+    pub worker_map: &'a mut WorkerMap,
+    pub request_map: &'a ResourceRqMap,
+    pub task_queues: &'a mut TaskQueues,
+    pub data_objects: &'a mut DataObjectMap,
+    pub worker_groups: &'a mut Map<String, WorkerGroup>,
+}
+
+pub(crate) struct CoreSplit<'a> {
+    pub task_map: &'a TaskMap,
+    pub worker_map: &'a WorkerMap,
+    pub request_map: &'a ResourceRqMap,
+    pub task_queues: &'a TaskQueues,
+    pub data_objects: &'a DataObjectMap,
+    pub worker_groups: &'a Map<String, WorkerGroup>,
+}
+
 #[derive(Default)]
 pub struct Core {
     tasks: TaskMap,
     workers: WorkerMap,
-    worker_groups: Map<String, WorkerGroup>,
+    resource_map: GlobalResourceMapping,
+    task_queues: TaskQueues,
     data_objects: DataObjectMap,
-
-    /* Scheduler items */
-    task_queues: Vec<TaskQueue>,
-
-    tasks_in_stealing: Set<TaskId>,
-
-    // TODO: Remove parked_resources
-    parked_resources: Set<WorkerResources>, // Resources of workers that has flag NOTHING_TO_LOAD
-
-    // TODO: Remove multi_node_queue
-    multi_node_queue: MultiNodeQueue,
-
-    // TODO: Remove sleeping tasks
-    sleeping_sn_tasks: Vec<TaskId>, // Tasks that cannot be scheduled to any available worker
+    worker_groups: Map<String, WorkerGroup>,
 
     maximal_task_id: TaskId,
     worker_id_counter: u32,
-    resource_map: GlobalResourceMapping,
     worker_listen_port: u16,
 
     idle_timeout: Option<Duration>,
@@ -83,76 +88,41 @@ impl CoreRef {
 }
 
 impl Core {
-    // #[inline]
-    // pub fn split_tasks_workers(&self) -> (&TaskMap, &WorkerMap) {
-    //     (&self.tasks, &self.workers)
-    // }
-
     #[inline]
-    pub fn split_tasks_workers_mut(&mut self) -> (&mut TaskMap, &mut WorkerMap) {
-        (&mut self.tasks, &mut self.workers)
+    pub fn split_mut(&mut self) -> CoreSplitMut {
+        CoreSplitMut {
+            task_map: &mut self.tasks,
+            worker_map: &mut self.workers,
+            request_map: self.resource_map.get_resource_rq_map(),
+            task_queues: &mut self.task_queues,
+            data_objects: &mut self.data_objects,
+            worker_groups: &mut self.worker_groups,
+        }
     }
 
     #[inline]
-    pub fn split_tasks_workers_requests_mut(
-        &mut self,
-    ) -> (&mut TaskMap, &mut WorkerMap, &ResourceRqMap) {
-        (
-            &mut self.tasks,
-            &mut self.workers,
-            self.resource_map.get_resource_rq_map(),
-        )
+    pub fn split(&self) -> CoreSplit {
+        CoreSplit {
+            task_map: &self.tasks,
+            worker_map: &self.workers,
+            request_map: self.resource_map.get_resource_rq_map(),
+            task_queues: &self.task_queues,
+            data_objects: &self.data_objects,
+            worker_groups: &self.worker_groups,
+        }
     }
 
-    #[inline]
-    pub fn split_all(
-        &mut self,
-    ) -> (
-        &mut TaskMap,
-        &mut WorkerMap,
-        &mut [TaskQueue],
-        &ResourceRqMap,
-        &mut DataObjectMap,
-    ) {
-        (
-            &mut self.tasks,
-            &mut self.workers,
-            &mut self.task_queues,
-            self.resource_map.get_resource_rq_map(),
-            &mut self.data_objects,
-        )
-    }
-
-    #[inline]
-    pub fn split_tasks_workers_dataobjs_mut(
-        &mut self,
-    ) -> (
-        &mut TaskMap,
-        &mut WorkerMap,
-        &mut DataObjectMap,
-        &ResourceRqMap,
-    ) {
-        (
-            &mut self.tasks,
-            &mut self.workers,
-            &mut self.data_objects,
-            self.resource_map.get_resource_rq_map(),
-        )
-    }
-
-    #[cfg(test)]
-    pub fn split_tasks_resource_map_mut(&mut self) -> (&mut TaskMap, &mut GlobalResourceMapping) {
-        (&mut self.tasks, &mut self.resource_map)
-    }
-
-    #[inline]
-    pub fn split_tasks_data_objects_mut(&mut self) -> (&mut TaskMap, &mut DataObjectMap) {
-        (&mut self.tasks, &mut self.data_objects)
+    pub fn task_queues_mut(&mut self) -> &mut TaskQueues {
+        &mut self.task_queues
     }
 
     pub fn new_worker_id(&mut self) -> WorkerId {
         self.worker_id_counter += 1;
         WorkerId::new(self.worker_id_counter)
+    }
+
+    pub fn worker_counter(&self) -> u32 {
+        self.worker_id_counter
     }
 
     pub fn worker_groups(&self) -> &Map<String, WorkerGroup> {
@@ -179,29 +149,6 @@ impl Core {
         &mut self.worker_overview_listeners
     }
 
-    #[inline]
-    pub(crate) fn multi_node_queue_split_mut(
-        &mut self,
-    ) -> (
-        &mut MultiNodeQueue,
-        &mut TaskMap,
-        &mut WorkerMap,
-        &Map<String, WorkerGroup>,
-        &ResourceRqMap,
-    ) {
-        (
-            &mut self.multi_node_queue,
-            &mut self.tasks,
-            &mut self.workers,
-            &self.worker_groups,
-            self.resource_map.get_resource_rq_map(),
-        )
-    }
-
-    pub(crate) fn multi_node_queue_split(&self) -> (&MultiNodeQueue, &TaskMap, &WorkerMap) {
-        (&self.multi_node_queue, &self.tasks, &self.workers)
-    }
-
     pub fn park_workers(&mut self) {
         todo!()
         /*for worker in self.workers.values_mut() {
@@ -218,34 +165,11 @@ impl Core {
         }*/
     }
 
-    pub fn add_sleeping_sn_task(&mut self, task_id: TaskId) {
-        self.sleeping_sn_tasks.push(task_id);
-    }
-
-    pub fn add_sleeping_sn_tasks(&mut self, task_ids: Vec<TaskId>) {
-        if self.sleeping_sn_tasks.is_empty() {
-            self.sleeping_sn_tasks = task_ids;
-        } else {
-            self.sleeping_sn_tasks.extend(task_ids);
-        }
-    }
-
-    pub fn sleeping_sn_tasks(&self) -> &[TaskId] {
-        &self.sleeping_sn_tasks
-    }
-
-    pub fn take_sleeping_tasks(&mut self) -> Vec<TaskId> {
-        std::mem::take(&mut self.sleeping_sn_tasks)
-    }
-
     pub fn get_worker_listen_port(&self) -> u16 {
         self.worker_listen_port
     }
 
     pub fn new_worker(&mut self, worker: Worker) {
-        /* Wake up sleeping tasks */
-        let mut sleeping_sn_tasks = self.take_sleeping_tasks();
-        self.multi_node_queue.wakeup_sleeping_tasks();
         let worker_id = worker.id;
         if let Some(g) = self.worker_groups.get_mut(&worker.configuration.group) {
             g.new_worker(worker_id);
@@ -332,55 +256,10 @@ impl Core {
     }
 
     pub fn add_task(&mut self, task: Task) {
-        let is_ready = task.is_ready();
-        let task_id = task.id;
+        if task.is_ready() {
+            self.task_queues.get_mut(task.resource_rq_id).add(&task);
+        }
         assert!(self.tasks.insert(task).is_none());
-        if is_ready {
-            self.add_ready_to_assign(task_id);
-        }
-    }
-
-    pub fn add_task_queue(&mut self) {
-        let resource_rq_id = ResourceRqId::new(self.task_queues.len() as u32);
-        self.task_queues.push(TaskQueue::new(resource_rq_id));
-    }
-
-    #[inline(never)]
-    pub fn wakeup_parked_resources(&mut self) {
-        log::debug!("Waking up parked resources");
-        for worker in self.workers.values_mut() {
-            worker.set_parked_flag(false);
-        }
-        self.parked_resources.clear();
-    }
-
-    pub fn has_parked_resources(&mut self) -> bool {
-        !self.parked_resources.is_empty()
-    }
-
-    #[inline]
-    pub fn check_parked_resources(&self, request: &ResourceRequestVariants) -> bool {
-        for res in &self.parked_resources {
-            if res.is_capable_to_run(request) {
-                return true;
-            }
-        }
-        false
-    }
-
-    pub fn add_ready_to_assign(&mut self, task_id: TaskId) {
-        let task = self.tasks.get_task(task_id);
-        if self
-            .get_resource_rq_map()
-            .get(task.resource_rq_id)
-            .is_multi_node()
-        {
-            /*self.multi_node_queue
-            .add_task(task, self.resource_map.get_resource_rq_map());*/
-            todo!()
-        } else {
-            self.task_queues[task.resource_rq_id.as_usize()].add(task);
-        }
     }
 
     // TODO: move to TaskMap
@@ -397,7 +276,8 @@ impl Core {
             .tasks
             .remove(task_id)
             .expect("Trying to remove non-existent task");
-        if matches!(&task.state, TaskRuntimeState::Waiting(w) if w.unfinished_deps > 0) {
+        if matches!(&task.state, TaskRuntimeState::Waiting { unfinished_deps } if *unfinished_deps > 0)
+        {
             for input_id in task.task_deps {
                 if let Some(input) = self.find_task_mut(input_id) {
                     assert!(input.remove_consumer(task_id));
@@ -490,9 +370,6 @@ impl Core {
 
         for (worker_id, worker) in self.workers.iter() {
             assert_eq!(worker.id, *worker_id);
-            if worker.is_parked() {
-                assert!(self.parked_resources.contains(&worker.resources));
-            }
             worker.sanity_check(&self.tasks, self.resource_map.get_resource_rq_map());
         }
 
@@ -504,7 +381,7 @@ impl Core {
             let task = self.get_task(task_id);
             assert_eq!(task.id, task_id);
             match &task.state {
-                TaskRuntimeState::Waiting(winfo) => {
+                TaskRuntimeState::Waiting { unfinished_deps } => {
                     let mut count = 0;
                     for task_dep in &task.task_deps {
                         if !self
@@ -518,21 +395,26 @@ impl Core {
                     for &task_id in task.get_consumers() {
                         assert!(self.tasks.get_task(task_id).is_waiting());
                     }
-                    assert_eq!(winfo.unfinished_deps, count);
+                    assert_eq!(*unfinished_deps, count);
                     worker_check_sn(self, task.id, 0.into());
                 }
 
-                TaskRuntimeState::Assigned(wid)
-                | TaskRuntimeState::Running { worker_id: wid, .. } => {
+                TaskRuntimeState::Assigned { worker_id, .. }
+                | TaskRuntimeState::Running { worker_id, .. } => {
                     fw_check(task);
-                    worker_check_sn(self, task.id, *wid);
+                    worker_check_sn(self, task.id, *worker_id);
+                }
+                /*TaskRuntimeState::Retracting { source: _ } => {
+                    fw_check(task);
+                    worker_check_sn(self, task.id, WorkerId::new(0));
                 }
 
-                TaskRuntimeState::Stealing(_, target) => {
+                TaskRuntimeState::Stealing {
+                    source: _, target, ..
+                } => {
                     fw_check(task);
-                    worker_check_sn(self, task.id, target.unwrap_or(WorkerId::new(0)));
-                }
-
+                    worker_check_sn(self, task.id, *target);
+                }*/
                 TaskRuntimeState::Finished => {
                     for task_dep in &task.task_deps {
                         assert!(self.tasks.find_task(*task_dep).is_none());
@@ -580,6 +462,11 @@ impl Core {
     }
 
     #[inline]
+    pub fn resource_map(&self) -> &GlobalResourceMapping {
+        &self.resource_map
+    }
+
+    #[inline]
     pub fn resource_map_mut(&mut self) -> &mut GlobalResourceMapping {
         &mut self.resource_map
     }
@@ -606,12 +493,7 @@ impl Core {
         self.tasks.shrink_to_fit();
         self.workers.shrink_to_fit();
         self.worker_groups.shrink_to_fit();
-        self.parked_resources.shrink_to_fit();
-        for task_queue in &mut self.task_queues {
-            task_queue.shrink_to_fit();
-        }
-        self.sleeping_sn_tasks.shrink_to_fit();
-        self.multi_node_queue.shrink_to_fit();
+        self.task_queues.shrink_to_fit();
     }
 
     pub fn dump(&self, now: Instant) -> serde_json::Value {
@@ -622,9 +504,6 @@ impl Core {
                        "workers": v.worker_ids().collect::<Vec<_>>(),
                 })).collect::<Vec<_>>(),
             "tasks": self.tasks.tasks().map(|t| t.dump()).collect::<Vec<_>>(),
-            "parked_resources": self.parked_resources.iter().map(|r| r.dump()).collect::<Vec<_>>(),
-            "mn_queue": self.multi_node_queue.dump(),
-            "sleeping_sn_tasks": self.sleeping_sn_tasks,
         })
     }
 }
@@ -697,7 +576,9 @@ mod tests {
             let task = self.get_task(task_id);
             let resource_rq_id = task.resource_rq_id;
             let priority = task.priority();
-            self.task_queues[resource_rq_id.as_usize()].remove(task_id, priority);
+            self.task_queues
+                .get_mut(resource_rq_id)
+                .remove(task_id, priority);
         }
     }
 
@@ -708,7 +589,7 @@ mod tests {
         let mut objs_to_remove = ObjsToRemoveFromWorkers::new();
         assert!(matches!(
             rt.core().remove_task(t, &mut objs_to_remove).0,
-            TaskRuntimeState::Waiting(_)
+            TaskRuntimeState::Waiting { .. }
         ));
         assert_eq!(rt.core().find_task(t), None);
     }

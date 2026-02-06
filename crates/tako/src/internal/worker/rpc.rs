@@ -402,7 +402,7 @@ pub(crate) fn process_worker_message(state: &mut WorkerState, message: ToWorkerM
                 state.add_task(new_task);
             }
         }
-        ToWorkerMessage::StealTasks(msg) => {
+        ToWorkerMessage::RetractTasks(msg) => {
             log::debug!("Steal {} attempts", msg.ids.len());
             let responses: Vec<_> = msg
                 .ids

@@ -39,17 +39,17 @@ pub(crate) trait LpSolution {
 pub(crate) struct LpSolver {
     solver: LpInnerSolverImpl,
 
-    #[cfg(not(build = "release"))]
+    #[cfg(debug_assertions)]
     verbose: bool,
-    #[cfg(not(build = "release"))]
+    #[cfg(debug_assertions)]
     var_name_map: crate::Map<Variable, usize>,
-    #[cfg(not(build = "release"))]
+    #[cfg(debug_assertions)]
     name_config: Option<String>,
-    #[cfg(not(build = "release"))]
+    #[cfg(debug_assertions)]
     variables: Vec<(String, f64)>,
 }
 
-#[cfg(not(build = "release"))]
+#[cfg(debug_assertions)]
 impl LpSolver {
     #[inline]
     pub fn set_name<F>(&mut self, create_name: F)
@@ -157,7 +157,7 @@ impl LpSolver {
     }
 }
 
-#[cfg(build = "release")]
+#[cfg(not(debug_assertions))]
 impl LpSolver {
     #[inline]
     pub fn set_name<F>(&mut self, create_name: F)
@@ -168,10 +168,7 @@ impl LpSolver {
     }
 
     #[inline]
-    fn new_var(&mut self, variable: Variable) -> Variable
-    where
-        F: FnOnce() -> String,
-    {
+    fn new_var(&mut self, variable: Variable, weight: f64) -> Variable {
         variable
     }
 

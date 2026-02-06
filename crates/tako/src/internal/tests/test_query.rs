@@ -1,11 +1,12 @@
 use crate::control::WorkerTypeQuery;
-use crate::internal::scheduler::query::compute_new_worker_query;
+use crate::internal::scheduler2::query::compute_new_worker_query;
 use crate::internal::server::core::Core;
 use crate::internal::server::reactor::on_cancel_tasks;
-use crate::internal::tests::utils::env::{TestEnv, create_test_comm};
+use crate::internal::tests::utils::env::TestEnv;
 use crate::internal::tests::utils::schedule::create_test_scheduler;
 use crate::internal::tests::utils::task::TaskBuilder;
 use crate::resources::{ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind};
+use crate::tests::utils::env::TestComm;
 use crate::tests::utils::worker::WorkerBuilder;
 use std::time::Duration;
 
@@ -34,7 +35,7 @@ fn test_query_enough_workers() {
     rt.new_tasks_cpus(&[3, 1, 1]);
 
     let mut scheduler = create_test_scheduler();
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     scheduler.run_scheduling(rt.core(), &mut comm);
 
     let r = compute_new_worker_query(
@@ -59,7 +60,7 @@ fn test_query_no_enough_workers1() {
     rt.new_tasks_cpus(&[3, 3, 1]);
 
     let mut scheduler = create_test_scheduler();
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     scheduler.run_scheduling(rt.core(), &mut comm);
 
     let r = compute_new_worker_query(
@@ -280,7 +281,7 @@ fn test_query_min_utilization1() {
     rt.new_tasks_cpus(&[3, 1, 1]);
 
     let mut scheduler = create_test_scheduler();
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     scheduler.run_scheduling(&mut rt.core(), &mut comm);
 
     for (min_utilization, alloc_value, cpus) in &[
@@ -313,7 +314,7 @@ fn test_query_min_utilization2() {
     rt.new_tasks(2, &TaskBuilder::new().cpus(1).add_resource(1, 10));
 
     let mut scheduler = create_test_scheduler();
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     scheduler.run_scheduling(rt.core(), &mut comm);
 
     for (min_utilization, alloc_value, cpus, gpus) in &[
@@ -433,7 +434,7 @@ fn test_query_min_time2() {
     rt.new_task(&t1);
 
     let mut scheduler = create_test_scheduler();
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     scheduler.run_scheduling(rt.core(), &mut comm);
 
     for (cpus, secs, alloc) in [(2, 75, 0), (1, 100, 1), (4, 50, 1)] {
@@ -467,7 +468,7 @@ fn test_query_min_time1() {
     rt.new_task(&TaskBuilder::new().cpus(10).time_request(100));
 
     let mut scheduler = create_test_scheduler();
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     scheduler.run_scheduling(rt.core(), &mut comm);
 
     let descriptor = ResourceDescriptor::new(
@@ -737,7 +738,7 @@ fn test_query_after_task_cancel() {
     let t1 = rt.new_task_cpus(10);
     rt.new_worker(&WorkerBuilder::new(1));
     rt.schedule();
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     on_cancel_tasks(rt.core(), &mut comm, &[t1]);
     let r = compute_new_worker_query(
         rt.core(),

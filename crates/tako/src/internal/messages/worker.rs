@@ -77,7 +77,7 @@ pub struct TaskIdMsg {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ToWorkerMessage {
     ComputeTasks(ComputeTasksMsg),
-    StealTasks(TaskIdsMsg),
+    RetractTasks(TaskIdsMsg),
     CancelTasks(TaskIdsMsg),
     NewWorker(NewWorkerMsg),
     LostWorker(WorkerId),

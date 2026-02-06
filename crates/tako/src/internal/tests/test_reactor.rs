@@ -16,7 +16,6 @@ use crate::internal::server::reactor::{
 };
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::worker::Worker;
-use crate::internal::tests::utils::env::create_test_comm;
 use crate::internal::tests::utils::schedule::{
     assign_to_worker, create_test_scheduler, finish_on_worker, force_assign, set_as_running,
     start_and_finish_on_worker, start_mn_task_on_worker, start_on_worker_running,
@@ -30,7 +29,7 @@ use crate::internal::worker::configuration::{
     DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES, OverviewConfiguration,
 };
 use crate::resources::{ResourceAmount, ResourceDescriptorItem, ResourceIdMap};
-use crate::tests::utils::env::TestEnv;
+use crate::tests::utils::env::{TestComm, TestEnv};
 use crate::tests::utils::worker::WorkerBuilder;
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
 use crate::{Priority, TaskId, WorkerId};
@@ -40,7 +39,7 @@ fn test_worker_add() {
     let mut core = Core::default();
     assert_eq!(core.get_workers().count(), 0);
 
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     comm.emptiness_check();
 
     let wcfg = WorkerConfiguration {
@@ -184,7 +183,7 @@ fn test_scheduler_priority() {
 #[test]
 fn test_submit_jobs() {
     let mut rt = TestEnv::new();
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
 
     let t1 = TaskId::new(100.into(), 501.into());
     let t2 = TaskId::new(100.into(), 502.into());
@@ -261,7 +260,7 @@ fn test_assignments_and_finish() {
     let t5 = rt.new_task_default();
     let t7 = rt.new_task(&TaskBuilder::new().task_deps(&[t4]));
 
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
 
     let mut scheduler = create_test_scheduler();
 
@@ -368,7 +367,7 @@ fn test_running_task_on_error() {
     rt.core().assert_assigned(&[wf[2]]);
     assert!(worker_has_task(rt.core(), ws[2], wf[2]));
 
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     on_task_error(
         rt.core(),
         &mut comm,
@@ -406,7 +405,7 @@ fn test_steal_tasks_ok() {
     assert!(worker_has_task(rt.core(), ws[1], task_id));
     assert!(!worker_has_task(rt.core(), ws[0], task_id));
 
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     let mut scheduler = create_test_scheduler();
 
     force_reassign(rt.core(), &mut scheduler, task_id, ws[0]);
@@ -416,7 +415,7 @@ fn test_steal_tasks_ok() {
     assert!(worker_has_task(rt.core(), ws[0], task_id));
 
     let msgs = comm.take_worker_msgs(ws[1], 1);
-    assert!(matches!(&msgs[0], ToWorkerMessage::StealTasks(ids) if ids.ids == vec![task_id]));
+    assert!(matches!(&msgs[0], ToWorkerMessage::RetractTasks(ids) if ids.ids == vec![task_id]));
     comm.emptiness_check();
 
     on_steal_response(
@@ -454,14 +453,14 @@ fn test_steal_tasks_running() {
     start_and_finish_on_worker(rt.core(), wf[1], ws[1]);
     assign_to_worker(rt.core(), wf[2], ws[1]);
 
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     let mut scheduler = create_test_scheduler();
 
     force_reassign(rt.core(), &mut scheduler, wf[2], ws[0]);
     scheduler.finish_scheduling(rt.core(), &mut comm);
 
     let msgs = comm.take_worker_msgs(ws[1], 1);
-    assert!(matches!(&msgs[0], ToWorkerMessage::StealTasks(ids) if ids.ids == vec![wf[2]]));
+    assert!(matches!(&msgs[0], ToWorkerMessage::RetractTasks(ids) if ids.ids == vec![wf[2]]));
     comm.emptiness_check();
 
     assert!(!worker_has_task(rt.core(), ws[1], wf[2]));
@@ -503,7 +502,7 @@ fn finish_task_without_outputs() {
     let w1 = rt.new_worker_cpus(1);
     let t1 = rt.new_task_assigned(&TaskBuilder::new(), w1);
 
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     on_task_finished(rt.core(), &mut comm, w1, no_data_task_finished(t1));
     comm.check_need_scheduling();
     assert_eq!(comm.client.take_task_finished(1)[0], t1);
@@ -532,7 +531,7 @@ fn test_task_cancel() {
     start_stealing(rt.core(), t1, ws[0]);
     start_stealing(rt.core(), t2, ws[1]);
 
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     on_cancel_tasks(rt.core(), &mut comm, &vec![wf[0], wf[1], t1, t2, wf[2]]);
 
     let msgs = comm.take_worker_msgs(ws[0], 1);
@@ -559,7 +558,7 @@ fn test_worker_lost_with_mn_task_non_root() {
     let ws = rt.new_workers_cpus(&[1, 1, 1, 1]);
     let t1 = rt.new_task(&TaskBuilder::new().n_nodes(3));
     start_mn_task_on_worker(rt.core(), t1, vec![ws[3], ws[1], ws[0]]);
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     on_remove_worker(rt.core(), &mut comm, ws[1], LostWorkerReason::HeartbeatLost);
     rt.sanity_check();
     assert_eq!(comm.client.take_lost_workers().len(), 1);
@@ -582,7 +581,7 @@ fn test_worker_lost_with_mn_task_root() {
     let t1 = rt.new_task(&TaskBuilder::new().n_nodes(3));
 
     start_mn_task_on_worker(rt.core(), t1, vec![ws[3], ws[1], ws[0]]);
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     on_remove_worker(rt.core(), &mut comm, ws[3], LostWorkerReason::HeartbeatLost);
     rt.sanity_check();
     assert_eq!(comm.client.take_lost_workers().len(), 1);
@@ -602,7 +601,7 @@ fn test_worker_crashing_task() {
     assert_eq!(rt.task(t1).crash_counter, 0);
 
     for x in 1..=5 {
-        let mut comm = create_test_comm();
+        let mut comm = TestComm::new();
         let worker_id = rt.new_worker(&WorkerBuilder::new(1));
         start_on_worker_running(rt.core(), t1, worker_id);
         on_remove_worker(
@@ -640,7 +639,7 @@ fn test_task_mn_fail() {
     let ws = rt.new_workers_cpus(&[1, 1, 1, 1]);
     let t1 = rt.new_task(&TaskBuilder::new().n_nodes(3));
     start_mn_task_on_worker(rt.core(), t1, vec![ws[3], ws[1], ws[0]]);
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     on_task_error(
         rt.core(),
         &mut comm,
@@ -672,7 +671,7 @@ fn test_task_mn_cancel() {
     let ws = rt.new_workers_cpus(&[1, 1, 1, 1]);
     let t1 = rt.new_task(&TaskBuilder::new().n_nodes(3));
     start_mn_task_on_worker(rt.core(), t1, vec![ws[3], ws[1], ws[0]]);
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     on_cancel_tasks(rt.core(), &mut comm, &[t1]);
     rt.sanity_check();
     let msgs = comm.take_worker_msgs(ws[3], 1);
@@ -699,7 +698,7 @@ fn test_running_task() {
     let t1 = rt.new_task_assigned(&TaskBuilder::new(), ws[1]);
     let t2 = rt.new_task_assigned(&TaskBuilder::new(), ws[1]);
 
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
 
     comm.emptiness_check();
 
@@ -747,7 +746,7 @@ fn test_finished_before_steal_response() {
     start_stealing(rt.core(), t1, ws[2]);
     assert!(worker_has_task(rt.core(), ws[2], t1));
 
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     on_task_finished(rt.core(), &mut comm, ws[1], no_data_task_finished(t1));
 
     comm.check_need_scheduling();
@@ -781,7 +780,7 @@ fn test_running_before_steal_response() {
     start_stealing(rt.core(), t1, ws[2]);
     assert!(worker_has_task(rt.core(), ws[2], t1));
 
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     on_task_running(rt.core(), &mut comm, ws[1], task_running_msg(t1));
     comm.check_need_scheduling();
     assert_eq!(comm.client.take_task_running(1)[0], t1);
@@ -813,7 +812,7 @@ fn test_after_cancel_messages() {
     let t4 = rt.new_task_assigned(&TaskBuilder::new(), ws[1]);
     cancel_tasks(rt.core(), &[t1, t2, t3, t4]);
 
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     on_task_finished(rt.core(), &mut comm, ws[1], no_data_task_finished(t1));
     comm.emptiness_check();
 
@@ -854,7 +853,8 @@ fn test_after_cancel_messages() {
 
 #[test]
 fn lost_worker_with_running_and_assign_tasks() {
-    let mut rt = TestEnv::new();
+    todo!()
+    /*let mut rt = TestEnv::new();
     let ws = rt.new_workers_cpus(&[1, 1, 1]);
     let wf = submit_example_1(&mut rt);
 
@@ -875,7 +875,7 @@ fn lost_worker_with_running_and_assign_tasks() {
     rt.core().assert_running(&[wf[1]]);
     assert_eq!(rt.task(wf[1]).instance_id, 0.into());
 
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     on_remove_worker(rt.core(), &mut comm, ws[1], LostWorkerReason::HeartbeatLost);
 
     assert_eq!(comm.client.take_lost_workers(), vec![(ws[1], vec![wf[1]])]);
@@ -886,7 +886,7 @@ fn lost_worker_with_running_and_assign_tasks() {
     rt.core().assert_ready(&[t1]);
     assert!(matches!(
         rt.task(t2).state,
-        TaskRuntimeState::Stealing(w, None) if w == ws[0]
+        TaskRuntimeState::Retracting { source } if source == ws[0]
     ));
 
     assert!(matches!(
@@ -910,7 +910,7 @@ fn lost_worker_with_running_and_assign_tasks() {
 
     comm.check_need_scheduling();
     comm.emptiness_check();
-    rt.sanity_check();
+    rt.sanity_check();*/
 }
 
 fn force_reassign<W: Into<WorkerId>, T: Into<TaskId>>(
@@ -924,7 +924,7 @@ fn force_reassign<W: Into<WorkerId>, T: Into<TaskId>>(
 }
 
 fn fail_steal<W: Into<WorkerId>, T: Into<TaskId>>(core: &mut Core, task_id: T, worker_id: W) {
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     on_steal_response(
         core,
         &mut comm,
@@ -938,12 +938,12 @@ fn fail_steal<W: Into<WorkerId>, T: Into<TaskId>>(core: &mut Core, task_id: T, w
 fn start_stealing<W: Into<WorkerId>>(core: &mut Core, task_id: TaskId, new_worker_id: W) {
     let mut scheduler = create_test_scheduler();
     force_reassign(core, &mut scheduler, task_id, new_worker_id.into());
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     scheduler.finish_scheduling(core, &mut comm);
 }
 
 fn cancel_tasks<T: Into<TaskId> + Copy>(core: &mut Core, task_ids: &[T]) {
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     on_cancel_tasks(
         core,
         &mut comm,
@@ -999,11 +999,11 @@ fn test_worker_groups() {
     let ws = rt.new_workers_cpus(&[1, 1]);
     let g = rt.core().worker_group("default").unwrap();
     assert_eq!(&sorted_vec(g.worker_ids().collect()), &ws);
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     on_remove_worker(rt.core(), &mut comm, ws[1], LostWorkerReason::HeartbeatLost);
     let g = rt.core().worker_group("default").unwrap();
     assert_eq!(sorted_vec(g.worker_ids().collect()), vec![ws[0]]);
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     on_remove_worker(rt.core(), &mut comm, ws[0], LostWorkerReason::HeartbeatLost);
     assert!(rt.core().worker_group("default").is_none());
 }
@@ -1016,7 +1016,7 @@ fn test_data_deps_no_output() {
     let t2 = rt.new_task(&TaskBuilder::new().data_dep(t1, 11));
     assign_to_worker(rt.core(), t1, w1);
     rt.sanity_check();
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     on_task_finished(
         rt.core(),
         &mut comm,
@@ -1051,7 +1051,7 @@ fn test_data_deps_missing_outputs() {
     );
     assign_to_worker(rt.core(), t1, w1);
     rt.sanity_check();
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     on_task_finished(
         rt.core(),
         &mut comm,
@@ -1106,7 +1106,7 @@ fn test_data_deps_basic() {
     rt.core().assert_waiting(&[t2, t3]);
     rt.core().assert_ready(&[t1]);
     let w1 = rt.new_worker_cpus(4);
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     assign_to_worker(rt.core(), t1, w1);
 
     on_task_finished(

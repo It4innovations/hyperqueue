@@ -1,6 +1,6 @@
 use crate::internal::messages::worker::ToWorkerMessage;
 use crate::internal::server::task::Task;
-use crate::internal::tests::utils::env::{TestComm, TestEnv, create_test_comm};
+use crate::internal::tests::utils::env::{TestComm, TestEnv};
 use crate::internal::tests::utils::resources::ResBuilder;
 use crate::internal::tests::utils::schedule::{create_test_scheduler, finish_on_worker};
 
@@ -59,7 +59,7 @@ fn test_schedule_mn_simple() {
     let t4 = rt.new_task(&TaskBuilder::new().user_priority(4).n_nodes(2));
     rt.sanity_check();
     let mut scheduler = create_test_scheduler();
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     scheduler.run_scheduling(rt.core(), &mut comm);
     rt.sanity_check();
 
@@ -116,7 +116,7 @@ fn test_schedule_mn_reserve() {
     let t3 = rt.new_task(&TaskBuilder::new().user_priority(0).n_nodes(3));
     rt.sanity_check();
     let mut scheduler = create_test_scheduler();
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     scheduler.run_scheduling(rt.core(), &mut comm);
     rt.sanity_check();
 
@@ -170,7 +170,7 @@ fn test_schedule_mn_reserve() {
 #[test]
 fn test_schedule_mn_fill() {
     let mut rt = TestEnv::new();
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     rt.new_workers_cpus(&[/* 11 workers */ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
     let t1 = rt.new_task(&TaskBuilder::new().n_nodes(3));
     let t2 = rt.new_task(&TaskBuilder::new().n_nodes(5));
@@ -190,7 +190,7 @@ fn test_schedule_mn_fill() {
 #[test]
 fn test_mn_not_enough() {
     let mut rt = TestEnv::new();
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
 
     rt.new_workers_cpus(&[4]);
     let t1 = rt.new_task(&TaskBuilder::new().n_nodes(3));
@@ -212,17 +212,19 @@ fn test_mn_not_enough() {
         assert!(rt.task(*t).is_waiting());
     }
 
+    todo!()
+    /*
     let (mn_queue, _, _) = rt.core().multi_node_queue_split();
     assert!(mn_queue.is_sleeping(r1));
     assert!(mn_queue.is_sleeping(r2));
     assert!(mn_queue.is_sleeping(r3));
-    assert!(mn_queue.is_sleeping(r4));
+    assert!(mn_queue.is_sleeping(r4));*/
 }
 
 #[test]
 fn test_mn_sleep_wakeup_one_by_one() {
     let mut rt = TestEnv::new();
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
 
     let t1 = rt.new_task(&TaskBuilder::new().n_nodes(4).user_priority(10));
     rt.new_workers_cpus(&[4, 1]);
@@ -250,7 +252,7 @@ fn test_mn_sleep_wakeup_one_by_one() {
 #[test]
 fn test_mn_sleep_wakeup_at_once() {
     let mut rt = TestEnv::new();
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     rt.new_workers_cpus(&[4, 1]);
     let t1 = rt.new_task(&TaskBuilder::new().n_nodes(4).user_priority(10));
     let t2 = rt.new_task(&TaskBuilder::new().n_nodes(2).user_priority(1));
@@ -269,7 +271,7 @@ fn test_mn_schedule_on_groups() {
     rt.new_worker(&WorkerBuilder::new(1).group("group1"));
     rt.new_worker(&WorkerBuilder::new(1).group("group2"));
 
-    let mut comm = create_test_comm();
+    let mut comm = TestComm::new();
     let t1 = rt.new_task(&TaskBuilder::new().n_nodes(2));
 
     let mut scheduler = create_test_scheduler();

@@ -19,7 +19,7 @@ use crate::internal::messages::worker::{
     FromWorkerMessage, NewWorkerMsg, ToWorkerMessage, WorkerRegistrationResponse, WorkerStopReason,
 };
 use crate::internal::server::comm::{Comm, CommSenderRef};
-use crate::internal::server::core::CoreRef;
+use crate::internal::server::core::{CoreRef, CoreSplitMut};
 use crate::internal::server::reactor::{
     on_new_worker, on_remove_worker, on_resolve_placement, on_steal_response, on_task_error,
     on_task_finished, on_task_running,
@@ -211,7 +211,12 @@ async fn worker_rpc_loop(
         loop {
             interval.tick().await;
             let mut core = core_ref.get_mut();
-            let (task_map, worker_map, requests) = core.split_tasks_workers_requests_mut();
+            let CoreSplitMut {
+                task_map,
+                worker_map,
+                request_map,
+                ..
+            } = core.split_mut();
             let worker = worker_map.get_worker_mut(worker_id);
             let now = Instant::now();
             let elapsed = now - worker.last_heartbeat;
@@ -224,7 +229,7 @@ async fn worker_rpc_loop(
             if elapsed > retract_interval {
                 log::debug!("Trying to retract overtime tasks, worker={}", worker.id);
                 let mut comm = comm_ref2.get_mut();
-                worker.retract_overtime_tasks(&mut *comm, task_map, requests, now);
+                worker.retract_overtime_tasks(&mut *comm, task_map, request_map, now);
                 last_retract_check = now;
             }
 

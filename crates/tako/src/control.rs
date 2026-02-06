@@ -15,8 +15,8 @@ use crate::gateway::{
 use crate::internal::common::error::DsError;
 use crate::internal::common::resources::ResourceRqId;
 use crate::internal::messages::worker::ToWorkerMessage;
-use crate::internal::scheduler::query::compute_new_worker_query;
-use crate::internal::scheduler::state::{run_scheduling_now, scheduler_loop};
+use crate::internal::scheduler2::query::compute_new_worker_query;
+use crate::internal::scheduler2::{run_scheduling, scheduler_loop};
 use crate::internal::server::client::handle_new_tasks;
 use crate::internal::server::comm::{Comm, CommSenderRef};
 use crate::internal::server::core::{CoreRef, CustomConnectionHandler};
@@ -130,7 +130,7 @@ impl ServerRef {
         let mut core = self.core_ref.get_mut();
         let mut comm = self.comm_ref.get_mut();
         if comm.get_scheduling_flag() {
-            run_scheduling_now(&mut core, &mut comm, Instant::now())
+            run_scheduling(&mut core, &mut comm, Instant::now())
         }
         Ok(compute_new_worker_query(&mut core, queries))
     }

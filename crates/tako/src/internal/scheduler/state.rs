@@ -1,7 +1,7 @@
 use std::cmp::Reverse;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
-
+use thin_vec::ThinVec;
 use tokio::sync::Notify;
 use tokio::time::sleep;
 
@@ -37,41 +37,41 @@ pub struct SchedulerState {
     now: std::time::Instant,
 }
 
-pub(crate) async fn scheduler_loop(
-    core_ref: CoreRef,
-    comm_ref: CommSenderRef,
-    scheduler_wakeup: Rc<Notify>,
-    minimum_delay: Duration,
-) {
-    let mut last_schedule = Instant::now().checked_sub(minimum_delay * 2).unwrap();
-    loop {
-        scheduler_wakeup.notified().await;
-        if !comm_ref.get().get_scheduling_flag() {
-            last_schedule = Instant::now();
-            continue;
-        }
-        let mut now = Instant::now();
-        let since_last_schedule = now - last_schedule;
-        if minimum_delay > since_last_schedule {
-            sleep(minimum_delay - since_last_schedule).await;
-            now = Instant::now();
-        }
-        let mut comm = comm_ref.get_mut();
-        if !comm.get_scheduling_flag() {
-            last_schedule = now;
-            continue;
-        }
-        let mut core = core_ref.get_mut();
-        run_scheduling_now(&mut core, &mut comm, now);
-        last_schedule = Instant::now();
-    }
-}
+// pub(crate) async fn scheduler_loop(
+//     core_ref: CoreRef,
+//     comm_ref: CommSenderRef,
+//     scheduler_wakeup: Rc<Notify>,
+//     minimum_delay: Duration,
+// ) {
+//     let mut last_schedule = Instant::now().checked_sub(minimum_delay * 2).unwrap();
+//     loop {
+//         scheduler_wakeup.notified().await;
+//         if !comm_ref.get().get_scheduling_flag() {
+//             last_schedule = Instant::now();
+//             continue;
+//         }
+//         let mut now = Instant::now();
+//         let since_last_schedule = now - last_schedule;
+//         if minimum_delay > since_last_schedule {
+//             sleep(minimum_delay - since_last_schedule).await;
+//             now = Instant::now();
+//         }
+//         let mut comm = comm_ref.get_mut();
+//         if !comm.get_scheduling_flag() {
+//             last_schedule = now;
+//             continue;
+//         }
+//         let mut core = core_ref.get_mut();
+//         run_scheduling_now(&mut core, &mut comm, now);
+//         last_schedule = Instant::now();
+//     }
+// }
 
-pub fn run_scheduling_now(core: &mut Core, comm: &mut CommSender, now: Instant) {
-    let mut state = SchedulerState::new(now);
-    state.run_scheduling(core, &mut *comm);
-    comm.reset_scheduling_flag();
-}
+// pub fn run_scheduling_now(core: &mut Core, comm: &mut CommSender, now: Instant) {
+//     let mut state = SchedulerState::new(now);
+//     state.run_scheduling(core, &mut *comm);
+//     comm.reset_scheduling_flag();
+// }
 
 impl SchedulerState {
     pub fn new(now: std::time::Instant) -> Self {
@@ -267,7 +267,7 @@ impl SchedulerState {
         &mut self,
         worker_map: &mut WorkerMap,
         task: &mut Task,
-        workers: Vec<WorkerId>,
+        workers: ThinVec<WorkerId>,
     ) {
         for worker_id in &workers {
             let worker = worker_map.get_worker_mut(*worker_id);
@@ -329,7 +329,8 @@ impl SchedulerState {
     // }
 
     fn try_start_multinode_tasks(&mut self, core: &mut Core) {
-        loop {
+        todo!()
+        /*loop {
             // "while let" not used because of lifetime problems
             let (mn_queue, task_map, worker_map, worker_groups, resource_map) =
                 core.multi_node_queue_split_mut();
@@ -348,7 +349,7 @@ impl SchedulerState {
             } else {
                 return;
             }
-        }
+        }*/
     }
 
     /// Returns true if balancing is needed.

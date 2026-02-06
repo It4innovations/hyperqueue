@@ -24,6 +24,44 @@ impl OneOrMoreTaskIds {
     }
 }
 
+#[derive(Default)]
+pub(crate) struct TaskQueues {
+    queues: Vec<TaskQueue>,
+}
+
+impl TaskQueues {
+    pub fn add_task_queue(&mut self) {
+        let resource_rq_id = ResourceRqId::new(self.queues.len() as u32);
+        self.queues.push(TaskQueue::new(resource_rq_id));
+    }
+
+    pub fn add_ready_task(&mut self, task: &Task) {
+        self.queues[task.resource_rq_id.as_usize()].add(task);
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &TaskQueue> {
+        self.queues.iter()
+    }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut TaskQueue> {
+        self.queues.iter_mut()
+    }
+
+    pub fn get(&self, resource_rq_id: ResourceRqId) -> &TaskQueue {
+        &self.queues[resource_rq_id.as_usize()]
+    }
+
+    pub fn get_mut(&mut self, resource_rq_id: ResourceRqId) -> &mut TaskQueue {
+        &mut self.queues[resource_rq_id.as_usize()]
+    }
+
+    pub fn shrink_to_fit(&mut self) {
+        for task_queue in self.queues.iter_mut() {
+            task_queue.shrink_to_fit();
+        }
+    }
+}
+
 pub(crate) struct TaskQueue {
     pub queue: BTreeMap<Reverse<Priority>, OneOrMoreTaskIds>,
     pub resource_rq_id: ResourceRqId,
@@ -94,30 +132,39 @@ impl TaskQueue {
         self.queue.iter().map(|(k, v)| (k.0, v.size()))
     }
 
-    pub fn take_tasks(&mut self, count: u32) -> Vec<TaskId> {
-        let count = count as usize;
-        let mut result = Vec::with_capacity(count);
-        while result.len() < count {
-            let mut entry = self.queue.first_entry().unwrap();
-            match entry.get_mut() {
-                OneOrMoreTaskIds::One(x) => {
-                    result.push(*x);
-                    entry.remove();
-                }
-                OneOrMoreTaskIds::More(xs) => {
-                    while result.len() < count {
-                        if let Some(x) = xs.pop_first() {
-                            result.push(x)
-                        } else {
-                            break;
-                        }
-                    }
-                    if xs.is_empty() {
-                        entry.remove();
-                    }
-                }
-            }
+    pub fn take_tasks(&mut self, mut count: u32) -> Vec<TaskId> {
+        let mut result = Vec::with_capacity(count as usize);
+        while count > 0 {
+            let entry = self.queue.first_entry().unwrap();
+            take_from_entry(entry, &mut count, &mut result);
         }
         result
+    }
+}
+
+fn take_from_entry(
+    mut entry: OccupiedEntry<Reverse<Priority>, OneOrMoreTaskIds>,
+    count: &mut u32,
+    result: &mut Vec<TaskId>,
+) {
+    match entry.get_mut() {
+        OneOrMoreTaskIds::One(x) => {
+            *count -= 1;
+            result.push(*x);
+            entry.remove();
+        }
+        OneOrMoreTaskIds::More(xs) => {
+            while *count > 0 {
+                if let Some(x) = xs.pop_first() {
+                    *count -= 1;
+                    result.push(x)
+                } else {
+                    break;
+                }
+            }
+            if xs.is_empty() {
+                entry.remove();
+            }
+        }
     }
 }
