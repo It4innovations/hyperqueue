@@ -8,10 +8,11 @@ use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{TaskRunningMsg, ToWorkerMessage, WorkerOverview};
 use crate::internal::scheduler::state::SchedulerState;
 use crate::internal::scheduler2::{
-    TaskBatch, WorkerTaskMapping, create_task_batches, run_scheduling_solver,
+    TaskBatch, WorkerTaskMapping, create_task_batches, create_task_mapping, run_scheduling,
+    run_scheduling_inner, run_scheduling_solver,
 };
 use crate::internal::server::comm::Comm;
-use crate::internal::server::core::Core;
+use crate::internal::server::core::{Core, CoreSplitMut};
 use crate::internal::server::reactor::{on_new_worker, on_task_running};
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::taskmap::TaskMap;
@@ -209,7 +210,7 @@ impl TestEnv {
 
     pub fn finish_scheduling(&mut self) {
         todo!()
-        /*let mut comm = create_test_comm();
+        /*let mut comm = TestComm::new();
         self.scheduler.finish_scheduling(&mut self.core, &mut comm);
         self.core.sanity_check();
         println!("-------------");
@@ -228,28 +229,40 @@ impl TestEnv {
     }
 
     pub fn assign_task(&mut self, task_id: TaskId, worker_id: WorkerId) {
-        let task = self.core.get_task_mut(task_id);
+        let CoreSplitMut {
+            task_map,
+            worker_map,
+            request_map,
+            ..
+        } = self.core.split_mut();
+        let task = task_map.get_task_mut(task_id);
         match &task.state {
-            TaskRuntimeState::Waiting(i) => {
-                if i.unfinished_deps > 0 {
+            TaskRuntimeState::Waiting { unfinished_deps } => {
+                if *unfinished_deps > 0 {
                     panic!("Task {} is not ready", task_id);
                 }
-                task.state = TaskRuntimeState::Assigned(worker_id)
+                task.state = TaskRuntimeState::Assigned {
+                    worker_id,
+                    rv_id: 0.into(),
+                };
             }
 
             _ => {
                 panic!("Task {} is not waiting", task_id);
             }
         }
-        let w = self.core.get_worker_mut_by_id_or_panic(worker_id.into());
-        w.insert_sn_task(task_id);
+        let w = worker_map.get_worker_mut(worker_id.into());
+        let rq = request_map
+            .get(task.resource_rq_id)
+            .get(ResourceVariantId::new(0));
+        w.insert_sn_task(task_id, rq);
         self.core.remove_from_ready_queue(task_id);
     }
 
     pub fn start_task<V: Into<ResourceVariantId>>(&mut self, task_id: TaskId, variant: V) {
         let task = self.core.get_task(task_id);
         let worker_id = match task.state {
-            TaskRuntimeState::Assigned(worker_id) => worker_id,
+            TaskRuntimeState::Assigned { worker_id, .. } => worker_id,
             _ => panic!("Task {} is not assigned", task_id),
         };
         let mut comm = TestComm::default();
@@ -265,14 +278,14 @@ impl TestEnv {
         );
     }
 
-    pub fn create_task_batches(&mut self) -> Vec<TaskBatch> {
-        create_task_batches(&mut self.core, self.now)
+    pub fn schedule(&mut self) {
+        let mut comm = TestComm::new();
+        self.schedule_with_comm(&mut comm);
+        self.core.sanity_check();
     }
 
-    pub fn schedule(&mut self) {
-        let mut comm = create_test_comm();
-        self.scheduler.run_scheduling(&mut self.core, &mut comm);
-        self.core.sanity_check();
+    pub fn schedule_with_comm(&mut self, comm: &mut TestComm) {
+        run_scheduling_inner(&mut self.core, comm, self.now);
     }
 
     pub fn balance(&mut self) {
@@ -282,7 +295,8 @@ impl TestEnv {
 
     pub fn schedule_mapping(&mut self) -> WorkerTaskMapping {
         let batches = create_task_batches(&mut self.core, self.now);
-        run_scheduling_solver(&mut self.core, self.now, &batches)
+        let solution = run_scheduling_solver(&mut self.core, self.now, &batches);
+        create_task_mapping(&mut self.core, solution)
     }
 }
 
@@ -439,6 +453,8 @@ impl Comm for TestComm {
     }
 }
 
-pub fn create_test_comm() -> TestComm {
-    TestComm::default()
+impl TestComm {
+    pub fn new() -> Self {
+        Default::default()
+    }
 }

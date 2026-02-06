@@ -4,7 +4,7 @@ use crate::internal::scheduler2::{
     PriorityCut, TaskBatch, TaskQueue, WorkerTaskMapping, create_task_batches,
 };
 use crate::resources::{ResourceAmount, ResourceRqId, ResourceRqMap};
-use crate::tests::utils::env::{TestEnv, create_test_comm};
+use crate::tests::utils::env::TestEnv;
 use crate::tests::utils::schedule::start_on_worker_running;
 use crate::tests::utils::task::TaskBuilder;
 use crate::tests::utils::worker::WorkerBuilder;
@@ -58,7 +58,7 @@ impl TestCase {
             worker.check(
                 &self.rt.get(),
                 mapping
-                    .task_to_workers
+                    .sn_tasks_to_workers
                     .get(&worker.get_worker_id())
                     .as_deref()
                     .map_or(&[], |v| v),
@@ -102,11 +102,17 @@ impl TestCase {
 pub fn normalize_workers(mapping: &mut WorkerTaskMapping, workers: &[WorkerId]) {
     let mut tasks: Vec<_> = workers
         .iter()
-        .map(|w| mapping.task_to_workers.get(w).cloned().unwrap_or_default())
+        .map(|w| {
+            mapping
+                .sn_tasks_to_workers
+                .get(w)
+                .cloned()
+                .unwrap_or_default()
+        })
         .collect();
     tasks.sort_unstable();
     for (w, tasks) in workers.iter().zip(tasks.into_iter()) {
-        mapping.task_to_workers.insert(*w, tasks);
+        mapping.sn_tasks_to_workers.insert(*w, tasks);
     }
 }
 

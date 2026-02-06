@@ -1,9 +1,14 @@
 use crate::control::{NewWorkerAllocationResponse, WorkerTypeQuery};
 use crate::gateway::MultiNodeAllocationResponse;
+use crate::internal::scheduler2::{
+    create_task_batches, create_task_mapping, run_scheduling_solver,
+};
 use crate::internal::server::core::Core;
 use crate::internal::server::task::Task;
+use crate::internal::server::worker::Worker;
 use crate::internal::server::workerload::{WorkerLoad, WorkerResources};
 use std::time::Duration;
+use tokio::time::Instant;
 
 #[derive(Debug)]
 struct WorkerTypeState {
@@ -21,6 +26,17 @@ pub(crate) fn compute_new_worker_query(
     queries: &[WorkerTypeQuery],
 ) -> NewWorkerAllocationResponse {
     log::debug!("Compute new worker query: query = {queries:?}");
+
+    /*let fake_worker_id_base = core.worker_counter() + 1;
+    let mut fake_worker_counter = fake_worker_id_base;
+
+    let mut workers = Vec::new();
+
+
+
+    let now = std::time::Instant::now();
+    let batches = create_task_batches(core, now);
+    let scheduling = run_scheduling_solver(core, now, &batches);*/
 
     todo!()
 
