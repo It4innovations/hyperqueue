@@ -60,7 +60,10 @@ impl WorkerResources {
 
         for descriptor in &resource_desc.resources {
             let position = resource_map.get_index(&descriptor.name).unwrap();
-            n_resources[position] = descriptor.kind.size()
+            // TODO: Experiment, remove multiplication!!!
+            //let size = ResourceAmount::new_units(descriptor.kind.size().units() * 4);
+            let size = descriptor.kind.size();
+            n_resources[position] = size;
         }
 
         WorkerResources { n_resources }

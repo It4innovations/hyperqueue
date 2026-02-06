@@ -18,9 +18,6 @@ use std::time::{Duration, Instant};
 
 bitflags::bitflags! {
     pub(crate) struct WorkerFlags: u32 {
-        // There is no "waiting" task for resources of this worker
-        // Therefore this worker should not cause balancing even it is underloaded
-        const PARKED = 0b00000001;
         // The server sent message ReservationOn to worker that causes
         // that the worker will not be turned off because of idle timeout.
         // This state induced by processing multi node tasks.
@@ -44,7 +41,6 @@ pub struct MultiNodeTaskAssignment {
 
 pub struct SingleNodeTaskAssignment {
     // This is list of single node assigned tasks
-    // !! In case of stealing T from W1 to W2, T is in "tasks" of W2, even T was not yet canceled from W1.
     pub assign_tasks: Set<TaskId>,
     pub free_resources: WorkerResources,
 }
@@ -175,16 +171,17 @@ impl Worker {
         }) && !self.is_stopping()
     }
 
-    pub fn insert_sn_task(&mut self, task_id: TaskId) {
+    pub fn insert_sn_task(&mut self, task_id: TaskId, rq: &ResourceRequest) {
         match &mut self.assignment {
             WorkerAssignment::Sn(a) => {
+                a.free_resources.remove(rq);
                 assert!(a.assign_tasks.insert(task_id));
             }
             WorkerAssignment::Mn(_) => unreachable!(),
         }
     }
 
-    pub fn start_task(&mut self, rq: &ResourceRequest) {
+    /*pub fn start_task(&mut self, task_id: TaskId, rq: &ResourceRequest) {
         match &mut self.assignment {
             WorkerAssignment::Sn(a) => {
                 a.free_resources.remove(rq);
@@ -193,25 +190,45 @@ impl Worker {
                 unreachable!()
             }
         }
-    }
+    }*/
 
-    pub fn remove_sn_task(&mut self, task_id: TaskId, rq: Option<&ResourceRequest>) {
-        todo!()
-        /*assert!(self.sn_tasks.remove(&task_id));
-        if self.sn_tasks.is_empty() {
-            self.idle_timestamp = Instant::now();
-        }*/
+    /*pub fn collect_assigned_non_running_tasks(&mut self, out: &mut Vec<TaskId>) {
+        match &self.assignment {
+            WorkerAssignment::Sn(sn) => {
+                for (task_id, is_running) in &sn.assign_tasks {
+                    if !is_running {
+                        out.push(*task_id);
+                    }
+                }
+            }
+            WorkerAssignment::Mn(_) => {
+                todo!()
+            }
+        }
+    }*/
+
+    pub fn remove_sn_task(&mut self, task_id: TaskId, rq: &ResourceRequest) {
+        match &mut self.assignment {
+            WorkerAssignment::Sn(a) => {
+                assert!(a.assign_tasks.remove(&task_id));
+                if a.assign_tasks.is_empty() {
+                    self.idle_timestamp = Instant::now();
+                }
+                a.free_resources.add(rq, &self.resources);
+            }
+            WorkerAssignment::Mn(_) => unreachable!(),
+        }
     }
 
     pub fn sanity_check(&self, task_map: &TaskMap, request_map: &ResourceRqMap) {
         let mut check_load = WorkerLoad::new(&self.resources);
         let mut trivial = true;
         if let Some(a) = self.sn_assignment() {
-            for &task_id in &a.assign_tasks {
-                let task = task_map.get_task(task_id);
+            for task_id in &a.assign_tasks {
+                let task = task_map.get_task(*task_id);
                 let rqv = request_map.get(task.resource_rq_id);
                 trivial &= rqv.is_trivial();
-                check_load.add_request(task_id, rqv, task.running_variant(), &self.resources);
+                check_load.add_request(*task_id, rqv, task.running_variant(), &self.resources);
             }
         }
     }
@@ -250,14 +267,6 @@ impl Worker {
     pub fn load_wrt_rqv(&self, rqv: &ResourceRequestVariants) -> u32 {
         todo!()
         //self.sn_load.load_wrt_rqv(&self.resources, rqv)
-    }
-
-    pub fn set_parked_flag(&mut self, value: bool) {
-        self.flags.set(WorkerFlags::PARKED, value);
-    }
-
-    pub fn is_parked(&self) -> bool {
-        self.flags.contains(WorkerFlags::PARKED)
     }
 
     pub fn is_capable_to_run(&self, request: &ResourceRequest, now: Instant) -> bool {
@@ -301,7 +310,8 @@ impl Worker {
         request_map: &ResourceRqMap,
         now: Instant,
     ) {
-        if self.termination_time.is_none() || self.mn_assignment().is_some() {
+        todo!()
+        /*if self.termination_time.is_none() || self.mn_assignment().is_some() {
             return;
         }
         let task_ids: Vec<TaskId> = self
@@ -309,8 +319,7 @@ impl Worker {
             .unwrap()
             .assign_tasks
             .iter()
-            .copied()
-            .filter(|task_id| {
+            .filter_map(|task_id| {
                 let task = task_map.get_task_mut(*task_id);
                 if task.is_assigned()
                     && !self.is_capable_to_run_rqv(request_map.get(task.resource_rq_id), now)
@@ -318,23 +327,26 @@ impl Worker {
                     log::debug!(
                         "Retracting task={task_id}, time request cannot be fulfilled anymore"
                     );
-                    task.state = TaskRuntimeState::Stealing(self.id, None);
-                    true
+                    task.state = TaskRuntimeState::Retracting { source: self.id };
+                    Some(*task_id)
                 } else {
-                    false
+                    None
                 }
             })
             .collect();
         if !task_ids.is_empty() {
             for task_id in &task_ids {
-                self.remove_sn_task(*task_id, None);
+                let task = task_map.get_task(*task_id);
+                let (_, rv_id) = task.get_assignments().unwrap();
+                let rq = request_map.get(task.resource_rq_id).get(rv_id);
+                self.remove_sn_task(*task_id, rq);
             }
             comm.send_worker_message(
                 self.id,
                 &ToWorkerMessage::StealTasks(TaskIdsMsg { ids: task_ids }),
             );
             comm.ask_for_scheduling();
-        }
+        }*/
     }
 
     pub fn has_time_to_run(&self, time_request: TimeRequest, now: Instant) -> bool {

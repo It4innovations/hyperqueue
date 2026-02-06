@@ -4,6 +4,7 @@ use crate::resources::ResourceRqId;
 use crate::tests::utils::env::TestEnv;
 use crate::tests::utils::task::TaskBuilder;
 use crate::tests::utils::worker::WorkerBuilder;
+use psutil::process::Status::Dead;
 
 #[test]
 fn test_task_grouping_basic() {

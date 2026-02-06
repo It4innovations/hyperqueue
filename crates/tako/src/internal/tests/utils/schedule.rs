@@ -1,12 +1,13 @@
 use crate::internal::messages::worker::{TaskFinishedMsg, TaskOutput};
 use crate::internal::scheduler::state::SchedulerState;
-use crate::internal::server::core::Core;
+use crate::internal::server::core::{Core, CoreSplitMut};
 use crate::internal::server::reactor::{on_new_tasks, on_task_finished, on_task_running};
 use crate::internal::server::task::Task;
 use crate::internal::tests::utils::env::TestComm;
 use crate::internal::tests::utils::task::task_running_msg;
 use crate::{TaskId, WorkerId};
 use std::time::Instant;
+use thin_vec::ThinVec;
 
 pub fn submit_test_tasks(core: &mut Core, tasks: Vec<Task>) {
     on_new_tasks(core, &mut TestComm::default(), tasks);
@@ -24,10 +25,14 @@ pub(crate) fn force_assign(
 pub(crate) fn force_assign_mn(
     core: &mut Core,
     scheduler: &mut SchedulerState,
-    workers: Vec<WorkerId>,
+    workers: ThinVec<WorkerId>,
     task_id: TaskId,
 ) {
-    let (task_map, worker_map) = core.split_tasks_workers_mut();
+    let CoreSplitMut {
+        task_map,
+        worker_map,
+        ..
+    } = core.split_mut();
     let task = task_map.get_task_mut(task_id);
     scheduler.assign_multinode(worker_map, task, workers);
 }

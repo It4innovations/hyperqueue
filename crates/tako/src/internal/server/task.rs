@@ -20,32 +20,43 @@ use crate::{InstanceId, Priority};
 use crate::{TaskId, static_assert_size};
 
 #[cfg_attr(test, derive(Eq, PartialEq, Clone))]
-pub struct WaitingInfo {
-    pub unfinished_deps: u32,
-    // pub scheduler_metric: i32,
-}
-
-#[cfg_attr(test, derive(Eq, PartialEq, Clone))]
 pub enum TaskRuntimeState {
-    Waiting(WaitingInfo),
-    Assigned(WorkerId),
-    Stealing(WorkerId, Option<WorkerId>), // (from, to)
+    Waiting {
+        unfinished_deps: u32,
+    },
+    Assigned {
+        worker_id: WorkerId,
+        rv_id: ResourceVariantId,
+    },
+    /*Retracting {
+        source: WorkerId,
+    },
+    Stealing {
+        source: WorkerId,
+        target: WorkerId,
+        rv_id: ResourceVariantId,
+    },*/
     Running {
         worker_id: WorkerId,
         rv_id: ResourceVariantId,
     },
     // The first worker is the root node where the command is executed, others are reserved
-    RunningMultiNode(Vec<WorkerId>),
+    RunningMultiNode(ThinVec<WorkerId>),
     Finished,
 }
 
 impl fmt::Debug for TaskRuntimeState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Waiting(info) => write!(f, "W({})", info.unfinished_deps),
-            Self::Assigned(w_id) => write!(f, "A({w_id})"),
-            Self::Stealing(from_w, to_w) => write!(f, "S({from_w}, {to_w:?})"),
-            Self::Running { worker_id, .. } => write!(f, "R({worker_id})"),
+            Self::Waiting { unfinished_deps } => write!(f, "W({})", unfinished_deps),
+            Self::Assigned { worker_id, rv_id } => write!(f, "A({worker_id}, {rv_id})"),
+            /*Self::Retracting { source } => write!(f, "S({source})"),
+            Self::Stealing {
+                source,
+                target,
+                rv_id,
+            } => write!(f, "S({source} -> {target}, {rv_id})"),*/
+            Self::Running { worker_id, rv_id } => write!(f, "R({worker_id}, {rv_id})"),
             Self::RunningMultiNode(ws) => write!(f, "M({ws:?})"),
             Self::Finished => write!(f, "F"),
         }
@@ -55,19 +66,29 @@ impl fmt::Debug for TaskRuntimeState {
 impl TaskRuntimeState {
     fn dump(&self) -> serde_json::Value {
         match self {
-            Self::Waiting(info) => json!({
+            Self::Waiting { unfinished_deps } => json!({
                 "state": "Waiting",
-                "unfinished_deps": info.unfinished_deps,
+                "unfinished_deps": unfinished_deps,
             }),
-            Self::Assigned(w_id) => json!({
+            Self::Assigned { worker_id, rv_id } => json!({
                 "state": "Assigned",
-                "worker_id": w_id,
+                "worker_id": worker_id,
+                "rv_id": rv_id,
             }),
-            Self::Stealing(from_w, to_w) => json!({
+            /*Self::Retracting { source } => json!({
+                "state": "Retracting",
+                "from_worker": source,
+            }),
+            Self::Stealing {
+                source,
+                target,
+                rv_id,
+            } => json!({
                 "state": "Stealing",
-                "from_worker": from_w,
-                "to_worker": to_w,
-            }),
+                "from_worker": source,
+                "to_worker": target,
+                "rv_id": rv_id,
+            }),*/
             Self::Running { worker_id, .. } => json!({
                 "state": "Running",
                 "worker_id": worker_id,
@@ -119,7 +140,7 @@ pub struct Task {
 }
 
 // Task is a critical data structure, so we should keep its size in check
-static_assert_size!(Task, 112);
+static_assert_size!(Task, 104);
 
 impl fmt::Debug for Task {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -167,7 +188,7 @@ impl Task {
             resource_rq_id,
             configuration,
             entry,
-            state: TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 }),
+            state: TaskRuntimeState::Waiting { unfinished_deps: 0 },
             consumers: Default::default(),
             instance_id: InstanceId::new(0),
             crash_counter: 0,
@@ -184,10 +205,10 @@ impl Task {
     pub(crate) fn is_ready(&self) -> bool {
         matches!(
             self.state,
-            TaskRuntimeState::Waiting(WaitingInfo {
+            TaskRuntimeState::Waiting {
                 unfinished_deps: 0,
                 ..
-            })
+            }
         )
     }
 
@@ -205,9 +226,7 @@ impl Task {
     #[inline]
     pub(crate) fn decrease_unfinished_deps(&mut self) -> bool {
         match &mut self.state {
-            TaskRuntimeState::Waiting(WaitingInfo {
-                unfinished_deps, ..
-            }) if *unfinished_deps > 0 => {
+            TaskRuntimeState::Waiting { unfinished_deps } if *unfinished_deps > 0 => {
                 *unfinished_deps -= 1;
                 *unfinished_deps == 0
             }
@@ -282,20 +301,21 @@ impl Task {
 
     #[inline]
     pub(crate) fn is_waiting(&self) -> bool {
-        matches!(&self.state, TaskRuntimeState::Waiting(_))
+        matches!(&self.state, TaskRuntimeState::Waiting { .. })
     }
 
     #[inline]
     pub(crate) fn is_assigned(&self) -> bool {
-        matches!(&self.state, TaskRuntimeState::Assigned(_))
+        matches!(&self.state, TaskRuntimeState::Assigned { .. })
     }
 
     #[inline]
-    pub(crate) fn is_assigned_or_stolen_from(&self, worker_id: WorkerId) -> bool {
+    pub(crate) fn is_assigned_at(&self, worker_id: WorkerId) -> bool {
         match &self.state {
-            TaskRuntimeState::Assigned(w)
+            TaskRuntimeState::Assigned { worker_id: w, .. }
             | TaskRuntimeState::Running { worker_id: w, .. }
-            | TaskRuntimeState::Stealing(w, _) => worker_id == *w,
+            /*| TaskRuntimeState::Retracting { source: w }
+            | TaskRuntimeState::Stealing { source: w, .. }*/ => worker_id == *w,
             TaskRuntimeState::RunningMultiNode(ws) => ws[0] == worker_id,
             _ => false,
         }
@@ -315,17 +335,32 @@ impl Task {
     }
 
     #[inline]
-    pub(crate) fn get_assigned_worker(&self) -> Option<WorkerId> {
+    pub(crate) fn get_assignments(&self) -> Option<(WorkerId, ResourceVariantId)> {
         match &self.state {
-            TaskRuntimeState::Assigned(id)
-            | TaskRuntimeState::Running { worker_id: id, .. }
-            | TaskRuntimeState::Stealing(_, Some(id)) => Some(*id),
-            TaskRuntimeState::Waiting(_)
-            | TaskRuntimeState::Stealing(_, None)
-            | TaskRuntimeState::RunningMultiNode(_)
-            | TaskRuntimeState::Finished => None,
+            TaskRuntimeState::Assigned { worker_id, rv_id }
+            | TaskRuntimeState::Running { worker_id, rv_id } => Some((*worker_id, *rv_id)),
+            _ => None,
         }
     }
+
+    // #[inline]
+    // pub(crate) fn get_assigned_worker(&self) -> Option<WorkerId> {
+    //     match &self.state {
+    //         TaskRuntimeState::Assigned(id)
+    //         | TaskRuntimeState::Running { worker_id: id, .. }
+    //         | TaskRuntimeState::Stealing {
+    //             source: _,
+    //             target: Some(id),
+    //         } => Some(*id),
+    //         TaskRuntimeState::Waiting(_)
+    //         | TaskRuntimeState::Stealing {
+    //             source: _,
+    //             target: None,
+    //         }
+    //         | TaskRuntimeState::RunningMultiNode(_)
+    //         | TaskRuntimeState::Finished => None,
+    //     }
+    // }
 }
 
 impl ExtractKey<TaskId> for Task {
@@ -476,7 +511,7 @@ mod tests {
     impl Task {
         pub fn get_unfinished_deps(&self) -> u32 {
             match &self.state {
-                TaskRuntimeState::Waiting(winfo) => winfo.unfinished_deps,
+                TaskRuntimeState::Waiting { unfinished_deps } => *unfinished_deps,
                 _ => panic!("Invalid state"),
             }
         }
