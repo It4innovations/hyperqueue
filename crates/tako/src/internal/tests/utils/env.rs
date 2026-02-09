@@ -8,8 +8,8 @@ use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{TaskRunningMsg, ToWorkerMessage, WorkerOverview};
 use crate::internal::scheduler::state::SchedulerState;
 use crate::internal::scheduler2::{
-    TaskBatch, WorkerTaskMapping, create_task_batches, create_task_mapping, run_scheduling,
-    run_scheduling_inner, run_scheduling_solver,
+    TaskBatch, WorkerTaskMapping, collect_assigned_not_running_tasks, create_task_batches,
+    create_task_mapping, run_scheduling, run_scheduling_inner, run_scheduling_solver,
 };
 use crate::internal::server::comm::Comm;
 use crate::internal::server::core::Core;
@@ -266,10 +266,6 @@ impl TestEnv {
         );
     }
 
-    pub fn create_task_batches(&mut self) -> Vec<TaskBatch> {
-        create_task_batches(&mut self.core, self.now)
-    }
-
     pub fn schedule(&mut self) {
         let mut comm = TestComm::new();
         self.schedule_with_comm(&mut comm);
@@ -286,7 +282,9 @@ impl TestEnv {
     }
 
     pub fn schedule_mapping(&mut self) -> WorkerTaskMapping {
-        let batches = create_task_batches(&mut self.core, self.now);
+        let assigned_not_running = collect_assigned_not_running_tasks(&mut self.core);
+        let batches = create_task_batches(&mut self.core, &assigned_not_running, self.now);
+        dbg!(&batches);
         let solution = run_scheduling_solver(&mut self.core, self.now, &batches);
         create_task_mapping(&mut self.core, solution)
     }

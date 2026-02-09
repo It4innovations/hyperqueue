@@ -18,9 +18,6 @@ use std::time::{Duration, Instant};
 
 bitflags::bitflags! {
     pub(crate) struct WorkerFlags: u32 {
-        // There is no "waiting" task for resources of this worker
-        // Therefore this worker should not cause balancing even it is underloaded
-        const PARKED = 0b00000001;
         // The server sent message ReservationOn to worker that causes
         // that the worker will not be turned off because of idle timeout.
         // This state induced by processing multi node tasks.
@@ -45,7 +42,7 @@ pub struct MultiNodeTaskAssignment {
 pub struct SingleNodeTaskAssignment {
     // This is list of single node assigned tasks
     // !! In case of stealing T from W1 to W2, T is in "tasks" of W2, even T was not yet canceled from W1.
-    pub assign_tasks: Set<TaskId>,
+    pub assign_tasks: Map<TaskId, bool>,
     pub free_resources: WorkerResources,
 }
 
@@ -178,19 +175,35 @@ impl Worker {
     pub fn insert_sn_task(&mut self, task_id: TaskId) {
         match &mut self.assignment {
             WorkerAssignment::Sn(a) => {
-                assert!(a.assign_tasks.insert(task_id));
+                assert!(a.assign_tasks.insert(task_id, false).is_none());
             }
             WorkerAssignment::Mn(_) => unreachable!(),
         }
     }
 
-    pub fn start_task(&mut self, rq: &ResourceRequest) {
+    pub fn start_task(&mut self, task_id: TaskId, rq: &ResourceRequest) {
         match &mut self.assignment {
             WorkerAssignment::Sn(a) => {
+                a.assign_tasks.insert(task_id, true);
                 a.free_resources.remove(rq);
             }
             WorkerAssignment::Mn(_) => {
                 unreachable!()
+            }
+        }
+    }
+
+    pub fn collect_assigned_non_running_tasks(&mut self, out: &mut Vec<TaskId>) {
+        match &self.assignment {
+            WorkerAssignment::Sn(sn) => {
+                for (task_id, is_running) in &sn.assign_tasks {
+                    if !is_running {
+                        out.push(*task_id);
+                    }
+                }
+            }
+            WorkerAssignment::Mn(_) => {
+                todo!()
             }
         }
     }
@@ -207,11 +220,12 @@ impl Worker {
         let mut check_load = WorkerLoad::new(&self.resources);
         let mut trivial = true;
         if let Some(a) = self.sn_assignment() {
-            for &task_id in &a.assign_tasks {
-                let task = task_map.get_task(task_id);
+            for (task_id, is_running) in &a.assign_tasks {
+                let task = task_map.get_task(*task_id);
+                assert_eq!(task.is_sn_running(), *is_running);
                 let rqv = request_map.get(task.resource_rq_id);
                 trivial &= rqv.is_trivial();
-                check_load.add_request(task_id, rqv, task.running_variant(), &self.resources);
+                check_load.add_request(*task_id, rqv, task.running_variant(), &self.resources);
             }
         }
     }
@@ -250,14 +264,6 @@ impl Worker {
     pub fn load_wrt_rqv(&self, rqv: &ResourceRequestVariants) -> u32 {
         todo!()
         //self.sn_load.load_wrt_rqv(&self.resources, rqv)
-    }
-
-    pub fn set_parked_flag(&mut self, value: bool) {
-        self.flags.set(WorkerFlags::PARKED, value);
-    }
-
-    pub fn is_parked(&self) -> bool {
-        self.flags.contains(WorkerFlags::PARKED)
     }
 
     pub fn is_capable_to_run(&self, request: &ResourceRequest, now: Instant) -> bool {
@@ -309,8 +315,7 @@ impl Worker {
             .unwrap()
             .assign_tasks
             .iter()
-            .copied()
-            .filter(|task_id| {
+            .filter_map(|(task_id, is_running)| {
                 let task = task_map.get_task_mut(*task_id);
                 if task.is_assigned()
                     && !self.is_capable_to_run_rqv(request_map.get(task.resource_rq_id), now)
@@ -322,9 +327,9 @@ impl Worker {
                         source: self.id,
                         target: None,
                     };
-                    true
+                    Some(*task_id)
                 } else {
-                    false
+                    None
                 }
             })
             .collect();

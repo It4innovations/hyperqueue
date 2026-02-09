@@ -364,15 +364,6 @@ impl Core {
         self.task_queues.push(TaskQueue::new(resource_rq_id));
     }
 
-    #[inline(never)]
-    pub fn wakeup_parked_resources(&mut self) {
-        log::debug!("Waking up parked resources");
-        for worker in self.workers.values_mut() {
-            worker.set_parked_flag(false);
-        }
-        self.parked_resources.clear();
-    }
-
     pub fn has_parked_resources(&mut self) -> bool {
         !self.parked_resources.is_empty()
     }
@@ -495,9 +486,9 @@ impl Core {
                 match worker.assignment() {
                     WorkerAssignment::Sn(s) => {
                         if wid == *worker_id {
-                            assert!(s.assign_tasks.contains(&task_id));
+                            assert!(s.assign_tasks.contains_key(&task_id));
                         } else {
-                            assert!(!s.assign_tasks.contains(&task_id));
+                            assert!(!s.assign_tasks.contains_key(&task_id));
                         }
                     }
                     WorkerAssignment::Mn(m) => {
@@ -509,9 +500,6 @@ impl Core {
 
         for (worker_id, worker) in self.workers.iter() {
             assert_eq!(worker.id, *worker_id);
-            if worker.is_parked() {
-                assert!(self.parked_resources.contains(&worker.resources));
-            }
             worker.sanity_check(&self.tasks, self.resource_map.get_resource_rq_map());
         }
 
@@ -573,7 +561,7 @@ impl Core {
                         } else {
                             match worker.assignment() {
                                 WorkerAssignment::Sn(sn) => {
-                                    assert!(!sn.assign_tasks.contains(&task_id));
+                                    assert!(!sn.assign_tasks.contains_key(&task_id));
                                 }
                                 WorkerAssignment::Mn(mn) => {
                                     assert_ne!(mn.task_id, task_id);

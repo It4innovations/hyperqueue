@@ -336,30 +336,15 @@ fn test_resources_blocked_workers() {
     assert!(rt.worker_load(ws[1]).get(0.into()) >= u(8));
     assert_eq!(rt.worker_load(ws[2]).get(0.into()), u(0));
 
-    assert!(!rt.worker(ws[0]).is_parked());
-    assert!(!rt.worker(ws[1]).is_parked());
-    assert!(rt.worker(ws[2]).is_parked());
     rt.core().sanity_check();
 
     rt.new_tasks_cpus(&[3]);
     rt.schedule();
 
-    assert!(!rt.worker(ws[0]).is_parked());
-    assert!(!rt.worker(ws[1]).is_parked());
-    assert!(rt.worker(ws[2]).is_parked());
-
     rt.new_tasks_cpus(&[1]);
     rt.schedule();
 
-    assert!(!rt.worker(ws[0]).is_parked());
-    assert!(!rt.worker(ws[1]).is_parked());
-    assert!(!rt.worker(ws[2]).is_parked());
-
     rt.balance();
-
-    assert!(!rt.worker(ws[0]).is_parked());
-    assert!(!rt.worker(ws[1]).is_parked());
-    assert!(!rt.worker(ws[2]).is_parked());
 }
 
 #[test]

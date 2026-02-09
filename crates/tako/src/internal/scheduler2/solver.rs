@@ -9,7 +9,7 @@ use hashbrown::Equivalent;
 use std::cmp::Reverse;
 use std::collections::BTreeMap;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub(crate) struct SchedulingSolution {
     pub(crate) sn_counts: Vec<(ResourceRqId, ResourceVariantId, Vec<(WorkerId, u32)>)>,
 }

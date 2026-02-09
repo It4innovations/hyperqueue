@@ -1,3 +1,4 @@
+use crate::TaskId;
 use crate::internal::scheduler2::mapping::create_task_mapping;
 use crate::internal::scheduler2::{create_task_batches, run_scheduling_solver};
 use crate::internal::server::comm::{Comm, CommSender, CommSenderRef};
@@ -38,7 +39,8 @@ pub(crate) async fn scheduler_loop(
 }
 
 pub(crate) fn run_scheduling_inner(core: &mut Core, comm: &mut impl Comm, now: Instant) {
-    let batches = create_task_batches(core, now);
+    let assigned_not_running = collect_assigned_not_running_tasks(core);
+    let batches = create_task_batches(core, &assigned_not_running, now);
     let mapping = create_task_mapping(core, run_scheduling_solver(core, now, &batches));
     mapping.send_messages(core, comm);
 }
@@ -46,4 +48,12 @@ pub(crate) fn run_scheduling_inner(core: &mut Core, comm: &mut impl Comm, now: I
 pub(crate) fn run_scheduling(core: &mut Core, comm: &mut CommSender, now: Instant) {
     run_scheduling_inner(core, comm, now);
     comm.reset_scheduling_flag();
+}
+
+pub(crate) fn collect_assigned_not_running_tasks(core: &mut Core) -> Vec<TaskId> {
+    let mut result = Vec::new();
+    for worker in core.get_workers_mut() {
+        worker.collect_assigned_non_running_tasks(&mut result);
+    }
+    result
 }

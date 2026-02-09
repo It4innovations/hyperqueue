@@ -225,7 +225,7 @@ pub(crate) fn on_task_running(
                 workers
                     .get_mut(&worker_id)
                     .unwrap()
-                    .start_task(rqv.get(rv_id));
+                    .start_task(task_id, rqv.get(rv_id));
 
                 simple_worker_list.as_slice()
             }
@@ -245,7 +245,7 @@ pub(crate) fn on_task_running(
                 workers
                     .get_mut(&worker_id)
                     .unwrap()
-                    .start_task(rqv.get(rv_id));
+                    .start_task(task_id, rqv.get(rv_id));
                 simple_worker_list.as_slice()
             }
             TaskRuntimeState::RunningMultiNode(ws) => {
