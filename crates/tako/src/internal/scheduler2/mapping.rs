@@ -13,37 +13,43 @@ pub struct WorkerTaskMapping {
 
 pub(crate) fn create_task_mapping(
     core: &mut Core,
-    solution: SchedulingSolution,
-    assigned_not_running: Set<TaskId>,
+    mut solution: SchedulingSolution,
+    mut assigned_not_running: Set<TaskId>,
 ) -> WorkerTaskMapping {
     let (task_map, worker_map, task_queues, resource_map, _) = core.split_all_mut();
     let mut result = WorkerTaskMapping::default();
     let has_more = solution.sn_counts.len() > 1;
-    let mut all_steals = Vec::new();
+    let mut new_steals = Vec::new();
     let mut worker_steals: Map<WorkerId, Vec<TaskId>> = Map::new();
     for (resource_rq_id, v_id, mut counts) in solution.sn_counts {
         let sum = counts.iter().map(|(_, c)| c).sum::<u32>();
         let mut tasks = task_queues[resource_rq_id.as_usize()].take_tasks(sum);
         assert!(!tasks.is_empty());
-        let mut already_assigned: Map<WorkerId, u32> = Map::new();
-        tasks.retain(|task_id| {
-            if assigned_not_running.remove(task_id) {
-                let task = task_map.get_task(*task_id);
-                let worker_id = match task.state {
-                    TaskRuntimeState::Assigned(worker_id) => worker_id,
-                    _ => unreachable!(),
-                };
-                (*already_assigned.entry(worker_id).or_default()) += 1;
-                false
-            } else {
-                true
-            }
-        });
-        // Decrease counts of already assigned tasks
-        todo!();
+        if !assigned_not_running.is_empty() {
+            tasks.retain(|task_id| {
+                if assigned_not_running.remove(task_id) {
+                    let task = task_map.get_task(*task_id);
+                    let worker_id = match task.state {
+                        TaskRuntimeState::Assigned(worker_id) => worker_id,
+                        _ => unreachable!(),
+                    };
+                    if let Some(c) = counts.get_mut(&worker_id)
+                        && *c > 0
+                    {
+                        *c -= 1;
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    true
+                }
+            });
+        }
+
         let mut task_idx = 0;
         'outer: loop {
-            for (w_id, c) in &mut counts {
+            for (w_id, c) in counts.iter_mut() {
                 if *c > 0 {
                     *c -= 1;
                     let task_id = tasks[task_idx];
@@ -59,7 +65,11 @@ pub(crate) fn create_task_mapping(
                             TaskRuntimeState::Assigned(*w_id)
                         }
                         TaskRuntimeState::Assigned(current_w) => {
-                            all_steals.push(task_id);
+                            assert_ne!(current_w, w_id);
+                            worker_map
+                                .get_worker_mut(*current_w)
+                                .remove_sn_task(task_id, None);
+                            new_steals.push(task_id);
                             worker_steals.entry(*current_w).or_default().push(task_id);
                             TaskRuntimeState::Stealing {
                                 source: current_w.clone(),
@@ -84,6 +94,25 @@ pub(crate) fn create_task_mapping(
             }
         }
     }
+
+    for task_id in assigned_not_running {
+        let task = task_map.get_task_mut(task_id);
+        match &task.state {
+            TaskRuntimeState::Assigned(worker_id) => {
+                worker_map
+                    .get_worker_mut(*worker_id)
+                    .remove_sn_task(task_id, None);
+                new_steals.push(task_id);
+                worker_steals.entry(*worker_id).or_default().push(task_id);
+                task.state = TaskRuntimeState::Stealing {
+                    source: *worker_id,
+                    target: None,
+                }
+            }
+            _ => unreachable!(),
+        }
+    }
+
     if has_more {
         // Tasks are sorted by priority within resource_rq_id, so when there is just one, we do not need additional sorting
         result

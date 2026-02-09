@@ -286,7 +286,7 @@ impl TestEnv {
         let batches = create_task_batches(&mut self.core, &assigned_not_running, self.now);
         dbg!(&batches);
         let solution = run_scheduling_solver(&mut self.core, self.now, &batches);
-        create_task_mapping(&mut self.core, solution)
+        create_task_mapping(&mut self.core, solution, assigned_not_running)
     }
 }
 

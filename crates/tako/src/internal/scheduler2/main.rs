@@ -1,8 +1,8 @@
-use crate::TaskId;
 use crate::internal::scheduler2::mapping::create_task_mapping;
 use crate::internal::scheduler2::{create_task_batches, run_scheduling_solver};
 use crate::internal::server::comm::{Comm, CommSender, CommSenderRef};
 use crate::internal::server::core::{Core, CoreRef};
+use crate::{Set, TaskId};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 use tokio::sync::Notify;
@@ -41,7 +41,11 @@ pub(crate) async fn scheduler_loop(
 pub(crate) fn run_scheduling_inner(core: &mut Core, comm: &mut impl Comm, now: Instant) {
     let assigned_not_running = collect_assigned_not_running_tasks(core);
     let batches = create_task_batches(core, &assigned_not_running, now);
-    let mapping = create_task_mapping(core, run_scheduling_solver(core, now, &batches));
+    let mapping = create_task_mapping(
+        core,
+        run_scheduling_solver(core, now, &batches),
+        assigned_not_running,
+    );
     mapping.send_messages(core, comm);
 }
 
@@ -50,8 +54,8 @@ pub(crate) fn run_scheduling(core: &mut Core, comm: &mut CommSender, now: Instan
     comm.reset_scheduling_flag();
 }
 
-pub(crate) fn collect_assigned_not_running_tasks(core: &mut Core) -> Vec<TaskId> {
-    let mut result = Vec::new();
+pub(crate) fn collect_assigned_not_running_tasks(core: &mut Core) -> Set<TaskId> {
+    let mut result = Set::new();
     for worker in core.get_workers_mut() {
         worker.collect_assigned_non_running_tasks(&mut result);
     }

@@ -2,7 +2,7 @@ use crate::internal::scheduler2::TaskQueue;
 use crate::internal::server::core::Core;
 use crate::internal::server::worker::Worker;
 use crate::resources::ResourceRqId;
-use crate::{Map, Priority, TaskId};
+use crate::{Map, Priority, Set, TaskId};
 use futures::StreamExt;
 use priority_queue::PriorityQueue;
 use std::cmp::{Ordering, Reverse, min};
@@ -143,7 +143,7 @@ enum Found {
 
 pub(crate) fn create_task_batches(
     core: &mut Core,
-    assigned_not_running: &[TaskId],
+    assigned_not_running: &Set<TaskId>,
     now: Instant,
 ) -> Vec<TaskBatch> {
     let (task_map, worker_map, task_queues, resource_map, _) = core.split_all_mut();
