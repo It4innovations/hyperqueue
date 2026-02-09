@@ -148,25 +148,24 @@ pub(crate) fn create_task_batches(
 ) -> Vec<TaskBatch> {
     let (task_map, worker_map, task_queues, resource_map, _) = core.split_all_mut();
 
-    let mut assigned_not_running_counts: Map<ResourceRqId, BTreeMap<Reverse<Priority>, u32>> =
-        Map::new();
+    let mut anor_counts: Map<ResourceRqId, BTreeMap<Reverse<Priority>, u32>> = Map::new();
 
     for task_id in assigned_not_running {
         let task = task_map.get_task(*task_id);
-        *assigned_not_running_counts
+        *anor_counts
             .entry(task.resource_rq_id)
             .or_default()
             .entry(Reverse(task.priority()))
             .or_default() += 1;
     }
 
-    dbg!(&assigned_not_running_counts);
+    dbg!(&anor_counts);
 
     let queues: Vec<_> = task_queues
         .iter()
         .enumerate()
         .filter_map(|(idx, q)| {
-            if !q.is_empty()
+            if (!q.is_empty() || anor_counts.contains_key(&q.resource_rq_id))
                 && worker_map.get_workers().any(|w| {
                     w.is_capable_to_run_rqv(resource_map.get(ResourceRqId::new(idx as u32)), now)
                 })
@@ -201,7 +200,7 @@ pub(crate) fn create_task_batches(
         .map(|q| {
             MergePrioritySizeIterator::new(
                 q.iter_priority_sizes(),
-                assigned_not_running_counts
+                anor_counts
                     .remove(&q.resource_rq_id)
                     .unwrap_or_default()
                     .into_iter()
@@ -210,6 +209,7 @@ pub(crate) fn create_task_batches(
         })
         .collect();
     let mut current: Vec<Option<_>> = iters.iter_mut().map(|it| it.next()).collect();
+    dbg!(&current);
     let mut unique = None;
     let mut found = Vec::new();
     let mut batches: Vec<_> = queues

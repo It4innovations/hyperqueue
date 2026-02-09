@@ -43,7 +43,6 @@ fn test_schedule_mapping() {
 
     let w3 = rt.new_worker_cpus(5);
     let t2 = rt.new_task(&TaskBuilder::new().cpus(4).add_resource(1, 2));
-
     let m = rt.schedule_mapping();
     assert!(m.sn_steals.is_empty());
     dbg!(&m);
