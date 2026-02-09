@@ -1,4 +1,4 @@
-## Unreleased
+## v0.25.0
 
 ### Breaking change
 
@@ -10,7 +10,7 @@
 * Client notification mechanism. A task can generate a notification,
   which the process that submitted the task can capture.
 * `hq journal report` that exports a statistics into an HTML report
-* Resource coupling is now stabilized. It is extended to freely set arbitrary weights between groups.
+* Resource coupling is now stabilized. Worker resources may now define arbitrary weights between groups.
 * Server scheduler more respects priorities
 * Server scheduler improved when resource variants are used
 * Extended events:

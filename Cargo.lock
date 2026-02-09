@@ -1080,7 +1080,7 @@ checksum = "135b12329e5e3ce057a9f972339ea52bc954fe1e9358ef27f95e89716fbc5424"
 
 [[package]]
 name = "hyperqueue"
-version = "0.24.0"
+version = "0.25.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -1806,7 +1806,7 @@ dependencies = [
 
 [[package]]
 name = "pyhq"
-version = "0.24.0"
+version = "0.25.0"
 dependencies = [
  "anyhow",
  "hyperqueue",
