@@ -321,6 +321,14 @@ impl Task {
     }
 
     #[inline]
+    pub(crate) fn get_assignments(&self) -> Option<(WorkerId, ResourceVariantId)> {
+        match &self.state {
+            TaskRuntimeState::Assigned(_) => todo!(),
+            _ => None,
+        }
+    }
+
+    #[inline]
     pub(crate) fn get_assigned_worker(&self) -> Option<WorkerId> {
         match &self.state {
             TaskRuntimeState::Assigned(id)

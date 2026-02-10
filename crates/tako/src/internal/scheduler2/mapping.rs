@@ -1,7 +1,9 @@
+use crate::internal::scheduler2::TaskQueue;
 use crate::internal::scheduler2::solver::SchedulingSolution;
 use crate::internal::server::comm::Comm;
 use crate::internal::server::core::Core;
 use crate::internal::server::task::{ComputeTasksBuilder, Task, TaskRuntimeState};
+use crate::resources::ResourceRqId;
 use crate::{Map, ResourceVariantId, Set, TaskId, WorkerId};
 use std::cmp::Reverse;
 
@@ -17,35 +19,30 @@ pub(crate) fn create_task_mapping(
     mut assigned_not_running: Set<TaskId>,
 ) -> WorkerTaskMapping {
     let (task_map, worker_map, task_queues, resource_map, _) = core.split_all_mut();
+
+    let mut assigned_not_running_queues: Map<(ResourceRqId, ResourceVariantId), Vec<_>> =
+        Map::new();
+    for task_id in assigned_not_running {
+        let task = task_map.get_task(task_id);
+        let (_, v_id) = task.get_assignments().unwrap();
+        assigned_not_running_queues
+            .entry((task.resource_rq_id, v_id))
+            .or_insert_with(|| Vec::new())
+            .push((task.priority(), task_id));
+    }
+    for queue in assigned_not_running_queues.values_mut() {
+        queue.sort_unstable();
+    }
+
     let mut result = WorkerTaskMapping::default();
     let has_more = solution.sn_counts.len() > 1;
     let mut new_steals = Vec::new();
     let mut worker_steals: Map<WorkerId, Vec<TaskId>> = Map::new();
     for (resource_rq_id, v_id, mut counts) in solution.sn_counts {
         let sum = counts.iter().map(|(_, c)| c).sum::<u32>();
-        let mut tasks = task_queues[resource_rq_id.as_usize()].take_tasks(sum);
+        let assigned = assigned_not_running_queues.get_mut(&(resource_rq_id, v_id));
+        let mut tasks = task_queues[resource_rq_id.as_usize()].take_tasks(sum, assigned);
         assert!(!tasks.is_empty());
-        if !assigned_not_running.is_empty() {
-            tasks.retain(|task_id| {
-                if assigned_not_running.remove(task_id) {
-                    let task = task_map.get_task(*task_id);
-                    let worker_id = match task.state {
-                        TaskRuntimeState::Assigned(worker_id) => worker_id,
-                        _ => unreachable!(),
-                    };
-                    if let Some(c) = counts.get_mut(&worker_id)
-                        && *c > 0
-                    {
-                        *c -= 1;
-                        true
-                    } else {
-                        false
-                    }
-                } else {
-                    true
-                }
-            });
-        }
 
         let mut task_idx = 0;
         'outer: loop {
@@ -95,7 +92,8 @@ pub(crate) fn create_task_mapping(
         }
     }
 
-    for task_id in assigned_not_running {
+    // Retract unused assignet tasks
+    for (_, task_id) in assigned_not_running_queues.into_values().flatten() {
         let task = task_map.get_task_mut(task_id);
         match &task.state {
             TaskRuntimeState::Assigned(worker_id) => {

@@ -94,30 +94,58 @@ impl TaskQueue {
         self.queue.iter().map(|(k, v)| (k.0, v.size()))
     }
 
-    pub fn take_tasks(&mut self, count: u32) -> Vec<TaskId> {
-        let count = count as usize;
-        let mut result = Vec::with_capacity(count);
-        while result.len() < count {
-            let mut entry = self.queue.first_entry().unwrap();
-            match entry.get_mut() {
-                OneOrMoreTaskIds::One(x) => {
-                    result.push(*x);
-                    entry.remove();
-                }
-                OneOrMoreTaskIds::More(xs) => {
-                    while result.len() < count {
-                        if let Some(x) = xs.pop_first() {
-                            result.push(x)
-                        } else {
-                            break;
-                        }
-                    }
-                    if xs.is_empty() {
-                        entry.remove();
-                    }
+    pub fn take_tasks(
+        &mut self,
+        mut count: u32,
+        assigned: Option<&mut Vec<(Priority, TaskId)>>,
+    ) -> Vec<TaskId> {
+        let mut result = Vec::with_capacity(count as usize);
+        if let Some(assigned) = assigned {
+            while count > 0 {
+                let Some((p, t)) = assigned.last() else {
+                    break;
+                };
+                if let Some(entry) = self.queue.first_entry()
+                    && entry.key().0 > *p
+                {
+                    take_from_entry(entry, &mut count, &mut result);
+                } else {
+                    result.push(*t);
+                    assigned.pop();
                 }
             }
+        };
+        while count > 0 {
+            let entry = self.queue.first_entry().unwrap();
+            take_from_entry(entry, &mut count, &mut result);
         }
         result
+    }
+}
+
+fn take_from_entry(
+    mut entry: OccupiedEntry<Reverse<Priority>, OneOrMoreTaskIds>,
+    count: &mut u32,
+    result: &mut Vec<TaskId>,
+) {
+    match entry.get_mut() {
+        OneOrMoreTaskIds::One(x) => {
+            *count -= 1;
+            result.push(*x);
+            entry.remove();
+        }
+        OneOrMoreTaskIds::More(xs) => {
+            while *count > 0 {
+                if let Some(x) = xs.pop_first() {
+                    *count -= 1;
+                    result.push(x)
+                } else {
+                    break;
+                }
+            }
+            if xs.is_empty() {
+                entry.remove();
+            }
+        }
     }
 }
