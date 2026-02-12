@@ -1,3 +1,4 @@
+use crate::ResourceVariantId;
 use crate::internal::server::task::TaskRuntimeState;
 use crate::tests::utils::env::{TestComm, TestEnv};
 use crate::tests::utils::scheduler::TestCase;
@@ -26,8 +27,8 @@ fn test_schedule_mapping() {
     rt.schedule();
 
     match rt.task(t1).state {
-        TaskRuntimeState::Assigned(w) => {
-            assert_eq!(w, w1);
+        TaskRuntimeState::Assigned { worker_id, .. } => {
+            assert_eq!(worker_id, w1);
         }
         _ => unreachable!(),
     }
@@ -41,10 +42,23 @@ fn test_schedule_mapping() {
     assert!(m.sn_steals.is_empty());
     assert!(m.sn_tasks_to_workers.is_empty());
 
-    let w3 = rt.new_worker_cpus(5);
+    let w3 = rt.new_worker_cpus(6);
     let t2 = rt.new_task(&TaskBuilder::new().cpus(4).add_resource(1, 2));
     let m = rt.schedule_mapping();
+    assert!(
+        matches!(&rt.task(t1).state, TaskRuntimeState::Stealing { source: a, target: b, .. } if *a == w1 && *b == w3)
+    );
+    assert!(
+        matches!(&rt.task(t2).state, TaskRuntimeState::Assigned { worker_id: a, .. } if *a == w1)
+    );
+    assert_eq!(m.sn_steals.len(), 1);
+    assert_eq!(m.sn_steals.get(&w1).unwrap(), &vec![t1]);
+    assert_eq!(
+        m.sn_tasks_to_workers.get(&w1).unwrap(),
+        &vec![(t2, ResourceVariantId::new(0))]
+    );
+
+    let m = rt.schedule_mapping();
     assert!(m.sn_steals.is_empty());
-    dbg!(&m);
     assert!(m.sn_tasks_to_workers.is_empty());
 }

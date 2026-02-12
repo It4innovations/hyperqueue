@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 
 #[derive(Default, Debug)]
 pub(crate) struct SchedulingSolution {
-    pub(crate) sn_counts: Vec<(ResourceRqId, ResourceVariantId, Map<WorkerId, u32>)>,
+    pub(crate) sn_counts: Map<(ResourceRqId, ResourceVariantId), Map<WorkerId, u32>>,
 }
 
 pub(crate) fn run_scheduling_solver(
@@ -249,7 +249,7 @@ pub(crate) fn run_scheduling_solver(
                 })
                 .collect();
             if !counts.is_empty() {
-                result.sn_counts.push((resource_rq_id, v_id, counts));
+                result.sn_counts.insert((resource_rq_id, v_id), counts);
             }
         }
     }

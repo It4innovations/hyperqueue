@@ -885,7 +885,7 @@ fn lost_worker_with_running_and_assign_tasks() {
     rt.core().assert_ready(&[t1]);
     assert!(matches!(
         rt.task(t2).state,
-        TaskRuntimeState::Stealing { source: w, target: None } if w == ws[0]
+        TaskRuntimeState::Retracting { source } if source == ws[0]
     ));
 
     assert!(matches!(

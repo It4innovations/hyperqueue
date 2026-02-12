@@ -94,27 +94,8 @@ impl TaskQueue {
         self.queue.iter().map(|(k, v)| (k.0, v.size()))
     }
 
-    pub fn take_tasks(
-        &mut self,
-        mut count: u32,
-        assigned: Option<&mut Vec<(Priority, TaskId)>>,
-    ) -> Vec<TaskId> {
+    pub fn take_tasks(&mut self, mut count: u32) -> Vec<TaskId> {
         let mut result = Vec::with_capacity(count as usize);
-        if let Some(assigned) = assigned {
-            while count > 0 {
-                let Some((p, t)) = assigned.last() else {
-                    break;
-                };
-                if let Some(entry) = self.queue.first_entry()
-                    && entry.key().0 > *p
-                {
-                    take_from_entry(entry, &mut count, &mut result);
-                } else {
-                    result.push(*t);
-                    assigned.pop();
-                }
-            }
-        };
         while count > 0 {
             let entry = self.queue.first_entry().unwrap();
             take_from_entry(entry, &mut count, &mut result);

@@ -159,8 +159,6 @@ pub(crate) fn create_task_batches(
             .or_default() += 1;
     }
 
-    dbg!(&anor_counts);
-
     let queues: Vec<_> = task_queues
         .iter()
         .enumerate()
@@ -209,7 +207,6 @@ pub(crate) fn create_task_batches(
         })
         .collect();
     let mut current: Vec<Option<_>> = iters.iter_mut().map(|it| it.next()).collect();
-    dbg!(&current);
     let mut unique = None;
     let mut found = Vec::new();
     let mut batches: Vec<_> = queues

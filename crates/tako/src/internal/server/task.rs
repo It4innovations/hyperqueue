@@ -53,9 +53,14 @@ impl fmt::Debug for TaskRuntimeState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Waiting(info) => write!(f, "W({})", info.unfinished_deps),
-            Self::Assigned(w_id) => write!(f, "A({w_id})"),
-            Self::Stealing { source, target } => write!(f, "S({source}, {target:?})"),
-            Self::Running { worker_id, .. } => write!(f, "R({worker_id})"),
+            Self::Assigned { worker_id, rv_id } => write!(f, "A({worker_id}, {rv_id})"),
+            Self::Retracting { source } => write!(f, "S({source})"),
+            Self::Stealing {
+                source,
+                target,
+                rv_id,
+            } => write!(f, "S({source} -> {target}, {rv_id})"),
+            Self::Running { worker_id, rv_id } => write!(f, "R({worker_id}, {rv_id})"),
             Self::RunningMultiNode(ws) => write!(f, "M({ws:?})"),
             Self::Finished => write!(f, "F"),
         }
@@ -69,14 +74,24 @@ impl TaskRuntimeState {
                 "state": "Waiting",
                 "unfinished_deps": info.unfinished_deps,
             }),
-            Self::Assigned(w_id) => json!({
+            Self::Assigned { worker_id, rv_id } => json!({
                 "state": "Assigned",
-                "worker_id": w_id,
+                "worker_id": worker_id,
+                "rv_id": rv_id,
             }),
-            Self::Stealing { source, target } => json!({
+            Self::Retracting { source } => json!({
+                "state": "Retracting",
+                "from_worker": source,
+            }),
+            Self::Stealing {
+                source,
+                target,
+                rv_id,
+            } => json!({
                 "state": "Stealing",
                 "from_worker": source,
                 "to_worker": target,
+                "rv_id": rv_id,
             }),
             Self::Running { worker_id, .. } => json!({
                 "state": "Running",
@@ -129,7 +144,7 @@ pub struct Task {
 }
 
 // Task is a critical data structure, so we should keep its size in check
-static_assert_size!(Task, 112);
+static_assert_size!(Task, 104);
 
 impl fmt::Debug for Task {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -297,18 +312,16 @@ impl Task {
 
     #[inline]
     pub(crate) fn is_assigned(&self) -> bool {
-        matches!(&self.state, TaskRuntimeState::Assigned(_))
+        matches!(&self.state, TaskRuntimeState::Assigned { .. })
     }
 
     #[inline]
     pub(crate) fn is_assigned_or_stolen_from(&self, worker_id: WorkerId) -> bool {
         match &self.state {
-            TaskRuntimeState::Assigned(w)
+            TaskRuntimeState::Assigned { worker_id: w, .. }
             | TaskRuntimeState::Running { worker_id: w, .. }
-            | TaskRuntimeState::Stealing {
-                source: w,
-                target: _,
-            } => worker_id == *w,
+            | TaskRuntimeState::Retracting { source: w }
+            | TaskRuntimeState::Stealing { source: w, .. } => worker_id == *w,
             TaskRuntimeState::RunningMultiNode(ws) => ws[0] == worker_id,
             _ => false,
         }
@@ -330,29 +343,29 @@ impl Task {
     #[inline]
     pub(crate) fn get_assignments(&self) -> Option<(WorkerId, ResourceVariantId)> {
         match &self.state {
-            TaskRuntimeState::Assigned(_) => todo!(),
+            TaskRuntimeState::Assigned { worker_id, rv_id } => Some((*worker_id, *rv_id)),
             _ => None,
         }
     }
 
-    #[inline]
-    pub(crate) fn get_assigned_worker(&self) -> Option<WorkerId> {
-        match &self.state {
-            TaskRuntimeState::Assigned(id)
-            | TaskRuntimeState::Running { worker_id: id, .. }
-            | TaskRuntimeState::Stealing {
-                source: _,
-                target: Some(id),
-            } => Some(*id),
-            TaskRuntimeState::Waiting(_)
-            | TaskRuntimeState::Stealing {
-                source: _,
-                target: None,
-            }
-            | TaskRuntimeState::RunningMultiNode(_)
-            | TaskRuntimeState::Finished => None,
-        }
-    }
+    // #[inline]
+    // pub(crate) fn get_assigned_worker(&self) -> Option<WorkerId> {
+    //     match &self.state {
+    //         TaskRuntimeState::Assigned(id)
+    //         | TaskRuntimeState::Running { worker_id: id, .. }
+    //         | TaskRuntimeState::Stealing {
+    //             source: _,
+    //             target: Some(id),
+    //         } => Some(*id),
+    //         TaskRuntimeState::Waiting(_)
+    //         | TaskRuntimeState::Stealing {
+    //             source: _,
+    //             target: None,
+    //         }
+    //         | TaskRuntimeState::RunningMultiNode(_)
+    //         | TaskRuntimeState::Finished => None,
+    //     }
+    // }
 }
 
 impl ExtractKey<TaskId> for Task {

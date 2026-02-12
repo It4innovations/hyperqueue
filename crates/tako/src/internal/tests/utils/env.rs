@@ -235,7 +235,10 @@ impl TestEnv {
                 if i.unfinished_deps > 0 {
                     panic!("Task {} is not ready", task_id);
                 }
-                task.state = TaskRuntimeState::Assigned(worker_id)
+                task.state = TaskRuntimeState::Assigned {
+                    worker_id,
+                    rv_id: 0.into(),
+                };
             }
 
             _ => {
@@ -250,7 +253,7 @@ impl TestEnv {
     pub fn start_task<V: Into<ResourceVariantId>>(&mut self, task_id: TaskId, variant: V) {
         let task = self.core.get_task(task_id);
         let worker_id = match task.state {
-            TaskRuntimeState::Assigned(worker_id) => worker_id,
+            TaskRuntimeState::Assigned { worker_id, .. } => worker_id,
             _ => panic!("Task {} is not assigned", task_id),
         };
         let mut comm = TestComm::default();
@@ -284,7 +287,6 @@ impl TestEnv {
     pub fn schedule_mapping(&mut self) -> WorkerTaskMapping {
         let assigned_not_running = collect_assigned_not_running_tasks(&mut self.core);
         let batches = create_task_batches(&mut self.core, &assigned_not_running, self.now);
-        dbg!(&batches);
         let solution = run_scheduling_solver(&mut self.core, self.now, &batches);
         create_task_mapping(&mut self.core, solution, assigned_not_running)
     }

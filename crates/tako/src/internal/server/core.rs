@@ -11,7 +11,7 @@ use crate::internal::scheduler2::TaskQueue;
 use crate::internal::server::dataobj::{DataObjectHandle, ObjsToRemoveFromWorkers};
 use crate::internal::server::dataobjmap::DataObjectMap;
 use crate::internal::server::rpc::ConnectionDescriptor;
-use crate::internal::server::task::{Task, TaskRuntimeState};
+use crate::internal::server::task::{Task, TaskRuntimeState, WaitingInfo};
 use crate::internal::server::taskmap::TaskMap;
 use crate::internal::server::worker::{Worker, WorkerAssignment};
 use crate::internal::server::workergroup::WorkerGroup;
@@ -200,6 +200,26 @@ impl Core {
 
     pub(crate) fn task_in_stealing_mut(&mut self) -> &mut Set<TaskId> {
         &mut self.tasks_in_stealing
+    }
+
+    pub(crate) fn reset_stealing_tasks_on_worker(&mut self, worker_id: WorkerId) {
+        self.tasks_in_stealing.retain(|task_id| {
+            let task = self.tasks.get_task_mut(*task_id);
+            match task.state {
+                TaskRuntimeState::Retracting { source }
+                | TaskRuntimeState::Stealing { source, .. }
+                    if source == worker_id =>
+                {
+                    task.state = TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 });
+                    false
+                }
+                TaskRuntimeState::Stealing { source, target, .. } if target == worker_id => {
+                    task.state = TaskRuntimeState::Retracting { source };
+                    true
+                }
+                _ => true,
+            }
+        });
     }
 
     #[inline]

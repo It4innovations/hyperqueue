@@ -3,8 +3,11 @@ use crate::internal::scheduler2::solver::SchedulingSolution;
 use crate::internal::server::comm::Comm;
 use crate::internal::server::core::Core;
 use crate::internal::server::task::{ComputeTasksBuilder, Task, TaskRuntimeState};
+use crate::internal::worker::task::TaskState;
 use crate::resources::ResourceRqId;
 use crate::{Map, ResourceVariantId, Set, TaskId, WorkerId};
+use fxhash::FxBuildHasher;
+use hashbrown::hash_map::Entry;
 use std::cmp::Reverse;
 
 #[derive(Debug, Default)]
@@ -19,108 +22,97 @@ pub(crate) fn create_task_mapping(
     mut assigned_not_running: Vec<TaskId>,
 ) -> WorkerTaskMapping {
     let (task_map, worker_map, task_queues, resource_map, _) = core.split_all_mut();
-
-    let mut assigned_not_running_queues: Map<(ResourceRqId, ResourceVariantId), Vec<_>> =
-        Map::new();
+    let mut worker_steals: Map<WorkerId, Vec<TaskId>> = Map::new();
     for task_id in assigned_not_running {
-        let task = task_map.get_task(task_id);
-        let (_, v_id) = task.get_assignments().unwrap();
-        assigned_not_running_queues
-            .entry((task.resource_rq_id, v_id))
-            .or_insert_with(|| Vec::new())
-            .push((task.priority(), task_id));
-    }
-    for queue in assigned_not_running_queues.values_mut() {
-        queue.sort_unstable();
+        let task = task_map.get_task_mut(task_id);
+        let (worker_id, v_id) = task.get_assignments().unwrap();
+        if let Some(counts) = solution.sn_counts.get_mut(&(task.resource_rq_id, v_id)) {
+            let entry = counts.entry(worker_id);
+            match entry {
+                Entry::Occupied(mut o) => {
+                    let v = o.get_mut();
+                    if *v > 0 {
+                        *v -= 1;
+                        continue;
+                    }
+                }
+                Entry::Vacant(_) => {}
+            }
+        }
+        task.state = TaskRuntimeState::Retracting { source: worker_id };
+        task_queues[task.resource_rq_id.as_usize()].add(task);
+        worker_steals.entry(worker_id).or_default().push(task_id);
     }
 
     let mut result = WorkerTaskMapping::default();
-    let has_more = solution.sn_counts.len() > 1;
-    let mut new_steals = Vec::new();
-    let mut worker_steals: Map<WorkerId, Vec<TaskId>> = Map::new();
-    for (resource_rq_id, v_id, mut counts) in solution.sn_counts {
+    for ((resource_rq_id, v_id), mut counts) in solution.sn_counts.into_iter() {
         let sum = counts.iter().map(|(_, c)| c).sum::<u32>();
-        let assigned = assigned_not_running_queues.get_mut(&(resource_rq_id, v_id));
-        let mut tasks = task_queues[resource_rq_id.as_usize()].take_tasks(sum, assigned);
-        assert!(!tasks.is_empty());
-
+        let tasks = task_queues[resource_rq_id.as_usize()].take_tasks(sum);
         let mut task_idx = 0;
-        'outer: loop {
-            for (w_id, c) in counts.iter_mut() {
-                if *c > 0 {
-                    *c -= 1;
-                    let task_id = tasks[task_idx];
-                    let task = task_map.get_task_mut(task_id);
-                    let new_state = match &task.state {
-                        TaskRuntimeState::Waiting(_) => {
-                            worker_map.get_worker_mut(*w_id).insert_sn_task(task_id);
-                            result
-                                .sn_tasks_to_workers
-                                .entry(*w_id)
-                                .or_default()
-                                .push((task_id, v_id));
-                            TaskRuntimeState::Assigned {
-                                worker_id: *w_id,
-                                rv_id: v_id,
+        if !tasks.is_empty() {
+            'outer: loop {
+                for (w_id, c) in counts.iter_mut() {
+                    if *c > 0 {
+                        *c -= 1;
+                        let task_id = tasks[task_idx];
+                        let task = task_map.get_task_mut(task_id);
+                        let new_state = match &task.state {
+                            TaskRuntimeState::Waiting(_) => {
+                                worker_map.get_worker_mut(*w_id).insert_sn_task(task_id);
+                                result
+                                    .sn_tasks_to_workers
+                                    .entry(*w_id)
+                                    .or_default()
+                                    .push((task_id, v_id));
+                                TaskRuntimeState::Assigned {
+                                    worker_id: *w_id,
+                                    rv_id: v_id,
+                                }
                             }
-                        }
-                        TaskRuntimeState::Assigned { worker_id, rv_id } => {
-                            assert_ne!(worker_id, w_id);
-                            worker_map
-                                .get_worker_mut(*worker_id)
-                                .remove_sn_task(task_id, None);
-                            new_steals.push(task_id);
-                            worker_steals.entry(*worker_id).or_default().push(task_id);
-                            TaskRuntimeState::Stealing {
-                                source: worker_id.clone(),
-                                target: *w_id,
-                                rv_id: v_id,
+                            TaskRuntimeState::Assigned { worker_id, rv_id } => {
+                                assert_ne!(worker_id, w_id);
+                                worker_map
+                                    .get_worker_mut(*worker_id)
+                                    .remove_sn_task(task_id, None);
+                                worker_steals.entry(*worker_id).or_default().push(task_id);
+                                TaskRuntimeState::Stealing {
+                                    source: worker_id.clone(),
+                                    target: *w_id,
+                                    rv_id: v_id,
+                                }
                             }
+                            TaskRuntimeState::Retracting { source }
+                            | TaskRuntimeState::Stealing { source, .. } => {
+                                TaskRuntimeState::Stealing {
+                                    source: *source,
+                                    target: *w_id,
+                                    rv_id: v_id,
+                                }
+                            }
+                            TaskRuntimeState::Running { .. }
+                            | TaskRuntimeState::RunningMultiNode(_)
+                            | TaskRuntimeState::Finished => {
+                                unreachable!()
+                            }
+                        };
+                        task.state = new_state;
+                        task_idx += 1;
+                        if task_idx >= tasks.len() {
+                            break 'outer;
                         }
-                        TaskRuntimeState::Stealing { .. } => {
-                            todo!()
-                        }
-                        TaskRuntimeState::Running { .. }
-                        | TaskRuntimeState::RunningMultiNode(_)
-                        | TaskRuntimeState::Finished => {
-                            unreachable!()
-                        }
-                    };
-                    task.state = new_state;
-                    task_idx += 1;
-                    if task_idx >= tasks.len() {
-                        break 'outer;
                     }
                 }
             }
         }
     }
 
-    // Retract unused assignet tasks
-    for (_, task_id) in assigned_not_running_queues.values().flatten() {
-        let task = task_map.get_task_mut(*task_id);
-        match &task.state {
-            TaskRuntimeState::Assigned { worker_id, rv_id } => {
-                worker_map
-                    .get_worker_mut(*worker_id)
-                    .remove_sn_task(*task_id, None);
-                new_steals.push(*task_id);
-                worker_steals.entry(*worker_id).or_default().push(*task_id);
-                task.state = TaskRuntimeState::Retracting { source: *worker_id }
-            }
-            _ => unreachable!(),
-        }
-    }
-
-    if has_more {
-        // Tasks are sorted by priority within resource_rq_id, so when there is just one, we do not need additional sorting
-        result
-            .sn_tasks_to_workers
-            .iter_mut()
-            .for_each(|(_, tasks)| {
-                tasks.sort_by_key(|(task, _)| Reverse(task_map.get_task(*task).priority()));
-            });
-    }
+    result
+        .sn_tasks_to_workers
+        .iter_mut()
+        .for_each(|(_, tasks)| {
+            tasks.sort_by_key(|(task, _)| Reverse(task_map.get_task(*task).priority()));
+        });
+    result.sn_steals = worker_steals;
     result
 }
 // for batch in task_batches {
