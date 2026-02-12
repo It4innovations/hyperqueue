@@ -198,6 +198,10 @@ impl Core {
         &mut self.worker_overview_listeners
     }
 
+    pub(crate) fn task_in_stealing_mut(&mut self) -> &mut Set<TaskId> {
+        &mut self.tasks_in_stealing
+    }
+
     #[inline]
     pub(crate) fn multi_node_queue_split_mut(
         &mut self,
@@ -529,15 +533,21 @@ impl Core {
                     worker_check_sn(self, task.id, 0.into());
                 }
 
-                TaskRuntimeState::Assigned(wid)
-                | TaskRuntimeState::Running { worker_id: wid, .. } => {
+                TaskRuntimeState::Assigned { worker_id, .. }
+                | TaskRuntimeState::Running { worker_id, .. } => {
                     fw_check(task);
-                    worker_check_sn(self, task.id, *wid);
+                    worker_check_sn(self, task.id, *worker_id);
+                }
+                TaskRuntimeState::Retracting { source: _ } => {
+                    fw_check(task);
+                    worker_check_sn(self, task.id, WorkerId::new(0));
                 }
 
-                TaskRuntimeState::Stealing { source: _, target } => {
+                TaskRuntimeState::Stealing {
+                    source: _, target, ..
+                } => {
                     fw_check(task);
-                    worker_check_sn(self, task.id, target.unwrap_or(WorkerId::new(0)));
+                    worker_check_sn(self, task.id, *target);
                 }
 
                 TaskRuntimeState::Finished => {

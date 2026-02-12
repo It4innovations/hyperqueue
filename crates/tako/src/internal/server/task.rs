@@ -28,17 +28,24 @@ pub struct WaitingInfo {
 #[cfg_attr(test, derive(Eq, PartialEq, Clone))]
 pub enum TaskRuntimeState {
     Waiting(WaitingInfo),
-    Assigned(WorkerId),
+    Assigned {
+        worker_id: WorkerId,
+        rv_id: ResourceVariantId,
+    },
+    Retracting {
+        source: WorkerId,
+    },
     Stealing {
         source: WorkerId,
-        target: Option<WorkerId>,
+        target: WorkerId,
+        rv_id: ResourceVariantId,
     },
     Running {
         worker_id: WorkerId,
         rv_id: ResourceVariantId,
     },
     // The first worker is the root node where the command is executed, others are reserved
-    RunningMultiNode(Vec<WorkerId>),
+    RunningMultiNode(ThinVec<WorkerId>),
     Finished,
 }
 

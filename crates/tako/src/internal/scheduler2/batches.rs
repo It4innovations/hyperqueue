@@ -143,7 +143,7 @@ enum Found {
 
 pub(crate) fn create_task_batches(
     core: &mut Core,
-    assigned_not_running: &Set<TaskId>,
+    assigned_not_running: &[TaskId],
     now: Instant,
 ) -> Vec<TaskBatch> {
     let (task_map, worker_map, task_queues, resource_map, _) = core.split_all_mut();

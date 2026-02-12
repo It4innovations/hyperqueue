@@ -1,7 +1,7 @@
 use std::cmp::Reverse;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
-
+use thin_vec::ThinVec;
 use tokio::sync::Notify;
 use tokio::time::sleep;
 
@@ -267,7 +267,7 @@ impl SchedulerState {
         &mut self,
         worker_map: &mut WorkerMap,
         task: &mut Task,
-        workers: Vec<WorkerId>,
+        workers: ThinVec<WorkerId>,
     ) {
         for worker_id in &workers {
             let worker = worker_map.get_worker_mut(*worker_id);
@@ -329,7 +329,8 @@ impl SchedulerState {
     // }
 
     fn try_start_multinode_tasks(&mut self, core: &mut Core) {
-        loop {
+        todo!()
+        /*loop {
             // "while let" not used because of lifetime problems
             let (mn_queue, task_map, worker_map, worker_groups, resource_map) =
                 core.multi_node_queue_split_mut();
@@ -348,7 +349,7 @@ impl SchedulerState {
             } else {
                 return;
             }
-        }
+        }*/
     }
 
     /// Returns true if balancing is needed.

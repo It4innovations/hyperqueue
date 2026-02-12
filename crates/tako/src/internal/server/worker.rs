@@ -193,12 +193,12 @@ impl Worker {
         }
     }
 
-    pub fn collect_assigned_non_running_tasks(&mut self, out: &mut Set<TaskId>) {
+    pub fn collect_assigned_non_running_tasks(&mut self, out: &mut Vec<TaskId>) {
         match &self.assignment {
             WorkerAssignment::Sn(sn) => {
                 for (task_id, is_running) in &sn.assign_tasks {
                     if !is_running {
-                        out.insert(*task_id);
+                        out.push(*task_id);
                     }
                 }
             }

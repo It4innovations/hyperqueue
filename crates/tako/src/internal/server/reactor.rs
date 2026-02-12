@@ -14,7 +14,7 @@ use crate::internal::server::core::Core;
 use crate::internal::server::dataobj::{DataObjectHandle, ObjsToRemoveFromWorkers, RefCount};
 use crate::internal::server::task::{ComputeTasksBuilder, WaitingInfo};
 use crate::internal::server::task::{Task, TaskRuntimeState};
-use crate::internal::server::worker::Worker;
+use crate::internal::server::worker::{Worker, WorkerAssignment};
 use crate::internal::server::workermap::WorkerMap;
 use crate::{TaskId, WorkerId};
 use std::fmt::Write;
@@ -42,54 +42,24 @@ pub(crate) fn on_remove_worker(
     log::debug!("Removing worker {worker_id}");
 
     let mut ready_to_assign = Vec::new();
-    let mut removes = Vec::new();
     let mut running_tasks = Vec::new();
 
     let (task_map, worker_map) = core.split_tasks_workers_mut();
-    let task_ids: Vec<_> = task_map.task_ids().collect();
-    for task_id in task_ids {
-        let task = task_map.get_task_mut(task_id);
-        let new_state = match &mut task.state {
-            TaskRuntimeState::Waiting(_) => continue,
-            TaskRuntimeState::Assigned(w_id)
-            | TaskRuntimeState::Running {
-                worker_id: w_id, ..
-            } => {
-                if *w_id == worker_id {
-                    log::debug!("Removing task task={task_id} from lost worker");
-                    task.increment_instance_id();
-                    ready_to_assign.push(task_id);
-                    if task.is_sn_running() {
-                        running_tasks.push(task_id);
-                    }
-                    TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 })
-                } else {
-                    continue;
+    let worker = worker_map.get_worker(worker_id);
+    match worker.assignment() {
+        WorkerAssignment::Sn(sn) => {
+            for (task_id, running) in sn.assign_tasks {
+                if running {
+                    running_tasks.push(task_id);
                 }
+                ready_to_assign.push(task_id);
+                let task = task_map.get_task_mut(task_id);
+                task.increment_instance_id();
+                task.state = TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 });
             }
-            TaskRuntimeState::Stealing { source, target } => {
-                if *source == worker_id {
-                    log::debug!("Canceling steal of task={task_id} from lost worker");
-
-                    if let Some(to_id) = target {
-                        removes.push((*to_id, task_id));
-                    }
-                    task.increment_instance_id();
-                    ready_to_assign.push(task_id);
-                    TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 })
-                } else if *target == Some(worker_id) {
-                    log::debug!("Task={task_id} is stealing target for lost worker");
-                    TaskRuntimeState::Stealing {
-                        source: *source,
-                        target: None,
-                    }
-                } else {
-                    continue;
-                }
-            }
-            TaskRuntimeState::Finished => {
-                continue;
-            }
+        }
+        WorkerAssignment::Mn(mn) => {
+            /*
             TaskRuntimeState::RunningMultiNode(ws) => {
                 if ws.contains(&worker_id) {
                     let root_worker_id = ws[0];
@@ -112,18 +82,27 @@ pub(crate) fn on_remove_worker(
                     continue;
                 }
             }
-        };
-        task.state = new_state;
-    }
-
-    {
-        let (_tasks, workers, _requests) = core.split_tasks_workers_requests_mut();
-        // Here we are removing assignment that was in process of stealing, so it cannot be running
-        // therefore we can call remove_sn_task with None argument
-        for (w_id, task_id) in removes {
-            workers.get_worker_mut(w_id).remove_sn_task(task_id, None);
+             */
+            todo!()
         }
     }
+
+    core.task_in_stealing_mut().retain(|task_id| {
+        let task = task_map.get_task_mut(*task_id);
+        match task.state {
+            TaskRuntimeState::Retracting { source } | TaskRuntimeState::Stealing { source, .. }
+                if source == worker_id =>
+            {
+                task.state = TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 });
+                false
+            }
+            TaskRuntimeState::Stealing { source, target, .. } if target == worker_id => {
+                task.state = TaskRuntimeState::Retracting { source };
+                true
+            }
+            _ => true,
+        }
+    });
 
     for task_id in ready_to_assign {
         core.add_ready_to_assign(task_id);
@@ -211,7 +190,9 @@ pub(crate) fn on_task_running(
     let simple_worker_list = &[worker_id];
     if let Some(task) = tasks.find_task_mut(task_id) {
         let worker_ids = match &task.state {
-            TaskRuntimeState::Assigned(w_id)
+            TaskRuntimeState::Assigned {
+                worker_id: w_id, ..
+            }
             | TaskRuntimeState::Stealing {
                 source: w_id,
                 target: None,
@@ -298,7 +279,9 @@ pub(crate) fn on_task_finished(
             let rqv = requests.get(task.resource_rq_id);
 
             match &task.state {
-                TaskRuntimeState::Assigned(w_id) => {
+                TaskRuntimeState::Assigned {
+                    worker_id: w_id, ..
+                } => {
                     assert_eq!(*w_id, worker_id);
                     workers
                         .get_worker_mut(worker_id)
@@ -455,7 +438,10 @@ pub(crate) fn on_steal_response(
                             w_id,
                             &ComputeTasksBuilder::single_task(task, Vec::new()),
                         );
-                        TaskRuntimeState::Assigned(w_id)
+                        TaskRuntimeState::Assigned {
+                            worker_id: w_id,
+                            ..
+                        }
                     } else {
                         comm.ask_for_scheduling();
                         core.add_ready_to_assign(task_id);

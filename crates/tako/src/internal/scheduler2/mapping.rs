@@ -16,7 +16,7 @@ pub struct WorkerTaskMapping {
 pub(crate) fn create_task_mapping(
     core: &mut Core,
     mut solution: SchedulingSolution,
-    mut assigned_not_running: Set<TaskId>,
+    mut assigned_not_running: Vec<TaskId>,
 ) -> WorkerTaskMapping {
     let (task_map, worker_map, task_queues, resource_map, _) = core.split_all_mut();
 
@@ -59,18 +59,22 @@ pub(crate) fn create_task_mapping(
                                 .entry(*w_id)
                                 .or_default()
                                 .push((task_id, v_id));
-                            TaskRuntimeState::Assigned(*w_id)
+                            TaskRuntimeState::Assigned {
+                                worker_id: *w_id,
+                                rv_id: v_id,
+                            }
                         }
-                        TaskRuntimeState::Assigned(current_w) => {
-                            assert_ne!(current_w, w_id);
+                        TaskRuntimeState::Assigned { worker_id, rv_id } => {
+                            assert_ne!(worker_id, w_id);
                             worker_map
-                                .get_worker_mut(*current_w)
+                                .get_worker_mut(*worker_id)
                                 .remove_sn_task(task_id, None);
                             new_steals.push(task_id);
-                            worker_steals.entry(*current_w).or_default().push(task_id);
+                            worker_steals.entry(*worker_id).or_default().push(task_id);
                             TaskRuntimeState::Stealing {
-                                source: current_w.clone(),
-                                target: Some(*w_id),
+                                source: worker_id.clone(),
+                                target: *w_id,
+                                rv_id: v_id,
                             }
                         }
                         TaskRuntimeState::Stealing { .. } => {
@@ -93,19 +97,16 @@ pub(crate) fn create_task_mapping(
     }
 
     // Retract unused assignet tasks
-    for (_, task_id) in assigned_not_running_queues.into_values().flatten() {
-        let task = task_map.get_task_mut(task_id);
+    for (_, task_id) in assigned_not_running_queues.values().flatten() {
+        let task = task_map.get_task_mut(*task_id);
         match &task.state {
-            TaskRuntimeState::Assigned(worker_id) => {
+            TaskRuntimeState::Assigned { worker_id, rv_id } => {
                 worker_map
                     .get_worker_mut(*worker_id)
-                    .remove_sn_task(task_id, None);
-                new_steals.push(task_id);
-                worker_steals.entry(*worker_id).or_default().push(task_id);
-                task.state = TaskRuntimeState::Stealing {
-                    source: *worker_id,
-                    target: None,
-                }
+                    .remove_sn_task(*task_id, None);
+                new_steals.push(*task_id);
+                worker_steals.entry(*worker_id).or_default().push(*task_id);
+                task.state = TaskRuntimeState::Retracting { source: *worker_id }
             }
             _ => unreachable!(),
         }

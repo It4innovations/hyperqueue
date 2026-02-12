@@ -54,8 +54,8 @@ pub(crate) fn run_scheduling(core: &mut Core, comm: &mut CommSender, now: Instan
     comm.reset_scheduling_flag();
 }
 
-pub(crate) fn collect_assigned_not_running_tasks(core: &mut Core) -> Set<TaskId> {
-    let mut result = Set::new();
+pub(crate) fn collect_assigned_not_running_tasks(core: &mut Core) -> Vec<TaskId> {
+    let mut result = Vec::new();
     for worker in core.get_workers_mut() {
         worker.collect_assigned_non_running_tasks(&mut result);
     }

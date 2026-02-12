@@ -7,6 +7,7 @@ use crate::internal::tests::utils::env::TestComm;
 use crate::internal::tests::utils::task::task_running_msg;
 use crate::{TaskId, WorkerId};
 use std::time::Instant;
+use thin_vec::ThinVec;
 
 pub fn submit_test_tasks(core: &mut Core, tasks: Vec<Task>) {
     on_new_tasks(core, &mut TestComm::default(), tasks);
@@ -24,7 +25,7 @@ pub(crate) fn force_assign(
 pub(crate) fn force_assign_mn(
     core: &mut Core,
     scheduler: &mut SchedulerState,
-    workers: Vec<WorkerId>,
+    workers: ThinVec<WorkerId>,
     task_id: TaskId,
 ) {
     let (task_map, worker_map) = core.split_tasks_workers_mut();
