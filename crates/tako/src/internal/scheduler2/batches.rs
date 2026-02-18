@@ -147,23 +147,14 @@ pub(crate) fn create_task_batches(core: &mut Core, now: Instant) -> Vec<TaskBatc
         worker_map,
         task_queues,
         request_map,
+        worker_groups,
         ..
     } = core.split_mut();
 
     let queues: Vec<_> = task_queues
         .iter()
         .enumerate()
-        .filter_map(|(idx, q)| {
-            if (!q.is_empty())
-                && worker_map.get_workers().any(|w| {
-                    w.is_capable_to_run_rqv(request_map.get(ResourceRqId::new(idx as u32)), now)
-                })
-            {
-                Some(q)
-            } else {
-                None
-            }
-        })
+        .filter_map(|(idx, q)| (!q.is_empty()).then(|| q))
         .collect();
     if queues.is_empty() {
         return Vec::new();
@@ -171,16 +162,31 @@ pub(crate) fn create_task_batches(core: &mut Core, now: Instant) -> Vec<TaskBatc
     let limits: Vec<u32> = queues
         .iter()
         .map(|q| {
-            let resource = request_map.get(q.resource_rq_id);
-            worker_map
-                .get_workers()
-                .map(|w| {
-                    w.sn_assignment()
-                        .unwrap()
-                        .free_resources
-                        .task_max_count(&resource)
-                })
-                .sum::<u32>()
+            let rqv = request_map.get(q.resource_rq_id);
+            if rqv.is_multi_node() {
+                let n_nodes = rqv.unwrap_first().n_nodes();
+                let n_frees = worker_groups
+                    .values()
+                    .map(|g| {
+                        g.worker_ids()
+                            .map(|w_id| {
+                                let worker = worker_map.get_worker(w_id);
+                                if worker.is_free() { 1 } else { 0 }
+                            })
+                            .sum::<u32>()
+                    })
+                    .sum::<u32>();
+                n_frees / n_nodes
+            } else {
+                worker_map
+                    .get_workers()
+                    .map(|w| {
+                        w.sn_assignment()
+                            .map(|a| a.free_resources.task_max_count(&rqv))
+                            .unwrap_or(0)
+                    })
+                    .sum::<u32>()
+            }
         })
         .collect();
 
@@ -196,7 +202,7 @@ pub(crate) fn create_task_batches(core: &mut Core, now: Instant) -> Vec<TaskBatc
         found.clear();
         let mut highest_p = Priority::new(0);
         for (idx, c) in current.iter().enumerate() {
-            if let Some((priority, size)) = c {
+            if let Some((priority, _size)) = c {
                 match highest_p.cmp(priority) {
                     Ordering::Equal => {
                         found.push(idx);

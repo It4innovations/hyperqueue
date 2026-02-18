@@ -1,6 +1,6 @@
 use crate::internal::common::Set;
 use crate::internal::messages::worker::{
-    StealResponse, StealResponseMsg, TaskOutput, ToWorkerMessage,
+    RetractResponse, RetractResponseMsg, TaskOutput, ToWorkerMessage,
 };
 use crate::internal::server::core::Core;
 use crate::internal::server::reactor::on_steal_response;

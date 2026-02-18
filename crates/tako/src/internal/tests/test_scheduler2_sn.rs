@@ -350,6 +350,7 @@ fn test_schedule_some_tasks_running() {
 fn test_schedule_gap_filling() {
     let w6 = WorkerBuilder::new(6);
     let w12 = WorkerBuilder::new(12);
+    todo!()
 
     /*    let mut c = TestCase::new();
     let ts = c.pc_tasks(&[(1, 8), (1, 8), (0, 4)]);

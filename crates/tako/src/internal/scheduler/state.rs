@@ -92,7 +92,7 @@ impl SchedulerState {
         dataobj_map: &DataObjectMap,
         try_immediate_check: bool,
     ) -> Option<usize> {
-        let no_data_deps = task.data_deps.is_empty();
+        /*let no_data_deps = task.data_deps.is_empty();
         if no_data_deps && try_immediate_check {
             if workers[self.last_idx].have_immediate_resources_for_rqv_now(rq, self.now) {
                 return Some(self.last_idx);
@@ -154,7 +154,8 @@ impl SchedulerState {
             } else {
                 None
             }
-        }
+        }*/
+        todo!()
     }
 
     #[cfg(test)]

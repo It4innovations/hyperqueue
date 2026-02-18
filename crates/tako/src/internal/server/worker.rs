@@ -10,6 +10,7 @@ use crate::internal::messages::worker::{TaskIdsMsg, ToWorkerMessage};
 use crate::internal::server::comm::Comm;
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::taskmap::TaskMap;
+use crate::internal::server::workergroup::WorkerGroup;
 use crate::internal::server::workerload::{ResourceRequestLowerBound, WorkerLoad, WorkerResources};
 use crate::internal::worker::configuration::WorkerConfiguration;
 use crate::{Map, TaskId, WorkerId};
@@ -124,6 +125,16 @@ impl Worker {
             task_id,
             reservation_only,
         });
+        if reservation_only {
+            self.set_reservation(true);
+        }
+    }
+
+    pub fn has_mn_task(&self) -> bool {
+        match &self.assignment {
+            WorkerAssignment::Sn(_) => false,
+            WorkerAssignment::Mn(_) => true,
+        }
     }
 
     pub fn worker_info(&self, task_map: &TaskMap) -> WorkerRuntimeInfo {
@@ -167,7 +178,7 @@ impl Worker {
     pub fn is_free(&self) -> bool {
         (match &self.assignment {
             WorkerAssignment::Sn(a) => a.assign_tasks.is_empty(),
-            WorkerAssignment::Mn(a) => true,
+            WorkerAssignment::Mn(a) => false,
         }) && !self.is_stopping()
     }
 
@@ -270,8 +281,14 @@ impl Worker {
     }
 
     pub fn is_capable_to_run(&self, request: &ResourceRequest, now: Instant) -> bool {
-        self.has_time_to_run(request.min_time(), now)
-            && self.resources.is_capable_to_run_request(request)
+        if !self.has_time_to_run(request.min_time(), now) {
+            return false;
+        }
+        if request.is_multi_node() {
+            true
+        } else {
+            self.resources.is_capable_to_run_request(request)
+        }
     }
 
     pub fn is_capable_to_run_rqv(

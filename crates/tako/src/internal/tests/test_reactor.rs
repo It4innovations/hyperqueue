@@ -7,7 +7,7 @@ use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{
     ComputeTasksMsg, NewWorkerMsg, TaskFinishedMsg, TaskIdsMsg, TaskOutput, ToWorkerMessage,
 };
-use crate::internal::messages::worker::{StealResponse, StealResponseMsg};
+use crate::internal::messages::worker::{RetractResponse, RetractResponseMsg};
 use crate::internal::scheduler::state::SchedulerState;
 use crate::internal::server::core::Core;
 use crate::internal::server::reactor::{
@@ -422,11 +422,11 @@ fn test_steal_tasks_ok() {
         rt.core(),
         &mut comm,
         ws[1],
-        StealResponseMsg {
+        RetractResponseMsg {
             responses: vec![
-                (task_id.into(), StealResponse::Ok),
-                (123.into(), StealResponse::NotHere),
-                (11.into(), StealResponse::NotHere),
+                (task_id.into(), RetractResponse::Ok),
+                (123.into(), RetractResponse::NotHere),
+                (11.into(), RetractResponse::NotHere),
             ],
         },
     );
@@ -476,8 +476,8 @@ fn test_steal_tasks_running() {
         rt.core(),
         &mut comm,
         ws[1],
-        StealResponseMsg {
-            responses: vec![(wf[2], StealResponse::Running)],
+        RetractResponseMsg {
+            responses: vec![(wf[2], RetractResponse::Running)],
         },
     );
 
@@ -760,8 +760,8 @@ fn test_finished_before_steal_response() {
         rt.core(),
         &mut comm,
         101.into(),
-        StealResponseMsg {
-            responses: vec![(1.into(), StealResponse::NotHere)],
+        RetractResponseMsg {
+            responses: vec![(1.into(), RetractResponse::NotHere)],
         },
     );
 
@@ -793,8 +793,8 @@ fn test_running_before_steal_response() {
         rt.core(),
         &mut comm,
         101.into(),
-        StealResponseMsg {
-            responses: vec![(1.into(), StealResponse::Running)],
+        RetractResponseMsg {
+            responses: vec![(1.into(), RetractResponse::Running)],
         },
     );
 
@@ -820,8 +820,8 @@ fn test_after_cancel_messages() {
         rt.core(),
         &mut comm,
         ws[1],
-        StealResponseMsg {
-            responses: vec![(t2, StealResponse::Ok)],
+        RetractResponseMsg {
+            responses: vec![(t2, RetractResponse::Ok)],
         },
     );
     comm.emptiness_check();
@@ -830,8 +830,8 @@ fn test_after_cancel_messages() {
         rt.core(),
         &mut comm,
         ws[1],
-        StealResponseMsg {
-            responses: vec![(t2, StealResponse::Running)],
+        RetractResponseMsg {
+            responses: vec![(t2, RetractResponse::Running)],
         },
     );
     comm.emptiness_check();
@@ -929,8 +929,8 @@ fn fail_steal<W: Into<WorkerId>, T: Into<TaskId>>(core: &mut Core, task_id: T, w
         core,
         &mut comm,
         worker_id.into(),
-        StealResponseMsg {
-            responses: vec![(task_id.into(), StealResponse::Running)],
+        RetractResponseMsg {
+            responses: vec![(task_id.into(), RetractResponse::Running)],
         },
     )
 }

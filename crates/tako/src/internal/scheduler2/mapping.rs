@@ -13,6 +13,7 @@ use std::cmp::Reverse;
 #[derive(Debug, Default)]
 pub struct WorkerTaskMapping {
     pub(crate) sn_tasks_to_workers: Map<WorkerId, Vec<(TaskId, ResourceVariantId)>>,
+    pub(crate) mn_tasks_to_workers: Vec<TaskId>,
 }
 
 pub(crate) fn create_task_mapping(
@@ -86,45 +87,27 @@ pub(crate) fn create_task_mapping(
         .for_each(|(_, tasks)| {
             tasks.sort_by_key(|(task, _)| Reverse(task_map.get_task(*task).priority()));
         });
+
+    for ((resource_rq_id, _), worker_sets) in solution.mn_workers {
+        for workers in worker_sets {
+            let task_id = task_queues.get_mut(resource_rq_id).take_one().unwrap();
+            for (w_idx, w_id) in workers.iter().enumerate() {
+                let worker = worker_map.get_worker_mut(*w_id);
+                worker.set_mn_task(task_id, w_idx != 0);
+            }
+            let task = task_map.get_task_mut(task_id);
+            result.mn_tasks_to_workers.push(task_id);
+            let old_state =
+                std::mem::replace(&mut task.state, TaskRuntimeState::RunningMultiNode(workers));
+            assert!(matches!(
+                old_state,
+                TaskRuntimeState::Waiting { unfinished_deps: 0 }
+            ));
+        }
+    }
+
     result
 }
-// for batch in task_batches {
-//     let resource_rq_id = batch.resource_rq_id;
-//     let rqv = resource_map.get(batch.resource_rq_id);
-//     for v_id in rqv.variant_ids() {
-//         let mut counts: Vec<_> = workers
-//             .iter()
-//             .filter_map(|w| {
-//                 placements
-//                     .get(&(w.id, batch.resource_rq_id, v_id))
-//                     .map(|(_, var_idx)| (w.id, values[*var_idx as usize].round() as u32))
-//             })
-//             .collect();
-//         let sum = counts.iter().map(|(_, c)| c).sum::<u32>();
-//         if sum == 0 {
-//             continue;
-//         }
-//         let tasks = task_queues[resource_rq_id.as_usize()].take_tasks(sum);
-//         let mut task_idx = 0;
-//         'outer: loop {
-//             for (w_id, c) in &mut counts {
-//                 if *c > 0 {
-//                     *c -= 1;
-//                     result
-//                         .task_to_workers
-//                         .entry(*w_id)
-//                         .or_default()
-//                         .push((tasks[task_idx], v_id));
-//                     task_idx += 1;
-//                     if task_idx >= tasks.len() {
-//                         break 'outer;
-//                     }
-//                 }
-//             }
-//         }
-//     }
-//     //workers.iter().map(|w| )
-// }
 
 impl WorkerTaskMapping {
     pub fn dump(&mut self) {
@@ -158,6 +141,14 @@ impl WorkerTaskMapping {
             if let Some(msg) = task_msg_builder.into_last_message() {
                 comm.send_worker_message(*worker_id, &msg);
             }
+        }
+        for task_id in &self.mn_tasks_to_workers {
+            let task = core.get_task(*task_id);
+            let worker_ids = task.mn_placement().unwrap().to_vec();
+            comm.send_worker_message(
+                worker_ids[0],
+                &ComputeTasksBuilder::single_task(task, worker_ids.to_vec()),
+            );
         }
     }
 }

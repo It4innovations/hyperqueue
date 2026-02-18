@@ -6,7 +6,7 @@ use crate::internal::common::{Map, Set, WrappedRcRefCell};
 use crate::internal::datasrv::{DataObjectRef, DataStorage};
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{
-    FromWorkerMessage, NewWorkerMsg, StealResponse, TaskFailedMsg, TaskFinishedMsg, TaskOutput,
+    FromWorkerMessage, NewWorkerMsg, RetractResponse, TaskFailedMsg, TaskFinishedMsg, TaskOutput,
     WorkerNotifyMessage,
 };
 use crate::internal::server::workerload::WorkerResources;
@@ -255,15 +255,15 @@ impl WorkerState {
         }
     }
 
-    pub fn steal_task(&mut self, task_id: TaskId) -> StealResponse {
+    pub fn steal_task(&mut self, task_id: TaskId) -> RetractResponse {
         let response = match self.tasks.find(&task_id) {
-            None => StealResponse::NotHere,
+            None => RetractResponse::NotHere,
             Some(task) => match task.state {
-                TaskState::Waiting(_) => StealResponse::Ok,
-                TaskState::Running(_) => StealResponse::Running,
+                TaskState::Waiting(_) => RetractResponse::Ok,
+                TaskState::Running(_) => RetractResponse::Running,
             },
         };
-        if let StealResponse::Ok = &response {
+        if let RetractResponse::Ok = &response {
             self.remove_task(task_id, false, false);
         }
         response
