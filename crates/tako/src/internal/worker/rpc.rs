@@ -21,7 +21,7 @@ use crate::internal::common::resources::map::ResourceIdMap;
 use crate::internal::datasrv::download::download_manager_process;
 use crate::internal::datasrv::{DownloadManagerRef, data_upload_service};
 use crate::internal::messages::worker::{
-    FromWorkerMessage, StealResponseMsg, TaskResourceAllocation, ToWorkerMessage, WorkerOverview,
+    FromWorkerMessage, RetractResponseMsg, TaskResourceAllocation, ToWorkerMessage, WorkerOverview,
     WorkerRegistrationResponse, WorkerStopReason,
 };
 use crate::internal::server::rpc::ConnectionDescriptor;
@@ -413,7 +413,7 @@ pub(crate) fn process_worker_message(state: &mut WorkerState, message: ToWorkerM
                     (*task_id, response)
                 })
                 .collect();
-            let message = FromWorkerMessage::StealResponse(StealResponseMsg { responses });
+            let message = FromWorkerMessage::RetractResponse(RetractResponseMsg { responses });
             state.comm().send_message_to_server(message);
         }
         ToWorkerMessage::CancelTasks(msg) => {

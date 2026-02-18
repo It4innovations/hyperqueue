@@ -106,7 +106,7 @@ fn find_workers_for_task(
 ) -> TaskFindWorkersResult {
     let mut suitable_workers_exits = false;
     for group in worker_groups.values() {
-        if group.size() < request.n_nodes() as usize {
+        if group.size() < request.n_nodes() {
             continue;
         }
         let mut ready_count = 0;

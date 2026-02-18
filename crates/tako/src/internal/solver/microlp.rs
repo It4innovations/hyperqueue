@@ -1,3 +1,4 @@
+use crate::internal::solver::ConstraintType;
 use crate::internal::worker::resources::solver::{LpSolution, LpSolver};
 use microlp::ComparisonOp;
 
@@ -31,21 +32,21 @@ impl LpSolver for MicrolpSolver {
     }
 
     #[inline]
-    fn add_min_constraint(
+    fn add_constraint(
         &mut self,
+        constraint_type: ConstraintType,
         min: f64,
         variables: impl Iterator<Item = (Self::Variable, f64)>,
     ) {
-        self.0.add_constraint(variables, ComparisonOp::Ge, min)
-    }
-
-    #[inline]
-    fn add_max_constraint(
-        &mut self,
-        max: f64,
-        variables: impl Iterator<Item = (Self::Variable, f64)>,
-    ) {
-        self.0.add_constraint(variables, ComparisonOp::Le, max)
+        self.0.add_constraint(
+            variables,
+            match constraint_type {
+                ConstraintType::Min => ComparisonOp::Ge,
+                ConstraintType::Max => ComparisonOp::Le,
+                ConstraintType::Rq => ComparisonOp::Eq,
+            },
+            min,
+        )
     }
 
     fn solve(self) -> Option<(Self::Solution, f64)> {

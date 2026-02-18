@@ -318,7 +318,7 @@ pub(crate) async fn worker_receive_loop<
             FromWorkerMessage::TaskFailed(msg) => {
                 on_task_error(&mut core, &mut *comm, worker_id, msg.id, msg.info);
             }
-            FromWorkerMessage::StealResponse(msg) => {
+            FromWorkerMessage::RetractResponse(msg) => {
                 on_steal_response(&mut core, &mut *comm, worker_id, msg)
             }
             FromWorkerMessage::Heartbeat => {

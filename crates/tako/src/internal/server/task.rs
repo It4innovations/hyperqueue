@@ -343,6 +343,15 @@ impl Task {
         }
     }
 
+    #[inline]
+    pub(crate) fn get_mn_assignments(&self) -> Option<(WorkerId, ResourceVariantId)> {
+        match &self.state {
+            TaskRuntimeState::Assigned { worker_id, rv_id }
+            | TaskRuntimeState::Running { worker_id, rv_id } => Some((*worker_id, *rv_id)),
+            _ => None,
+        }
+    }
+
     // #[inline]
     // pub(crate) fn get_assigned_worker(&self) -> Option<WorkerId> {
     //     match &self.state {

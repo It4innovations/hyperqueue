@@ -5,7 +5,7 @@ use crate::internal::common::resources::ResourceRqId;
 use crate::internal::common::{Map, Set};
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{
-    NewWorkerMsg, StealResponse, StealResponseMsg, TaskFinishedMsg, TaskIdsMsg, TaskRunningMsg,
+    NewWorkerMsg, RetractResponse, RetractResponseMsg, TaskFinishedMsg, TaskIdsMsg, TaskRunningMsg,
     ToWorkerMessage,
 };
 use crate::internal::scheduler2::TaskQueue;
@@ -353,7 +353,7 @@ pub(crate) fn on_steal_response(
     core: &mut Core,
     comm: &mut impl Comm,
     worker_id: WorkerId,
-    msg: StealResponseMsg,
+    msg: RetractResponseMsg,
 ) {
     todo!()
     /*

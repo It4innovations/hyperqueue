@@ -12,6 +12,13 @@ pub(crate) type LpInnerSolverImpl = microlp::MicrolpSolver;
 pub(crate) type Variable = <LpInnerSolverImpl as LpInnerSolver>::Variable;
 pub(crate) type Solution = <LpInnerSolverImpl as LpInnerSolver>::Solution;
 
+#[derive(Debug, Copy, Clone)]
+pub(crate) enum ConstraintType {
+    Min,
+    Max,
+    Eq,
+}
+
 pub(crate) trait LpInnerSolver {
     type Variable: Copy;
     type Solution: LpSolution;
@@ -19,14 +26,10 @@ pub(crate) trait LpInnerSolver {
     fn add_variable(&mut self, weight: f64, min: f64, max: f64) -> Self::Variable;
     fn add_bool_variable(&mut self, weight: f64) -> Self::Variable;
     fn add_nat_variable(&mut self, weight: f64) -> Self::Variable;
-    fn add_min_constraint(
+    fn add_constraint(
         &mut self,
-        min: f64,
-        variables: impl Iterator<Item = (Self::Variable, f64)>,
-    );
-    fn add_max_constraint(
-        &mut self,
-        max: f64,
+        constraint_type: ConstraintType,
+        value: f64,
         variables: impl Iterator<Item = (Self::Variable, f64)>,
     );
     fn solve(self) -> Option<(Self::Solution, f64)>;
@@ -80,36 +83,24 @@ impl LpSolver {
     }
 
     #[inline]
-    pub fn add_min_constraint(
+    pub fn add_constraint(
         &mut self,
-        min: f64,
+        constraint_type: ConstraintType,
+        value: f64,
         variables: impl Iterator<Item = (Variable, f64)>,
     ) {
         if self.verbose {
             let vars: Vec<_> = variables.collect();
-            self.print_constraint(&vars, ">=", min);
-            self.solver.add_min_constraint(min, vars.into_iter())
+            self.print_constraint(&vars, constraint_type, value);
+            self.solver
+                .add_constraint(constraint_type, value, vars.into_iter())
         } else {
-            self.solver.add_min_constraint(min, variables)
+            self.solver
+                .add_constraint(constraint_type, value, variables)
         }
     }
 
-    #[inline]
-    pub fn add_max_constraint(
-        &mut self,
-        max: f64,
-        variables: impl Iterator<Item = (Variable, f64)>,
-    ) {
-        if self.verbose {
-            let vars: Vec<_> = variables.collect();
-            self.print_constraint(&vars, "<=", max);
-            self.solver.add_max_constraint(max, vars.into_iter())
-        } else {
-            self.solver.add_max_constraint(max, variables)
-        }
-    }
-
-    fn print_constraint(&mut self, variable: &[(Variable, f64)], op: &str, bound: f64) {
+    fn print_constraint(&mut self, variable: &[(Variable, f64)], ct: ConstraintType, bound: f64) {
         use std::fmt::Write;
         let mut s = String::new();
         if let Some(name) = self.name_config.take() {
@@ -134,7 +125,17 @@ impl LpSolver {
             )
             .unwrap();
         }
-        write!(&mut s, " {} {}", op, bound).unwrap();
+        write!(
+            &mut s,
+            " {} {}",
+            match ct {
+                ConstraintType::Min => ">=",
+                ConstraintType::Max => "<=",
+                ConstraintType::Eq => "==",
+            },
+            bound
+        )
+        .unwrap();
         println!("{}", s);
     }
 
