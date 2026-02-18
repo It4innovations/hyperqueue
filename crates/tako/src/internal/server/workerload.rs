@@ -33,7 +33,21 @@ impl WorkerResources {
             .unwrap_or(ResourceAmount::ZERO)
     }
 
-    pub(crate) fn iter(&self) -> impl Iterator<Item = ResourceAmount> {
+    pub(crate) fn iter_pairs(&self) -> impl Iterator<Item = (ResourceId, ResourceAmount)> {
+        self.n_resources
+            .iter()
+            .copied()
+            .enumerate()
+            .filter_map(|(idx, c)| {
+                if !c.is_zero() {
+                    Some((ResourceId::new(idx as u32), c))
+                } else {
+                    None
+                }
+            })
+    }
+
+    pub(crate) fn iter_amounts(&self) -> impl Iterator<Item = ResourceAmount> {
         self.n_resources.iter().copied()
     }
 

@@ -24,7 +24,7 @@ impl OneOrMoreTaskIds {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub(crate) struct TaskQueues {
     queues: Vec<TaskQueue>,
 }
@@ -62,6 +62,7 @@ impl TaskQueues {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct TaskQueue {
     pub queue: BTreeMap<Reverse<Priority>, OneOrMoreTaskIds>,
     pub resource_rq_id: ResourceRqId,
@@ -139,6 +140,26 @@ impl TaskQueue {
             take_from_entry(entry, &mut count, &mut result);
         }
         result
+    }
+
+    pub fn take_one(&mut self) -> Option<TaskId> {
+        let Some(mut entry) = self.queue.first_entry() else {
+            return None;
+        };
+        match entry.get_mut() {
+            OneOrMoreTaskIds::One(x) => {
+                let r = *x;
+                entry.remove();
+                Some(r)
+            }
+            OneOrMoreTaskIds::More(xs) => {
+                let r = xs.pop_first().unwrap();
+                if xs.is_empty() {
+                    entry.remove();
+                }
+                Some(r)
+            }
+        }
     }
 }
 

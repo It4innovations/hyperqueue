@@ -89,7 +89,7 @@ impl CoreRef {
 
 impl Core {
     #[inline]
-    pub fn split_mut(&mut self) -> CoreSplitMut {
+    pub(crate) fn split_mut(&mut self) -> CoreSplitMut<'_> {
         CoreSplitMut {
             task_map: &mut self.tasks,
             worker_map: &mut self.workers,
@@ -101,7 +101,7 @@ impl Core {
     }
 
     #[inline]
-    pub fn split(&self) -> CoreSplit {
+    pub(crate) fn split(&self) -> CoreSplit<'_> {
         CoreSplit {
             task_map: &self.tasks,
             worker_map: &self.workers,

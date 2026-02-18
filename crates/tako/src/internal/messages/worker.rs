@@ -123,15 +123,15 @@ pub struct DataDownloadedMsg {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub enum StealResponse {
+pub enum RetractResponse {
     Ok,
     NotHere,
     Running,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct StealResponseMsg {
-    pub responses: Vec<(TaskId, StealResponse)>,
+pub struct RetractResponseMsg {
+    pub responses: Vec<(TaskId, RetractResponse)>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -192,7 +192,7 @@ pub enum FromWorkerMessage {
     TaskFinished(TaskFinishedMsg),
     TaskFailed(TaskFailedMsg),
     TaskRunning(TaskRunningMsg),
-    StealResponse(StealResponseMsg),
+    RetractResponse(RetractResponseMsg),
     Overview(Box<WorkerOverview>),
     Heartbeat,
     Stop(WorkerStopReason),
