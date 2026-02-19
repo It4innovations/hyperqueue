@@ -2363,6 +2363,7 @@ dependencies = [
  "fxhash",
  "hashbrown 0.16.1",
  "highs",
+ "itertools 0.14.0",
  "log",
  "microlp",
  "nix 0.31.2",

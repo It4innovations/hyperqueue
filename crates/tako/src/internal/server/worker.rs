@@ -1,16 +1,12 @@
 use std::fmt;
 
-use crate::gateway::WorkerRuntimeInfo::SingleNodeTasks;
 use crate::gateway::{LostWorkerReason, WorkerRuntimeInfo};
 use crate::internal::common::Set;
+use crate::internal::common::resources::TimeRequest;
 use crate::internal::common::resources::map::{ResourceIdMap, ResourceRqMap};
 use crate::internal::common::resources::{ResourceRequest, ResourceRequestVariants};
-use crate::internal::common::resources::{ResourceRqId, TimeRequest};
-use crate::internal::messages::worker::{TaskIdsMsg, ToWorkerMessage};
 use crate::internal::server::comm::Comm;
-use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::taskmap::TaskMap;
-use crate::internal::server::workergroup::WorkerGroup;
 use crate::internal::server::workerload::{ResourceRequestLowerBound, WorkerLoad, WorkerResources};
 use crate::internal::worker::configuration::WorkerConfiguration;
 use crate::{Map, TaskId, WorkerId};
@@ -140,19 +136,18 @@ impl Worker {
     pub fn worker_info(&self, task_map: &TaskMap) -> WorkerRuntimeInfo {
         match &self.assignment {
             WorkerAssignment::Sn(a) => {
-                todo!()
-                /*let mut running_tasks = 0;
-                self.sn_tasks.iter().for_each(|task_id| {
+                let mut running_tasks = 0;
+                a.assign_tasks.iter().for_each(|task_id| {
                     if task_map.get_task(*task_id).is_sn_running() {
                         running_tasks += 1;
                     }
                 });
-                let assigned_tasks = self.sn_tasks.len() as u32;
+                let assigned_tasks = a.assign_tasks.len() as u32;
                 WorkerRuntimeInfo::SingleNodeTasks {
                     assigned_tasks,
                     running_tasks,
                     is_reserved: self.is_reserved(),
-                }*/
+                }
             }
             WorkerAssignment::Mn(a) => WorkerRuntimeInfo::MultiNodeTask {
                 main_node: !a.reservation_only,
@@ -368,7 +363,7 @@ impl Worker {
 
     pub fn has_time_to_run(&self, time_request: TimeRequest, now: Instant) -> bool {
         if let Some(time) = self.termination_time {
-            now + time_request < time
+            now + time_request <= time
         } else {
             true
         }

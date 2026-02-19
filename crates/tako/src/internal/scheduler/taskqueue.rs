@@ -117,6 +117,10 @@ impl TaskQueue {
         todo!()
     }
 
+    pub fn size(&self) -> u32 {
+        self.queue.values().map(|v| v.size()).sum()
+    }
+
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.queue.is_empty()

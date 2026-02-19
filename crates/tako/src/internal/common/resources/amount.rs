@@ -28,6 +28,7 @@ pub struct ResourceAmount(u64);
 impl ResourceAmount {
     pub const ZERO: ResourceAmount = ResourceAmount(0);
     pub const ONE: ResourceAmount = ResourceAmount(1);
+    pub const MAX: ResourceAmount = ResourceAmount(u64::MAX);
 
     pub fn new(units: ResourceUnits, fractions: ResourceFractions) -> Self {
         assert!(fractions < FRACTIONS_PER_UNIT);
@@ -51,6 +52,10 @@ impl ResourceAmount {
         self.0 == 0
     }
 
+    pub fn is_max(&self) -> bool {
+        self.0 == u64::MAX
+    }
+
     pub fn units(&self) -> ResourceUnits {
         (self.0 / (FRACTIONS_PER_UNIT as u64)) as ResourceUnits
     }
@@ -65,6 +70,10 @@ impl ResourceAmount {
 
     pub fn fractions(&self) -> ResourceFractions {
         (self.0 % (FRACTIONS_PER_UNIT as u64)) as ResourceFractions
+    }
+
+    pub fn times(&self, n: u32) -> ResourceAmount {
+        ResourceAmount(self.0 * n as u64)
     }
 
     pub fn split(&self) -> (ResourceUnits, ResourceFractions) {

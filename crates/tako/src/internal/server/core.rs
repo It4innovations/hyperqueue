@@ -16,7 +16,7 @@ use crate::internal::server::worker::{Worker, WorkerAssignment};
 use crate::internal::server::workergroup::WorkerGroup;
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::server::workermap::WorkerMap;
-use crate::{Map, TaskId, WorkerId};
+use crate::{Map, Priority, TaskId, WorkerId};
 use orion::aead::SecretKey;
 use serde_json::json;
 
@@ -270,16 +270,20 @@ impl Core {
         &mut self,
         task_id: TaskId,
         objs_to_remove: &mut ObjsToRemoveFromWorkers,
-    ) -> (TaskRuntimeState, ResourceRqId) {
+    ) -> TaskRuntimeState {
         let task = self
             .tasks
             .remove(task_id)
             .expect("Trying to remove non-existent task");
-        if matches!(&task.state, TaskRuntimeState::Waiting { unfinished_deps } if *unfinished_deps > 0)
-        {
-            for input_id in task.task_deps {
-                if let Some(input) = self.find_task_mut(input_id) {
-                    assert!(input.remove_consumer(task_id));
+        if let TaskRuntimeState::Waiting { unfinished_deps } = &task.state {
+            self.task_queues
+                .get_mut(task.resource_rq_id)
+                .remove(task_id, task.priority());
+            if *unfinished_deps > 0 {
+                for input_id in task.task_deps {
+                    if let Some(input) = self.find_task_mut(input_id) {
+                        assert!(input.remove_consumer(task_id));
+                    }
                 }
             }
         }
@@ -289,19 +293,18 @@ impl Core {
                     .try_decrease_ref_count(*data_id, objs_to_remove);
             }
         }
-        (task.state, task.resource_rq_id)
+        task.state
     }
 
-    /// Removes multiple tasks at once, to reduce memory consumption
     pub fn remove_tasks_batched(
         &mut self,
         tasks: &Set<TaskId>,
         objs_to_remove: &mut ObjsToRemoveFromWorkers,
     ) {
+        // The current version has no optimization in batch task removal
+        // so just remove it one-by-one
         for &task_id in tasks {
-            let resource_rq_id = self.remove_task(task_id, objs_to_remove).1;
-            todo!() // REMOVE FROM TASKS QUEUES
-            //self.task_queues[resource_rq_id.as_usize()].remove(task);
+            self.remove_task(task_id, objs_to_remove);
         }
     }
 
@@ -587,7 +590,7 @@ mod tests {
         let t = rt.new_task_default();
         let mut objs_to_remove = ObjsToRemoveFromWorkers::new();
         assert!(matches!(
-            rt.core().remove_task(t, &mut objs_to_remove).0,
+            rt.core().remove_task(t, &mut objs_to_remove),
             TaskRuntimeState::Waiting { .. }
         ));
         assert_eq!(rt.core().find_task(t), None);

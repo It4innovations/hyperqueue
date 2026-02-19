@@ -111,10 +111,15 @@ impl ResourceDescriptorKind {
     }
 
     pub fn simple_indices(size: ResourceUnits) -> Self {
-        assert!(size > 0);
-        ResourceDescriptorKind::Range {
-            start: ResourceIndex::from(0),
-            end: ResourceIndex::from(size - 1),
+        if size == 0 {
+            ResourceDescriptorKind::Sum {
+                size: ResourceAmount::ZERO,
+            }
+        } else {
+            ResourceDescriptorKind::Range {
+                start: ResourceIndex::from(0),
+                end: ResourceIndex::from(size - 1),
+            }
         }
     }
 
