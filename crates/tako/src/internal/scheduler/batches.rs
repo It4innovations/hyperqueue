@@ -1,21 +1,8 @@
-use crate::internal::scheduler::TaskQueue;
+use crate::Priority;
 use crate::internal::server::core::{Core, CoreSplitMut};
-use crate::internal::server::worker::Worker;
 use crate::resources::ResourceRqId;
-use crate::{Map, Priority, Set, TaskId};
-use futures::StreamExt;
-use priority_queue::PriorityQueue;
-use std::cmp::{Ordering, Reverse, min};
-use std::collections::{BTreeMap, BTreeSet};
+use std::cmp::Ordering;
 use std::time::Instant;
-
-struct SchedulerState {}
-
-impl SchedulerState {
-    pub fn new() -> Self {
-        SchedulerState {}
-    }
-}
 
 #[derive(Debug)]
 #[cfg_attr(test, derive(Eq, PartialEq))]
@@ -41,104 +28,6 @@ impl TaskBatch {
             limit_reached,
         }
     }
-}
-
-pub fn run_scheduling(core: &mut Core, now: std::time::Instant) -> () {
-    todo!()
-
-    // let groups: Vec<_> = queues
-    //     .iter()
-    //     .map(|q| {
-    //         let resource = resource_map.get(q.resource_rq_id);
-    //         let limit = worker_map
-    //             .get_workers()
-    //             .map(|w| w.load().estimate_max_count_running(&resource))
-    //             .sum();
-    //         let mut groups = Vec::new();
-    //         let mut count = 0;
-    //         for (priority, size) in q.iterate_chunks() {
-    //             count += size;
-    //             groups.push((priority, count - size));
-    //             if count > limit {
-    //                 break;
-    //             }
-    //         }
-    //     })
-    //     .collect();
-}
-
-enum MergeIterState {
-    Fresh,
-    LastFirst(Priority, u32),
-    LastSecond(Priority, u32),
-    OnlyFirst,
-    OnlySecond,
-}
-
-/*struct MergePrioritySizeIterator<T1, T2> {
-    iter1: T1,
-    iter2: T2,
-    state: MergeIterState,
-}
-
-impl<T1, T2> MergePrioritySizeIterator<T1, T2> {
-    pub fn new(iter1: T1, iter2: T2) -> Self {
-        MergePrioritySizeIterator {
-            iter1,
-            iter2,
-            state: MergeIterState::Fresh,
-        }
-    }
-}
-
-impl<T1: Iterator<Item = (Priority, u32)>, T2: Iterator<Item = (Priority, u32)>> Iterator
-    for MergePrioritySizeIterator<T1, T2>
-{
-    type Item = (Priority, u32);
-    fn next(&mut self) -> Option<Self::Item> {
-        let (a, b) = match self.state {
-            MergeIterState::Fresh => (self.iter1.next(), self.iter2.next()),
-            MergeIterState::LastFirst(priority, size) => {
-                (Some((priority, size)), self.iter2.next())
-            }
-
-            MergeIterState::LastSecond(priority, size) => {
-                (self.iter1.next(), Some((priority, size)))
-            }
-            MergeIterState::OnlyFirst => return self.iter1.next(),
-            MergeIterState::OnlySecond => return self.iter2.next(),
-        };
-        dbg!(&a, &b);
-        match (a, b) {
-            (Some((p1, s1)), Some((p2, s2))) => {
-                if p1 == p2 {
-                    self.state = MergeIterState::Fresh;
-                    Some((p1, s1 + s2))
-                } else if p1 < p2 {
-                    self.state = MergeIterState::LastSecond(p2, s2);
-                    Some((p1, s1))
-                } else {
-                    self.state = MergeIterState::LastFirst(p1, s1);
-                    Some((p2, s2))
-                }
-            }
-            (Some((p1, s1)), None) => {
-                self.state = MergeIterState::OnlyFirst;
-                Some((p1, s1))
-            }
-            (None, Some((p2, s2))) => {
-                self.state = MergeIterState::OnlySecond;
-                Some((p2, s2))
-            }
-            (None, None) => None,
-        }
-    }
-}*/
-
-enum Found {
-    None,
-    Unique(usize),
-    Many,
 }
 
 pub(crate) fn create_task_batches(core: &mut Core, now: Instant) -> Vec<TaskBatch> {
