@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Breaking change
+
+* `min-utilization` now considers only CPUs, not other resources
+
 ## v0.25.1
 
 ### Fixes

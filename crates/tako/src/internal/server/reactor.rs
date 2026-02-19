@@ -317,7 +317,7 @@ pub(crate) fn on_task_finished(
         }
     }
     let mut objs_to_remove = ObjsToRemoveFromWorkers::new();
-    let state = core.remove_task(msg.id, &mut objs_to_remove).0;
+    let state = core.remove_task(msg.id, &mut objs_to_remove);
     assert!(matches!(state, TaskRuntimeState::Finished));
 
     for data in msg.outputs {
@@ -494,11 +494,11 @@ fn fail_task_helper(
     for &consumer in &consumers {
         log::debug!("Task={consumer} canceled because of failed dependency");
         assert!(matches!(
-            core.remove_task(consumer, &mut objs_to_remove).0,
+            core.remove_task(consumer, &mut objs_to_remove),
             TaskRuntimeState::Waiting { .. }
         ));
     }
-    let state = core.remove_task(task_id, &mut objs_to_remove).0;
+    let state = core.remove_task(task_id, &mut objs_to_remove);
     if worker_id.is_some() {
         assert!(matches!(
             state,

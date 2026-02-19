@@ -21,6 +21,7 @@ pub(crate) fn run_scheduling_solver(
     core: &Core,
     now: std::time::Instant,
     task_batches: &[TaskBatch],
+    custom_workers: Option<&[Worker]>,
 ) -> SchedulingSolution {
     let n_resources = core.resource_map().n_resources();
 
@@ -36,12 +37,14 @@ pub(crate) fn run_scheduling_solver(
         return SchedulingSolution::default();
     }
     let mut resource_sums = vec![0f64; n_resources];
+    let mut workers: Vec<&Worker> = if let Some(ws) = custom_workers {
+        ws.iter().collect()
+    } else {
+        let mut ws = worker_map.get_workers().collect::<Vec<_>>();
+        ws.sort_unstable_by_key(|w| w.id);
+        ws
+    };
 
-    let mut workers = worker_map
-        .get_workers()
-        .filter(|w| !w.has_mn_task())
-        .collect::<Vec<_>>();
-    workers.sort_unstable_by_key(|w| w.id);
     workers.iter().for_each(|worker| {
         resource_sums
             .iter_mut()
@@ -52,10 +55,16 @@ pub(crate) fn run_scheduling_solver(
                     .free_resources
                     .iter_amounts(),
             )
-            .for_each(|(s, c)| *s += c.as_f64())
+            .for_each(|(s, c)| {
+                if !c.is_max() {
+                    *s += c.as_f64()
+                } else {
+                    *s += 1.0;
+                }
+            })
     });
 
-    let n_workers = worker_map.len();
+    let n_workers = workers.len();
 
     let mut solver = LpSolver::new(true);
 
@@ -124,18 +133,17 @@ pub(crate) fn run_scheduling_solver(
         }
         // Create worker constraints
         for (r, c) in worker_res_constraint.iter_mut().enumerate() {
+            let free = worker
+                .sn_assignment()
+                .unwrap()
+                .free_resources
+                .get(ResourceId::new(r as u32));
+            if free.is_max() {
+                continue;
+            }
             if !c.is_empty() {
                 solver.set_name(|| format!("w{} resource limit", worker.id));
-                solver.add_constraint(
-                    ConstraintType::Max,
-                    worker
-                        .sn_assignment()
-                        .unwrap()
-                        .free_resources
-                        .get(ResourceId::new(r as u32))
-                        .as_f64(),
-                    c.iter().copied(),
-                )
+                solver.add_constraint(ConstraintType::Max, free.as_f64(), c.iter().copied())
             }
             c.clear();
         }
@@ -338,7 +346,7 @@ fn set_placement_name(
     v_idx: ResourceVariantId,
 ) {
     solver.set_name(|| {
-        let mut s = format!("p{}:{}", worker_id, resource_rq_id);
+        let mut s = format!("w{}:r{}", worker_id, resource_rq_id);
         if v_idx.is_first() {
             use std::fmt::Write;
             write!(&mut s, ":{}", v_idx).unwrap();

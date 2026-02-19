@@ -123,10 +123,10 @@ fn test_query_not_enough_workers3() {
 
     let w1 = rt.new_worker_cpus(2);
 
-    let t = TaskBuilder::new().cpus(1);
-    rt.new_task_running(&t, w1);
+    let t = TaskBuilder::new();
     rt.new_task_running(&t, w1);
     rt.new_task_assigned(&t, w1);
+    rt.new_task(&t);
     rt.schedule();
 
     let r = compute_new_worker_query(
@@ -303,16 +303,19 @@ fn test_query_min_utilization1() {
 #[test]
 fn test_query_min_utilization2() {
     let mut rt = TestEnv::new();
-    rt.new_tasks(2, &TaskBuilder::new().cpus(1).add_resource(1, 10));
+    rt.new_named_resource("gpus");
+    rt.new_tasks(2, &TaskBuilder::new().cpus(10).add_resource(1, 20));
 
     rt.schedule();
 
     for (min_utilization, alloc_value, cpus, gpus) in &[
-        (0.5, 1, 12, 30),
-        (0.67, 0, 12, 30),
-        (0.55, 0, 4, 200),
-        (0.45, 1, 4, 200),
+        (0.49, 1, 29, 40),
+        (0.49, 0, 29, 30),
+        (0.67, 0, 41, 30),
+        (0.50, 0, 41, 200),
+        (0.45, 1, 39, 200),
     ] {
+        dbg!(min_utilization, alloc_value, cpus, gpus);
         let descriptor = ResourceDescriptor::new(
             vec![
                 ResourceDescriptorItem {
@@ -378,14 +381,16 @@ fn test_query_min_utilization_vs_partial() {
         (4, 1, 2),
         (1, 1, 1),
         (2, 1, 1),
-        (3, 1, 1),
+        (3, 1, 2),
         (4, 1, 2),
-        (0, 1, 1),
+        (0, 1, 0),
         (0, 2, 1),
         (0, 3, 1),
+        (0, 4, 2),
         (0, 0, 0),
     ] {
         let mut rt = TestEnv::new();
+        rt.new_named_resource("gpus");
         rt.new_tasks(cpu_tasks, &TaskBuilder::new().cpus(2));
         rt.new_tasks(gpu_tasks, &TaskBuilder::new().cpus(2).add_resource(1, 1));
 
@@ -399,7 +404,30 @@ fn test_query_min_utilization_vs_partial() {
         let r = compute_new_worker_query(
             rt.core(),
             &[WorkerTypeQuery {
-                partial: true,
+                partial: true, // !!! Worker is partial!
+                descriptor,
+                time_limit: None,
+                max_sn_workers: 2,
+                max_workers_per_allocation: 1,
+                min_utilization: 1.0,
+            }],
+        );
+        assert_eq!(r.single_node_workers_per_query, vec![alloc]);
+        assert!(r.multi_node_allocations.is_empty());
+    }
+}
+
+#[test]
+fn test_query_min_utilization_vs_partial2() {
+    for (cpu_tasks, alloc) in [(1, 1), (2, 1), (3, 1), (4, 1), (0, 0)] {
+        let mut rt = TestEnv::new();
+        rt.new_tasks(cpu_tasks, &TaskBuilder::new().cpus(2));
+
+        let descriptor = ResourceDescriptor::new(vec![], Default::default());
+        let r = compute_new_worker_query(
+            rt.core(),
+            &[WorkerTypeQuery {
+                partial: true, // !!! Worker is partial!
                 descriptor,
                 time_limit: None,
                 max_sn_workers: 2,
@@ -424,7 +452,8 @@ fn test_query_min_time2() {
     rt.new_task(&t1);
     rt.schedule();
 
-    for (cpus, secs, alloc) in [(2, 75, 0), (1, 100, 1), (4, 50, 1)] {
+    for (cpus, secs, alloc) in [(2, 75, 0), (1, 101, 1), (4, 50, 1)] {
+        dbg!(cpus, secs, alloc);
         let descriptor = ResourceDescriptor::new(
             vec![ResourceDescriptorItem {
                 name: "cpus".into(),
@@ -653,14 +682,19 @@ fn test_query_partial_query_cpus() {
 #[test]
 fn test_query_partial_query_gpus1() {
     for (gpus, has_extra, out) in [
-        (4, false, 3),
-        (4, true, 1),
-        (0, false, 1),
-        (0, true, 1),
-        (100, false, 2),
-        (100, true, 1),
+        (Some(4), false, 3),
+        (Some(4), true, 3),
+        (None, false, 2),
+        (None, true, 2),
+        (Some(0), false, 0),
+        (Some(0), true, 0),
+        (Some(100), false, 2),
+        (Some(100), true, 2),
     ] {
+        dbg!(gpus, has_extra, out);
         let mut rt = TestEnv::new();
+        rt.new_named_resource("gpus");
+        rt.new_named_resource("foo");
         let mut builder = TaskBuilder::new().cpus(1).add_resource(1, 2);
         if has_extra {
             builder = builder.add_resource(2, 1);
@@ -672,7 +706,7 @@ fn test_query_partial_query_gpus1() {
             name: "cpus".into(),
             kind: ResourceDescriptorKind::simple_indices(8),
         }];
-        if gpus > 0 {
+        if let Some(gpus) = gpus {
             items.push(ResourceDescriptorItem {
                 name: "gpus".into(),
                 kind: ResourceDescriptorKind::simple_indices(gpus),
