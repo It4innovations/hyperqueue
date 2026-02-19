@@ -1,5 +1,7 @@
 use crate::Priority;
+use crate::internal::scheduler::query::ExtraWorker;
 use crate::internal::server::core::{Core, CoreSplitMut};
+use crate::internal::server::worker::Worker;
 use crate::resources::ResourceRqId;
 use std::cmp::Ordering;
 use std::time::Instant;
@@ -30,7 +32,11 @@ impl TaskBatch {
     }
 }
 
-pub(crate) fn create_task_batches(core: &mut Core, now: Instant) -> Vec<TaskBatch> {
+pub(crate) fn create_task_batches(
+    core: &mut Core,
+    now: Instant,
+    extra_workers: &[ExtraWorker],
+) -> Vec<TaskBatch> {
     let CoreSplitMut {
         task_map,
         worker_map,
@@ -69,6 +75,7 @@ pub(crate) fn create_task_batches(core: &mut Core, now: Instant) -> Vec<TaskBatc
             } else {
                 worker_map
                     .get_workers()
+                    .chain(extra_workers.iter().map(|ew| &ew.worker))
                     .map(|w| {
                         w.sn_assignment()
                             .map(|a| a.free_resources.task_max_count(&rqv))

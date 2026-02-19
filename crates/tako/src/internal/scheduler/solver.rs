@@ -1,6 +1,7 @@
 use crate::internal::common::resources::{ResourceId, ResourceRequest};
 use crate::internal::scheduler::TaskBatch;
 use crate::internal::scheduler::mapping::WorkerTaskMapping;
+use crate::internal::scheduler::query::ExtraWorker;
 use crate::internal::server::core::{Core, CoreSplit};
 use crate::internal::server::worker::Worker;
 use crate::internal::solver::{ConstraintType, LpInnerSolver, LpSolution, LpSolver, Variable};
@@ -21,6 +22,7 @@ pub(crate) fn run_scheduling_solver(
     core: &Core,
     now: std::time::Instant,
     task_batches: &[TaskBatch],
+    extra_workers: &[ExtraWorker],
 ) -> SchedulingSolution {
     let n_resources = core.resource_map().n_resources();
 
@@ -40,6 +42,7 @@ pub(crate) fn run_scheduling_solver(
     let mut workers = worker_map
         .get_workers()
         .filter(|w| !w.has_mn_task())
+        .chain(extra_workers)
         .collect::<Vec<_>>();
     workers.sort_unstable_by_key(|w| w.id);
     workers.iter().for_each(|worker| {
@@ -55,7 +58,7 @@ pub(crate) fn run_scheduling_solver(
             .for_each(|(s, c)| *s += c.as_f64())
     });
 
-    let n_workers = worker_map.len();
+    let n_workers = workers.len();
 
     let mut solver = LpSolver::new(true);
 

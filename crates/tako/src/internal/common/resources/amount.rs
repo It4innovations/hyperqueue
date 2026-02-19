@@ -67,6 +67,10 @@ impl ResourceAmount {
         (self.0 % (FRACTIONS_PER_UNIT as u64)) as ResourceFractions
     }
 
+    pub fn times(&self, n: u32) -> ResourceAmount {
+        ResourceAmount(self.0 * n as u64)
+    }
+
     pub fn split(&self) -> (ResourceUnits, ResourceFractions) {
         (self.units(), self.fractions())
     }

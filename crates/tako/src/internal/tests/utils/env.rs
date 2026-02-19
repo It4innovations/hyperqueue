@@ -268,8 +268,8 @@ impl TestEnv {
     }
 
     pub fn schedule_mapping(&mut self) -> WorkerTaskMapping {
-        let batches = create_task_batches(&mut self.core, self.now);
-        let solution = run_scheduling_solver(&mut self.core, self.now, &batches);
+        let batches = create_task_batches(&mut self.core, self.now, &[]);
+        let solution = run_scheduling_solver(&mut self.core, self.now, &batches, &[]);
         create_task_mapping(&mut self.core, solution)
     }
 }

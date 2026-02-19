@@ -1,21 +1,18 @@
 use crate::control::{NewWorkerAllocationResponse, WorkerTypeQuery};
 use crate::gateway::MultiNodeAllocationResponse;
+use crate::internal::common::resources::ResourceId;
 use crate::internal::scheduler::{create_task_batches, create_task_mapping, run_scheduling_solver};
-use crate::internal::server::core::Core;
+use crate::internal::server::core::{Core, CoreSplit};
 use crate::internal::server::task::Task;
 use crate::internal::server::worker::Worker;
 use crate::internal::server::workerload::{WorkerLoad, WorkerResources};
+use crate::worker::{ServerLostPolicy, WorkerConfiguration};
+use crate::{Map, WorkerId};
 use std::time::Duration;
-use tokio::time::Instant;
 
-#[derive(Debug)]
-struct WorkerTypeState {
-    partial: bool,
-    loads: Vec<WorkerLoad>,
-    w_resources: WorkerResources,
-    time_limit: Option<Duration>,
-    max: u32,
-    min: u32,
+pub(crate) struct ExtraWorker {
+    pub worker: Worker,
+    pub partial_resources: Option<Vec<ResourceId>>,
 }
 
 /// Read the documentation of `new_worker_query`` in control.rs
@@ -25,137 +22,95 @@ pub(crate) fn compute_new_worker_query(
 ) -> NewWorkerAllocationResponse {
     log::debug!("Compute new worker query: query = {queries:?}");
 
-    /*let fake_worker_id_base = core.worker_counter() + 1;
+    let fake_worker_id_base = core.worker_counter() + 1;
     let mut fake_worker_counter = fake_worker_id_base;
-
-    let mut workers = Vec::new();
-
-
-
+    let resource_map = core.resource_map().create_resource_id_map();
+    let mut fake_workers = Vec::new();
     let now = std::time::Instant::now();
-    let batches = create_task_batches(core, now);
-    let scheduling = run_scheduling_solver(core, now, &batches);*/
+    queries.iter().for_each(|query| {
+        for _ in 0..query.max_sn_workers {
+            let worker_id = WorkerId::new(fake_worker_counter);
+            fake_worker_counter += 1;
+            let configuration = WorkerConfiguration {
+                resources: query.descriptor.clone(),
+                time_limit: query.time_limit,
+                listen_address: String::new(),
+                hostname: String::new(),
+                group: format!("fake-worker-group-{worker_id}"),
+                work_dir: Default::default(),
+                heartbeat_interval: Default::default(),
+                overview_configuration: Default::default(),
+                idle_timeout: None,
+                on_server_lost: ServerLostPolicy::Stop,
+                max_parallel_downloads: 0,
+                max_download_tries: 0,
+                wait_between_download_tries: Default::default(),
+                extra: Default::default(),
+            };
+            let worker = Worker::new(worker_id, configuration, &resource_map, now);
+            let partial_resources = query.partial.then(|| {
+                query
+                    .descriptor
+                    .resources
+                    .iter()
+                    .map(|r| resource_map.get_index(&r.name).unwrap())
+                    .collect()
+            });
+            fake_workers.push(ExtraWorker {
+                worker,
+                partial_resources,
+            });
+        }
+    });
 
-    todo!()
+    let batches = create_task_batches(core, now, &fake_workers);
+    let scheduling = run_scheduling_solver(core, now, &batches, &fake_workers);
 
-    /*
+    let mut loads: Map<WorkerId, WorkerResources> = Map::new();
 
-    // Scheduler has to be performed before the query, so there should be no ready_to_assign tasks
-    assert!(core.sn_ready_to_assign().is_empty() || !core.has_workers());
-
-    let add_task = |core: &Core, new_loads: &mut [WorkerTypeState], task: &Task| {
-        let request = core.get_resource_rq_map().get(task.resource_rq_id);
-        for ws in new_loads.iter_mut() {
-            if !ws.w_resources.is_capable_to_run_with(request, |rq| {
-                ws.time_limit.is_none_or(|t| rq.min_time() <= t)
-            }) {
-                if ws.partial
-                    && ws.w_resources.is_lowerbound_for(request, |rq| {
-                        ws.time_limit.is_none_or(|t| rq.min_time() <= t)
-                    })
-                {
-                    ws.min = 1;
-                }
+    let CoreSplit {
+        request_map,
+        task_queues,
+        ..
+    } = core.split();
+    for ((resource_rq_id, rv_id), workers) in scheduling.sn_counts {
+        let rq = request_map.get(resource_rq_id).get(rv_id);
+        for (worker_id, count) in workers {
+            if worker_id.as_num() < fake_worker_id_base {
                 continue;
             }
-            for load in ws.loads.iter_mut() {
-                if load.have_immediate_resources_for_rqv(request, &ws.w_resources) {
-                    load.add_request(task.id, request, task.running_variant(), &ws.w_resources);
-                    return;
-                }
-            }
-            if ws.loads.len() < ws.max as usize {
-                let mut load = WorkerLoad::new(&ws.w_resources);
-                load.add_request(task.id, request, task.running_variant(), &ws.w_resources);
-                ws.loads.push(load);
-                return;
-            }
+            let idx = worker_id.as_num() - fake_worker_id_base;
+            let load = loads
+                .entry(worker_id)
+                .or_insert_with(|| WorkerResources::empty(resource_map.size()));
+            load.add_multiple(rq, &fake_workers[idx as usize].worker.resources, count);
         }
-    };
+    }
 
-    /* Make sure that all named resources provided has an Id */
+    let mut single_node_workers_per_query = Vec::with_capacity(queries.len());
+    let mut worker_idx = 0;
     for query in queries {
-        for resource in &query.descriptor.resources {
-            core.get_or_create_resource_id(&resource.name);
+        let mut count = 0;
+        for _ in 0..query.max_sn_workers {
+            let worker = &fake_workers[worker_idx];
+            worker_idx += 1;
+            if let Some(load) = loads.get(&worker.worker.id) {
+                if load.utilization(&worker.worker.resources) >= query.min_utilization {
+                    count += 1;
+                }
+            }
         }
+        single_node_workers_per_query.push(count);
     }
 
-    let resource_map = core.create_resource_map();
-    let mut new_loads: Vec<_> = queries
+    let mut multi_node_allocations: Vec<_> = task_queues
         .iter()
-        .map(|q| WorkerTypeState {
-            partial: q.partial,
-            loads: Vec::new(),
-            w_resources: WorkerResources::from_description(&q.descriptor, &resource_map),
-            time_limit: q.time_limit,
-            max: q.max_sn_workers,
-            min: 0,
-        })
-        .collect();
-
-    for worker in core.get_workers() {
-        let mut load = WorkerLoad::new(&worker.resources);
-        for task_id in worker.sn_tasks() {
-            let task = core.get_task(*task_id);
-            if task.is_sn_running() {
-                let request = core.get_resource_rq(task.resource_rq_id);
-                load.add_request(task.id, request, task.running_variant(), &worker.resources);
+        .filter_map(|queue| {
+            let rqv = core.get_resource_rq(queue.resource_rq_id);
+            if !rqv.is_multi_node() {
+                return None;
             }
-        }
-        for task_id in worker.sn_tasks() {
-            let task = core.get_task(*task_id);
-            if task.is_sn_running() {
-                continue;
-            }
-            let request = core.get_resource_rq(task.resource_rq_id);
-            if load.have_immediate_resources_for_rqv(request, &worker.resources) {
-                load.add_request(task.id, request, task.running_variant(), &worker.resources);
-                continue;
-            }
-            add_task(core, &mut new_loads, task);
-        }
-    }
-    for task_id in core.sleeping_sn_tasks() {
-        let Some(task) = core.find_task(*task_id) else {
-            continue;
-        };
-        add_task(core, &mut new_loads, task);
-    }
-
-    // `compute_new_worker_query` should be called immediately after scheduling was performed,
-    // so read_to_assign should be usually already processed.
-    // However, scheduler is lazy and if there is no worker at all it will do nothing, even
-    // postponing ready_to_assign. So we have to look also into this array
-    for task_id in core.sn_ready_to_assign() {
-        let Some(task) = core.find_task(*task_id) else {
-            continue;
-        };
-        add_task(core, &mut new_loads, task);
-    }
-
-    let single_node_allocations: Vec<u32> = new_loads
-        .iter()
-        .zip(queries.iter())
-        .map(|(ws, q)| {
-            ws.loads
-                .iter()
-                .map(|load| {
-                    if load.utilization(&ws.w_resources) >= q.min_utilization {
-                        1
-                    } else {
-                        0
-                    }
-                })
-                .sum::<u32>()
-                .max(ws.min)
-        })
-        .collect();
-
-    let (queue, _map, _ws) = core.multi_node_queue_split();
-    let mut multi_node_allocations: Vec<_> = queue
-        .get_profiles()
-        .filter_map(|(rq_id, count)| {
-            let rq = core.get_resource_rq(rq_id).unwrap_first();
+            let rq = rqv.unwrap_first();
             let n_nodes = rq.n_nodes();
             queries.iter().enumerate().find_map(|(i, worker_type)| {
                 if let Some(time_limit) = worker_type.time_limit
@@ -167,7 +122,7 @@ pub(crate) fn compute_new_worker_query(
                     Some(MultiNodeAllocationResponse {
                         worker_type: i,
                         worker_per_allocation: n_nodes,
-                        max_allocations: count,
+                        max_allocations: queue.size(),
                     })
                 } else {
                     None
@@ -178,8 +133,7 @@ pub(crate) fn compute_new_worker_query(
     multi_node_allocations.sort_unstable_by_key(|x| (x.worker_type, x.worker_per_allocation));
 
     NewWorkerAllocationResponse {
-        single_node_workers_per_query: single_node_allocations,
+        single_node_workers_per_query,
         multi_node_allocations,
     }
-     */
 }

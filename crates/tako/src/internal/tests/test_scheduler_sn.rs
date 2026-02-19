@@ -13,11 +13,11 @@ fn test_task_grouping_basic() {
     let mut rt = TestEnv::new();
     rt.new_workers_cpus(&[5, 5, 5]);
     let now = std::time::Instant::now();
-    let a = create_task_batches(rt.core(), now);
+    let a = create_task_batches(rt.core(), now, &[]);
     assert!(a.is_empty());
 
     let t1 = rt.new_task(&TaskBuilder::new().user_priority(123));
-    let a = create_task_batches(rt.core(), now);
+    let a = create_task_batches(rt.core(), now, &[]);
     let task1 = rt.core().get_task(t1);
     assert_eq!(a.len(), 1);
     assert_eq!(a[0].resource_rq_id, task1.resource_rq_id);
@@ -30,7 +30,7 @@ fn test_task_grouping_basic() {
     let t4 = rt.new_task(&TaskBuilder::new().user_priority(123));
     let t5 = rt.new_task(&TaskBuilder::new().user_priority(20));
 
-    let a = create_task_batches(rt.core(), now);
+    let a = create_task_batches(rt.core(), now, &[]);
     assert_eq!(a.len(), 1);
     let r1 = rt.task(t1).resource_rq_id;
     assert_eq!(a[0].resource_rq_id, r1);
@@ -43,7 +43,7 @@ fn test_task_grouping_basic() {
     let t8 = rt.new_task(&TaskBuilder::new().cpus(2).user_priority(123));
     let t9 = rt.new_task(&TaskBuilder::new().cpus(2).user_priority(123));
 
-    let a = create_task_batches(rt.core(), now);
+    let a = create_task_batches(rt.core(), now, &[]);
     assert_eq!(a.len(), 2);
     let task1 = rt.task(t1);
     let task6 = rt.task(t6);
@@ -74,7 +74,7 @@ fn test_task_group_saturation() {
     let t5 = rt.new_task(&TaskBuilder::new().cpus(4).user_priority(6));
     let t6 = rt.new_task(&TaskBuilder::new().cpus(4).user_priority(6));
     let now = std::time::Instant::now();
-    let a = create_task_batches(rt.core(), now);
+    let a = create_task_batches(rt.core(), now, &[]);
     assert_eq!(a.len(), 1);
     assert_eq!(a[0].size, 3);
     assert!(a[0].limit_reached);
@@ -83,7 +83,7 @@ fn test_task_group_saturation() {
     let t10 = rt.new_task(&TaskBuilder::new().cpus(1).user_priority(5));
     let t11 = rt.new_task(&TaskBuilder::new().cpus(1).user_priority(0));
 
-    let a = create_task_batches(rt.core(), now);
+    let a = create_task_batches(rt.core(), now, &[]);
     assert_eq!(a.len(), 2);
     assert_eq!(a[0].size, 3);
     assert!(a[0].limit_reached);
@@ -123,7 +123,7 @@ fn test_task_batching2() {
     rt.new_task(&TaskBuilder::new().cpus(1));
     rt.new_task(&TaskBuilder::new().cpus(3));
     let now = std::time::Instant::now();
-    let a = create_task_batches(rt.core(), now);
+    let a = create_task_batches(rt.core(), now, &[]);
     dbg!(&a);
     assert_eq!(a.len(), 2);
     assert!(a[0].cuts.is_empty());

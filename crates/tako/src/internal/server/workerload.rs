@@ -6,7 +6,7 @@ use crate::internal::common::resources::{
     ResourceVec,
 };
 use crate::internal::messages::worker::WorkerResourceCounts;
-use crate::resources::ResourceRqId;
+use crate::resources::{CPU_RESOURCE_ID, ResourceRqId};
 use crate::{Map, ResourceVariantId, Set, TaskId};
 use futures::TryFutureExt;
 use serde_json::json;
@@ -23,6 +23,12 @@ impl WorkerResources {
     pub(crate) fn from_transport(msg: WorkerResourceCounts) -> Self {
         WorkerResources {
             n_resources: msg.n_resources.into(),
+        }
+    }
+
+    pub(crate) fn empty(resource_count: usize) -> WorkerResources {
+        WorkerResources {
+            n_resources: ResourceVec::filled(ResourceAmount::ZERO, resource_count),
         }
     }
 
@@ -214,6 +220,21 @@ impl WorkerResources {
                 self.n_resources[entry.resource_id] = all.get(entry.resource_id);
             }
         }
+    }
+
+    pub fn add_multiple(&mut self, rq: &ResourceRequest, all: &WorkerResources, n: u32) {
+        for entry in rq.entries() {
+            if let Some(amount) = entry.request.amount_or_none_if_all() {
+                self.n_resources[entry.resource_id] += amount.times(n);
+            } else {
+                self.n_resources[entry.resource_id] = all.get(entry.resource_id);
+            }
+        }
+    }
+
+    pub fn utilization(&self, all_resources: &WorkerResources) -> f32 {
+        self.n_resources[CPU_RESOURCE_ID].as_f32()
+            / all_resources.n_resources[CPU_RESOURCE_ID].as_f32()
     }
 }
 
