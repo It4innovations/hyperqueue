@@ -1,9 +1,8 @@
 use crate::control::WorkerTypeQuery;
-use crate::internal::scheduler2::query::compute_new_worker_query;
+use crate::internal::scheduler::query::compute_new_worker_query;
 use crate::internal::server::core::Core;
 use crate::internal::server::reactor::on_cancel_tasks;
 use crate::internal::tests::utils::env::TestEnv;
-use crate::internal::tests::utils::schedule::create_test_scheduler;
 use crate::internal::tests::utils::task::TaskBuilder;
 use crate::resources::{ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind};
 use crate::tests::utils::env::TestComm;
@@ -34,9 +33,7 @@ fn test_query_enough_workers() {
     rt.new_workers_cpus(&[2, 3]);
     rt.new_tasks_cpus(&[3, 1, 1]);
 
-    let mut scheduler = create_test_scheduler();
-    let mut comm = TestComm::new();
-    scheduler.run_scheduling(rt.core(), &mut comm);
+    rt.schedule();
 
     let r = compute_new_worker_query(
         rt.core(),
@@ -58,10 +55,7 @@ fn test_query_no_enough_workers1() {
     let mut rt = TestEnv::new();
     rt.new_workers_cpus(&[2, 3]);
     rt.new_tasks_cpus(&[3, 3, 1]);
-
-    let mut scheduler = create_test_scheduler();
-    let mut comm = TestComm::new();
-    scheduler.run_scheduling(rt.core(), &mut comm);
+    rt.schedule();
 
     let r = compute_new_worker_query(
         rt.core(),
@@ -280,9 +274,7 @@ fn test_query_min_utilization1() {
     let mut rt = TestEnv::new();
     rt.new_tasks_cpus(&[3, 1, 1]);
 
-    let mut scheduler = create_test_scheduler();
-    let mut comm = TestComm::new();
-    scheduler.run_scheduling(&mut rt.core(), &mut comm);
+    rt.schedule();
 
     for (min_utilization, alloc_value, cpus) in &[
         (0.5, 0, 12),
@@ -313,9 +305,7 @@ fn test_query_min_utilization2() {
     let mut rt = TestEnv::new();
     rt.new_tasks(2, &TaskBuilder::new().cpus(1).add_resource(1, 10));
 
-    let mut scheduler = create_test_scheduler();
-    let mut comm = TestComm::new();
-    scheduler.run_scheduling(rt.core(), &mut comm);
+    rt.schedule();
 
     for (min_utilization, alloc_value, cpus, gpus) in &[
         (0.5, 1, 12, 30),
@@ -432,10 +422,7 @@ fn test_query_min_time2() {
         .cpus(4)
         .time_request(50);
     rt.new_task(&t1);
-
-    let mut scheduler = create_test_scheduler();
-    let mut comm = TestComm::new();
-    scheduler.run_scheduling(rt.core(), &mut comm);
+    rt.schedule();
 
     for (cpus, secs, alloc) in [(2, 75, 0), (1, 100, 1), (4, 50, 1)] {
         let descriptor = ResourceDescriptor::new(
@@ -467,9 +454,7 @@ fn test_query_min_time1() {
     rt.new_task(&TaskBuilder::new().cpus(1).time_request(100));
     rt.new_task(&TaskBuilder::new().cpus(10).time_request(100));
 
-    let mut scheduler = create_test_scheduler();
-    let mut comm = TestComm::new();
-    scheduler.run_scheduling(rt.core(), &mut comm);
+    rt.schedule();
 
     let descriptor = ResourceDescriptor::new(
         vec![ResourceDescriptorItem {

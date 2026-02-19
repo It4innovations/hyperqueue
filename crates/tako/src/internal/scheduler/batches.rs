@@ -1,4 +1,4 @@
-use crate::internal::scheduler2::TaskQueue;
+use crate::internal::scheduler::TaskQueue;
 use crate::internal::server::core::{Core, CoreSplitMut};
 use crate::internal::server::worker::Worker;
 use crate::resources::ResourceRqId;

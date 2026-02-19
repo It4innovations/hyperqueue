@@ -1,5 +1,5 @@
-use crate::internal::scheduler2::mapping::create_task_mapping;
-use crate::internal::scheduler2::{create_task_batches, run_scheduling_solver};
+use crate::internal::scheduler::mapping::create_task_mapping;
+use crate::internal::scheduler::{create_task_batches, run_scheduling_solver};
 use crate::internal::server::comm::{Comm, CommSender, CommSenderRef};
 use crate::internal::server::core::{Core, CoreRef};
 use crate::{Set, TaskId};
