@@ -1,10 +1,10 @@
 use crate::WorkerId;
 use crate::internal::messages::worker::ToWorkerMessage;
-use crate::internal::scheduler2::create_task_batches;
+use crate::internal::scheduler::create_task_batches;
 use crate::internal::server::task::Task;
+use crate::resources::ResourceAmount;
 use crate::tests::utils::env::{TestComm, TestEnv};
 use crate::tests::utils::resources::ResBuilder;
-use crate::tests::utils::schedule::{create_test_scheduler, finish_on_worker};
 use crate::tests::utils::scheduler::TestCase;
 use crate::tests::utils::task::TaskBuilder;
 use crate::tests::utils::worker::WorkerBuilder;
@@ -120,7 +120,7 @@ fn test_schedule_mn_simple() {
     assert!(rt.task(t1).is_waiting());
     comm.emptiness_check();
 
-    finish_on_worker(rt.core(), t3, ws3[0]);
+    rt.finish_task(t3, ws3[0]);
     rt.sanity_check();
 
     assert!(!rt.task_exists(t3));
@@ -139,7 +139,7 @@ fn test_schedule_mn_simple() {
     let ws2 = test_mn_task(rt.task(t2), &mut comm);
     comm.emptiness_check();
 
-    finish_on_worker(rt.core(), t3, ws2[0]);
+    rt.finish_task(t3, ws2[0]);
     rt.sanity_check();
 }
 
@@ -165,7 +165,7 @@ fn test_schedule_mn_reserve() {
     assert!(rt.core().get_worker_by_id_or_panic(ws1[1]).is_reserved());
     assert!(rt.core().get_worker_by_id_or_panic(ws1[2]).is_reserved());
     comm.emptiness_check();
-    finish_on_worker(rt.core(), t1, ws1[0]);
+    rt.finish_task(t1, ws1[0]);
     rt.schedule_with_comm(&mut comm);
 
     let ws2 = rt.task(t2).mn_placement().unwrap().to_vec();
@@ -178,7 +178,7 @@ fn test_schedule_mn_reserve() {
     comm.emptiness_check();
     rt.sanity_check();
 
-    finish_on_worker(rt.core(), t2, ws2[0]);
+    rt.finish_task(t2, ws2[0]);
     rt.schedule_with_comm(&mut comm);
     let ws3 = rt.task(t3).mn_placement().unwrap().to_vec();
 
@@ -191,7 +191,7 @@ fn test_schedule_mn_reserve() {
     comm.emptiness_check();
     rt.sanity_check();
 
-    finish_on_worker(rt.core(), t3, ws3[0]);
+    rt.finish_task(t3, ws3[0]);
     rt.schedule_with_comm(&mut comm);
 
     for w in &ws {
@@ -261,7 +261,7 @@ fn test_mn_sleep_wakeup_one_by_one() {
     assert!(rt.task(t2).is_mn_running());
 
     let w = rt.task(t2).mn_root_worker().unwrap();
-    finish_on_worker(rt.core(), t2, w);
+    rt.finish_task(t2, w);
     rt.new_worker(&WorkerBuilder::new(1));
     rt.new_worker(&WorkerBuilder::new(1));
     rt.schedule();

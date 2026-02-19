@@ -5,21 +5,23 @@ use crate::internal::common::index::ItemId;
 use crate::internal::common::resources::ResourceId;
 use crate::internal::common::utils::format_comma_delimited;
 use crate::internal::messages::common::TaskFailInfo;
-use crate::internal::messages::worker::{TaskRunningMsg, ToWorkerMessage, WorkerOverview};
-use crate::internal::scheduler::state::SchedulerState;
-use crate::internal::scheduler2::{
+use crate::internal::messages::worker::{
+    TaskFinishedMsg, TaskOutput, TaskRunningMsg, ToWorkerMessage, WorkerOverview,
+};
+use crate::internal::scheduler::{
     TaskBatch, WorkerTaskMapping, create_task_batches, create_task_mapping, run_scheduling,
     run_scheduling_inner, run_scheduling_solver,
 };
 use crate::internal::server::comm::Comm;
 use crate::internal::server::core::{Core, CoreSplitMut};
-use crate::internal::server::reactor::{on_new_worker, on_task_running};
+use crate::internal::server::reactor::{
+    on_new_tasks, on_new_worker, on_task_finished, on_task_running,
+};
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::taskmap::TaskMap;
 use crate::internal::server::worker::Worker;
 use crate::internal::server::workerload::WorkerLoad;
 use crate::internal::tests::utils;
-use crate::internal::tests::utils::schedule;
 use crate::internal::tests::utils::task::TaskBuilder;
 use crate::internal::transfer::auth::{deserialize, serialize};
 use crate::resources::{ResourceAmount, ResourceUnits};
@@ -27,12 +29,11 @@ use crate::task::SerializedTaskContext;
 use crate::tests::utils::task::task_running_msg;
 use crate::tests::utils::worker::WorkerBuilder;
 use crate::worker::WorkerConfiguration;
-use crate::{InstanceId, JobId, JobTaskId, ResourceVariantId, TaskId, WorkerId};
+use crate::{InstanceId, JobId, JobTaskId, ResourceVariantId, Set, TaskId, WorkerId};
 use std::time::Instant;
 
 pub struct TestEnv {
     core: Core,
-    scheduler: SchedulerState,
     job_id: JobId,
     task_id_counter: u32,
     worker_id_counter: <WorkerId as ItemId>::IdType,
@@ -49,7 +50,6 @@ impl TestEnv {
     pub fn new() -> TestEnv {
         TestEnv {
             core: Default::default(),
-            scheduler: schedule::create_test_scheduler(),
             now: Instant::now(),
             job_id: JobId::new(1),
             task_id_counter: 1,
@@ -86,7 +86,7 @@ impl TestEnv {
         let task_id = TaskId::new(self.job_id, JobTaskId::new(self.task_id_counter));
         self.task_id_counter += 1;
         let task = builder.build(task_id, &mut self.core);
-        schedule::submit_test_tasks(&mut self.core, vec![task]);
+        on_new_tasks(&mut self.core, &mut TestComm::default(), vec![task]);
         task_id
     }
 
@@ -114,13 +114,12 @@ impl TestEnv {
 
     pub fn new_task_assigned(&mut self, builder: &TaskBuilder, worker_id: WorkerId) -> TaskId {
         let task_id = self.new_task(builder);
-        schedule::assign_to_worker(&mut self.core, task_id, worker_id.into());
+        self.assign_task(task_id, worker_id);
         task_id
     }
 
     pub fn new_task_running(&mut self, builder: &TaskBuilder, worker_id: WorkerId) -> TaskId {
-        let task_id = self.new_task(builder);
-        self.assign_task(task_id, worker_id);
+        let task_id = self.new_task_assigned(builder, worker_id);
         self.start_task(task_id, ResourceVariantId::new(0));
         task_id
     }
@@ -132,23 +131,12 @@ impl TestEnv {
             .collect()
     }
 
-    pub fn new_assigned_tasks_cpus(&mut self, tasks: &[&[ResourceUnits]]) -> Vec<Vec<TaskId>> {
-        tasks
-            .iter()
-            .enumerate()
-            .map(|(i, tdefs)| {
-                let w_id = WorkerId::new(50 + i as u32);
-                let task_ids = self.new_tasks_cpus(tdefs);
-                for task_id in &task_ids {
-                    self._test_assign(*task_id, w_id);
-                }
-                task_ids
-            })
-            .collect()
+    pub fn worker(&self, worker_id: WorkerId) -> &Worker {
+        self.core.get_worker_by_id_or_panic(worker_id)
     }
 
-    pub fn worker<W: Into<WorkerId>>(&self, worker_id: W) -> &Worker {
-        self.core.get_worker_by_id_or_panic(worker_id.into())
+    pub fn worker_tasks(&self, worker_id: WorkerId) -> &Set<TaskId> {
+        &self.worker(worker_id).sn_assignment().unwrap().assign_tasks
     }
 
     pub fn new_worker(&mut self, builder: &WorkerBuilder) -> WorkerId {
@@ -174,58 +162,39 @@ impl TestEnv {
             .collect()
     }
 
-    pub fn _test_assign(&mut self, task_id: TaskId, worker_id: WorkerId) {
-        self.scheduler.assign(&mut self.core, task_id, worker_id);
-    }
-
-    pub fn test_assign(&mut self, task_id: TaskId, worker_id: WorkerId) {
-        self._test_assign(task_id.into(), worker_id.into());
-    }
-
     pub fn check_worker_tasks(&self, worker_id: WorkerId, tasks: &[TaskId]) {
-        todo!()
-        /*let ids = self.get_worker_tasks(worker_id);
+        let ids: Vec<TaskId> = self.worker_tasks(worker_id).iter().copied().collect();
         assert_eq!(
             ids,
             utils::sorted_vec(tasks.iter().map(|&id| id.into()).collect())
-        );*/
-    }
-
-    pub fn worker_load(&self, worker_id: WorkerId) -> &WorkerLoad {
-        todo!()
-    }
-
-    pub fn check_worker_load_lower_bounds(&self, cpus: &[ResourceAmount]) {
-        /*let found_cpus: Vec<ResourceAmount> = utils::sorted_vec(
-            self.core
-                .get_workers()
-                .map(|w| w.sn_load.get(0.into()))
-                .collect(),
         );
-        for (c, f) in cpus.iter().zip(found_cpus.iter()) {
-            assert!(c <= f);
-        }*/
-        todo!()
     }
 
-    pub fn finish_scheduling(&mut self) {
-        todo!()
-        /*let mut comm = TestComm::new();
-        self.scheduler.finish_scheduling(&mut self.core, &mut comm);
-        self.core.sanity_check();
-        println!("-------------");
-        for worker in self.core.get_workers() {
-            println!(
-                "Worker {} | {}",
-                worker.id,
-                format_comma_delimited(
-                    worker
-                        .sn_tasks()
-                        .iter()
-                        .map(|&task_id| format!("{}", task_id,))
-                )
-            );
-        }*/
+    pub fn start_and_finish_task(&mut self, task_id: TaskId, worker_id: WorkerId) {
+        self.assign_and_start_task(task_id, worker_id, 0);
+        self.finish_task(task_id, worker_id);
+    }
+
+    pub fn finish_task(&mut self, task_id: TaskId, worker_id: WorkerId) {
+        self.finish_task_with_data(task_id, worker_id, Vec::new());
+    }
+
+    pub fn finish_task_with_data(
+        &mut self,
+        task_id: TaskId,
+        worker_id: WorkerId,
+        outputs: Vec<TaskOutput>,
+    ) {
+        let mut comm = TestComm::new();
+        on_task_finished(
+            &mut self.core,
+            &mut comm,
+            worker_id.into(),
+            TaskFinishedMsg {
+                id: task_id.into(),
+                outputs,
+            },
+        );
     }
 
     pub fn assign_task(&mut self, task_id: TaskId, worker_id: WorkerId) {
@@ -278,6 +247,16 @@ impl TestEnv {
         );
     }
 
+    pub fn assign_and_start_task<V: Into<ResourceVariantId>>(
+        &mut self,
+        task_id: TaskId,
+        worker_id: WorkerId,
+        variant: V,
+    ) {
+        self.assign_task(task_id, worker_id);
+        self.start_task(task_id, variant);
+    }
+
     pub fn schedule(&mut self) {
         let mut comm = TestComm::new();
         self.schedule_with_comm(&mut comm);
@@ -286,11 +265,6 @@ impl TestEnv {
 
     pub fn schedule_with_comm(&mut self, comm: &mut TestComm) {
         run_scheduling_inner(&mut self.core, comm, self.now);
-    }
-
-    pub fn balance(&mut self) {
-        self.scheduler.balance(&mut self.core);
-        self.finish_scheduling();
     }
 
     pub fn schedule_mapping(&mut self) -> WorkerTaskMapping {

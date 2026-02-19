@@ -8,7 +8,7 @@ use crate::internal::messages::worker::{
     NewWorkerMsg, RetractResponse, RetractResponseMsg, TaskFinishedMsg, TaskIdsMsg, TaskRunningMsg,
     ToWorkerMessage,
 };
-use crate::internal::scheduler2::TaskQueue;
+use crate::internal::scheduler::TaskQueue;
 use crate::internal::server::comm::Comm;
 use crate::internal::server::core::{Core, CoreSplitMut};
 use crate::internal::server::dataobj::{DataObjectHandle, ObjsToRemoveFromWorkers, RefCount};

@@ -15,8 +15,8 @@ use crate::gateway::{
 use crate::internal::common::error::DsError;
 use crate::internal::common::resources::ResourceRqId;
 use crate::internal::messages::worker::ToWorkerMessage;
-use crate::internal::scheduler2::query::compute_new_worker_query;
-use crate::internal::scheduler2::{run_scheduling, scheduler_loop};
+use crate::internal::scheduler::query::compute_new_worker_query;
+use crate::internal::scheduler::{run_scheduling, scheduler_loop};
 use crate::internal::server::client::handle_new_tasks;
 use crate::internal::server::comm::{Comm, CommSenderRef};
 use crate::internal::server::core::{CoreRef, CustomConnectionHandler};

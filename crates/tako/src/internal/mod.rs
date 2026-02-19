@@ -3,7 +3,6 @@ pub(crate) mod common;
 pub(crate) mod datasrv;
 pub mod messages;
 pub mod scheduler;
-pub mod scheduler2;
 pub mod server;
 pub(crate) mod solver;
 pub mod tests;

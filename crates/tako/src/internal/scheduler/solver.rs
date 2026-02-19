@@ -1,6 +1,6 @@
 use crate::internal::common::resources::{ResourceId, ResourceRequest};
-use crate::internal::scheduler2::TaskBatch;
-use crate::internal::scheduler2::mapping::WorkerTaskMapping;
+use crate::internal::scheduler::TaskBatch;
+use crate::internal::scheduler::mapping::WorkerTaskMapping;
 use crate::internal::server::core::{Core, CoreSplit};
 use crate::internal::server::worker::Worker;
 use crate::internal::solver::{ConstraintType, LpInnerSolver, LpSolution, LpSolver, Variable};

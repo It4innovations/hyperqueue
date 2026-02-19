@@ -1,5 +1,4 @@
-use crate::internal::scheduler2::TaskQueue;
-use crate::internal::scheduler2::solver::SchedulingSolution;
+use crate::internal::scheduler::solver::SchedulingSolution;
 use crate::internal::server::comm::Comm;
 use crate::internal::server::core::{Core, CoreSplitMut};
 use crate::internal::server::task::{ComputeTasksBuilder, Task, TaskRuntimeState};
