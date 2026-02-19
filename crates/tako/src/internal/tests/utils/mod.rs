@@ -3,8 +3,6 @@ pub mod env;
 #[cfg(test)]
 pub mod resources;
 #[cfg(test)]
-pub mod schedule;
-#[cfg(test)]
 pub(crate) mod scheduler;
 pub mod shared;
 #[cfg(test)]

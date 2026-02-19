@@ -6,8 +6,7 @@ use crate::internal::common::resources::map::{
 };
 use crate::internal::common::resources::{ResourceId, ResourceRequestVariants, ResourceRqId};
 use crate::internal::common::{Set, WrappedRcRefCell};
-use crate::internal::scheduler::multinode::MultiNodeQueue;
-use crate::internal::scheduler2::{TaskQueue, TaskQueues};
+use crate::internal::scheduler::{TaskQueue, TaskQueues};
 use crate::internal::server::dataobj::{DataObjectHandle, ObjsToRemoveFromWorkers};
 use crate::internal::server::dataobjmap::DataObjectMap;
 use crate::internal::server::rpc::ConnectionDescriptor;
