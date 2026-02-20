@@ -68,8 +68,8 @@ pub(crate) fn compute_new_worker_query(
         }
     });
 
-    let batches = create_task_batches(core, now, &fake_workers);
-    let scheduling = run_scheduling_solver(core, now, &batches, &fake_workers);
+    let batches = create_task_batches(core, now, Some(fake_workers.as_slice()));
+    let scheduling = run_scheduling_solver(core, now, &batches, Some(fake_workers.as_slice()));
 
     let mut loads: Map<WorkerId, WorkerResources> = Map::new();
 

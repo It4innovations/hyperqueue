@@ -34,7 +34,7 @@ impl TaskBatch {
 pub(crate) fn create_task_batches(
     core: &mut Core,
     now: Instant,
-    extra_workers: &[Worker],
+    custom_workers: Option<&[Worker]>,
 ) -> Vec<TaskBatch> {
     let CoreSplitMut {
         task_map,
@@ -72,9 +72,9 @@ pub(crate) fn create_task_batches(
                     .sum::<u32>();
                 n_frees / n_nodes
             } else {
-                worker_map
-                    .get_workers()
-                    .chain(extra_workers.iter())
+                custom_workers
+                    .map(|ws| itertools::Either::Right(ws.iter()))
+                    .unwrap_or(itertools::Either::Left(worker_map.get_workers()))
                     .map(|w| {
                         w.sn_assignment()
                             .map(|a| a.free_resources.task_max_count(&rqv))

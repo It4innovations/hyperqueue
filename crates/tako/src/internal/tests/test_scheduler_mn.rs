@@ -57,16 +57,16 @@ fn test_mn_task_batches1() {
     let now = std::time::Instant::now();
 
     rt.new_task(&TaskBuilder::new().n_nodes(4));
-    let a = create_task_batches(rt.core(), now, &[]);
+    let a = create_task_batches(rt.core(), now, None);
     assert!(a.is_empty());
 
     rt.new_task(&TaskBuilder::new().n_nodes(2));
-    let a = create_task_batches(rt.core(), now, &[]);
+    let a = create_task_batches(rt.core(), now, None);
     assert_eq!(a[0].size, 1);
     assert!(!a[0].limit_reached);
 
     rt.new_task(&TaskBuilder::new().n_nodes(2));
-    let a = create_task_batches(rt.core(), now, &[]);
+    let a = create_task_batches(rt.core(), now, None);
     assert_eq!(a[0].size, 1);
     assert!(a[0].limit_reached);
 }
@@ -79,7 +79,7 @@ fn test_mn_task_batches2() {
 
     rt.new_task(&TaskBuilder::new().user_priority(0).n_nodes(3));
     rt.new_task(&TaskBuilder::new().user_priority(5).n_nodes(2));
-    let a = create_task_batches(rt.core(), now, &[]);
+    let a = create_task_batches(rt.core(), now, None);
     assert_eq!(a.len(), 2);
     assert_eq!(a[0].size, 1);
     assert_eq!(a[1].size, 1);

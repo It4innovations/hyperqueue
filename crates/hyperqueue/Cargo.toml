@@ -32,6 +32,7 @@ bstr = { workspace = true }
 psutil = { workspace = true }
 thin-vec = { workspace = true }
 bitflags = { workspace = true }
+itertools = { workspace = true }
 
 humantime = "2"
 clap_complete = "4"
@@ -46,7 +47,6 @@ chumsky = "0.9"
 toml = "0.9"
 signal-hook = "0.3"
 core_affinity = "0.8"
-itertools = "0.14.0"
 lru = "0.16"
 open = "5"
 shlex = { version = "1.3" }

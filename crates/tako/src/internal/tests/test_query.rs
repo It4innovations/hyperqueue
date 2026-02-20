@@ -303,16 +303,19 @@ fn test_query_min_utilization1() {
 #[test]
 fn test_query_min_utilization2() {
     let mut rt = TestEnv::new();
-    rt.new_tasks(2, &TaskBuilder::new().cpus(1).add_resource(1, 10));
+    rt.new_named_resource("gpus");
+    rt.new_tasks(2, &TaskBuilder::new().cpus(1).add_resource(10, 20));
 
     rt.schedule();
 
     for (min_utilization, alloc_value, cpus, gpus) in &[
-        (0.5, 1, 12, 30),
-        (0.67, 0, 12, 30),
-        (0.55, 0, 4, 200),
-        (0.45, 1, 4, 200),
+        (0.49, 1, 29, 40),
+        (0.49, 0, 29, 30),
+        (0.67, 0, 41, 30),
+        (0.50, 0, 41, 200),
+        (0.45, 1, 39, 200),
     ] {
+        dbg!(min_utilization, alloc_value, cpus, gpus);
         let descriptor = ResourceDescriptor::new(
             vec![
                 ResourceDescriptorItem {

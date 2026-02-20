@@ -21,7 +21,7 @@ pub(crate) fn run_scheduling_solver(
     core: &Core,
     now: std::time::Instant,
     task_batches: &[TaskBatch],
-    extra_workers: &[Worker],
+    custom_workers: Option<&[Worker]>,
 ) -> SchedulingSolution {
     let n_resources = core.resource_map().n_resources();
 
@@ -37,13 +37,14 @@ pub(crate) fn run_scheduling_solver(
         return SchedulingSolution::default();
     }
     let mut resource_sums = vec![0f64; n_resources];
+    let mut workers: Vec<&Worker> = if let Some(ws) = custom_workers {
+        ws.iter().collect()
+    } else {
+        let mut ws = worker_map.get_workers().collect::<Vec<_>>();
+        ws.sort_unstable_by_key(|w| w.id);
+        ws
+    };
 
-    let mut workers = worker_map
-        .get_workers()
-        .filter(|w| !w.has_mn_task())
-        .chain(extra_workers)
-        .collect::<Vec<_>>();
-    workers.sort_unstable_by_key(|w| w.id);
     workers.iter().for_each(|worker| {
         resource_sums
             .iter_mut()

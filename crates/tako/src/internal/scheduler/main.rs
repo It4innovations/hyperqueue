@@ -39,8 +39,8 @@ pub(crate) async fn scheduler_loop(
 }
 
 pub(crate) fn run_scheduling_inner(core: &mut Core, comm: &mut impl Comm, now: Instant) {
-    let batches = create_task_batches(core, now, &[]);
-    let solution = run_scheduling_solver(core, now, &batches, &[]);
+    let batches = create_task_batches(core, now, None);
+    let solution = run_scheduling_solver(core, now, &batches, None);
     let mapping = create_task_mapping(core, solution);
     mapping.send_messages(core, comm);
 }
