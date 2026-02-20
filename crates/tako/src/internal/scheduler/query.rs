@@ -6,14 +6,10 @@ use crate::internal::server::core::{Core, CoreSplit};
 use crate::internal::server::task::Task;
 use crate::internal::server::worker::Worker;
 use crate::internal::server::workerload::{WorkerLoad, WorkerResources};
+use crate::resources::{ResourceAmount, ResourceDescriptorItem, ResourceDescriptorKind};
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
 use crate::{Map, WorkerId};
 use std::time::Duration;
-
-pub(crate) struct ExtraWorker {
-    pub worker: Worker,
-    pub partial_resources: Option<Vec<ResourceId>>,
-}
 
 /// Read the documentation of `new_worker_query`` in control.rs
 pub(crate) fn compute_new_worker_query(
@@ -29,10 +25,30 @@ pub(crate) fn compute_new_worker_query(
     let now = std::time::Instant::now();
     queries.iter().for_each(|query| {
         for _ in 0..query.max_sn_workers {
+            let mut resources = query.descriptor.clone();
+
+            if query.partial {
+                // If query is partial, add a fake maximal resources of unknown size
+                for name in resource_map.iter_names() {
+                    if resources
+                        .resources
+                        .iter()
+                        .find(|r| r.name == *name)
+                        .is_none()
+                    {
+                        resources.resources.push(ResourceDescriptorItem {
+                            name: name.to_string(),
+                            kind: ResourceDescriptorKind::Sum {
+                                size: ResourceAmount::MAX,
+                            },
+                        })
+                    }
+                }
+            }
             let worker_id = WorkerId::new(fake_worker_counter);
             fake_worker_counter += 1;
             let configuration = WorkerConfiguration {
-                resources: query.descriptor.clone(),
+                resources,
                 time_limit: query.time_limit,
                 listen_address: String::new(),
                 hostname: String::new(),
@@ -48,18 +64,7 @@ pub(crate) fn compute_new_worker_query(
                 extra: Default::default(),
             };
             let worker = Worker::new(worker_id, configuration, &resource_map, now);
-            let partial_resources = query.partial.then(|| {
-                query
-                    .descriptor
-                    .resources
-                    .iter()
-                    .map(|r| resource_map.get_index(&r.name).unwrap())
-                    .collect()
-            });
-            fake_workers.push(ExtraWorker {
-                worker,
-                partial_resources,
-            });
+            fake_workers.push(worker);
         }
     });
 
@@ -83,7 +88,7 @@ pub(crate) fn compute_new_worker_query(
             let load = loads
                 .entry(worker_id)
                 .or_insert_with(|| WorkerResources::empty(resource_map.size()));
-            load.add_multiple(rq, &fake_workers[idx as usize].worker.resources, count);
+            load.add_multiple(rq, &fake_workers[idx as usize].resources, count);
         }
     }
 
@@ -94,8 +99,8 @@ pub(crate) fn compute_new_worker_query(
         for _ in 0..query.max_sn_workers {
             let worker = &fake_workers[worker_idx];
             worker_idx += 1;
-            if let Some(load) = loads.get(&worker.worker.id) {
-                if load.utilization(&worker.worker.resources) >= query.min_utilization {
+            if let Some(load) = loads.get(&worker.id) {
+                if load.utilization(&worker.resources) >= query.min_utilization {
                     count += 1;
                 }
             }

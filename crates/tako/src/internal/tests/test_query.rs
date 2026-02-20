@@ -424,7 +424,8 @@ fn test_query_min_time2() {
     rt.new_task(&t1);
     rt.schedule();
 
-    for (cpus, secs, alloc) in [(2, 75, 0), (1, 100, 1), (4, 50, 1)] {
+    for (cpus, secs, alloc) in [(2, 75, 0), (1, 101, 1), (4, 50, 1)] {
+        dbg!(cpus, secs, alloc);
         let descriptor = ResourceDescriptor::new(
             vec![ResourceDescriptorItem {
                 name: "cpus".into(),

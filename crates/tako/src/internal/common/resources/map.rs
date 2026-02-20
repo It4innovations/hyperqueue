@@ -177,6 +177,10 @@ impl ResourceIdMap {
             .get(index.as_num() as usize)
             .map(|s| s.as_str())
     }
+
+    pub fn iter_names(&self) -> impl Iterator<Item = &str> {
+        self.resource_names.iter().map(|s| s.as_str())
+    }
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]

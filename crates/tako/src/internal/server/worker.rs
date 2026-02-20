@@ -368,7 +368,7 @@ impl Worker {
 
     pub fn has_time_to_run(&self, time_request: TimeRequest, now: Instant) -> bool {
         if let Some(time) = self.termination_time {
-            now + time_request < time
+            now + time_request <= time
         } else {
             true
         }
