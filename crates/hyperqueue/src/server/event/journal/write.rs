@@ -65,11 +65,14 @@ impl JournalWriter {
 
     pub fn flush(&mut self) -> anyhow::Result<()> {
         self.file.flush()?;
+        /* Flush does not call file sync. We want to be sure that data
+          is written, especially on NFS.
+        */
+        self.file.get_ref().sync_data()?;
         Ok(())
     }
 
     pub fn finish(mut self) -> anyhow::Result<()> {
-        self.file.flush()?;
-        Ok(())
+        self.flush()
     }
 }
