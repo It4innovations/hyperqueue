@@ -6,7 +6,7 @@ use crate::internal::common::resources::map::{
 };
 use crate::internal::common::resources::{ResourceId, ResourceRequestVariants, ResourceRqId};
 use crate::internal::common::{Set, WrappedRcRefCell};
-use crate::internal::scheduler::{TaskQueue, TaskQueues};
+use crate::internal::scheduler::{SchedulerCache, TaskQueue, TaskQueues};
 use crate::internal::server::dataobj::{DataObjectHandle, ObjsToRemoveFromWorkers};
 use crate::internal::server::dataobjmap::DataObjectMap;
 use crate::internal::server::rpc::ConnectionDescriptor;
@@ -38,6 +38,7 @@ pub(crate) struct CoreSplit<'a> {
     pub task_queues: &'a TaskQueues,
     pub data_objects: &'a DataObjectMap,
     pub worker_groups: &'a Map<String, WorkerGroup>,
+    pub scheduler_cache: &'a SchedulerCache,
 }
 
 #[derive(Default)]
@@ -48,6 +49,7 @@ pub struct Core {
     task_queues: TaskQueues,
     data_objects: DataObjectMap,
     worker_groups: Map<String, WorkerGroup>,
+    scheduler_cache: SchedulerCache,
 
     maximal_task_id: TaskId,
     worker_id_counter: u32,
@@ -108,6 +110,7 @@ impl Core {
             task_queues: &self.task_queues,
             data_objects: &self.data_objects,
             worker_groups: &self.worker_groups,
+            scheduler_cache: &self.scheduler_cache,
         }
     }
 
@@ -146,22 +149,6 @@ impl Core {
     }
     pub fn worker_overview_listeners_mut(&mut self) -> &mut u64 {
         &mut self.worker_overview_listeners
-    }
-
-    pub fn park_workers(&mut self) {
-        todo!()
-        /*for worker in self.workers.values_mut() {
-            if worker.is_underloaded()
-                && worker
-                    .sn_tasks()
-                    .iter()
-                    .all(|&task_id| self.tasks.get_task(task_id).is_sn_running())
-            {
-                log::debug!("Parking worker {}", worker.id);
-                worker.set_parked_flag(true);
-                self.parked_resources.insert(worker.resources.clone());
-            }
-        }*/
     }
 
     pub fn get_worker_listen_port(&self) -> u16 {
@@ -263,8 +250,6 @@ impl Core {
 
     // TODO: move to TaskMap
     /// Removes a single task.
-    /// It can still remain in [`ready_to_assign`], where it will remain until the scheduler picks
-    /// it up.
     #[must_use]
     pub fn remove_task(
         &mut self,
@@ -562,16 +547,6 @@ mod tests {
 
         pub fn assert_running(&self, task_ids: &[TaskId]) {
             self.assert_task_condition(task_ids, |t| t.is_sn_running());
-        }
-
-        pub fn assert_underloaded(&self, worker_ids: &[WorkerId]) {
-            todo!()
-            //self.assert_worker_condition(worker_ids, |w| w.is_underloaded());
-        }
-
-        pub fn assert_not_underloaded(&self, worker_ids: &[WorkerId]) {
-            todo!()
-            //self.assert_worker_condition(worker_ids, |w| !w.is_underloaded());
         }
 
         pub fn remove_from_ready_queue(&mut self, task_id: TaskId) {

@@ -113,7 +113,15 @@ impl LpSolver {
             write!(s, "{}\n    ", name).unwrap();
         }
         for (i, (var, weight)) in variable.iter().enumerate() {
-            let name = &self.variables[*self.var_name_map.get(var).unwrap()].0;
+            let name = self
+                .var_name_map
+                .get(var)
+                .map(|idx| {
+                    self.variables[*self.var_name_map.get(var).unwrap()]
+                        .0
+                        .as_str()
+                })
+                .unwrap_or("??");
             write!(
                 &mut s,
                 "{}{}*{}",

@@ -331,8 +331,8 @@ echo $CUDA_VISIBLE_DEVICES
 @pytest.mark.parametrize(
     "env_and_res",
     (
-        ("CUDA_VISIBLE_DEVICES", "gpus/nvidia"),
-        ("ROCR_VISIBLE_DEVICES", "gpus/amd"),
+            ("CUDA_VISIBLE_DEVICES", "gpus/nvidia"),
+            ("ROCR_VISIBLE_DEVICES", "gpus/amd"),
     ),
 )
 def test_worker_detect_gpus_from_env(hq_env: HqEnv, env_and_res: str):
