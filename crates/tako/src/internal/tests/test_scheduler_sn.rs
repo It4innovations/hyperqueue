@@ -1,12 +1,13 @@
-use std::time::Duration;
 use crate::internal::messages::worker::ToWorkerMessage;
 use crate::internal::scheduler::{PriorityCut, create_task_batches};
+use crate::internal::server::core::Core;
 use crate::internal::tests::utils::scheduler::TestCase;
 use crate::resources::{ResourceAmount, ResourceRqId, ResourceUnits};
 use crate::tests::utils::env::{TestComm, TestEnv};
 use crate::tests::utils::task::TaskBuilder;
 use crate::tests::utils::worker::WorkerBuilder;
 use psutil::process::Status::Dead;
+use std::time::Duration;
 
 #[test]
 fn test_task_grouping_basic() {
@@ -92,7 +93,7 @@ fn test_task_group_saturation() {
         vec![PriorityCut {
             size: 2,
             blockers: vec![(ResourceRqId::new(1), Some(1))],
-        }, ]
+        },]
     );
     assert_eq!(a[1].size, 2);
     assert!(!a[1].limit_reached);
@@ -342,27 +343,188 @@ fn test_schedule_some_tasks_running() {
      */
 }
 
-// TODO: Nemozny scheduling neblokuje
-// TODO: Vice zdroju
-// TODO: Vice variant
+#[test]
+fn test_priority_switching() {
+    for (w_cpus, count_a, count_b) in [
+        (1, 2, 0),
+        (2, 3, 1),
+        (3, 4, 2),
+        (4, 6, 2),
+        (5, 7, 3),
+        (6, 8, 4),
+        (7, 10, 4),
+        (8, 12, 4),
+        (9, 12, 5),
+        (10, 12, 5),
+    ] {
+        let mut rt = TestEnv::new();
+        rt.new_named_resource("foo");
+        let ta = TaskBuilder::new().cpus(1);
+        let tb = TaskBuilder::new().cpus(1).add_resource(1, 1);
+        let w4 = WorkerBuilder::new(w_cpus).res_sum("foo", 10_000);
+        rt.new_worker(&w4);
+        rt.new_worker(&w4);
+        // Create batches:
+        // 3a - 2b - 4a - 2b -  5a    - 1b
+        // 3a0b 3a2b 7a2b 7a4b  12a4b 12a5b
+        rt.new_tasks(3, &ta.clone().user_priority(10));
+        rt.new_tasks(2, &tb.clone().user_priority(9));
+        rt.new_tasks(1, &ta.clone().user_priority(8));
+        rt.new_tasks(3, &ta.clone().user_priority(7));
+        rt.new_tasks(1, &tb.clone().user_priority(6));
+        rt.new_tasks(1, &tb.clone().user_priority(5));
+        rt.new_tasks(5, &ta.clone().user_priority(4));
+        rt.new_tasks(1, &tb.clone().user_priority(3));
+        rt.schedule();
+        let mut counts = assigned_counts(&mut rt);
+        assert_eq!(counts[0], count_a);
+        assert_eq!(counts[1], count_b);
+    }
+}
+
 // TODO: Rezervace
-// TODO: worker.expect_cpus()
+// TODO: Handle situation with many task batches
 
 #[test]
 fn test_schedule_gap_filling() {
     let w6 = WorkerBuilder::new(6);
     let w12 = WorkerBuilder::new(12);
-    todo!()
+    let w8 = WorkerBuilder::new(8);
 
-    /*    let mut c = TestCase::new();
+    let mut c = TestCase::new();
     let ts = c.pc_tasks(&[(1, 8), (1, 8), (0, 4)]);
     c.w(&w12).expect_tasks(&[ts[0], ts[2]]);
     c.check();
 
     let mut c = TestCase::new();
     let ts = c.pc_tasks(&[(1, 3), (1, 3), (1, 3), (0, 2)]);
-    c.w(&w6).expect_tasks(&[ts[0], ts[2]]);
-    c.check();*/
+    c.w(&w6).expect_tasks(&[ts[0], ts[1]]);
+    c.check();
+
+    let mut c = TestCase::new();
+    let ts = c.pc_tasks(&[(1, 3), (1, 3), (1, 3), (0, 1), (0, 1)]);
+    c.w(&w8).expect_tasks(&[ts[0], ts[1], ts[3], ts[4]]);
+    c.check();
+
+    let mut c = TestCase::new();
+    let ts = c.pc_tasks(&[(1, 3), (1, 3), (1, 3), (2, 1), (0, 1)]);
+    c.w(&w8).expect_tasks(&[ts[3], ts[0], ts[1], ts[4]]);
+    c.check();
+
+    let mut c = TestCase::new();
+    let ts = c.pc_tasks(&[
+        (1, 3),
+        (1, 3),
+        (1, 3),
+        (2, 1),
+        (0, 1),
+        (0, 1),
+        (0, 1),
+        (0, 1),
+    ]);
+    c.w(&w8).expect_tasks(&[ts[3], ts[0], ts[1], ts[4]]);
+    c.check();
+}
+
+fn assigned_counts(rt: &mut TestEnv) -> Vec<usize> {
+    let mut counts = vec![0; rt.core().get_resource_rq_map().size()];
+    for task in rt.task_map().tasks() {
+        if task.is_assigned() {
+            counts[task.resource_rq_id.as_usize()] += 1;
+        }
+    }
+    counts
+}
+
+#[test]
+fn test_schedule_gap_filling2() {
+    for extra in &[true, false] {
+        let mut rt = TestEnv::new();
+        rt.new_named_resource("foo");
+        rt.new_worker(&WorkerBuilder::new(8));
+        rt.new_workers(3, &WorkerBuilder::new(4).res_sum("foo", 1));
+
+        let ta = TaskBuilder::new().cpus(1);
+        let tb = TaskBuilder::new().cpus(3);
+        let tc = TaskBuilder::new().cpus(4).add_resource(1, 1);
+
+        rt.new_tasks(7, &ta.clone().user_priority(1));
+        rt.new_tasks(3, &tb.clone().user_priority(2));
+        rt.new_tasks(3, &tc.clone().user_priority(2));
+        if *extra {
+            rt.new_tasks(2, &tb.clone().user_priority(-1));
+            rt.new_tasks(3, &tc.clone().user_priority(-2));
+            rt.new_tasks(1, &ta.clone().user_priority(-3));
+            rt.new_tasks(2, &tb.clone().user_priority(-4));
+            rt.new_tasks(3, &tc.clone().user_priority(-5));
+            rt.new_tasks(1, &ta.clone().user_priority(-6));
+        }
+
+        rt.schedule();
+
+        let counts = assigned_counts(&mut rt);
+        assert_eq!(counts[0], 2);
+        assert_eq!(counts[1], 2);
+        assert_eq!(counts[2], 3);
+
+        rt.schedule();
+    }
+}
+
+#[test]
+fn test_schedule_gap_filling3() {
+    let mut rt = TestEnv::new();
+    rt.new_named_resource("foo");
+    rt.new_workers(2, &WorkerBuilder::new(34));
+
+    let ta = TaskBuilder::new().cpus(9);
+    let tb = TaskBuilder::new().cpus(3);
+
+    rt.new_tasks(5, &tb.clone().user_priority(10));
+    rt.new_tasks(6, &ta.clone().user_priority(10));
+    rt.new_tasks(5, &tb.clone().user_priority(9));
+    rt.schedule();
+    let counts = assigned_counts(&mut rt);
+    assert_eq!(counts, [4, 6]);
+}
+
+#[test]
+fn test_schedule_gap_filling4() {
+    let mut rt = TestEnv::new();
+    rt.new_named_resource("foo");
+    rt.new_named_resource("bar");
+    rt.new_named_resource("goo");
+    rt.new_workers(
+        2,
+        &WorkerBuilder::new(3).res_sum("foo", 10).res_sum("goo", 10),
+    );
+    rt.new_worker(&WorkerBuilder::new(3).res_sum("foo", 10).res_sum("bar", 10));
+
+    rt.new_tasks(
+        5,
+        &TaskBuilder::new()
+            .cpus(2)
+            .add_resource(3, 1)
+            .user_priority(10),
+    );
+    rt.new_tasks(
+        2,
+        &TaskBuilder::new()
+            .cpus(1)
+            .add_resource(1, 1)
+            .user_priority(9),
+    );
+    rt.new_tasks(
+        10,
+        &TaskBuilder::new()
+            .cpus(3)
+            .add_resource(1, 1)
+            .add_resource(2, 1)
+            .user_priority(8),
+    );
+    rt.schedule();
+    let counts = assigned_counts(&mut rt);
+    assert_eq!(counts, [2, 2, 1]);
 }
 
 #[test]
@@ -550,6 +712,7 @@ fn test_no_deps_scattering_1() {
 #[test]
 fn test_no_deps_scattering_2() {
     todo!() // This needs oversubscribing
+
     /*let mut rt = TestEnv::new();
     rt.new_workers_cpus(&[5, 5, 5]);
 
@@ -603,7 +766,6 @@ fn test_no_deps_distribute() {
     assert_eq!(task_count(&m2[0]), 10);
     assert_eq!(task_count(&m3[0]), 10);
 }
-
 
 #[test]
 fn test_resource_time_assign() {
@@ -727,6 +889,7 @@ fn test_generic_resource_balance2() {
 #[test]
 fn test_generic_resource_balancing3() {
     todo!() // Needs overscheduling
+
     /*let mut rt = TestEnv::new();
     rt.new_generic_resource(1);
     let w1 = rt.new_worker(&WorkerBuilder::new(2));
@@ -805,4 +968,23 @@ fn test_resource_priority_balancing() {
             .count()
             >= 2
     );
+}
+
+#[test]
+fn test_scheduler_two_running_three_waiting() {
+    let mut rt = TestEnv::new();
+    rt.new_named_resource("foo");
+    let w = rt.new_worker(&WorkerBuilder::new(8).res_range("foo", 1, 4));
+    let ts = rt.new_tasks(4, &TaskBuilder::new().cpus(1).add_resource(1, 2));
+    rt.assign_and_start_task(ts[0], w, 0);
+    rt.assign_and_start_task(ts[1], w, 0);
+    let t5 = rt.new_task(&TaskBuilder::new().cpus(2).user_priority(1));
+
+    rt.schedule();
+
+    assert!(rt.task(t5).is_assigned());
+    assert!(rt.task(ts[0]).is_sn_running());
+    assert!(rt.task(ts[1]).is_sn_running());
+    assert!(rt.task(ts[2]).is_waiting());
+    assert!(rt.task(ts[3]).is_waiting());
 }
