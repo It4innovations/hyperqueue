@@ -119,6 +119,7 @@ enum ExpectWorkerState {
     Empty,
     TaskIds(Vec<(TaskId, ResourceVariantId)>),
     RequestIds(Map<(ResourceRqId, ResourceVariantId), u32>),
+    Any,
 }
 
 pub(crate) struct TestWorker {
@@ -165,6 +166,11 @@ impl TestWorker {
         self.expect_request_v(count, builder, 0)
     }
 
+    pub fn expect_anything(&mut self) -> &mut Self {
+        self.expect = ExpectWorkerState::Any;
+        self
+    }
+
     pub fn expect_request_v(
         &mut self,
         count: u32,
@@ -207,6 +213,7 @@ impl TestWorker {
                     );
                 }
             }
+            ExpectWorkerState::Any => { /* Do not check anything */ }
         }
     }
 

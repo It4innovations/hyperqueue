@@ -315,7 +315,6 @@ fn test_query_min_utilization2() {
         (0.50, 0, 41, 200),
         (0.45, 1, 39, 200),
     ] {
-        dbg!(min_utilization, alloc_value, cpus, gpus);
         let descriptor = ResourceDescriptor::new(
             vec![
                 ResourceDescriptorItem {
@@ -453,7 +452,6 @@ fn test_query_min_time2() {
     rt.schedule();
 
     for (cpus, secs, alloc) in [(2, 75, 0), (1, 101, 1), (4, 50, 1)] {
-        dbg!(cpus, secs, alloc);
         let descriptor = ResourceDescriptor::new(
             vec![ResourceDescriptorItem {
                 name: "cpus".into(),
@@ -691,7 +689,6 @@ fn test_query_partial_query_gpus1() {
         (Some(100), false, 2),
         (Some(100), true, 2),
     ] {
-        dbg!(gpus, has_extra, out);
         let mut rt = TestEnv::new();
         rt.new_named_resource("gpus");
         rt.new_named_resource("foo");

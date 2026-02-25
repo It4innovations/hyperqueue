@@ -17,16 +17,21 @@ pub(crate) struct TaskBatch {
     pub resource_rq_id: ResourceRqId,
     pub cuts: Vec<PriorityCut>,
     pub size: u32,
+    pub limit: u32,
     pub limit_reached: bool,
+    /// True if there is a cut in another batch that may be blocked by this batch
+    pub is_blocker: bool,
 }
 
 impl TaskBatch {
-    pub fn new(resource_rq_id: ResourceRqId, limit_reached: bool) -> Self {
+    pub fn new(resource_rq_id: ResourceRqId, limit: u32, limit_reached: bool) -> Self {
         TaskBatch {
             resource_rq_id,
             cuts: Vec::new(),
             size: 0,
+            limit,
             limit_reached,
+            is_blocker: false,
         }
     }
 }
@@ -53,11 +58,12 @@ pub(crate) fn create_task_batches(
     if queues.is_empty() {
         return Vec::new();
     }
-    let limits: Vec<u32> = queues
+
+    let mut batches: Vec<_> = queues
         .iter()
         .map(|q| {
             let rqv = request_map.get(q.resource_rq_id);
-            if rqv.is_multi_node() {
+            let limit = if rqv.is_multi_node() {
                 let n_nodes = rqv.unwrap_first().n_nodes();
                 let n_frees = worker_groups
                     .values()
@@ -75,13 +81,17 @@ pub(crate) fn create_task_batches(
                 custom_workers
                     .map(|ws| itertools::Either::Right(ws.iter()))
                     .unwrap_or(itertools::Either::Left(worker_map.get_workers()))
+                    .filter(|w| w.is_capable_to_run_rqv(&rqv, now))
                     .map(|w| {
-                        w.sn_assignment()
+                        let runnable = w
+                            .sn_assignment()
                             .map(|a| a.free_resources.task_max_count(&rqv))
-                            .unwrap_or(0)
+                            .unwrap_or(0);
+                        if runnable > 0 { runnable } else { 1 }
                     })
                     .sum::<u32>()
-            }
+            };
+            TaskBatch::new(q.resource_rq_id, limit, false)
         })
         .collect();
 
@@ -89,10 +99,7 @@ pub(crate) fn create_task_batches(
     let mut current: Vec<Option<_>> = iters.iter_mut().map(|it| it.next()).collect();
     let mut unique = None;
     let mut found = Vec::new();
-    let mut batches: Vec<_> = queues
-        .iter()
-        .map(|q| TaskBatch::new(q.resource_rq_id, false))
-        .collect();
+
     loop {
         found.clear();
         let mut highest_p = Priority::new(0);
@@ -116,8 +123,8 @@ pub(crate) fn create_task_batches(
             let size = current[idx].unwrap().1;
             if unique == Some(idx) {
                 batches[idx].size += size;
-                if batches[idx].size > limits[idx] {
-                    batches[idx].size = limits[idx];
+                if batches[idx].size > batches[idx].limit {
+                    batches[idx].size = batches[idx].limit;
                     batches[idx].limit_reached = true;
                     current[idx] = None;
                 } else {
@@ -130,10 +137,13 @@ pub(crate) fn create_task_batches(
             for idx in &found {
                 let size = batches[*idx].size;
                 let higher_priorities: Vec<_> = batches
-                    .iter()
+                    .iter_mut()
                     .enumerate()
                     .filter(|(i, b)| i != idx && (b.size > 0 || b.limit_reached))
-                    .map(|(_, b)| (b.resource_rq_id, (!b.limit_reached).then(|| b.size)))
+                    .map(|(_, b)| {
+                        b.is_blocker = true;
+                        (b.resource_rq_id, (!b.limit_reached).then(|| b.size))
+                    })
                     .collect();
                 if !higher_priorities.is_empty() {
                     let cut = PriorityCut {
@@ -145,8 +155,8 @@ pub(crate) fn create_task_batches(
             }
             for idx in &found {
                 batches[*idx].size += current[*idx].unwrap().1;
-                if batches[*idx].size > limits[*idx] {
-                    batches[*idx].size = limits[*idx];
+                if batches[*idx].size > batches[*idx].limit {
+                    batches[*idx].size = batches[*idx].limit;
                     batches[*idx].limit_reached = true;
                     current[*idx] = None;
                 } else {

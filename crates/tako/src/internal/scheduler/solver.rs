@@ -80,6 +80,7 @@ pub(crate) fn run_scheduling_solver(
     for (w_idx, worker) in workers.iter().enumerate() {
         for batch in task_batches.iter() {
             let rqv = request_map.get(batch.resource_rq_id);
+            let mut has_variant = false;
             for (v_idx, rq) in rqv.requests_with_ids() {
                 if rq.is_multi_node() {
                     if worker.is_free()
@@ -102,6 +103,7 @@ pub(crate) fn run_scheduling_solver(
                 } else if worker.has_time_to_run(rq.min_time(), now)
                     && worker.have_immediate_resources_for_rq(rq)
                 {
+                    has_variant = true;
                     set_placement_name(&mut solver, worker.id, batch.resource_rq_id, v_idx);
                     let v =
                         create_sn_var(&mut solver, rq, n_workers, w_idx, worker, &resource_sums);
@@ -123,6 +125,26 @@ pub(crate) fn run_scheduling_solver(
                                 .as_f64(),
                         ));
                     }
+                }
+            }
+
+            if !has_variant
+                && !rqv.is_multi_node()
+                && !batch.limit_reached
+                && batch.is_blocker
+                && worker.is_capable_to_run_rqv(&rqv, now)
+                && let Some(a) = worker.sn_assignment()
+            {
+                let weight = w_idx as f64 / (n_workers * 100) as f64;
+                solver.set_name(|| format!("R{}:{}", worker.id, batch.resource_rq_id));
+                let v = solver.add_bool_variable(weight);
+                var_idx += 1;
+                tasks_count_vars
+                    .entry(batch.resource_rq_id)
+                    .or_default()
+                    .push(v);
+                for (res_id, count) in a.free_resources.iter_pairs() {
+                    worker_res_constraint[res_id.as_usize()].push((v, count.as_f64()));
                 }
             }
         }
@@ -225,9 +247,6 @@ pub(crate) fn run_scheduling_solver(
                     }
                 } else {
                     for w in &workers {
-                        if !w.is_capable_to_run_rqv(blocker_rqv, now) {
-                            continue;
-                        }
                         for v_id in batch_rqv.variant_ids() {
                             if let Some((var, _)) =
                                 placements.get(&(w.id, batch.resource_rq_id, v_id))
