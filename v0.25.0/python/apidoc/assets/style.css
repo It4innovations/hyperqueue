@@ -1,0 +1,221 @@
+body {
+  color: #1D2731;
+  font-family:FreeSans,Arimo,"Droid Sans",Helvetica,Arial,sans-serif;
+}
+
+ul.deflst {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+}
+
+ul.deflst li:nth-child(odd) {
+  border: 1px solid #ddd;
+  margin-top: -1px;
+  background-color: #f6f6f6;
+  padding: 12px;
+}
+
+ul.deflst li:nth-child(even) {
+  border: 1px solid #ddd;
+  margin-top: -1px;
+  background-color: white;
+  padding: 12px;
+}
+
+ul.deflst2 {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+}
+
+ul.deflst2 li:nth-child(odd) {
+  border: 1px solid #ddd;
+  margin-top: -1px;
+  background-color: #e4e4e4;
+  padding: 12px;
+}
+
+ul.deflst2 li:nth-child(even) {
+  border: 1px solid #ddd;
+  margin-top: -1px;
+  background-color: white;
+  padding: 12px;
+}
+
+a:link.symbol, a:visited.symbol {
+  color: rgb(77, 100, 117);
+  text-decoration: none;
+  font-weight: bold;
+}
+
+a:link.symbol-no-doc, a:visited.symbol-no-doc {
+  color: rgb(127, 160, 167);
+  text-decoration: none;
+  font-weight: bold;
+}
+
+ul.params {
+    list-style-type: none;
+}
+
+.tree ul {
+  list-style-type: none;
+  margin-left: 1em;
+  padding: 0em;
+}
+
+.tree li {
+  padding: 0.2em;
+}
+
+.tree a:link, .tree a:visited {
+  color: white;
+  text-decoration: none;
+}
+
+.select a:visited, .select a:link {
+  color: rgb(61, 79, 93);
+}
+
+.select {
+  background: white;
+  color: rgb(61, 79, 93);
+  border-radius: 5px;
+  padding: 0.3em 0.3em 0.3em 0.3em;
+  margin-right: 1em;
+}
+
+.selectimp a:visited, .selectimp a:link {
+  color: rgb(61, 79, 93);
+}
+
+.selectimp {
+  background: #999;
+  color: rgb(61, 79, 93);
+  border-radius: 5px;
+  padding: 0.3em 0.3em 0.3em 0.3em;
+}
+
+a {
+  color: inherit;
+}
+
+.decl {
+  background-color: #ddd;
+  padding: 0.5em 1em 0.5em 1em;
+  margin-bottom: 0.5em;
+  border-radius: 5px;
+}
+
+a:link.sourcelink, a:visited.sourcelink {
+  color: gray;
+  font-size: 12px;
+}
+
+.decl .kw {
+  font-weight: bold;
+}
+
+.decl .idnt {
+  padding-left: 2em;
+}
+
+.label {
+  background-color: rgb(77, 100, 117);
+  color: white;
+  border-radius: 2px;
+  padding: 0.3em 0.5em 0.3em 0.5em;
+  font-family:FreeSans,Arimo,"Droid Sans",Helvetica,Arial,sans-serif;
+}
+
+.def {
+  font-family: monospace;
+  font-size: 16px;
+}
+
+.docline {
+  padding: 0.5em 0;
+}
+
+.header {
+  text-align: center;
+  top: auto;
+  margin: 3em auto;
+}
+
+.sidebar {
+  background: rgb(61, 79, 93);
+  color: #fff;
+}
+
+.content {
+  padding: 2em 1em 0;
+}
+
+.tree {
+  margin: 2em auto;
+}
+
+.import {
+  font-size: small;
+  color: gray;
+}
+
+.footer {
+  font-size: small;
+  color: gray;
+}
+
+.footer a {
+  color: gray;
+}
+
+#sbox {
+  margin-left: 2em;
+  margin-right: 2em;
+  margin-top: 1em;
+}
+
+#search {
+  border-radius: 5px;
+  border-color: gray;
+  height: 2em;
+  padding-left: 0.5em;
+  width: 100%;
+}
+
+h1 {
+  margin-bottom: 0.1em;
+}
+
+#path {
+  margin-bottom: 1.5em;
+}
+
+.fdetail {
+  display: none;
+}
+
+@media (min-width: 48em) {
+  .content {
+    padding: 2em 3em 0;
+    margin-left: 25%;
+  }
+
+  .header {
+    margin: 2em 2em 0;
+    text-align: right;
+  }
+
+  .sidebar {
+    overflow-y: scroll;
+    position: fixed;
+    top: 0;
+    bottom: 0;
+  }
+}
+
+.rst-doc p, .md-doc p {
+  margin: 0.5em 0;
+}
