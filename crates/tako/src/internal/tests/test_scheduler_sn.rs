@@ -65,6 +65,19 @@ fn test_task_grouping_basic() {
 }
 
 #[test]
+fn test_task_grouping_blocker() {
+    let mut rt = TestEnv::new();
+    rt.new_workers_cpus(&[5]);
+    rt.new_task(&TaskBuilder::new().user_priority(2));
+    rt.new_task(&TaskBuilder::new().cpus(2).user_priority(1));
+    let now = std::time::Instant::now();
+    let a = create_task_batches(rt.core(), now, None);
+    assert_eq!(a.len(), 2);
+    assert!(a[0].is_blocker);
+    assert!(!a[1].is_blocker);
+}
+
+#[test]
 fn test_task_group_saturation() {
     let mut rt = TestEnv::new();
     rt.new_workers_cpus(&[5, 5, 5]);
@@ -125,7 +138,6 @@ fn test_task_batching2() {
     rt.new_task(&TaskBuilder::new().cpus(3));
     let now = std::time::Instant::now();
     let a = create_task_batches(rt.core(), now, None);
-    dbg!(&a);
     assert_eq!(a.len(), 2);
     assert!(a[0].cuts.is_empty());
     assert!(a[1].cuts.is_empty());
@@ -525,6 +537,74 @@ fn test_schedule_gap_filling4() {
     rt.schedule();
     let counts = assigned_counts(&mut rt);
     assert_eq!(counts, [2, 2, 1]);
+}
+
+#[test]
+fn test_schedule_reservation_simple() {
+    let mut c = TestCase::new();
+    let ts = c.pc_tasks(&[(3, 3), (2, 2)]);
+    c.w(&WorkerBuilder::new(3))
+        .eq_class(0)
+        .running_c(1)
+        .expect_tasks(&[]);
+    c.w(&WorkerBuilder::new(3))
+        .eq_class(0)
+        .running_c(1)
+        .expect_tasks(&[ts[1]]);
+    c.check();
+}
+
+#[test]
+fn test_schedule_reservation2() {
+    let mut c = TestCase::new();
+    let ts = c.pc_tasks(&[(3, 3), (2, 1), (2, 1)]);
+    c.w(&WorkerBuilder::new(3)).eq_class(0).running_c(1);
+    c.w(&WorkerBuilder::new(3))
+        .eq_class(0)
+        .running_c(1)
+        .expect_tasks(&[ts[1], ts[2]]);
+    c.check();
+}
+
+#[test]
+fn test_schedule_reservation3() {
+    let mut c = TestCase::new();
+    let ts = c.pc_tasks(&[(3, 3), (2, 1), (2, 1)]);
+    c.w(&WorkerBuilder::new(3))
+        .running_c(2)
+        .expect_tasks(&[ts[1]]);
+    c.w(&WorkerBuilder::new(3)).running_c(1);
+    c.check();
+}
+
+#[test]
+fn test_schedule_reservation4() {
+    let mut c = TestCase::new();
+    let ts = c.pc_tasks(&[(4, 3), (3, 3), (3, 3), (2, 1), (2, 1)]);
+    c.w(&WorkerBuilder::new(4))
+        .running_c(1)
+        .expect_tasks(&[ts[0]]);
+    c.w(&WorkerBuilder::new(3))
+        .running_c(2)
+        .expect_tasks(&[ts[3]]);
+    c.w(&WorkerBuilder::new(3)).running_c(2);
+    c.w(&WorkerBuilder::new(3)).running_c(1);
+    c.check();
+}
+
+#[test]
+fn test_schedule_reservation5() {
+    let mut c = TestCase::new();
+    let ts = c.pc_tasks(&[(4, 3), (3, 3), (3, 3), (2, 1), (2, 1)]);
+    c.w(&WorkerBuilder::new(3))
+        .running_c(2)
+        .expect_request(1, &TaskBuilder::new());
+    c.w(&WorkerBuilder::new(3)).running_c(2);
+    c.w(&WorkerBuilder::new(3)).running_c(1);
+    c.w(&WorkerBuilder::new(4))
+        .expect_request(1, &TaskBuilder::new().cpus(3))
+        .expect_request(1, &TaskBuilder::new());
+    c.check();
 }
 
 #[test]
