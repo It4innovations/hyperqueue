@@ -20,7 +20,6 @@ use crate::internal::server::reactor::{
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::taskmap::TaskMap;
 use crate::internal::server::worker::Worker;
-use crate::internal::server::workerload::WorkerLoad;
 use crate::internal::tests::utils;
 use crate::internal::tests::utils::task::TaskBuilder;
 use crate::internal::transfer::auth::{deserialize, serialize};
