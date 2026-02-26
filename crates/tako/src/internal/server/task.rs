@@ -398,10 +398,14 @@ pub struct ComputeTasksBuilder {
 }
 
 impl ComputeTasksBuilder {
-    pub fn single_task(task: &Task, node_list: Vec<WorkerId>) -> ToWorkerMessage {
+    pub fn single_task(
+        task: &Task,
+        variant: ResourceVariantId,
+        node_list: Vec<WorkerId>,
+    ) -> ToWorkerMessage {
         // TODO: optimize this
         let mut builder = Self::default();
-        if let Some(msg) = builder.add_task(task, node_list) {
+        if let Some(msg) = builder.add_task(task, variant, node_list) {
             msg
         } else {
             builder.into_last_message().unwrap()
@@ -410,7 +414,12 @@ impl ComputeTasksBuilder {
 
     /// Adds a task to the builder, and optionally generate a message if it has reached size limits.
     #[must_use]
-    pub fn add_task(&mut self, task: &Task, node_list: Vec<WorkerId>) -> Option<ToWorkerMessage> {
+    pub fn add_task(
+        &mut self,
+        task: &Task,
+        variant: ResourceVariantId,
+        node_list: Vec<WorkerId>,
+    ) -> Option<ToWorkerMessage> {
         let conf = &task.configuration;
         let shared_index = *self
             .configuration_index
@@ -431,6 +440,7 @@ impl ComputeTasksBuilder {
             shared_index,
             id: task.id,
             resource_rq_id: task.resource_rq_id,
+            resource_rq_variant: variant,
             instance_id: task.instance_id,
             priority: task.priority(),
             node_list,
@@ -479,6 +489,7 @@ fn estimate_task_data_size(data: &ComputeTaskSeparateData) -> usize {
         shared_index,
         id,
         resource_rq_id,
+        resource_rq_variant,
         instance_id,
         priority,
         node_list,
@@ -491,6 +502,7 @@ fn estimate_task_data_size(data: &ComputeTaskSeparateData) -> usize {
     size_of_val(shared_index)
         + size_of_val(id)
         + size_of_val(resource_rq_id)
+        + size_of_val(resource_rq_variant)
         + size_of_val(instance_id)
         + size_of_val(priority)
         + size_of_val(node_list.as_slice())

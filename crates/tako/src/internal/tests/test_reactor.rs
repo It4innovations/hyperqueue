@@ -232,7 +232,7 @@ fn test_submit_jobs() {
 
 fn no_data_task_finished(task_id: TaskId) -> TaskFinishedMsg {
     TaskFinishedMsg {
-        id: task_id,
+        task_id: task_id,
         outputs: vec![],
     }
 }
@@ -1019,7 +1019,7 @@ fn test_data_deps_no_output() {
         &mut comm,
         w1,
         TaskFinishedMsg {
-            id: t1,
+            task_id: t1,
             outputs: vec![],
         },
     );
@@ -1054,7 +1054,7 @@ fn test_data_deps_missing_outputs() {
         &mut comm,
         w1,
         TaskFinishedMsg {
-            id: t1,
+            task_id: t1,
             outputs: vec![
                 TaskOutput {
                     id: 10.into(),
@@ -1111,7 +1111,7 @@ fn test_data_deps_basic() {
         &mut comm,
         w1,
         TaskFinishedMsg {
-            id: t1,
+            task_id: t1,
             outputs: vec![TaskOutput {
                 id: 0.into(),
                 size: 1,
@@ -1136,7 +1136,7 @@ fn test_data_deps_basic() {
         &mut comm,
         w1,
         TaskFinishedMsg {
-            id: t2,
+            task_id: t2,
             outputs: vec![
                 TaskOutput {
                     id: 123.into(),

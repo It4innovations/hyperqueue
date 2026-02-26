@@ -129,7 +129,7 @@ impl TaskBuilder {
 
 pub fn task_running_msg(task_id: TaskId) -> TaskRunningMsg {
     TaskRunningMsg {
-        id: task_id,
+        task_id: task_id,
         rv_id: ResourceVariantId::new(0),
         context: Default::default(),
     }

@@ -17,6 +17,7 @@ use crate::internal::common::error::DsError;
 use crate::internal::common::taskgroup::TaskGroup;
 use crate::internal::messages::worker::{
     FromWorkerMessage, NewWorkerMsg, ToWorkerMessage, WorkerRegistrationResponse, WorkerStopReason,
+    WorkerTaskUpdate,
 };
 use crate::internal::server::comm::{Comm, CommSenderRef};
 use crate::internal::server::core::{CoreRef, CoreSplitMut};
@@ -309,14 +310,26 @@ pub(crate) async fn worker_receive_loop<
         let mut core = core_ref.get_mut();
         let mut comm = comm_ref.get_mut();
         match message {
-            FromWorkerMessage::TaskFinished(msg) => {
-                on_task_finished(&mut core, &mut *comm, worker_id, msg);
-            }
-            FromWorkerMessage::TaskRunning(msg) => {
-                on_task_running(&mut core, &mut *comm, worker_id, msg);
-            }
-            FromWorkerMessage::TaskFailed(msg) => {
-                on_task_error(&mut core, &mut *comm, worker_id, msg.id, msg.info);
+            FromWorkerMessage::TaskUpdate(updates) => {
+                for update in updates {
+                    match update {
+                        WorkerTaskUpdate::Finished(msg) => {
+                            on_task_finished(&mut core, &mut *comm, worker_id, msg);
+                        }
+                        WorkerTaskUpdate::Failed(msg) => {
+                            on_task_error(&mut core, &mut *comm, worker_id, msg.task_id, msg.info);
+                        }
+                        WorkerTaskUpdate::TaskRunning(msg) => {
+                            on_task_running(&mut core, &mut *comm, worker_id, msg);
+                        }
+                        WorkerTaskUpdate::RejectRequest { .. } => {
+                            todo!()
+                        }
+                        WorkerTaskUpdate::EnableRequest { .. } => {
+                            todo!()
+                        }
+                    }
+                }
             }
             FromWorkerMessage::RetractResponse(msg) => {
                 on_steal_response(&mut core, &mut *comm, worker_id, msg)

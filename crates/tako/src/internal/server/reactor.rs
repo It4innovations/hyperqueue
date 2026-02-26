@@ -166,7 +166,7 @@ pub(crate) fn on_task_running(
     message: TaskRunningMsg,
 ) {
     let TaskRunningMsg {
-        id: task_id,
+        task_id,
         rv_id,
         context,
     } = message;
@@ -181,15 +181,16 @@ pub(crate) fn on_task_running(
     if let Some(task) = task_map.find_task_mut(task_id) {
         let worker_ids = match &task.state {
             TaskRuntimeState::Assigned {
-                worker_id: w_id, ..
+                worker_id: w_id, rv_id: assigned_rv_id
             }
             /*| TaskRuntimeState::Retracting { source: w_id }
             | TaskRuntimeState::Stealing { source: w_id, .. }*/ => {
                 assert_eq!(*w_id, worker_id);
+                assert_eq!(*assigned_rv_id, rv_id);
                 comm.ask_for_scheduling();
                 task.state = TaskRuntimeState::Running {
                     worker_id,
-                    rv_id: message.rv_id,
+                    rv_id,
                 };
                 /*let rqv = requests.get(task.resource_rq_id);
                 workers
@@ -234,7 +235,7 @@ pub(crate) fn on_task_finished(
     worker_id: WorkerId,
     msg: TaskFinishedMsg,
 ) {
-    let task_id = msg.id;
+    let task_id = msg.task_id;
     let CoreSplitMut {
         task_map,
         worker_map,
@@ -317,7 +318,7 @@ pub(crate) fn on_task_finished(
         }
     }
     let mut objs_to_remove = ObjsToRemoveFromWorkers::new();
-    let state = core.remove_task(msg.id, &mut objs_to_remove);
+    let state = core.remove_task(msg.task_id, &mut objs_to_remove);
     assert!(matches!(state, TaskRuntimeState::Finished));
 
     for data in msg.outputs {

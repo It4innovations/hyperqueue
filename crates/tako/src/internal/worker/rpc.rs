@@ -20,9 +20,10 @@ use crate::internal::common::resources::Allocation;
 use crate::internal::common::resources::map::ResourceIdMap;
 use crate::internal::datasrv::download::download_manager_process;
 use crate::internal::datasrv::{DownloadManagerRef, data_upload_service};
+use crate::internal::messages::worker::FromWorkerMessage::TaskUpdate;
 use crate::internal::messages::worker::{
-    FromWorkerMessage, RetractResponseMsg, TaskResourceAllocation, ToWorkerMessage, WorkerOverview,
-    WorkerRegistrationResponse, WorkerStopReason,
+    FromWorkerMessage, RetractResponseMsg, TaskResourceAllocation, TaskUpdates, ToWorkerMessage,
+    WorkerOverview, WorkerRegistrationResponse, WorkerStopReason,
 };
 use crate::internal::server::rpc::ConnectionDescriptor;
 use crate::internal::transfer::auth::{
@@ -35,11 +36,12 @@ use crate::internal::worker::configuration::{
 };
 use crate::internal::worker::hwmonitor::HwSampler;
 use crate::internal::worker::localcomm::handle_local_comm;
-use crate::internal::worker::reactor::start_task;
+use crate::internal::worker::reactor::compute_tasks;
 use crate::internal::worker::state::{WorkerState, WorkerStateRef};
 use crate::internal::worker::task::{Task, TaskState};
 use crate::launcher::TaskLauncher;
 use futures::future::Either;
+use smallvec::SmallVec;
 use tokio::sync::Notify;
 
 async fn start_listener() -> crate::Result<(TcpListener, u16)> {
@@ -128,7 +130,7 @@ pub async fn run_worker(
     let heartbeat_interval = configuration.heartbeat_interval;
     let time_limit = configuration.time_limit;
 
-    let (worker_id, state_ref, start_task_notify) = {
+    let (worker_id, state_ref) = {
         match timeout(Duration::from_secs(15), receiver.next()).await {
             Ok(Some(data)) => {
                 let WorkerRegistrationResponse {
@@ -143,8 +145,7 @@ pub async fn run_worker(
 
                 sync_worker_configuration(&mut configuration, server_idle_timeout);
 
-                let start_task_notify = Rc::new(Notify::new());
-                let comm = WorkerComm::new(queue_sender, start_task_notify.clone());
+                let comm = WorkerComm::new(queue_sender);
                 let launcher = launcher_setup(&server_uid, worker_id);
                 let state_ref = WorkerStateRef::new(
                     comm,
@@ -165,7 +166,7 @@ pub async fn run_worker(
                     }
                 }
 
-                (worker_id, state_ref, start_task_notify)
+                (worker_id, state_ref)
             }
             Ok(None) => panic!("Connection closed without receiving registration response"),
             Err(_) => panic!("Did not receive worker registration response"),
@@ -195,11 +196,11 @@ pub async fn run_worker(
     );
 
     let future = async move {
-        let try_start_tasks = task_starter_process(state_ref.clone(), start_task_notify);
+        //let try_start_tasks = task_starter_process(state_ref.clone(), start_task_notify);
         let send_loop = forward_queue_to_sealed_sink(queue_receiver, sender, sealer);
         tokio::pin! {
             let send_loop = send_loop;
-            let try_start_tasks = try_start_tasks;
+            //let try_start_tasks = try_start_tasks;
         }
 
         let result: crate::Result<Option<FromWorkerMessage>> = tokio::select! {
@@ -219,7 +220,7 @@ pub async fn run_worker(
                 log::info!("Worker received an external stop notification");
                 Ok(Some(FromWorkerMessage::Stop(WorkerStopReason::Interrupted)))
             }
-            _ = &mut try_start_tasks => { unreachable!() }
+            //_ = &mut try_start_tasks => { unreachable!() }
             _ = heartbeat_fut => { unreachable!() }
             _ = overview_fut => { unreachable!() }
             _ = local_comm_fut => { unreachable!() }
@@ -245,7 +246,7 @@ pub async fn run_worker(
             Err(e) => {
                 // Server has disconnected
                 tokio::select! {
-                    _ = &mut try_start_tasks => { unreachable!() }
+                    //_ = &mut try_start_tasks => { unreachable!() }
                     r = finish_tasks_on_server_lost(state_ref.clone()) => r
                 }
                 Err(e)
@@ -327,7 +328,8 @@ async fn cancel_running_tasks_on_worker_end(state: WorkerStateRef) {
 
 /// Tries to start tasks after a new task appears or some task finishes.
 async fn task_starter_process(state_ref: WrappedRcRefCell<WorkerState>, notify: Rc<Notify>) {
-    loop {
+    todo!()
+    /*loop {
         notify.notified().await;
 
         let mut state = state_ref.get_mut();
@@ -355,7 +357,7 @@ async fn task_starter_process(state_ref: WrappedRcRefCell<WorkerState>, notify: 
                 start_task(&mut state, &state_ref, task_id, allocation, rv_id);
             }
         }
-    }
+    }*/
 }
 
 /// Repeatedly sends a heartbeat message to the server.
@@ -373,34 +375,8 @@ async fn heartbeat_process(heartbeat_interval: Duration, state_ref: WrappedRcRef
 
 pub(crate) fn process_worker_message(state: &mut WorkerState, message: ToWorkerMessage) -> bool {
     match message {
-        ToWorkerMessage::ComputeTasks(mut msg) => {
-            let task_count = msg.tasks.len();
-            for (index, task) in msg.tasks.into_iter().enumerate() {
-                let shared = &msg.shared_data[task.shared_index];
-                log::debug!("Task assigned: {}", task.id);
-                let task_state = TaskState::Waiting(if task.data_deps.is_empty() {
-                    0
-                } else {
-                    let mut waiting: u32 = 0;
-                    task.data_deps.iter().for_each(|data_id| {
-                        if !state.data_storage.has_object(*data_id) {
-                            waiting += 1;
-                            state.download_object(*data_id, task.id, task.priority)
-                        }
-                    });
-                    waiting
-                });
-                // If we're handling the last task, steal the shared data instead of cloning it.
-                // This optimization helps to avoid cloning the shared data unnecessarily if we
-                // handle only a single task.
-                let shared = if index == task_count - 1 {
-                    std::mem::take(&mut msg.shared_data[task.shared_index])
-                } else {
-                    shared.clone()
-                };
-                let new_task = Task::new(task, shared, task_state);
-                state.add_task(new_task);
-            }
+        ToWorkerMessage::ComputeTasks(msg) => {
+            compute_tasks(state, msg);
         }
         ToWorkerMessage::RetractTasks(msg) => {
             log::debug!("Steal {} attempts", msg.ids.len());

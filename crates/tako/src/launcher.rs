@@ -72,9 +72,9 @@ impl TaskLaunchData {
 
 /// Data necessary to build a task (create a Future representing that task).
 pub struct TaskBuildContext<'a> {
-    pub(crate) task: &'a Task,
     pub(crate) state: &'a WorkerState,
-    pub(crate) rv_id: ResourceVariantId,
+    pub(crate) task: &'a Task,
+    pub(crate) allocation: &'a Allocation,
     pub(crate) token: Token,
 }
 
@@ -96,11 +96,11 @@ impl<'a> TaskBuildContext<'a> {
     }
 
     pub fn resource_variant(&self) -> ResourceVariantId {
-        self.rv_id
+        self.task.resource_rq_variant
     }
 
     pub fn allocation(&self) -> &'a Allocation {
-        self.task.resource_allocation().unwrap()
+        &self.allocation
     }
 
     pub fn body(&self) -> &'a [u8] {
