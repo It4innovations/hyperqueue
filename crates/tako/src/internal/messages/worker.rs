@@ -31,6 +31,7 @@ pub struct ComputeTaskSeparateData {
     pub shared_index: usize,
     pub id: TaskId,
     pub resource_rq_id: ResourceRqId,
+    pub resource_rq_variant: ResourceVariantId,
     pub instance_id: InstanceId,
     pub priority: Priority,
     pub node_list: Vec<WorkerId>,
@@ -99,27 +100,22 @@ pub struct TaskOutput {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TaskFinishedMsg {
-    pub id: TaskId,
+    pub task_id: TaskId,
     pub outputs: Vec<TaskOutput>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TaskFailedMsg {
-    pub id: TaskId,
+    pub task_id: TaskId,
     pub info: TaskFailInfo,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TaskRunningMsg {
-    pub id: TaskId,
+    pub task_id: TaskId,
     pub rv_id: ResourceVariantId,
     #[serde(with = "serde_bytes")]
     pub context: SerializedTaskContext,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct DataDownloadedMsg {
-    pub id: TaskId,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -188,10 +184,25 @@ pub enum WorkerStopReason {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub enum FromWorkerMessage {
-    TaskFinished(TaskFinishedMsg),
-    TaskFailed(TaskFailedMsg),
+pub enum WorkerTaskUpdate {
+    Finished(TaskFinishedMsg),
+    Failed(TaskFailedMsg),
     TaskRunning(TaskRunningMsg),
+    RejectRequest {
+        resource_rq_id: ResourceRqId,
+        resource_rq_variant: ResourceVariantId,
+    },
+    EnableRequest {
+        resource_rq_id: ResourceRqId,
+        resource_rq_variant: ResourceVariantId,
+    },
+}
+
+pub type TaskUpdates = SmallVec<[WorkerTaskUpdate; 1]>;
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum FromWorkerMessage {
+    TaskUpdate(TaskUpdates),
     RetractResponse(RetractResponseMsg),
     Overview(Box<WorkerOverview>),
     Heartbeat,

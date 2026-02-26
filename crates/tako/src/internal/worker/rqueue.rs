@@ -113,7 +113,7 @@ impl ResourceWaitQueue {
     }
 
     pub fn add_task(&mut self, resource_rq_map: &ResourceRqMap, task: &Task) {
-        let priority = task.priority;
+        /*let priority = task.priority;
         let (queue, priority, task_id) = {
             (
                 if let Some(qfr) = self.queues.get_mut(&task.resource_rq_id) {
@@ -152,7 +152,7 @@ impl ResourceWaitQueue {
                 task.id,
             )
         };
-        queue.push(task_id, priority);
+        queue.push(task_id, priority);*/
     }
 
     pub fn remove_task(&mut self, task_id: TaskId) {
@@ -179,6 +179,8 @@ impl ResourceWaitQueue {
         resource_rq_map: &ResourceRqMap,
         remaining_time: Option<Duration>,
     ) -> Vec<(TaskId, Rc<Allocation>, ResourceVariantId)> {
+        todo!()
+        /*
         for qfr in self.queues.values_mut() {
             qfr.reset_temporaries()
         }
@@ -187,7 +189,7 @@ impl ResourceWaitQueue {
         while !self.try_start_tasks_helper(task_map, resource_rq_map, &mut out) {
             self.allocator.close_priority_level()
         }
-        out
+        out*/
     }
 
     /// This is "main" function of the worker resource allocation process.
@@ -211,6 +213,8 @@ impl ResourceWaitQueue {
         resource_rq_map: &ResourceRqMap,
         out: &mut Vec<(TaskId, Rc<Allocation>, ResourceVariantId)>,
     ) -> bool {
+        todo!()
+        /*
         let current_priority: Priority = if let Some(Some(priority)) =
             self.queues.values().map(|qfr| qfr.current_priority()).max()
         {
@@ -237,6 +241,6 @@ impl ResourceWaitQueue {
                 out.push((task_id, allocation, rv_id));
             }
         }
-        false
+        false*/
     }
 }

@@ -146,11 +146,6 @@ impl ResourceRequest {
         &self.resources
     }
 
-    pub fn sort_key(&self, ac: &ResourceAllocator) -> (f32, TimeRequest) {
-        let score = self.entries().iter().map(|e| ac.difficulty_score(e)).sum();
-        (score, self.min_time)
-    }
-
     pub fn validate(&self) -> crate::Result<()> {
         if self.resources.is_empty() && self.n_nodes == 0 {
             return Err("Resource request is empty".into());
@@ -205,32 +200,6 @@ impl ResourceRequestVariants {
                 request: AllocationRequest::Compact(ResourceAmount::ONE),
             }],
         ))
-    }
-
-    pub fn sort_key(&self, allocator: &ResourceAllocator) -> (f32, TimeRequest) {
-        /*
-          The following unwrap is ok since there has to be always at least at least one
-          runnable configuration. Otherwise this task should not be assigned to the worker.
-          If the unwrap fails, then it means a fatal error in server scheduler.
-        */
-        let (i, score) = self
-            .variants
-            .iter()
-            .enumerate()
-            .find_map(|(i, rq)| {
-                if allocator.is_capable_to_run(rq) {
-                    Some((i, rq.sort_key(allocator)))
-                } else {
-                    None
-                }
-            })
-            .unwrap();
-        self.variants[i + 1..]
-            .iter()
-            .fold(score, |(score, time), rq| {
-                let (score2, time2) = rq.sort_key(allocator);
-                (score.min(score2), time.min(time2))
-            })
     }
 
     pub fn find_index(&self, rq: &ResourceRequest) -> Option<usize> {

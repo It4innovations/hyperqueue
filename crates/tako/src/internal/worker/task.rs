@@ -7,19 +7,19 @@ use crate::internal::messages::worker::{
 };
 use crate::internal::worker::task_comm::RunningTaskComm;
 use crate::resources::ResourceRqId;
-use crate::{InstanceId, Priority, TaskId, WorkerId};
+use crate::{InstanceId, Priority, ResourceVariantId, TaskId, WorkerId};
 use std::rc::Rc;
 use std::time::Duration;
 
-pub struct RunningState {
-    pub comm: RunningTaskComm,
-    pub allocation: Rc<Allocation>,
-    pub outputs: Vec<TaskOutput>,
-}
-
 pub enum TaskState {
-    Waiting(u32),
-    Running(RunningState),
+    Waiting {
+        waiting_data_objects: u32,
+    },
+    Running {
+        comm: RunningTaskComm,
+        allocation: Rc<Allocation>,
+        outputs: Vec<TaskOutput>,
+    },
 }
 
 pub struct Task {
@@ -29,6 +29,7 @@ pub struct Task {
     pub instance_id: InstanceId,
 
     pub resource_rq_id: ResourceRqId,
+    pub resource_rq_variant: ResourceVariantId,
     pub time_limit: Option<Duration>,
     pub body: Rc<[u8]>,
     pub entry: Option<EntryType>,
@@ -50,6 +51,7 @@ impl Task {
             priority: task.priority,
             instance_id: task.instance_id,
             resource_rq_id: task.resource_rq_id,
+            resource_rq_variant: task.resource_rq_variant,
             time_limit: shared.time_limit,
             body: shared.body,
             entry: task.entry,
@@ -61,46 +63,55 @@ impl Task {
 
     #[inline]
     pub fn is_waiting(&self) -> bool {
-        matches!(self.state, TaskState::Waiting(_))
+        matches!(self.state, TaskState::Waiting { .. })
     }
 
     #[inline]
     pub fn is_ready(&self) -> bool {
-        matches!(self.state, TaskState::Waiting(0))
+        matches!(
+            self.state,
+            TaskState::Waiting {
+                waiting_data_objects: 0
+            }
+        )
     }
 
     #[inline]
     pub fn is_running(&self) -> bool {
-        matches!(self.state, TaskState::Running(_))
+        matches!(self.state, TaskState::Running { .. })
     }
 
     pub fn resource_allocation(&self) -> Option<&Allocation> {
         match &self.state {
-            TaskState::Running(s) => Some(&s.allocation),
-            TaskState::Waiting(_) => None,
+            TaskState::Running { allocation, .. } => Some(allocation),
+            TaskState::Waiting { .. } => None,
         }
     }
 
     pub fn task_comm_mut(&mut self) -> Option<&mut RunningTaskComm> {
         match self.state {
-            TaskState::Running(ref mut s) => Some(&mut s.comm),
+            TaskState::Running { ref mut comm, .. } => Some(comm),
             _ => None,
         }
     }
 
     pub fn get_waiting(&self) -> u32 {
         match self.state {
-            TaskState::Waiting(x) => x,
+            TaskState::Waiting {
+                waiting_data_objects,
+            } => waiting_data_objects,
             _ => 0,
         }
     }
 
     pub fn decrease_waiting_count(&mut self) -> bool {
         match &mut self.state {
-            TaskState::Waiting(x) => {
-                assert!(*x > 0);
-                *x -= 1;
-                *x == 0
+            TaskState::Waiting {
+                waiting_data_objects,
+            } => {
+                assert!(*waiting_data_objects > 0);
+                *waiting_data_objects -= 1;
+                *waiting_data_objects == 0
             }
             _ => unreachable!(),
         }
@@ -108,8 +119,10 @@ impl Task {
 
     pub fn increase_waiting_count(&mut self) {
         match &mut self.state {
-            TaskState::Waiting(x) => {
-                *x += 1;
+            TaskState::Waiting {
+                waiting_data_objects,
+            } => {
+                *waiting_data_objects += 1;
             }
             _ => unreachable!(),
         }
@@ -121,10 +134,10 @@ impl Task {
 
     pub fn add_output(&mut self, task_output: TaskOutput) {
         match &mut self.state {
-            TaskState::Waiting(_) => {
+            TaskState::Waiting { .. } => {
                 panic!("Task is not in valid state");
             }
-            TaskState::Running(s) => s.outputs.push(task_output),
+            TaskState::Running { outputs, .. } => outputs.push(task_output),
         }
     }
 }

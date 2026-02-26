@@ -190,7 +190,7 @@ impl TestEnv {
             &mut comm,
             worker_id.into(),
             TaskFinishedMsg {
-                id: task_id.into(),
+                task_id: task_id.into(),
                 outputs,
             },
         );
@@ -239,7 +239,7 @@ impl TestEnv {
             &mut comm,
             worker_id,
             TaskRunningMsg {
-                id: task_id,
+                task_id: task_id,
                 rv_id: variant.into(),
                 context: Default::default(),
             },

@@ -7,7 +7,6 @@ use tokio::sync::mpsc::UnboundedSender;
 
 pub struct RealWorkerComm {
     sender: Option<UnboundedSender<Bytes>>,
-    start_task_notify: Rc<Notify>,
     worker_is_empty_notify: Option<Rc<Notify>>,
 }
 
@@ -18,10 +17,9 @@ pub enum WorkerComm {
 }
 
 impl WorkerComm {
-    pub fn new(sender: UnboundedSender<Bytes>, start_task_notify: Rc<Notify>) -> Self {
+    pub fn new(sender: UnboundedSender<Bytes>) -> Self {
         WorkerComm::Real(RealWorkerComm {
             sender: Some(sender),
-            start_task_notify,
             worker_is_empty_notify: None,
         })
     }
@@ -75,16 +73,6 @@ impl WorkerComm {
             Self::Real(comm) => comm.worker_is_empty_notify = Some(notify),
             #[cfg(test)]
             WorkerComm::Test(_) => {}
-        }
-    }
-
-    pub fn notify_start_task(&mut self) {
-        match self {
-            Self::Real(comm) => comm.start_task_notify.notify_one(),
-            #[cfg(test)]
-            WorkerComm::Test(comm) => {
-                comm.notify_start_task();
-            }
         }
     }
 

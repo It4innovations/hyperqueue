@@ -128,12 +128,8 @@ impl WorkerTaskMapping {
         for (worker_id, tasks) in &self.sn_tasks_to_workers {
             let mut task_msg_builder = ComputeTasksBuilder::default();
             for (task_id, variant) in tasks {
-                if !variant.is_first() {
-                    // TODO: Send variant to worker
-                    todo!();
-                }
                 let task = core.get_task_mut(*task_id);
-                if let Some(msg) = task_msg_builder.add_task(task, Vec::new()) {
+                if let Some(msg) = task_msg_builder.add_task(task, *variant, Vec::new()) {
                     comm.send_worker_message(*worker_id, &msg);
                 }
             }
@@ -146,7 +142,7 @@ impl WorkerTaskMapping {
             let worker_ids = task.mn_placement().unwrap().to_vec();
             comm.send_worker_message(
                 worker_ids[0],
-                &ComputeTasksBuilder::single_task(task, worker_ids.to_vec()),
+                &ComputeTasksBuilder::single_task(task, 0.into(), worker_ids.to_vec()),
             );
         }
     }
