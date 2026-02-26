@@ -24,4 +24,10 @@ pub fn create_solver() -> impl LpSolver {
         use super::solver_microlp::MicrolpSolver;
         MicrolpSolver::new()
     }
+    #[cfg(not(any(feature = "highs", feature = "microlp")))]
+    {
+        compile_error!(
+            "You have to enable either the `highs` or the `microlp` feature using `cargo build ... --features <highs/microlp>`"
+        )
+    }
 }
