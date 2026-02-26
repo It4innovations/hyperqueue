@@ -5,7 +5,7 @@ use crate::internal::scheduler::{create_task_batches, create_task_mapping, run_s
 use crate::internal::server::core::{Core, CoreSplit};
 use crate::internal::server::task::Task;
 use crate::internal::server::worker::Worker;
-use crate::internal::server::workerload::{WorkerLoad, WorkerResources};
+use crate::internal::server::workerload::WorkerResources;
 use crate::resources::{ResourceAmount, ResourceDescriptorItem, ResourceDescriptorKind};
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
 use crate::{Map, WorkerId};

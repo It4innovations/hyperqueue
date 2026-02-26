@@ -7,7 +7,7 @@ use crate::internal::common::resources::map::{ResourceIdMap, ResourceRqMap};
 use crate::internal::common::resources::{ResourceRequest, ResourceRequestVariants};
 use crate::internal::server::comm::Comm;
 use crate::internal::server::taskmap::TaskMap;
-use crate::internal::server::workerload::{ResourceRequestLowerBound, WorkerLoad, WorkerResources};
+use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::configuration::WorkerConfiguration;
 use crate::{Map, TaskId, WorkerId};
 use serde_json::json;
@@ -226,53 +226,13 @@ impl Worker {
         }
     }
 
-    pub fn sanity_check(&self, task_map: &TaskMap, request_map: &ResourceRqMap) {
-        let mut check_load = WorkerLoad::new(&self.resources);
-        let mut trivial = true;
-        if let Some(a) = self.sn_assignment() {
-            for task_id in &a.assign_tasks {
-                let task = task_map.get_task(*task_id);
-                let rqv = request_map.get(task.resource_rq_id);
-                trivial &= rqv.is_trivial();
-                check_load.add_request(*task_id, rqv, task.running_variant(), &self.resources);
-            }
-        }
-    }
+    pub fn sanity_check(&self, task_map: &TaskMap, request_map: &ResourceRqMap) {}
 
     pub fn have_immediate_resources_for_rq(&self, request: &ResourceRequest) -> bool {
         let Some(a) = self.sn_assignment() else {
             return false;
         };
         a.free_resources.is_capable_to_run_request(request)
-    }
-
-    pub fn have_immediate_resources_for_rqv(&self, rqv: &ResourceRequestVariants) -> bool {
-        todo!()
-        // self.sn_load
-        //     .have_immediate_resources_for_rqv(rqv, &self.resources)
-    }
-
-    pub fn have_immediate_resources_for_rqv_now(
-        &self,
-        rqv: &ResourceRequestVariants,
-        now: Instant,
-    ) -> bool {
-        /*self.has_time_to_run_for_rqv(rqv, now)
-        && self
-            .sn_load
-            .have_immediate_resources_for_rqv(rqv, &self.resources)*/
-        todo!()
-    }
-
-    pub fn have_immediate_resources_for_lb(&self, rrb: &ResourceRequestLowerBound) -> bool {
-        todo!()
-        /*self.sn_load
-        .have_immediate_resources_for_lb(rrb, &self.resources)*/
-    }
-
-    pub fn load_wrt_rqv(&self, rqv: &ResourceRequestVariants) -> u32 {
-        todo!()
-        //self.sn_load.load_wrt_rqv(&self.resources, rqv)
     }
 
     pub fn is_capable_to_run(&self, request: &ResourceRequest, now: Instant) -> bool {
@@ -380,7 +340,6 @@ impl Worker {
         now: Instant,
     ) -> Self {
         let resources = WorkerResources::from_description(&configuration.resources, resource_map);
-        let load = WorkerLoad::new(&resources);
         Self {
             id,
             termination_time: configuration.time_limit.map(|duration| now + duration),
