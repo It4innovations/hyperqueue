@@ -8,6 +8,8 @@ pub mod shared;
 #[cfg(test)]
 pub mod task;
 #[cfg(test)]
+pub mod wenv;
+#[cfg(test)]
 pub mod worker;
 #[cfg(test)]
 pub mod worker_comm;

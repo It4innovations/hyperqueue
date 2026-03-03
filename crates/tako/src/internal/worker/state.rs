@@ -6,8 +6,8 @@ use crate::internal::common::{Map, Set, WrappedRcRefCell};
 use crate::internal::datasrv::{DataObjectRef, DataStorage};
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{
-    FromWorkerMessage, NewWorkerMsg, RetractResponse, TaskFailedMsg, TaskFinishedMsg, TaskOutput,
-    TaskUpdates, WorkerNotifyMessage,
+    FromWorkerMessage, NewWorkerMsg, TaskFailedMsg, TaskFinishedMsg, TaskOutput, TaskUpdates,
+    WorkerNotifyMessage,
 };
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::comm::WorkerComm;
@@ -21,7 +21,6 @@ use crate::internal::worker::data::download::WorkerDownloadManagerRef;
 use crate::internal::worker::localcomm::LocalCommState;
 use crate::internal::worker::resources::allocator::ResourceAllocator;
 use crate::internal::worker::resources::map::ResourceLabelMap;
-use crate::internal::worker::rqueue::ResourceWaitQueue;
 use crate::internal::worker::task::{Task, TaskState};
 use crate::internal::worker::task_comm::RunningTaskComm;
 use crate::launcher::TaskLauncher;
@@ -42,6 +41,7 @@ pub struct WorkerState {
     comm: WorkerComm,
     tasks: TaskMap,
     pub(crate) allocator: ResourceAllocator,
+    pub(crate) blocked_requests: Set<(ResourceRqId, ResourceVariantId)>,
     pub(crate) running_tasks: Set<TaskId>,
 
     pub(crate) worker_id: WorkerId,
@@ -176,50 +176,6 @@ impl WorkerState {
             self.comm.notify_worker_is_empty();
         }
         task
-
-        /*let outputs = match task.state {
-            TaskState::Waiting {
-                waiting_data_objects,
-            } => {
-                log::debug!("Removing waiting task id={task_id}");
-                assert!(!just_finished);
-                if waiting_data_objects > 0
-                    && let Some(data_deps) = task.data_deps
-                {
-                    let mut dm = self.download_manager.as_ref().unwrap().get_mut();
-                    for data_id in data_deps.iter() {
-                        dm.cancel_download(*data_id);
-                    }
-                }
-                Vec::new()
-            }
-            TaskState::Running {
-                comm,
-                allocation,
-                outputs,
-            } => {
-                log::debug!("Removing running task id={task_id}");
-                assert!(just_finished);
-                assert!(self.running_tasks.remove(&task_id));
-                self.schedule_task_start();
-                self.ready_task_queue.release_allocation(allocation);
-                if keep_outputs {
-                    outputs
-                } else {
-                    if !outputs.is_empty() {
-                        for output in outputs {
-                            self.data_storage
-                                .remove_object(DataObjectId::new(task_id, output.id));
-                        }
-                    }
-                    Vec::new()
-                }
-            }
-        };
-        if self.tasks.is_empty() {
-            self.comm.notify_worker_is_empty();
-        }
-        outputs*/
     }
 
     pub fn get_worker_address(&self, worker_id: WorkerId) -> Option<&String> {
@@ -272,7 +228,7 @@ impl WorkerState {
         };
     }
 
-    pub fn steal_task(&mut self, task_id: TaskId) -> RetractResponse {
+    pub fn retract_task(&mut self, task_id: TaskId) -> bool {
         todo!()
         /*
         let response = match self.tasks.find(&task_id) {
@@ -482,6 +438,7 @@ impl WorkerStateRef {
             secret_key,
             tasks: Default::default(),
             allocator,
+            blocked_requests: Set::new(),
             running_tasks: Default::default(),
             start_time: now,
             resource_id_map: resource_map,

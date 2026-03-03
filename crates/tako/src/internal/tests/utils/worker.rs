@@ -36,6 +36,10 @@ impl WorkerBuilder {
         self
     }
 
+    pub fn time_limit_s(mut self, duration: u64) -> Self {
+        self.time_limit(Duration::from_secs(duration))
+    }
+
     pub fn group(mut self, group: &str) -> Self {
         self.group = Some(group.to_string());
         self
@@ -55,8 +59,8 @@ impl WorkerBuilder {
         self
     }
 
-    pub fn build(&self, worker_id: WorkerId, resource_map: &ResourceIdMap, now: Instant) -> Worker {
-        let config = WorkerConfiguration {
+    pub fn build_config(&self, worker_id: WorkerId) -> WorkerConfiguration {
+        WorkerConfiguration {
             resources: self.descriptor.clone(),
             listen_address: format!("1.1.1.{worker_id}:123"),
             hostname: format!("test{worker_id}"),
@@ -74,8 +78,11 @@ impl WorkerBuilder {
             max_download_tries: DEFAULT_MAX_DOWNLOAD_TRIES,
             wait_between_download_tries: DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES,
             extra: Default::default(),
-        };
+        }
+    }
 
+    pub fn build(&self, worker_id: WorkerId, resource_map: &ResourceIdMap, now: Instant) -> Worker {
+        let config = self.build_config(worker_id);
         Worker::new(worker_id, config, resource_map, now)
     }
 }
