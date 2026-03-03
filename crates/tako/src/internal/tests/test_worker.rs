@@ -1,169 +1,154 @@
-use crate::gateway::TaskDataFlags;
-use crate::internal::common::resources::ResourceRqId;
-use crate::internal::common::resources::map::{GlobalResourceMapping, ResourceRqMap};
 use crate::internal::messages::worker::{
-    ComputeTaskSeparateData, ComputeTaskSharedData, ComputeTasksMsg, NewWorkerMsg, ToWorkerMessage,
-    WorkerResourceCounts,
+    FromWorkerMessage, NewWorkerMsg, TaskRunningMsg, ToWorkerMessage, WorkerResourceCounts,
+    WorkerTaskUpdate,
 };
-use crate::internal::server::workerload::WorkerResources;
-use crate::internal::tests::utils::resources::{ResourceRequestBuilder, ra_builder};
-use crate::internal::worker::comm::WorkerComm;
-use crate::internal::worker::configuration::{
-    DEFAULT_MAX_DOWNLOAD_TRIES, DEFAULT_MAX_PARALLEL_DOWNLOADS,
-    DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES, OverviewConfiguration,
-};
+use crate::internal::tests::utils::resources::ra_builder;
 use crate::internal::worker::rpc::process_worker_message;
-use crate::internal::worker::state::WorkerStateRef;
-use crate::launcher::{StopReason, TaskBuildContext, TaskLaunchData, TaskLauncher};
-use crate::resources::{ResourceDescriptor, ResourceIdMap};
-use crate::worker::{ServerLostPolicy, WorkerConfiguration};
-use crate::{Priority, Set, TaskId, WorkerId};
+use crate::resources::ResourceRqId;
+use crate::tests::utils::task::TaskBuilder;
+use crate::tests::utils::wenv::WorkerTestEnv;
+use crate::tests::utils::worker::WorkerBuilder;
+use crate::{Priority, ResourceVariantId, Set, TaskId, WorkerId};
 use std::ops::Deref;
-use std::time::Duration;
-use tokio::sync::oneshot::Receiver;
 
-#[derive(Default)]
-struct TestLauncher;
-
-impl TaskLauncher for TestLauncher {
-    fn build_task(
-        &self,
-        _ctx: TaskBuildContext,
-        _stop_receiver: Receiver<StopReason>,
-    ) -> crate::Result<TaskLaunchData> {
-        // Test should not directly call this function
-        unreachable!()
-    }
-}
-
-fn create_test_worker_config() -> WorkerConfiguration {
-    WorkerConfiguration {
-        resources: ResourceDescriptor::simple_cpus(4),
-        listen_address: "test1:123".into(),
-        hostname: "test1".to_string(),
-        group: "default".to_string(),
-        work_dir: Default::default(),
-        heartbeat_interval: Duration::from_millis(1000),
-        overview_configuration: OverviewConfiguration {
-            send_interval: Some(Duration::from_millis(1000)),
-            gpu_families: Default::default(),
+fn pop_task_running(msg: &mut FromWorkerMessage) -> TaskRunningMsg {
+    match msg {
+        FromWorkerMessage::TaskUpdate(update) => match update.pop().unwrap() {
+            WorkerTaskUpdate::TaskRunning(msg) => msg,
+            _ => unreachable!(),
         },
-        idle_timeout: None,
-        time_limit: None,
-        on_server_lost: ServerLostPolicy::Stop,
-        max_parallel_downloads: DEFAULT_MAX_PARALLEL_DOWNLOADS,
-        max_download_tries: DEFAULT_MAX_DOWNLOAD_TRIES,
-        wait_between_download_tries: DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES,
-        extra: Default::default(),
+        _ => {
+            unreachable!()
+        }
     }
 }
 
-fn create_test_worker_state(
-    config: WorkerConfiguration,
-    resource_rq_map: ResourceRqMap,
-) -> WorkerStateRef {
-    let resource_map = ResourceIdMap::from_vec(
-        config
-            .resources
-            .resources
-            .iter()
-            .map(|x| x.name.clone())
-            .collect(),
-    );
-    WorkerStateRef::new(
-        WorkerComm::new_test_comm(),
-        WorkerId::from(100),
-        config,
-        None,
-        resource_map,
-        resource_rq_map,
-        Box::new(TestLauncher),
-        "testuid".to_string(),
-    )
+fn pop_task_rejection(msg: &mut FromWorkerMessage) -> TaskId {
+    match msg {
+        FromWorkerMessage::TaskUpdate(update) => match update.pop().unwrap() {
+            WorkerTaskUpdate::RejectRequest {
+                task_id,
+                resource_rq_variant: _,
+            } => task_id,
+            _ => unreachable!(),
+        },
+        _ => {
+            unreachable!()
+        }
+    }
 }
 
-fn create_dummy_compute_msg(task_id: TaskId, resource_rq_id: ResourceRqId) -> ComputeTasksMsg {
-    ComputeTasksMsg {
-        tasks: vec![ComputeTaskSeparateData {
-            shared_index: 0,
-            id: task_id,
-            resource_rq_id,
-            resource_rq_variant: 0.into(),
-            instance_id: Default::default(),
-            priority: Priority::new(0),
-            node_list: vec![],
-            data_deps: vec![],
-            entry: None,
-        }],
-        shared_data: vec![ComputeTaskSharedData {
-            time_limit: None,
-            data_flags: TaskDataFlags::empty(),
-            body: Default::default(),
-        }],
+fn check_empty_update(msg: &mut FromWorkerMessage) {
+    match msg {
+        FromWorkerMessage::TaskUpdate(update) => {
+            assert!(update.is_empty());
+        }
+        _ => {
+            unreachable!()
+        }
     }
 }
 
 #[test]
 fn test_worker_start_task() {
-    let mut rmap = GlobalResourceMapping::default();
-    let rqv = ResourceRequestBuilder::default().cpus(3).finish_v();
-    let (rq_id, _) = rmap.get_or_create_rq_id(rqv);
+    let mut rt = WorkerTestEnv::new(&WorkerBuilder::new(4).time_limit_s(100));
 
-    let config = create_test_worker_config();
-    let state_ref = create_test_worker_state(config, rmap.get_resource_rq_map().clone());
-    let msg = create_dummy_compute_msg(7.into(), rq_id);
-    let mut state = state_ref.get_mut();
+    let msg = rt.compute_msg(TaskId::new_test(7), 0, &TaskBuilder::new().cpus(3));
+
+    let mut state = rt.state().get_mut();
     process_worker_message(&mut state, ToWorkerMessage::ComputeTasks(msg));
     let comm = state.comm().test();
-    comm.check_start_task_notifications(1);
+    comm.check_task_started(1);
+    let mut msg = comm.take_messages(1);
+    assert_eq!(pop_task_running(&mut msg[0]).task_id, TaskId::new_test(7));
+    check_empty_update(&mut msg[0]);
     comm.check_emptiness();
 
-    assert_eq!(state.find_task(7.into()).unwrap().id, TaskId::new_test(7));
-    assert!(state.running_tasks.is_empty());
-}
+    let task = state.find_task(7.into()).unwrap();
+    assert_eq!(task.id, TaskId::new_test(7));
+    assert_eq!(state.running_tasks.len(), 1);
+    assert!(state.running_tasks.contains(&TaskId::new_test(7)));
+    drop(state);
 
-/*#[test]
-fn test_worker_start_task_resource_variants() {
-    let mut rmap = GlobalResourceMapping::default();
-    let rqv = ResourceRequestBuilder::default().cpus(3).finish_v();
-    let rq1 = ResourceRequestBuilder::default().cpus(2).add(1, 1).finish();
-    let rq2 = ResourceRequestBuilder::default().cpus(4).finish();
-    let rq = ResourceRequestVariants::new(smallvec![rq1.clone(), rq2.clone()]);
-    let (rq_id, _) = rmap.get_or_create_resource_rq_id(&rqv);
+    let msg = rt.compute_msg(TaskId::new_test(9), 0, &TaskBuilder::new().cpus(3));
 
-    let config = create_test_worker_config();
-    let state_ref = create_test_worker_state(config, rmap.get_resource_rq_map().clone());
-    let msg = create_dummy_compute_msg(7.into(), rq_id);
-    let mut state = state_ref.get_mut();
+    let mut state = rt.state().get_mut();
     process_worker_message(&mut state, ToWorkerMessage::ComputeTasks(msg));
+
     let comm = state.comm().test();
-    comm.check_start_task_notifications(1);
+    let mut msg = comm.take_messages(1);
+    assert_eq!(pop_task_rejection(&mut msg[0]), TaskId::new_test(9));
+    check_empty_update(&mut msg[0]);
     comm.check_emptiness();
 
-    assert_eq!(state.find_task(7.into()).unwrap().id, TaskId::new_test(7));
-    assert!(state.running_tasks.is_empty());
-    let requests = state.ready_task_queue.requests();
-    assert_eq!(requests.len(), 1);
-    assert_eq!(requests[0], rq);
+    assert!(
+        state
+            .blocked_requests
+            .contains(&(ResourceRqId::new(0), ResourceVariantId::new(0)))
+    );
+
+    drop(state);
+
+    let msg = rt.compute_msg(
+        TaskId::new_test(11),
+        0,
+        &TaskBuilder::new().cpus(1).time_request(120),
+    );
+    let rq_id = msg.tasks[0].resource_rq_id;
+
+    let mut state = rt.state().get_mut();
+    process_worker_message(&mut state, ToWorkerMessage::ComputeTasks(msg));
+
+    let comm = state.comm().test();
+    let mut msg = comm.take_messages(1);
+    assert_eq!(pop_task_rejection(&mut msg[0]), TaskId::new_test(11));
+    check_empty_update(&mut msg[0]);
+    comm.check_emptiness();
+
+    assert!(
+        !state
+            .blocked_requests
+            .contains(&(rq_id, ResourceVariantId::new(0)))
+    );
+
+    drop(state);
+
+    let msg = rt.compute_msg(
+        TaskId::new_test(13),
+        0,
+        &TaskBuilder::new().cpus(1).time_request(90),
+    );
+    let rq = msg.tasks[0].resource_rq_id;
+    let mut state = rt.state().get_mut();
+    process_worker_message(&mut state, ToWorkerMessage::ComputeTasks(msg));
+
+    assert!(
+        !state
+            .blocked_requests
+            .contains(&(rq, ResourceVariantId::new(0)))
+    );
+
+    let comm = state.comm().test();
+    comm.check_task_started(1);
+    let mut msg = comm.take_messages(1);
+    assert_eq!(pop_task_running(&mut msg[0]).task_id, TaskId::new_test(13));
+    check_empty_update(&mut msg[0]);
+    comm.check_emptiness();
 }
- */
 
 #[test]
 fn test_worker_other_workers() {
-    let rmap = ResourceRqMap::default();
-    let state_ref = create_test_worker_state(create_test_worker_config(), rmap);
-    let mut state = state_ref.get_mut();
+    let mut rt = WorkerTestEnv::new(&WorkerBuilder::new(4).time_limit_s(100));
+    let mut state = rt.state().get_mut();
     assert!(state.worker_addresses.is_empty());
 
     let r1 = WorkerResourceCounts {
         n_resources: ra_builder(&[2, 0, 1]).deref().clone(),
     };
-    let wr1 = WorkerResources::from_transport(r1.clone());
 
     let r2 = WorkerResourceCounts {
         n_resources: ra_builder(&[2, 1]).deref().clone(),
     };
-    let wr2 = WorkerResources::from_transport(r2.clone());
 
     process_worker_message(
         &mut state,

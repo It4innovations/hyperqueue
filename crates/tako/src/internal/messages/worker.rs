@@ -119,15 +119,8 @@ pub struct TaskRunningMsg {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub enum RetractResponse {
-    Ok,
-    NotHere,
-    Running,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
 pub struct RetractResponseMsg {
-    pub responses: Vec<(TaskId, RetractResponse)>,
+    pub responses: Vec<TaskId>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -189,8 +182,8 @@ pub enum WorkerTaskUpdate {
     Failed(TaskFailedMsg),
     TaskRunning(TaskRunningMsg),
     RejectRequest {
-        resource_rq_id: ResourceRqId,
-        resource_rq_variant: ResourceVariantId,
+        task_id: TaskId,
+        resource_rq_variant: ResourceRqId,
     },
     EnableRequest {
         resource_rq_id: ResourceRqId,

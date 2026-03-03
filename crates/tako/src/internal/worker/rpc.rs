@@ -378,18 +378,15 @@ pub(crate) fn process_worker_message(state: &mut WorkerState, message: ToWorkerM
         ToWorkerMessage::ComputeTasks(msg) => {
             compute_tasks(state, msg);
         }
-        ToWorkerMessage::RetractTasks(msg) => {
+        ToWorkerMessage::RetractTasks(mut msg) => {
             log::debug!("Steal {} attempts", msg.ids.len());
-            let responses: Vec<_> = msg
-                .ids
-                .iter()
-                .map(|task_id| {
-                    let response = state.steal_task(*task_id);
-                    log::debug!("Steal attempt: {task_id}, response {response:?}");
-                    (*task_id, response)
-                })
-                .collect();
-            let message = FromWorkerMessage::RetractResponse(RetractResponseMsg { responses });
+            msg.ids.retain(|task_id| {
+                let response = state.retract_task(*task_id);
+                log::debug!("Retract attempt: {task_id}, response {response:?}");
+                response
+            });
+            let message =
+                FromWorkerMessage::RetractResponse(RetractResponseMsg { responses: msg.ids });
             state.comm().send_message_to_server(message);
         }
         ToWorkerMessage::CancelTasks(msg) => {

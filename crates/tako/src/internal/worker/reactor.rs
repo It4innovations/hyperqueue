@@ -1,6 +1,7 @@
 use crate::datasrv::DataObjectId;
 use crate::internal::common::resources::Allocation;
 use crate::internal::messages::common::TaskFailInfo;
+use crate::internal::messages::worker::FromWorkerMessage::TaskUpdate;
 use crate::internal::messages::worker::{
     ComputeTasksMsg, FromWorkerMessage, TaskFailedMsg, TaskFinishedMsg, TaskOutput, TaskRunningMsg,
     TaskUpdates, WorkerTaskUpdate,
@@ -14,6 +15,7 @@ use crate::launcher::{TaskBuildContext, TaskFuture, TaskLaunchData, TaskLauncher
 use crate::task::SerializedTaskContext;
 use crate::{ResourceVariantId, TaskId};
 use futures::future::Either;
+use itertools::Itertools;
 use std::alloc::alloc;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -76,14 +78,25 @@ pub fn try_start_task(
 
     if let Some(time) = remaining_time {
         if time < rq.min_time() {
-            // HARD REJECT
-            todo!()
+            // Hard reject, we never unblock this rejection so we do not need to update blocked requests
+            task_updates.push(WorkerTaskUpdate::RejectRequest {
+                task_id: task.id,
+                resource_rq_variant: task.resource_rq_id,
+            });
+            return false;
         }
     }
 
     let Some(allocation) = state.allocator.try_allocate(&rq) else {
-        // SOFT REJECT
-        todo!()
+        // Soft reject, we remember rejection as we unblock in the future
+        state
+            .blocked_requests
+            .insert((task.resource_rq_id, task.resource_rq_variant));
+        task_updates.push(WorkerTaskUpdate::RejectRequest {
+            task_id: task.id,
+            resource_rq_variant: task.resource_rq_id,
+        });
+        return false;
     };
 
     match launch_task(state, &task, &allocation) {
@@ -98,17 +111,18 @@ pub fn try_start_task(
                 allocation,
                 outputs: Default::default(),
             };
+            state.running_tasks.insert(task.id);
             true
         }
         Err(e) => {
-            todo!();
+            state.allocator.release_allocation(allocation);
             false
         }
     }
 }
 
 fn launch_task(
-    state: &WorkerState,
+    state: &mut WorkerState,
     task: &Task,
     allocation: &Allocation,
 ) -> crate::Result<(RunningTaskComm, SerializedTaskContext)> {
@@ -141,7 +155,7 @@ fn launch_task(
                 task_context,
             } = task_launch_data;
             let state_ref = state.state_ref();
-            tokio::task::spawn_local(handle_task_future(
+            state.comm().spawn_task(handle_task_future(
                 task_future,
                 state_ref,
                 task_id,
@@ -208,6 +222,7 @@ async fn handle_task_future(
         } => (allocation, outputs),
         _ => unreachable!(),
     };
+    state.running_tasks.remove(&task_id);
     state.allocator.release_allocation(allocation);
     state.lc_state.borrow_mut().unregister_token(&token);
     let mut task_updates = TaskUpdates::new();

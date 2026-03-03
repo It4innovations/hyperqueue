@@ -83,4 +83,16 @@ impl WorkerComm {
             WorkerComm::Test(_) => {}
         }
     }
+
+    pub fn spawn_task(&mut self, future: impl Future<Output = ()> + 'static) {
+        match self {
+            WorkerComm::Real(_) => {
+                tokio::task::spawn_local(future);
+            }
+            #[cfg(test)]
+            WorkerComm::Test(comm) => {
+                comm.start_task();
+            }
+        }
+    }
 }

@@ -7,7 +7,6 @@ use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{
     ComputeTasksMsg, NewWorkerMsg, TaskFinishedMsg, TaskIdsMsg, TaskOutput, ToWorkerMessage,
 };
-use crate::internal::messages::worker::{RetractResponse, RetractResponseMsg};
 use crate::internal::server::core::Core;
 use crate::internal::server::reactor::{
     on_cancel_tasks, on_new_tasks, on_new_worker, on_remove_worker, on_steal_response,
@@ -512,7 +511,8 @@ fn finish_task_without_outputs() {
 
 #[test]
 fn test_task_cancel() {
-    let mut rt = TestEnv::new();
+    todo!()
+    /*let mut rt = TestEnv::new();
     let ws = rt.new_workers_cpus(&[1, 1, 1]);
     let wf = submit_example_1(&mut rt);
 
@@ -549,7 +549,7 @@ fn test_task_cancel() {
 
     comm.check_need_scheduling();
     comm.emptiness_check();
-    rt.sanity_check();
+    rt.sanity_check();*/
 }
 
 #[test]
@@ -745,7 +745,8 @@ fn test_running_task() {
 
 #[test]
 fn test_finished_before_steal_response() {
-    let mut rt = TestEnv::new();
+    todo!()
+    /*let mut rt = TestEnv::new();
     let ws = rt.new_workers_cpus(&[1, 1, 1]);
     let t1 = rt.new_task_default();
     rt.assign_task(t1, ws[1]);
@@ -774,12 +775,13 @@ fn test_finished_before_steal_response() {
     comm.emptiness_check();
 
     assert!(!worker_has_task(rt.core(), ws[1], t1));
-    assert!(!worker_has_task(rt.core(), ws[2], t1));
+    assert!(!worker_has_task(rt.core(), ws[2], t1));*/
 }
 
 #[test]
 fn test_running_before_steal_response() {
-    let mut rt = TestEnv::new();
+    todo!()
+    /*let mut rt = TestEnv::new();
     let ws = rt.new_workers_cpus(&[1, 1, 1]);
     let t1 = rt.new_task_default();
     rt.assign_task(t1, ws[1]);
@@ -806,10 +808,12 @@ fn test_running_before_steal_response() {
 
     comm.emptiness_check();
     assert!(worker_has_task(rt.core(), ws[1], t1));
-    assert!(!worker_has_task(rt.core(), ws[2], t1));
+    assert!(!worker_has_task(rt.core(), ws[2], t1));*/
 }
 
 fn test_after_cancel_messages() {
+    todo!()
+    /*
     let mut rt = TestEnv::new();
     let ws = rt.new_workers_cpus(&[1, 1, 1]);
     let t1 = rt.new_task_assigned(&TaskBuilder::new(), ws[1]);
@@ -854,7 +858,7 @@ fn test_after_cancel_messages() {
     comm.emptiness_check();
 
     on_task_running(rt.core(), &mut comm, ws[1], task_running_msg(t4));
-    comm.emptiness_check();
+    comm.emptiness_check();*/
 }
 
 #[test]
@@ -917,18 +921,6 @@ fn lost_worker_with_running_and_assign_tasks() {
     comm.check_need_scheduling();
     comm.emptiness_check();
     rt.sanity_check();*/
-}
-
-fn fail_steal<W: Into<WorkerId>, T: Into<TaskId>>(core: &mut Core, task_id: T, worker_id: W) {
-    let mut comm = TestComm::new();
-    on_steal_response(
-        core,
-        &mut comm,
-        worker_id.into(),
-        RetractResponseMsg {
-            responses: vec![(task_id.into(), RetractResponse::Running)],
-        },
-    )
 }
 
 fn start_stealing<W: Into<WorkerId>>(core: &mut Core, task_id: TaskId, new_worker_id: W) {

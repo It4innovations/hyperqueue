@@ -5,15 +5,18 @@ use crate::internal::common::resources::map::GlobalResourceMapping;
 use crate::internal::common::resources::{
     NumOfNodes, ResourceAmount, ResourceId, ResourceRequestVariants,
 };
-use crate::internal::messages::worker::TaskRunningMsg;
+use crate::internal::messages::worker::{
+    ComputeTaskSeparateData, ComputeTaskSharedData, ComputeTasksMsg, TaskRunningMsg,
+};
 use crate::internal::server::core::Core;
 use crate::internal::server::reactor::get_or_create_raw_resource_rq_id;
 use crate::internal::server::task::{Task, TaskConfiguration};
-use crate::resources::{ResourceRequest, ResourceRqId};
+use crate::resources::{ResourceIdMap, ResourceRequest, ResourceRqId, ResourceRqMap};
 use crate::tests::utils::env::TestComm;
-use crate::{ResourceVariantId, Set, TaskId, UserPriority};
+use crate::{Priority, ResourceVariantId, Set, TaskId, UserPriority};
 use smallvec::SmallVec;
 use std::rc::Rc;
+use std::time::Duration;
 use thin_vec::ThinVec;
 
 #[derive(Clone)]
@@ -25,6 +28,7 @@ pub struct TaskBuilder {
     user_priority: UserPriority,
     crash_limit: CrashLimit,
     data_flags: TaskDataFlags,
+    time_limit: Option<Duration>,
 }
 
 impl TaskBuilder {
@@ -37,6 +41,7 @@ impl TaskBuilder {
             user_priority: 0.into(),
             crash_limit: CrashLimit::default(),
             data_flags: TaskDataFlags::empty(),
+            time_limit: None,
         }
     }
 
@@ -84,6 +89,11 @@ impl TaskBuilder {
         self
     }
 
+    pub fn time_limit(mut self, time_s: u64) -> TaskBuilder {
+        self.time_limit = Some(Duration::from_secs(time_s));
+        self
+    }
+
     pub fn add_resource<Id: Into<ResourceId>, A: Into<ResourceAmount>>(
         mut self,
         id: Id,
@@ -93,7 +103,15 @@ impl TaskBuilder {
         self
     }
 
-    pub fn build_resource_rq_id(&self, core: &mut Core) -> ResourceRqId {
+    pub fn build_resource_rq_id_into_map(
+        &self,
+        resource_rq_map: &mut ResourceRqMap,
+    ) -> ResourceRqId {
+        let rqv = self.build_rqv();
+        resource_rq_map.get_or_create(rqv)
+    }
+
+    pub fn build_rqv(&self) -> ResourceRequestVariants {
         let last_resource = self.resources_builder.clone().finish();
         let mut resources: SmallVec<[ResourceRequest; 1]> =
             self.finished_resources.iter().cloned().collect();
@@ -102,9 +120,12 @@ impl TaskBuilder {
         for rq in &resources {
             rq.validate().unwrap();
         }
-        let resources = ResourceRequestVariants::new(resources);
-        let (rq_id, _) =
-            get_or_create_raw_resource_rq_id(core, &mut TestComm::default(), resources);
+        ResourceRequestVariants::new(resources)
+    }
+
+    pub fn build_resource_rq_id(&self, core: &mut Core) -> ResourceRqId {
+        let rqv = self.build_rqv();
+        let (rq_id, _) = get_or_create_raw_resource_rq_id(core, &mut TestComm::default(), rqv);
         rq_id
     }
 
@@ -124,6 +145,33 @@ impl TaskBuilder {
                 body: Rc::new([]),
             }),
         )
+    }
+
+    pub fn build_compute_msg(
+        &self,
+        task_id: TaskId,
+        variant: ResourceVariantId,
+        resource_rq_map: &mut ResourceRqMap,
+    ) -> ComputeTasksMsg {
+        let rq_id = self.build_resource_rq_id_into_map(resource_rq_map);
+        ComputeTasksMsg {
+            tasks: vec![ComputeTaskSeparateData {
+                shared_index: 0,
+                id: task_id,
+                resource_rq_id: rq_id,
+                resource_rq_variant: variant.into(),
+                instance_id: Default::default(),
+                priority: Priority::from_user_priority(self.user_priority),
+                node_list: vec![],
+                data_deps: vec![],
+                entry: None,
+            }],
+            shared_data: vec![ComputeTaskSharedData {
+                time_limit: self.time_limit,
+                data_flags: TaskDataFlags::empty(),
+                body: Default::default(),
+            }],
+        }
     }
 }
 

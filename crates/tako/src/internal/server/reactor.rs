@@ -5,8 +5,7 @@ use crate::internal::common::resources::ResourceRqId;
 use crate::internal::common::{Map, Set};
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{
-    NewWorkerMsg, RetractResponse, RetractResponseMsg, TaskFinishedMsg, TaskIdsMsg, TaskRunningMsg,
-    ToWorkerMessage,
+    NewWorkerMsg, RetractResponseMsg, TaskFinishedMsg, TaskIdsMsg, TaskRunningMsg, ToWorkerMessage,
 };
 use crate::internal::scheduler::TaskQueue;
 use crate::internal::server::comm::Comm;
