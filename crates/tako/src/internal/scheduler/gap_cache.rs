@@ -6,8 +6,8 @@ use hashbrown::Equivalent;
 use std::cell::RefCell;
 
 #[derive(Default)]
-pub(crate) struct SchedulerCache {
-    inner: RefCell<SchedulerCacheInner>,
+pub(crate) struct GapCache {
+    inner: RefCell<GapCacheInner>,
 }
 
 #[derive(Hash, PartialEq, Eq)]
@@ -35,11 +35,11 @@ impl<'a> Equivalent<GapKey> for GapKeyRef<'a> {
 }
 
 #[derive(Default)]
-struct SchedulerCacheInner {
+struct GapCacheInner {
     resource_gaps: Map<GapKey, u32>,
 }
 
-impl SchedulerCache {
+impl GapCache {
     pub fn get_gap(
         &self,
         high_priority_rq: ResourceRqId,

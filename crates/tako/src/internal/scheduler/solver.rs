@@ -251,7 +251,7 @@ pub(crate) fn run_scheduling_solver(
                             if let Some((var, _)) =
                                 placements.get(&(w.id, batch.resource_rq_id, v_id))
                             {
-                                let gap = scheduler_cache.get_gap(
+                                let gap = scheduler_cache.gap_cache.get_gap(
                                     *blocker_rq_id,
                                     batch.resource_rq_id,
                                     v_id,

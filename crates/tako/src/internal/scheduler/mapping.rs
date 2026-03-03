@@ -52,11 +52,13 @@ pub(crate) fn create_task_mapping(
                                     rv_id: v_id,
                                 }
                             }
+                            TaskRuntimeState::Retracting { source } => {
+                                todo!()
+                            }
                             TaskRuntimeState::Assigned { worker_id, rv_id } => {
                                 unreachable!()
                             }
-                            /*TaskRuntimeState::Retracting { source }
-                            | TaskRuntimeState::Stealing { source, .. } => {
+                            /*| TaskRuntimeState::Stealing { source, .. } => {
                                 TaskRuntimeState::Stealing {
                                     source: *source,
                                     target: *w_id,

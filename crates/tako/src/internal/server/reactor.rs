@@ -181,23 +181,26 @@ pub(crate) fn on_task_running(
     if let Some(task) = task_map.find_task_mut(task_id) {
         let worker_ids = match &task.state {
             TaskRuntimeState::Assigned {
-                worker_id: w_id, rv_id: assigned_rv_id
-            }
-            /*| TaskRuntimeState::Retracting { source: w_id }
-            | TaskRuntimeState::Stealing { source: w_id, .. }*/ => {
+                worker_id: w_id,
+                rv_id: assigned_rv_id,
+            } => {
                 assert_eq!(*w_id, worker_id);
                 assert_eq!(*assigned_rv_id, rv_id);
                 comm.ask_for_scheduling();
-                task.state = TaskRuntimeState::Running {
-                    worker_id,
-                    rv_id,
-                };
+                task.state = TaskRuntimeState::Running { worker_id, rv_id };
                 /*let rqv = requests.get(task.resource_rq_id);
                 workers
                     .get_mut(&worker_id)
                     .unwrap()
                     .start_task(task_id, rqv.get(rv_id));*/
                 simple_worker_list.as_slice()
+            }
+            TaskRuntimeState::Retracting { source: w_id } => {
+                assert_eq!(*w_id, worker_id);
+                comm.ask_for_scheduling();
+                task.state = TaskRuntimeState::Running { worker_id, rv_id };
+                // Check for task redirection
+                todo!()
             }
             TaskRuntimeState::RunningMultiNode(ws) => {
                 // We have received that multi node task is started,
@@ -271,11 +274,9 @@ pub(crate) fn on_task_finished(
                 assert_eq!(ws[0], worker_id);
                 reset_mn_task_workers(worker_map, ws, task_id);
             }
-            /*TaskRuntimeState::Retracting { source: w_id }
-            | TaskRuntimeState::Stealing { source: w_id, .. } => {
-                assert_eq!(*w_id, worker_id);
-            }*/
-            TaskRuntimeState::Waiting { .. } | TaskRuntimeState::Finished => {
+            TaskRuntimeState::Retracting { .. }
+            | TaskRuntimeState::Waiting { .. }
+            | TaskRuntimeState::Finished => {
                 unreachable!();
             }
         }
@@ -570,10 +571,10 @@ pub(crate) fn on_cancel_tasks(core: &mut Core, comm: &mut impl Comm, task_ids: &
                     }
                     running_ids.entry(ws[0]).or_default().push(task_id);
                 }
-                /*TaskRuntimeState::Retracting { source }
-                | TaskRuntimeState::Stealing { source, .. } => {
+                TaskRuntimeState::Retracting { source } => {
+                    todo!(); // Need to check that task is nto redirected
                     running_ids.entry(source).or_default().push(task_id);
-                }*/
+                }
                 TaskRuntimeState::Finished => unreachable!(),
             };
         } else {

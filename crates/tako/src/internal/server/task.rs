@@ -28,14 +28,9 @@ pub enum TaskRuntimeState {
         worker_id: WorkerId,
         rv_id: ResourceVariantId,
     },
-    /*Retracting {
+    Retracting {
         source: WorkerId,
     },
-    Stealing {
-        source: WorkerId,
-        target: WorkerId,
-        rv_id: ResourceVariantId,
-    },*/
     Running {
         worker_id: WorkerId,
         rv_id: ResourceVariantId,
@@ -50,12 +45,7 @@ impl fmt::Debug for TaskRuntimeState {
         match self {
             Self::Waiting { unfinished_deps } => write!(f, "W({})", unfinished_deps),
             Self::Assigned { worker_id, rv_id } => write!(f, "A({worker_id}, {rv_id})"),
-            /*Self::Retracting { source } => write!(f, "S({source})"),
-            Self::Stealing {
-                source,
-                target,
-                rv_id,
-            } => write!(f, "S({source} -> {target}, {rv_id})"),*/
+            Self::Retracting { source } => write!(f, "S({source})"),
             Self::Running { worker_id, rv_id } => write!(f, "R({worker_id}, {rv_id})"),
             Self::RunningMultiNode(ws) => write!(f, "M({ws:?})"),
             Self::Finished => write!(f, "F"),
@@ -75,20 +65,10 @@ impl TaskRuntimeState {
                 "worker_id": worker_id,
                 "rv_id": rv_id,
             }),
-            /*Self::Retracting { source } => json!({
+            Self::Retracting { source } => json!({
                 "state": "Retracting",
                 "from_worker": source,
             }),
-            Self::Stealing {
-                source,
-                target,
-                rv_id,
-            } => json!({
-                "state": "Stealing",
-                "from_worker": source,
-                "to_worker": target,
-                "rv_id": rv_id,
-            }),*/
             Self::Running { worker_id, .. } => json!({
                 "state": "Running",
                 "worker_id": worker_id,
