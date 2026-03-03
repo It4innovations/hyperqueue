@@ -33,7 +33,9 @@ impl WorkerTaskBuilder {
             priority: Priority::new(0),
             data_deps: Vec::new(),
             data_flags: TaskDataFlags::empty(),
-            task_state: TaskState::Waiting(0),
+            task_state: TaskState::Waiting {
+                waiting_data_objects: 0,
+            },
         }
     }
     pub fn resources(mut self, resources: ResourceRequest) -> Self {
@@ -60,6 +62,7 @@ impl WorkerTaskBuilder {
                 shared_index: 0,
                 id: self.task_id,
                 instance_id: self.instance_id,
+                resource_rq_variant: 0.into(),
                 priority: self.priority,
                 node_list: vec![],
                 data_deps: self.data_deps,

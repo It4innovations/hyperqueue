@@ -6,7 +6,7 @@ use crate::internal::common::resources::map::{
 };
 use crate::internal::common::resources::{ResourceId, ResourceRequestVariants, ResourceRqId};
 use crate::internal::common::{Set, WrappedRcRefCell};
-use crate::internal::scheduler::{SchedulerCache, TaskQueue, TaskQueues};
+use crate::internal::scheduler::{SchedulerState, TaskQueue, TaskQueues};
 use crate::internal::server::dataobj::{DataObjectHandle, ObjsToRemoveFromWorkers};
 use crate::internal::server::dataobjmap::DataObjectMap;
 use crate::internal::server::rpc::ConnectionDescriptor;
@@ -38,7 +38,7 @@ pub(crate) struct CoreSplit<'a> {
     pub task_queues: &'a TaskQueues,
     pub data_objects: &'a DataObjectMap,
     pub worker_groups: &'a Map<String, WorkerGroup>,
-    pub scheduler_cache: &'a SchedulerCache,
+    pub scheduler_cache: &'a SchedulerState,
 }
 
 #[derive(Default)]
@@ -49,7 +49,7 @@ pub struct Core {
     task_queues: TaskQueues,
     data_objects: DataObjectMap,
     worker_groups: Map<String, WorkerGroup>,
-    scheduler_cache: SchedulerCache,
+    scheduler_state: SchedulerState,
 
     maximal_task_id: TaskId,
     worker_id_counter: u32,
@@ -110,7 +110,7 @@ impl Core {
             task_queues: &self.task_queues,
             data_objects: &self.data_objects,
             worker_groups: &self.worker_groups,
-            scheduler_cache: &self.scheduler_cache,
+            scheduler_cache: &self.scheduler_state,
         }
     }
 
@@ -391,17 +391,10 @@ impl Core {
                     fw_check(task);
                     worker_check_sn(self, task.id, *worker_id);
                 }
-                /*TaskRuntimeState::Retracting { source: _ } => {
+                TaskRuntimeState::Retracting { source: _ } => {
                     fw_check(task);
                     worker_check_sn(self, task.id, WorkerId::new(0));
                 }
-
-                TaskRuntimeState::Stealing {
-                    source: _, target, ..
-                } => {
-                    fw_check(task);
-                    worker_check_sn(self, task.id, *target);
-                }*/
                 TaskRuntimeState::Finished => {
                     for task_dep in &task.task_deps {
                         assert!(self.tasks.find_task(*task_dep).is_none());
