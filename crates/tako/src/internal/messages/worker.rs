@@ -1,5 +1,4 @@
-use crate::datasrv::{DataObjectId, OutputId};
-use crate::gateway::{EntryType, TaskDataFlags};
+use crate::gateway::EntryType;
 use crate::hwstats::WorkerHwStateMessage;
 use crate::internal::common::resources::map::ResourceRqMap;
 use crate::internal::common::resources::{ResourceAmount, ResourceIndex, ResourceRqId};
@@ -35,14 +34,12 @@ pub struct ComputeTaskSeparateData {
     pub instance_id: InstanceId,
     pub priority: Priority,
     pub node_list: Vec<WorkerId>,
-    pub data_deps: Vec<DataObjectId>,
     pub entry: Option<EntryType>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct ComputeTaskSharedData {
     pub time_limit: Option<Duration>,
-    pub data_flags: TaskDataFlags,
     pub body: Rc<[u8]>,
 }
 
@@ -86,22 +83,13 @@ pub enum ToWorkerMessage {
     /// if it is **disabled** on the worker.
     /// If the worker has already enabled overview interval, then this does nothing.
     SetOverviewIntervalOverride(Option<Duration>),
-    RemoveDataObjects(SmallVec<[DataObjectId; 1]>),
-    PlacementResponse(DataObjectId, Option<WorkerId>),
     NewResourceRequest(ResourceRqId, ResourceRequestVariants),
     Stop,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct TaskOutput {
-    pub id: OutputId,
-    pub size: u64,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
 pub struct TaskFinishedMsg {
     pub task_id: TaskId,
-    pub outputs: Vec<TaskOutput>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -138,35 +126,10 @@ pub struct TaskResourceAllocation {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct DataObjectOverview {
-    pub id: DataObjectId,
-    pub size: u64,
-}
-
-#[derive(Default, Debug, Clone, Serialize, Deserialize)]
-pub struct DataStorageStats {
-    pub locally_uploaded_objects: u32,
-    pub locally_uploaded_bytes: u64,
-    pub locally_downloaded_objects: u32,
-    pub locally_downloaded_bytes: u64,
-    pub remotely_uploaded_objects: u32,
-    pub remotely_uploaded_bytes: u64,
-    pub remotely_downloaded_objects: u32,
-    pub remotely_downloaded_bytes: u64,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct DataNodeOverview {
-    pub objects: Vec<DataObjectOverview>,
-    pub stats: DataStorageStats,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WorkerOverview {
     pub id: WorkerId,
     pub running_tasks: Vec<(TaskId, TaskResourceAllocation)>,
     pub hw_state: Option<WorkerHwStateMessage>,
-    pub data_node: DataNodeOverview,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -200,8 +163,6 @@ pub enum FromWorkerMessage {
     Overview(Box<WorkerOverview>),
     Heartbeat,
     Stop(WorkerStopReason),
-    PlacementQuery(DataObjectId),
-    NewPlacement(DataObjectId),
     Notify(WorkerNotifyMessage),
 }
 

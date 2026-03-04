@@ -16,7 +16,6 @@ pub struct LocalClientConnection {
 #[derive(Serialize, Deserialize)]
 pub enum LocalConnectionType {
     Notifier,
-    Data,
 }
 
 impl LocalClientConnection {

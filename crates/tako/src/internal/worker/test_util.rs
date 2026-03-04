@@ -1,5 +1,3 @@
-use crate::datasrv::DataObjectId;
-use crate::gateway::TaskDataFlags;
 use crate::internal::common::Map;
 use crate::internal::common::resources::map::ResourceRqMap;
 use crate::internal::common::resources::{Allocation, ResourceRequest, ResourceRequestVariants};
@@ -18,8 +16,6 @@ pub struct WorkerTaskBuilder {
     instance_id: InstanceId,
     resources: Vec<ResourceRequest>,
     priority: Priority,
-    data_deps: Vec<DataObjectId>,
-    data_flags: TaskDataFlags,
     task_state: TaskState,
 }
 
@@ -30,11 +26,7 @@ impl WorkerTaskBuilder {
             instance_id: 0.into(),
             resources: Vec::new(),
             priority: Priority::new(0),
-            data_deps: Vec::new(),
-            data_flags: TaskDataFlags::empty(),
-            task_state: TaskState::Waiting {
-                waiting_data_objects: 0,
-            },
+            task_state: TaskState::Waiting,
         }
     }
     pub fn resources(mut self, resources: ResourceRequest) -> Self {
@@ -64,15 +56,12 @@ impl WorkerTaskBuilder {
                 resource_rq_variant: 0.into(),
                 priority: self.priority,
                 node_list: vec![],
-                data_deps: self.data_deps,
                 entry: None,
             },
             ComputeTaskSharedData {
                 time_limit: None,
-                data_flags: self.data_flags,
                 body: Default::default(),
             },
-            self.task_state,
         )
     }
 }

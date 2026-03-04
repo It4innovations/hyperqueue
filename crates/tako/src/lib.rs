@@ -52,7 +52,6 @@ pub mod resources {
 
 pub mod server {
     pub use crate::control::server_start;
-    pub use crate::internal::server::dataobj::ObjsToRemoveFromWorkers;
     pub use crate::internal::server::explain::{TaskExplainItem, TaskExplanation};
     pub use crate::internal::server::rpc::ConnectionDescriptor;
 }
@@ -67,11 +66,6 @@ pub mod worker {
 
 pub mod task {
     pub type SerializedTaskContext = Vec<u8>;
-}
-
-pub mod datasrv {
-    pub use crate::internal::datasrv::dataobj::{DataInputId, DataObjectId, OutputId};
-    pub use crate::internal::datasrv::local_client::LocalDataClient;
 }
 
 pub mod tests {

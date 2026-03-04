@@ -1,12 +1,10 @@
-use crate::datasrv::DataObjectId;
 use crate::internal::common::resources::map::{ResourceIdMap, ResourceRqMap};
 use crate::internal::common::resources::{Allocation, ResourceRqId};
 use crate::internal::common::stablemap::StableMap;
 use crate::internal::common::{Map, Set, WrappedRcRefCell};
-use crate::internal::datasrv::{DataObjectRef, DataStorage};
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{
-    FromWorkerMessage, NewWorkerMsg, TaskFailedMsg, TaskFinishedMsg, TaskOutput, TaskUpdates,
+    FromWorkerMessage, NewWorkerMsg, TaskFailedMsg, TaskFinishedMsg, TaskUpdates,
     WorkerNotifyMessage,
 };
 use crate::internal::server::workerload::WorkerResources;
@@ -17,7 +15,6 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use crate::internal::worker::data::download::WorkerDownloadManagerRef;
 use crate::internal::worker::localcomm::LocalCommState;
 use crate::internal::worker::resources::allocator::ResourceAllocator;
 use crate::internal::worker::resources::map::ResourceLabelMap;
@@ -55,10 +52,6 @@ pub struct WorkerState {
     pub(crate) start_time: Instant,
 
     pub(crate) lc_state: RefCell<LocalCommState>,
-    pub(crate) data_storage: DataStorage,
-    download_manager: Option<WorkerDownloadManagerRef>,
-    tasks_waiting_for_data: Map<DataObjectId, Set<TaskId>>,
-    placement_resolver: Map<DataObjectId, oneshot::Sender<Option<String>>>,
 
     pub resource_rq_map: ResourceRqMap,
     resource_id_map: ResourceIdMap,
@@ -91,21 +84,6 @@ impl WorkerState {
         &mut self.allocator
     }
 
-    pub fn process_resolved_placement(
-        &mut self,
-        data_id: DataObjectId,
-        worker_id: Option<WorkerId>,
-    ) {
-        if let Some(sender) = self.placement_resolver.remove(&data_id) {
-            let host = worker_id.and_then(|id| self.worker_addresses.get(&id).cloned());
-            let _ = sender.send(host);
-        }
-    }
-
-    pub(crate) fn set_download_manager(&mut self, dm_ref: WorkerDownloadManagerRef) {
-        self.download_manager = Some(dm_ref);
-    }
-
     #[inline]
     pub fn get_task(&self, task_id: TaskId) -> &Task {
         self.tasks.get(&task_id)
@@ -114,10 +92,6 @@ impl WorkerState {
     #[inline]
     pub fn find_task(&self, task_id: TaskId) -> Option<&Task> {
         self.tasks.find(&task_id)
-    }
-
-    pub(crate) fn tasks_and_storage(&mut self) -> (&mut TaskMap, &mut DataStorage) {
-        (&mut self.tasks, &mut self.data_storage)
     }
 
     pub(crate) fn remaining_time(&self) -> Option<Duration> {
@@ -183,15 +157,7 @@ impl WorkerState {
     }
 
     pub fn drop_non_running_tasks(&mut self) {
-        log::debug!("Dropping non running tasks");
-        let non_running_tasks: Vec<TaskId> = self
-            .tasks
-            .values()
-            .filter_map(|t| if t.is_running() { None } else { Some(t.id) })
-            .collect();
-        for task_id in non_running_tasks {
-            self.cancel_task(task_id);
-        }
+        // Do nothing in this version
     }
 
     pub fn cancel_task(&mut self, task_id: TaskId) {
@@ -209,21 +175,7 @@ impl WorkerState {
                     comm.send_cancel_notification();
                     return;
                 }
-                TaskState::Waiting {
-                    waiting_data_objects,
-                } => {
-                    let waiting_data_objects = *waiting_data_objects;
-                    let task = self.remove_task(task_id).unwrap();
-                    if waiting_data_objects > 0
-                        && let Some(data_deps) = task.data_deps
-                    {
-                        todo!(); // FIXME: Just cancel finished downloads?
-                        let mut dm = self.download_manager.as_ref().unwrap().get_mut();
-                        for data_id in data_deps.iter() {
-                            dm.cancel_download(*data_id);
-                        }
-                    };
-                }
+                TaskState::Waiting => unreachable!(),
             },
         };
     }
@@ -242,16 +194,6 @@ impl WorkerState {
             self.remove_task(task_id, false, false);
         }
         response*/
-    }
-
-    pub fn ask_for_data_placement(
-        &mut self,
-        data_id: DataObjectId,
-        sender: oneshot::Sender<Option<String>>,
-    ) {
-        self.placement_resolver.insert(data_id, sender);
-        self.comm
-            .send_message_to_server(FromWorkerMessage::PlacementQuery(data_id))
     }
 
     /*pub fn finish_task(&mut self, task_id: TaskId) {
@@ -339,74 +281,8 @@ impl WorkerState {
             }))
     }
 
-    pub fn on_download_finished(&mut self, data_id: DataObjectId, data_ref: DataObjectRef) {
-        todo!()
-        /*
-        self.data_storage.add_stats_remote_download(data_ref.size());
-        self.data_storage.put_object(data_id, data_ref).unwrap();
-        self.comm
-            .send_message_to_server(FromWorkerMessage::NewPlacement(data_id));
-        if let Some(tasks) = self.tasks_waiting_for_data.remove(&data_id) {
-            let mut new_ready = false;
-            for task_id in tasks {
-                if let Some(task) = self.tasks.find_mut(&task_id) {
-                    log::debug!("Task {} is directly ready", task.id);
-                    if task.decrease_waiting_count() {
-                        self.ready_task_queue.add_task(&self.resource_rq_map, task);
-                        new_ready = true;
-                    }
-                }
-            }
-            if new_ready {
-                self.schedule_task_start();
-            }
-        }*/
-    }
-
-    pub fn on_download_failed(&mut self, data_id: DataObjectId) {
-        todo!()
-        /*log::debug!("Data {data_id} download failed");
-        if let Some(tasks) = self.tasks_waiting_for_data.remove(&data_id) {
-            for task_id in tasks {
-                if let Some(task) = self.tasks.find_mut(&task_id) {
-                    log::debug!("Task {task_id} failed because of failed download");
-                    let input_idx = task
-                        .data_deps
-                        .as_ref()
-                        .unwrap()
-                        .iter()
-                        .enumerate()
-                        .find(|(_, id)| **id == data_id)
-                        .unwrap()
-                        .0;
-                    self.remove_task(task_id, false, false);
-                    let message = format!(
-                        "Fails to download data object {data_id}; it has input index {input_idx}"
-                    );
-                    let message = FromWorkerMessage::TaskFailed(TaskFailedMsg {
-                        task_id: task_id,
-                        info: TaskFailInfo { message },
-                    });
-                    self.comm.send_message_to_server(message);
-                }
-            }
-        }*/
-    }
-
     pub fn register_resource_rq(&mut self, rqv: ResourceRequestVariants) -> ResourceRqId {
         self.resource_rq_map.insert(rqv)
-    }
-
-    pub fn download_object(&mut self, data_id: DataObjectId, task_id: TaskId, priority: Priority) {
-        self.tasks_waiting_for_data
-            .entry(data_id)
-            .or_default()
-            .insert(task_id);
-        self.download_manager
-            .as_ref()
-            .unwrap()
-            .get_mut()
-            .download_object(data_id, priority);
     }
 }
 
@@ -446,10 +322,6 @@ impl WorkerStateRef {
             resource_label_map,
             worker_addresses: Default::default(),
             lc_state: RefCell::new(LocalCommState::new()),
-            data_storage: DataStorage::new(),
-            download_manager: None,
-            tasks_waiting_for_data: Map::new(),
-            placement_resolver: Map::new(),
             state_ref: None,
         });
         state.get_mut().state_ref = Some(state.clone());

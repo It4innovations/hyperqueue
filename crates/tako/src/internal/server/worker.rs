@@ -9,6 +9,7 @@ use crate::internal::server::comm::Comm;
 use crate::internal::server::taskmap::TaskMap;
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::configuration::WorkerConfiguration;
+use crate::resources::ResourceRqId;
 use crate::{Map, TaskId, WorkerId};
 use serde_json::json;
 use std::time::{Duration, Instant};
@@ -186,6 +187,18 @@ impl Worker {
             WorkerAssignment::Mn(_) => unreachable!(),
         }
     }
+
+    /*pub fn insert_prefill_task(&mut self, task_id: TaskId, resource_rq_id: ResourceRqId) {
+        match &mut self.assignment {
+            WorkerAssignment::Sn(a) => {
+                a.prefilled
+                    .entry(resource_rq_id)
+                    .or_default()
+                    .insert(task_id);
+            }
+            WorkerAssignment::Mn(_) => unreachable!(),
+        }
+    }*/
 
     /*pub fn start_task(&mut self, task_id: TaskId, rq: &ResourceRequest) {
         match &mut self.assignment {

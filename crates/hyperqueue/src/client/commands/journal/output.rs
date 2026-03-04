@@ -29,17 +29,11 @@ fn format_payload(event: EventPayload) -> serde_json::Value {
             "reason": reason
         }),
         EventPayload::WorkerOverviewReceived(overview) => {
-            let WorkerOverview {
-                id,
-                hw_state,
-                data_node,
-                ..
-            } = *overview;
+            let WorkerOverview { id, hw_state, .. } = *overview;
             json!({
                 "type": "worker-overview",
                 "id": id,
                 "hw-state": hw_state,
-                "data-node": data_node,
             })
         }
         EventPayload::AllocationQueueCreated(id, params) => {

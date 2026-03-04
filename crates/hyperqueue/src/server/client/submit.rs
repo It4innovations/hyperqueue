@@ -3,9 +3,7 @@ use std::borrow::Cow;
 use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
 use std::rc::Rc;
-use tako::gateway::{
-    EntryType, SharedTaskConfiguration, TaskConfiguration, TaskDataFlags, TaskSubmit,
-};
+use tako::gateway::{EntryType, SharedTaskConfiguration, TaskConfiguration, TaskSubmit};
 use tako::{Map, Set, TaskId};
 use thin_vec::ThinVec;
 
@@ -390,7 +388,6 @@ fn build_tasks_array(
         resource_rq_id,
         shared_data_index: 0,
         task_deps: ThinVec::new(),
-        dataobj_deps: ThinVec::new(),
         entry,
     };
 
@@ -418,7 +415,6 @@ fn build_tasks_array(
             time_limit: task_desc.time_limit,
             priority: task_desc.priority,
             crash_limit: task_desc.crash_limit,
-            data_flags: TaskDataFlags::empty(),
             body: serialize_task_body(task_desc, submit_dir, stream_path),
         }],
         adjust_instance_id_and_crash_counters: Default::default(),
@@ -433,13 +429,12 @@ fn build_tasks_graph(
     stream_path: Option<&PathBuf>,
 ) -> TaskSubmit {
     let mut shared_data = vec![];
-    let mut allocate_shared_data = |task: &TaskDescription, data_flags: TaskDataFlags| -> u32 {
+    let mut allocate_shared_data = |task: &TaskDescription| -> u32 {
         let index = shared_data.len();
         shared_data.push(SharedTaskConfiguration {
             time_limit: task.time_limit,
             priority: task.priority,
             crash_limit: task.crash_limit,
-            data_flags,
             body: serialize_task_body(task, submit_dir, stream_path),
         });
         index as u32
@@ -447,19 +442,9 @@ fn build_tasks_graph(
 
     let mut task_configs = Vec::with_capacity(tasks.len());
     for task in tasks {
-        let shared_data_index = allocate_shared_data(&task.task_desc, task.data_flags);
+        let shared_data_index = allocate_shared_data(&task.task_desc);
 
         let mut task_dep_ids: Set<JobTaskId> = task.task_deps.iter().copied().collect();
-
-        let dataobj_deps = task
-            .data_deps
-            .iter()
-            .map(|job_do_id| {
-                // If we depend on data from a task, we need to depends on the whole task
-                task_dep_ids.insert(job_do_id.task_id);
-                job_do_id.to_dataobj_id(job_id)
-            })
-            .collect();
 
         let task_deps = task_dep_ids
             .into_iter()
@@ -471,7 +456,6 @@ fn build_tasks_graph(
             resource_rq_id: resources[task.resource_rq_id.as_usize()],
             shared_data_index,
             task_deps,
-            dataobj_deps,
             entry: None,
         });
     }
@@ -543,7 +527,7 @@ mod tests {
     use chrono::Utc;
     use std::path::PathBuf;
     use std::time::Duration;
-    use tako::gateway::{CrashLimit, ResourceRequestVariants, TaskDataFlags};
+    use tako::gateway::{CrashLimit, ResourceRequestVariants};
     use tako::internal::tests::utils::sorted_vec;
     use tako::program::ProgramDefinition;
     use tako::resources::ResourceRqId;
@@ -592,8 +576,6 @@ mod tests {
                 resource_rq_id: LocalResourceRqId::new(0),
                 task_desc: task_desc(None, UserPriority::default()),
                 task_deps: vec![],
-                data_deps: vec![],
-                data_flags: TaskDataFlags::empty(),
             }],
         };
         assert!(validate_submit(None, &job_task_desc).is_none());
@@ -609,16 +591,12 @@ mod tests {
                     resource_rq_id: LocalResourceRqId::new(0),
                     task_desc: task_desc(None, UserPriority::default()),
                     task_deps: vec![],
-                    data_deps: vec![],
-                    data_flags: TaskDataFlags::empty(),
                 },
                 TaskWithDependencies {
                     id: 2.into(),
                     resource_rq_id: LocalResourceRqId::new(0),
                     task_desc: task_desc(None, UserPriority::default()),
                     task_deps: vec![],
-                    data_deps: vec![],
-                    data_flags: TaskDataFlags::empty(),
                 },
             ],
         };
@@ -633,8 +611,6 @@ mod tests {
                 resource_rq_id: LocalResourceRqId::new(0),
                 task_desc: task_desc(None, UserPriority::default()),
                 task_deps: vec![3.into()],
-                data_deps: vec![],
-                data_flags: TaskDataFlags::empty(),
             }],
         };
         assert!(matches!(
@@ -648,8 +624,6 @@ mod tests {
                 resource_rq_id: LocalResourceRqId::new(0),
                 task_desc: task_desc(None, UserPriority::default()),
                 task_deps: vec![2.into()],
-                data_deps: vec![],
-                data_flags: TaskDataFlags::empty(),
             }],
         };
         assert!(matches!(
@@ -727,8 +701,6 @@ mod tests {
             resource_rq_id: LocalResourceRqId::new(resource_rq_id),
             task_desc,
             task_deps: dependencies.into_iter().map(|id| id.into()).collect(),
-            data_deps: vec![],
-            data_flags: TaskDataFlags::empty(),
         }
     }
 }

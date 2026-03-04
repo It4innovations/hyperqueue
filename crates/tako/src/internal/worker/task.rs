@@ -1,10 +1,7 @@
-use crate::datasrv::DataObjectId;
-use crate::gateway::{EntryType, TaskDataFlags};
+use crate::gateway::EntryType;
 use crate::internal::common::resources::Allocation;
 use crate::internal::common::stablemap::ExtractKey;
-use crate::internal::messages::worker::{
-    ComputeTaskSeparateData, ComputeTaskSharedData, TaskOutput,
-};
+use crate::internal::messages::worker::{ComputeTaskSeparateData, ComputeTaskSharedData};
 use crate::internal::worker::task_comm::RunningTaskComm;
 use crate::resources::ResourceRqId;
 use crate::{InstanceId, Priority, ResourceVariantId, TaskId, WorkerId};
@@ -12,13 +9,10 @@ use std::rc::Rc;
 use std::time::Duration;
 
 pub enum TaskState {
-    Waiting {
-        waiting_data_objects: u32,
-    },
+    Waiting,
     Running {
         comm: RunningTaskComm,
         allocation: Rc<Allocation>,
-        outputs: Vec<TaskOutput>,
     },
 }
 
@@ -34,19 +28,12 @@ pub struct Task {
     pub body: Rc<[u8]>,
     pub entry: Option<EntryType>,
     pub node_list: Vec<WorkerId>, // Filled in multi-node tasks; otherwise empty
-
-    pub data_deps: Option<Rc<Vec<DataObjectId>>>,
-    pub data_flags: TaskDataFlags,
 }
 
 impl Task {
-    pub fn new(
-        task: ComputeTaskSeparateData,
-        shared: ComputeTaskSharedData,
-        task_state: TaskState,
-    ) -> Self {
+    pub fn new(task: ComputeTaskSeparateData, shared: ComputeTaskSharedData) -> Self {
         Self {
-            state: task_state,
+            state: TaskState::Waiting,
             id: task.id,
             priority: task.priority,
             instance_id: task.instance_id,
@@ -56,29 +43,7 @@ impl Task {
             body: shared.body,
             entry: task.entry,
             node_list: task.node_list,
-            data_deps: (!task.data_deps.is_empty()).then(|| Rc::new(task.data_deps)),
-            data_flags: shared.data_flags,
         }
-    }
-
-    #[inline]
-    pub fn is_waiting(&self) -> bool {
-        matches!(self.state, TaskState::Waiting { .. })
-    }
-
-    #[inline]
-    pub fn is_ready(&self) -> bool {
-        matches!(
-            self.state,
-            TaskState::Waiting {
-                waiting_data_objects: 0
-            }
-        )
-    }
-
-    #[inline]
-    pub fn is_running(&self) -> bool {
-        matches!(self.state, TaskState::Running { .. })
     }
 
     pub fn resource_allocation(&self) -> Option<&Allocation> {
@@ -92,52 +57,6 @@ impl Task {
         match self.state {
             TaskState::Running { ref mut comm, .. } => Some(comm),
             _ => None,
-        }
-    }
-
-    pub fn get_waiting(&self) -> u32 {
-        match self.state {
-            TaskState::Waiting {
-                waiting_data_objects,
-            } => waiting_data_objects,
-            _ => 0,
-        }
-    }
-
-    pub fn decrease_waiting_count(&mut self) -> bool {
-        match &mut self.state {
-            TaskState::Waiting {
-                waiting_data_objects,
-            } => {
-                assert!(*waiting_data_objects > 0);
-                *waiting_data_objects -= 1;
-                *waiting_data_objects == 0
-            }
-            _ => unreachable!(),
-        }
-    }
-
-    pub fn increase_waiting_count(&mut self) {
-        match &mut self.state {
-            TaskState::Waiting {
-                waiting_data_objects,
-            } => {
-                *waiting_data_objects += 1;
-            }
-            _ => unreachable!(),
-        }
-    }
-
-    pub fn need_data_layer(&self) -> bool {
-        self.data_flags.contains(TaskDataFlags::ENABLE_DATA_LAYER)
-    }
-
-    pub fn add_output(&mut self, task_output: TaskOutput) {
-        match &mut self.state {
-            TaskState::Waiting { .. } => {
-                panic!("Task is not in valid state");
-            }
-            TaskState::Running { outputs, .. } => outputs.push(task_output),
         }
     }
 }

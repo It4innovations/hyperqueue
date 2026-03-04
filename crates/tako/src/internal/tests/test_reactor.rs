@@ -1,11 +1,10 @@
 use std::time::{Duration, Instant};
 
-use crate::datasrv::DataObjectId;
 use crate::gateway::LostWorkerReason;
 use crate::internal::common::resources::ResourceDescriptor;
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{
-    ComputeTasksMsg, NewWorkerMsg, TaskFinishedMsg, TaskIdsMsg, TaskOutput, ToWorkerMessage,
+    ComputeTasksMsg, NewWorkerMsg, TaskFinishedMsg, TaskIdsMsg, ToWorkerMessage,
 };
 use crate::internal::server::core::Core;
 use crate::internal::server::reactor::{
@@ -230,10 +229,7 @@ fn test_submit_jobs() {
 }
 
 fn no_data_task_finished(task_id: TaskId) -> TaskFinishedMsg {
-    TaskFinishedMsg {
-        task_id: task_id,
-        outputs: vec![],
-    }
+    TaskFinishedMsg { task_id: task_id }
 }
 
 #[test]
@@ -995,163 +991,4 @@ fn test_worker_groups() {
     let mut comm = TestComm::new();
     on_remove_worker(rt.core(), &mut comm, ws[0], LostWorkerReason::HeartbeatLost);
     assert!(rt.core().worker_group("default").is_none());
-}
-
-#[test]
-fn test_data_deps_no_output() {
-    let mut rt = TestEnv::new();
-    let w1 = rt.new_worker_cpus(4);
-    let t1 = rt.new_task_default();
-    let t2 = rt.new_task(&TaskBuilder::new().data_dep(t1, 11));
-    rt.assign_task(t1, w1);
-    rt.sanity_check();
-    let mut comm = TestComm::new();
-    on_task_finished(
-        rt.core(),
-        &mut comm,
-        w1,
-        TaskFinishedMsg {
-            task_id: t1,
-            outputs: vec![],
-        },
-    );
-    assert_eq!(comm.client.take_task_finished(1), vec![t1]);
-    let errors = comm.client.take_task_errors(1);
-    assert_eq!(errors[0].0, t2);
-    assert_eq!(
-        &errors[0].2.message,
-        "Task 1@1 did not produced expected output(s): 11"
-    );
-    comm.check_need_scheduling();
-    comm.emptiness_check();
-}
-
-#[test]
-fn test_data_deps_missing_outputs() {
-    let mut rt = TestEnv::new();
-    let w1 = rt.new_worker_cpus(4);
-    let t1 = rt.new_task_default();
-    let t2 = rt.new_task(
-        &TaskBuilder::new()
-            .data_dep(t1, 10)
-            .data_dep(t1, 11)
-            .data_dep(t1, 100)
-            .data_dep(t1, 101),
-    );
-    rt.assign_task(t1, w1);
-    rt.sanity_check();
-    let mut comm = TestComm::new();
-    on_task_finished(
-        rt.core(),
-        &mut comm,
-        w1,
-        TaskFinishedMsg {
-            task_id: t1,
-            outputs: vec![
-                TaskOutput {
-                    id: 10.into(),
-                    size: 500,
-                },
-                TaskOutput {
-                    id: 101.into(),
-                    size: 12,
-                },
-                TaskOutput {
-                    id: 405.into(),
-                    size: 12,
-                },
-                TaskOutput {
-                    id: 406.into(),
-                    size: 12,
-                },
-            ],
-        },
-    );
-    assert_eq!(comm.client.take_task_finished(1), vec![t1]);
-    let errors = comm.client.take_task_errors(1);
-    assert_eq!(errors[0].0, t2);
-    assert_eq!(
-        &errors[0].2.message,
-        "Task 1@1 did not produced expected output(s): 11, 100"
-    );
-    let messages = comm.take_worker_msgs(w1, 2);
-    assert!(
-        matches!(&messages[0], ToWorkerMessage::RemoveDataObjects(x) if sorted_vec(x.to_vec()) == vec![DataObjectId::new(t1, 405.into()), DataObjectId::new(t1, 406.into())])
-    );
-    assert!(
-        matches!(&messages[1], ToWorkerMessage::RemoveDataObjects(x) if sorted_vec(x.to_vec()) == vec![DataObjectId::new(t1, 10.into()), DataObjectId::new(t1, 101.into())])
-    );
-    comm.check_need_scheduling();
-    comm.emptiness_check();
-}
-
-#[test]
-fn test_data_deps_basic() {
-    let mut rt = TestEnv::new();
-    let t1 = rt.new_task_default();
-    let t2 = rt.new_task(&TaskBuilder::new().data_dep(t1, 0));
-    let t3 = rt.new_task(&TaskBuilder::new().data_dep(t2, 123).data_dep(t2, 478));
-    assert_eq!(rt.task(t2).task_deps, [t1]);
-    rt.core().assert_waiting(&[t2, t3]);
-    rt.core().assert_ready(&[t1]);
-    let w1 = rt.new_worker_cpus(4);
-    let mut comm = TestComm::new();
-    rt.assign_task(t1, w1);
-
-    on_task_finished(
-        rt.core(),
-        &mut comm,
-        w1,
-        TaskFinishedMsg {
-            task_id: t1,
-            outputs: vec![TaskOutput {
-                id: 0.into(),
-                size: 1,
-            }],
-        },
-    );
-    comm.check_need_scheduling();
-    comm.client.take_task_finished(1);
-    comm.emptiness_check();
-
-    rt.core().assert_waiting(&[t3]);
-    rt.core().assert_ready(&[t2]);
-
-    rt.assign_task(t2, w1);
-
-    let o = rt.core().dataobj_map();
-    assert_eq!(o.len(), 1);
-    o.get_data_object(DataObjectId::new(t1, 0.into()));
-
-    on_task_finished(
-        rt.core(),
-        &mut comm,
-        w1,
-        TaskFinishedMsg {
-            task_id: t2,
-            outputs: vec![
-                TaskOutput {
-                    id: 123.into(),
-                    size: 1,
-                },
-                TaskOutput {
-                    id: 478.into(),
-                    size: 1,
-                },
-            ],
-        },
-    );
-    comm.check_need_scheduling();
-    let messages = comm.take_worker_msgs(w1, 1);
-    assert!(
-        matches!(&messages[0], ToWorkerMessage::RemoveDataObjects(x) if x.len() == 1 && x[0] == DataObjectId::new(t1, 0.into()))
-    );
-    comm.client.take_task_finished(1);
-    comm.emptiness_check();
-    rt.core().assert_ready(&[t3]);
-
-    let o = rt.core().dataobj_map();
-    assert_eq!(o.len(), 2);
-    o.get_data_object(DataObjectId::new(t2, 123.into()));
-    o.get_data_object(DataObjectId::new(t2, 478.into()));
 }

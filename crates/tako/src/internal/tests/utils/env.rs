@@ -6,7 +6,7 @@ use crate::internal::common::resources::ResourceId;
 use crate::internal::common::utils::format_comma_delimited;
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{
-    TaskFinishedMsg, TaskOutput, TaskRunningMsg, ToWorkerMessage, WorkerOverview,
+    TaskFinishedMsg, TaskRunningMsg, ToWorkerMessage, WorkerOverview,
 };
 use crate::internal::scheduler::{
     TaskBatch, WorkerTaskMapping, create_task_batches, create_task_mapping, run_scheduling,
@@ -175,15 +175,6 @@ impl TestEnv {
     }
 
     pub fn finish_task(&mut self, task_id: TaskId, worker_id: WorkerId) {
-        self.finish_task_with_data(task_id, worker_id, Vec::new());
-    }
-
-    pub fn finish_task_with_data(
-        &mut self,
-        task_id: TaskId,
-        worker_id: WorkerId,
-        outputs: Vec<TaskOutput>,
-    ) {
         let mut comm = TestComm::new();
         on_task_finished(
             &mut self.core,
@@ -191,7 +182,6 @@ impl TestEnv {
             worker_id.into(),
             TaskFinishedMsg {
                 task_id: task_id.into(),
-                outputs,
             },
         );
     }

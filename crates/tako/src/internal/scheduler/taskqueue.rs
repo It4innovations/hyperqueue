@@ -55,6 +55,14 @@ impl TaskQueues {
         &mut self.queues[resource_rq_id.as_usize()]
     }
 
+    pub fn top_priority(&self) -> Priority {
+        self.queues
+            .iter()
+            .filter_map(|q| q.top_priority())
+            .max()
+            .unwrap_or(Priority::new(0))
+    }
+
     pub fn shrink_to_fit(&mut self) {
         for task_queue in self.queues.iter_mut() {
             task_queue.shrink_to_fit();
@@ -127,10 +135,21 @@ impl TaskQueue {
     }
 
     #[inline]
-    pub fn min_priority(&self) -> Option<Priority> {
+    pub fn top_priority(&self) -> Option<Priority> {
         self.queue
             .first_key_value()
             .map(|(&priority, _)| priority.0)
+    }
+
+    #[inline]
+    pub fn top_size_without_filling(&self) -> u32 {
+        let Some((_, value)) = self.queue.first_key_value() else {
+            return 0;
+        };
+        match value {
+            OneOrMoreTaskIds::One(_) => 1,
+            OneOrMoreTaskIds::More(ts) => ts.len() as u32,
+        }
     }
 
     pub fn iter_priority_sizes(&self) -> impl Iterator<Item = (Priority, u32)> {

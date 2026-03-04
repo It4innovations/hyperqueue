@@ -1,6 +1,5 @@
 use super::resources::ResBuilder;
-use crate::datasrv::DataObjectId;
-use crate::gateway::{CrashLimit, TaskDataFlags};
+use crate::gateway::CrashLimit;
 use crate::internal::common::resources::map::GlobalResourceMapping;
 use crate::internal::common::resources::{
     NumOfNodes, ResourceAmount, ResourceId, ResourceRequestVariants,
@@ -22,12 +21,10 @@ use thin_vec::ThinVec;
 #[derive(Clone)]
 pub struct TaskBuilder {
     task_deps: Set<TaskId>,
-    data_deps: ThinVec<DataObjectId>,
     finished_resources: Vec<ResourceRequest>,
     resources_builder: ResBuilder,
     user_priority: UserPriority,
     crash_limit: CrashLimit,
-    data_flags: TaskDataFlags,
     time_limit: Option<Duration>,
 }
 
@@ -35,12 +32,10 @@ impl TaskBuilder {
     pub fn new() -> TaskBuilder {
         TaskBuilder {
             task_deps: Default::default(),
-            data_deps: Default::default(),
             finished_resources: vec![],
             resources_builder: Default::default(),
             user_priority: 0.into(),
             crash_limit: CrashLimit::default(),
-            data_flags: TaskDataFlags::empty(),
             time_limit: None,
         }
     }
@@ -52,13 +47,6 @@ impl TaskBuilder {
 
     pub fn task_deps(mut self, deps: &[TaskId]) -> TaskBuilder {
         self.task_deps = deps.iter().copied().collect();
-        self
-    }
-
-    pub fn data_dep(mut self, task_id: TaskId, data_id: u32) -> TaskBuilder {
-        self.task_deps.insert(task_id);
-        self.data_deps
-            .push(DataObjectId::new(task_id, data_id.into()));
         self
     }
 
@@ -135,13 +123,11 @@ impl TaskBuilder {
             task_id.into(),
             rq_id,
             self.task_deps.iter().copied().collect(),
-            self.data_deps.clone(),
             None,
             Rc::new(TaskConfiguration {
                 time_limit: None,
                 user_priority: self.user_priority,
                 crash_limit: self.crash_limit,
-                data_flags: self.data_flags,
                 body: Rc::new([]),
             }),
         )
@@ -163,12 +149,10 @@ impl TaskBuilder {
                 instance_id: Default::default(),
                 priority: Priority::from_user_priority(self.user_priority),
                 node_list: vec![],
-                data_deps: vec![],
                 entry: None,
             }],
             shared_data: vec![ComputeTaskSharedData {
                 time_limit: self.time_limit,
-                data_flags: TaskDataFlags::empty(),
                 body: Default::default(),
             }],
         }

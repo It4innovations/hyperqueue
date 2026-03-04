@@ -17,7 +17,7 @@ use clap::Parser;
 use smallvec::smallvec;
 use std::path::PathBuf;
 use tako::Map;
-use tako::gateway::{EntryType, ResourceRequest, ResourceRequestVariants, TaskDataFlags};
+use tako::gateway::{EntryType, ResourceRequest, ResourceRequestVariants};
 use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
 use tako::{JobId, JobTaskCount, JobTaskId};
 
@@ -95,7 +95,6 @@ fn build_task(
     mut tdef: TaskDef,
     max_id: &mut JobTaskId,
     resource_map: &mut Map<ResourceRequestVariants, LocalResourceRqId>,
-    data_flags: TaskDataFlags,
     has_streaming: bool,
 ) -> TaskWithDependencies {
     let id = tdef.id.unwrap_or_else(|| {
@@ -110,11 +109,9 @@ fn build_task(
     });
     TaskWithDependencies {
         id,
-        data_flags,
         task_desc: build_task_description(tdef.config, has_streaming),
         resource_rq_id,
         task_deps: tdef.deps,
-        data_deps: tdef.data_deps,
     }
 }
 
@@ -144,7 +141,6 @@ fn build_job_desc_array(mut array: ArrayDef, has_streaming: bool) -> JobTaskDesc
 
 fn build_job_desc_individual_tasks(
     tasks: Vec<TaskDef>,
-    data_flags: TaskDataFlags,
     has_streaming: bool,
 ) -> crate::Result<JobTaskDescription> {
     let mut max_id: JobTaskId = tasks
@@ -162,13 +158,7 @@ fn build_job_desc_individual_tasks(
     let mut consumers: Map<JobTaskId, Vec<_>> = Map::new();
     let mut resource_map: Map<ResourceRequestVariants, LocalResourceRqId> = Map::new();
     for task in tasks {
-        let t = build_task(
-            task,
-            &mut max_id,
-            &mut resource_map,
-            data_flags,
-            has_streaming,
-        );
+        let t = build_task(task, &mut max_id, &mut resource_map, has_streaming);
         if in_degrees.insert(t.id, t.task_deps.len()).is_some() {
             return Err(crate::Error::GenericError(format!(
                 "Task {} is defined multiple times",
@@ -220,11 +210,7 @@ fn build_job_submit(jdef: JobDef, job_id: Option<JobId>) -> crate::Result<Submit
     let task_desc = if let Some(array) = jdef.array {
         build_job_desc_array(array, jdef.stream.is_some())
     } else {
-        let mut data_flags = TaskDataFlags::empty();
-        if jdef.data_layer {
-            data_flags.insert(TaskDataFlags::ENABLE_DATA_LAYER);
-        }
-        build_job_desc_individual_tasks(jdef.tasks, data_flags, jdef.stream.is_some())?
+        build_job_desc_individual_tasks(jdef.tasks, jdef.stream.is_some())?
     };
     Ok(SubmitRequest {
         job_desc: JobDescription {

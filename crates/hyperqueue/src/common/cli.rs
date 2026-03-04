@@ -7,7 +7,6 @@ use clap_complete::Shell;
 use tako::WorkerId;
 
 use crate::client::commands::autoalloc::AutoAllocOpts;
-use crate::client::commands::data::DataOpts;
 use crate::client::commands::doc::DocOpts;
 use crate::client::commands::job::{
     JobCancelOpts, JobCatOpts, JobCloseOpts, JobForgetOpts, JobInfoOpts, JobListOpts,
@@ -202,8 +201,6 @@ pub enum SubCommand {
     AutoAlloc(AutoAllocOpts),
     /// Journal management
     Journal(JournalOpts),
-    /// Data object management inside a task
-    Data(DataOpts),
     /// Starts CLI dashboard
     #[cfg(feature = "dashboard")]
     Dashboard(DashboardOpts),

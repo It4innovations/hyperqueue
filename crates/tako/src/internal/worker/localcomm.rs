@@ -1,5 +1,3 @@
-use crate::datasrv::DataObjectId;
-use crate::internal::worker::data::datanode_local_connection_handler;
 use crate::internal::worker::localclient::LocalConnectionType;
 use crate::internal::worker::notifications::notify_local_connection_handler;
 use crate::internal::worker::state::WorkerStateRef;
@@ -19,10 +17,7 @@ use tokio_util::codec::LengthDelimitedCodec;
 use tokio_util::codec::length_delimited::Builder;
 
 pub(crate) enum Registration {
-    Task {
-        task_id: TaskId,
-        input_map: Option<Rc<Vec<DataObjectId>>>,
-    },
+    Task { task_id: TaskId },
     // TODO: SubworkerConnection
 }
 
@@ -137,17 +132,7 @@ async fn handle_connection(state_ref: WorkerStateRef, stream: UnixStream) -> cra
             .check_token(message.token.as_bstr())
             .ok_or_else(|| crate::Error::GenericError("Invalid token".to_string()))?;
         match registration {
-            Registration::Task { task_id, input_map } => match message.connection_type {
-                LocalConnectionType::Data => {
-                    log::debug!("New local data connection: {task_id}");
-                    let task_id = *task_id;
-                    let input_map = input_map.clone();
-                    drop(lc_state);
-                    drop(state);
-                    let state_ref = state_ref.clone();
-                    datanode_local_connection_handler(state_ref, rx, tx, task_id, input_map)
-                        .await?;
-                }
+            Registration::Task { task_id } => match message.connection_type {
                 LocalConnectionType::Notifier => {
                     log::debug!("New local notifier connection: {task_id}");
                     let task_id = *task_id;

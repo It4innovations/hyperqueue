@@ -1,4 +1,3 @@
-use crate::JobDataObjectId;
 use crate::client::commands::submit::command::parse_crash_limit;
 use crate::client::resources::parse_allocation_request;
 use crate::common::arraydef::IntArray;
@@ -263,9 +262,6 @@ pub struct TaskDef {
 
     #[serde(default)]
     pub deps: Vec<JobTaskId>,
-
-    #[serde(default)]
-    pub data_deps: Vec<JobDataObjectId>,
 }
 
 fn deserialize_array_opt<'de, D>(deserializer: D) -> Result<Option<IntArray>, D::Error>

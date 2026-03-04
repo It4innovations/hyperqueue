@@ -3,7 +3,6 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::borrow::Cow;
 
-use crate::JobDataObjectId;
 use crate::client::status::Status;
 use crate::common::arraydef::IntArray;
 use crate::common::manager::info::ManagerType;
@@ -14,8 +13,7 @@ use crate::server::job::{JobTaskCounters, JobTaskInfo, SubmittedJobDescription};
 use std::path::PathBuf;
 use std::time::Duration;
 use tako::gateway::{
-    CrashLimit, EntryType, LostWorkerReason, ResourceRequestVariants, TaskDataFlags,
-    WorkerRuntimeInfo,
+    CrashLimit, EntryType, LostWorkerReason, ResourceRequestVariants, WorkerRuntimeInfo,
 };
 use tako::program::ProgramDefinition;
 use tako::resources::{ResourceDescriptor, ResourceRqId};
@@ -172,8 +170,6 @@ pub struct TaskWithDependencies {
     pub resource_rq_id: LocalResourceRqId,
     pub task_desc: TaskDescription,
     pub task_deps: Vec<JobTaskId>,
-    pub data_deps: Vec<JobDataObjectId>,
-    pub data_flags: TaskDataFlags,
 }
 
 impl TaskWithDependencies {
