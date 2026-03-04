@@ -18,8 +18,6 @@ use crate::hwstats::{WorkerHwState, WorkerHwStateMessage};
 use crate::internal::common::WrappedRcRefCell;
 use crate::internal::common::resources::Allocation;
 use crate::internal::common::resources::map::ResourceIdMap;
-use crate::internal::datasrv::download::download_manager_process;
-use crate::internal::datasrv::{DownloadManagerRef, data_upload_service};
 use crate::internal::messages::worker::FromWorkerMessage::TaskUpdate;
 use crate::internal::messages::worker::{
     FromWorkerMessage, RetractResponseMsg, TaskResourceAllocation, TaskUpdates, ToWorkerMessage,
@@ -183,18 +181,6 @@ pub async fn run_worker(
         None => Either::Left(futures::future::pending::<()>()),
         Some(d) => Either::Right(tokio::time::sleep(d)),
     };
-    let upload_service_fut = data_upload_service(listener, secret_key.clone(), state_ref.clone());
-
-    let dm_ref = DownloadManagerRef::new(state_ref.clone(), secret_key);
-    state_ref.get_mut().set_download_manager(dm_ref.clone());
-    let download_manager_fut = download_manager_process(
-        dm_ref,
-        configuration.max_parallel_downloads,
-        configuration.max_download_tries,
-        configuration.wait_between_download_tries,
-        Duration::from_secs(40),
-    );
-
     let future = async move {
         //let try_start_tasks = task_starter_process(state_ref.clone(), start_task_notify);
         let send_loop = forward_queue_to_sealed_sink(queue_receiver, sender, sealer);
@@ -224,8 +210,6 @@ pub async fn run_worker(
             _ = heartbeat_fut => { unreachable!() }
             _ = overview_fut => { unreachable!() }
             _ = local_comm_fut => { unreachable!() }
-            _ = upload_service_fut => { unreachable!() }
-            _ = download_manager_fut => { unreachable!() }
         };
 
         // Handle sending stop info to the server and finishing running tasks gracefully.
@@ -394,19 +378,11 @@ pub(crate) fn process_worker_message(state: &mut WorkerState, message: ToWorkerM
                 state.cancel_task(task_id);
             }
         }
-        ToWorkerMessage::RemoveDataObjects(dataobj_ids) => {
-            for dataobj_id in dataobj_ids {
-                state.data_storage.remove_object(dataobj_id);
-            }
-        }
         ToWorkerMessage::NewWorker(msg) => {
             state.new_worker(msg);
         }
         ToWorkerMessage::LostWorker(worker_id) => {
             state.remove_worker(worker_id);
-        }
-        ToWorkerMessage::PlacementResponse(data_id, placement) => {
-            state.process_resolved_placement(data_id, placement);
         }
         ToWorkerMessage::Stop => {
             log::info!("Received stop command");
@@ -526,7 +502,6 @@ async fn send_overview_loop(state_ref: WorkerStateRef) -> crate::Result<()> {
                         })
                         .collect(),
                     hw_state: Some(WorkerHwStateMessage { state: hw_state }),
-                    data_node: worker_state.data_storage.get_overview(),
                 }));
                 worker_state.comm().send_message_to_server(message);
             }

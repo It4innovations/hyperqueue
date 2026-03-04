@@ -22,8 +22,8 @@ use crate::internal::messages::worker::{
 use crate::internal::server::comm::{Comm, CommSenderRef};
 use crate::internal::server::core::{CoreRef, CoreSplitMut};
 use crate::internal::server::reactor::{
-    on_new_worker, on_remove_worker, on_resolve_placement, on_steal_response, on_task_error,
-    on_task_finished, on_task_running,
+    on_new_worker, on_remove_worker, on_steal_response, on_task_error, on_task_finished,
+    on_task_running,
 };
 use crate::internal::server::worker::{DEFAULT_WORKER_OVERVIEW_INTERVAL, Worker};
 use crate::internal::transfer::auth::{
@@ -345,21 +345,6 @@ pub(crate) async fn worker_receive_loop<
             }
             FromWorkerMessage::Stop(reason) => {
                 return Ok(Some(reason));
-            }
-            FromWorkerMessage::PlacementQuery(data_id) => {
-                on_resolve_placement(&mut core, &mut *comm, worker_id, data_id);
-            }
-            FromWorkerMessage::NewPlacement(data_id) => {
-                log::debug!("New placement for {data_id}: worker {worker_id}");
-                if let Some(obj) = core.data_objects_mut().find_data_object_mut(data_id) {
-                    obj.add_placement(worker_id);
-                } else {
-                    comm_ref.get_mut().send_worker_message(
-                        worker_id,
-                        &ToWorkerMessage::RemoveDataObjects(smallvec![data_id]),
-                    );
-                    log::debug!("Placement for invalid object");
-                }
             }
             FromWorkerMessage::Notify(notify) => {
                 log::debug!("Task notify received");

@@ -11,7 +11,6 @@ fn create_task_configuration(_core: &mut Core, msg: SharedTaskConfiguration) -> 
         time_limit: msg.time_limit,
         user_priority: msg.priority,
         crash_limit: msg.crash_limit,
-        data_flags: msg.data_flags,
         body: msg.body,
     }
 }
@@ -46,7 +45,6 @@ pub(crate) fn handle_new_tasks(
             task.id,
             task.resource_rq_id,
             task.task_deps,
-            task.dataobj_deps,
             task.entry,
             conf.clone(),
         );

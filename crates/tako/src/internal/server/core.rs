@@ -7,8 +7,6 @@ use crate::internal::common::resources::map::{
 use crate::internal::common::resources::{ResourceId, ResourceRequestVariants, ResourceRqId};
 use crate::internal::common::{Set, WrappedRcRefCell};
 use crate::internal::scheduler::{SchedulerState, TaskQueue, TaskQueues};
-use crate::internal::server::dataobj::{DataObjectHandle, ObjsToRemoveFromWorkers};
-use crate::internal::server::dataobjmap::DataObjectMap;
 use crate::internal::server::rpc::ConnectionDescriptor;
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::taskmap::TaskMap;
@@ -27,7 +25,6 @@ pub(crate) struct CoreSplitMut<'a> {
     pub worker_map: &'a mut WorkerMap,
     pub request_map: &'a ResourceRqMap,
     pub task_queues: &'a mut TaskQueues,
-    pub data_objects: &'a mut DataObjectMap,
     pub worker_groups: &'a mut Map<String, WorkerGroup>,
 }
 
@@ -36,7 +33,6 @@ pub(crate) struct CoreSplit<'a> {
     pub worker_map: &'a WorkerMap,
     pub request_map: &'a ResourceRqMap,
     pub task_queues: &'a TaskQueues,
-    pub data_objects: &'a DataObjectMap,
     pub worker_groups: &'a Map<String, WorkerGroup>,
     pub scheduler_cache: &'a SchedulerState,
 }
@@ -47,7 +43,6 @@ pub struct Core {
     workers: WorkerMap,
     resource_map: GlobalResourceMapping,
     task_queues: TaskQueues,
-    data_objects: DataObjectMap,
     worker_groups: Map<String, WorkerGroup>,
     scheduler_state: SchedulerState,
 
@@ -96,7 +91,6 @@ impl Core {
             worker_map: &mut self.workers,
             request_map: self.resource_map.get_resource_rq_map(),
             task_queues: &mut self.task_queues,
-            data_objects: &mut self.data_objects,
             worker_groups: &mut self.worker_groups,
         }
     }
@@ -108,7 +102,6 @@ impl Core {
             worker_map: &self.workers,
             request_map: self.resource_map.get_resource_rq_map(),
             task_queues: &self.task_queues,
-            data_objects: &self.data_objects,
             worker_groups: &self.worker_groups,
             scheduler_cache: &self.scheduler_state,
         }
@@ -227,20 +220,6 @@ impl Core {
         !self.workers.is_empty()
     }
 
-    pub(crate) fn add_data_object(&mut self, data_obj: DataObjectHandle) {
-        self.data_objects.insert(data_obj);
-    }
-
-    #[inline(always)]
-    pub fn dataobj_map(&self) -> &DataObjectMap {
-        &self.data_objects
-    }
-
-    #[inline(always)]
-    pub fn data_objects_mut(&mut self) -> &mut DataObjectMap {
-        &mut self.data_objects
-    }
-
     pub fn add_task(&mut self, task: Task) {
         if task.is_ready() {
             self.task_queues.get_mut(task.resource_rq_id).add(&task);
@@ -251,11 +230,7 @@ impl Core {
     // TODO: move to TaskMap
     /// Removes a single task.
     #[must_use]
-    pub fn remove_task(
-        &mut self,
-        task_id: TaskId,
-        objs_to_remove: &mut ObjsToRemoveFromWorkers,
-    ) -> TaskRuntimeState {
+    pub fn remove_task(&mut self, task_id: TaskId) -> TaskRuntimeState {
         let task = self
             .tasks
             .remove(task_id)
@@ -272,24 +247,14 @@ impl Core {
                 }
             }
         }
-        if !task.data_deps.is_empty() {
-            for data_id in &task.data_deps {
-                self.data_objects
-                    .try_decrease_ref_count(*data_id, objs_to_remove);
-            }
-        }
         task.state
     }
 
-    pub fn remove_tasks_batched(
-        &mut self,
-        tasks: &Set<TaskId>,
-        objs_to_remove: &mut ObjsToRemoveFromWorkers,
-    ) {
+    pub fn remove_tasks_batched(&mut self, tasks: &Set<TaskId>) {
         // The current version has no optimization in batch task removal
         // so just remove it one-by-one
         for &task_id in tasks {
-            self.remove_task(task_id, objs_to_remove);
+            self.remove_task(task_id);
         }
     }
 
@@ -358,10 +323,6 @@ impl Core {
         for (worker_id, worker) in self.workers.iter() {
             assert_eq!(worker.id, *worker_id);
             worker.sanity_check(&self.tasks, self.resource_map.get_resource_rq_map());
-        }
-
-        for data in self.data_objects.iter() {
-            assert!(data.ref_count() > 0);
         }
 
         for task_id in self.tasks.task_ids() {
@@ -491,7 +452,6 @@ impl Core {
 #[cfg(test)]
 mod tests {
     use crate::internal::server::core::Core;
-    use crate::internal::server::dataobj::ObjsToRemoveFromWorkers;
     use crate::internal::server::task::Task;
     use crate::internal::server::task::TaskRuntimeState;
     use crate::internal::server::worker::Worker;
@@ -550,17 +510,5 @@ mod tests {
                 .get_mut(resource_rq_id)
                 .remove(task_id, priority);
         }
-    }
-
-    #[test]
-    fn add_remove() {
-        let mut rt = TestEnv::new();
-        let t = rt.new_task_default();
-        let mut objs_to_remove = ObjsToRemoveFromWorkers::new();
-        assert!(matches!(
-            rt.core().remove_task(t, &mut objs_to_remove),
-            TaskRuntimeState::Waiting { .. }
-        ));
-        assert_eq!(rt.core().find_task(t), None);
     }
 }

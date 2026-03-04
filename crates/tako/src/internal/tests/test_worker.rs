@@ -8,7 +8,7 @@ use crate::resources::ResourceRqId;
 use crate::tests::utils::task::TaskBuilder;
 use crate::tests::utils::wenv::WorkerTestEnv;
 use crate::tests::utils::worker::WorkerBuilder;
-use crate::{Priority, ResourceVariantId, Set, TaskId, WorkerId};
+use crate::{ResourceVariantId, Set, TaskId, WorkerId};
 use std::ops::Deref;
 
 fn pop_task_running(msg: &mut FromWorkerMessage) -> TaskRunningMsg {

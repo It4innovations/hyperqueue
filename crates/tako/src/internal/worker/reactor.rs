@@ -1,9 +1,8 @@
-use crate::datasrv::DataObjectId;
 use crate::internal::common::resources::Allocation;
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::FromWorkerMessage::TaskUpdate;
 use crate::internal::messages::worker::{
-    ComputeTasksMsg, FromWorkerMessage, TaskFailedMsg, TaskFinishedMsg, TaskOutput, TaskRunningMsg,
+    ComputeTasksMsg, FromWorkerMessage, TaskFailedMsg, TaskFinishedMsg, TaskRunningMsg,
     TaskUpdates, WorkerTaskUpdate,
 };
 use crate::internal::server::worker::Worker;
@@ -29,20 +28,6 @@ pub(crate) fn compute_tasks(state: &mut WorkerState, mut msg: ComputeTasksMsg) {
     for (index, task) in msg.tasks.into_iter().enumerate() {
         let shared = &msg.shared_data[task.shared_index];
         log::debug!("Task assigned: {}", task.id);
-        let task_state = TaskState::Waiting {
-            waiting_data_objects: if task.data_deps.is_empty() {
-                0
-            } else {
-                let mut waiting: u32 = 0;
-                task.data_deps.iter().for_each(|data_id| {
-                    if !state.data_storage.has_object(*data_id) {
-                        waiting += 1;
-                        state.download_object(*data_id, task.id, task.priority)
-                    }
-                });
-                waiting
-            },
-        };
         // If we're handling the last task, steal the shared data instead of cloning it.
         // This optimization helps to avoid cloning the shared data unnecessarily if we
         // handle only a single task.
@@ -51,11 +36,9 @@ pub(crate) fn compute_tasks(state: &mut WorkerState, mut msg: ComputeTasksMsg) {
         } else {
             shared.clone()
         };
-        let mut new_task = Task::new(task, shared, task_state);
-        if new_task.is_ready() {
-            if try_start_task(state, &mut new_task, &mut task_updates, remaining_time) {
-                state.add_task(new_task);
-            }
+        let mut new_task = Task::new(task, shared);
+        if try_start_task(state, &mut new_task, &mut task_updates, remaining_time) {
+            state.add_task(new_task);
         }
     }
     if !task_updates.is_empty() {
@@ -109,7 +92,6 @@ pub fn try_start_task(
             task.state = TaskState::Running {
                 comm: task_comm,
                 allocation,
-                outputs: Default::default(),
             };
             state.running_tasks.insert(task.id);
             true
@@ -132,14 +114,10 @@ fn launch_task(
     let (end_sender, end_receiver) = oneshot::channel();
     let task_comm = RunningTaskComm::new(end_sender);
 
-    let token = state.lc_state.borrow_mut().register(Registration::Task {
-        task_id,
-        input_map: if task.need_data_layer() {
-            task.data_deps.clone()
-        } else {
-            None
-        },
-    });
+    let token = state
+        .lc_state
+        .borrow_mut()
+        .register(Registration::Task { task_id });
     match state.task_launcher.build_task(
         TaskBuildContext {
             task,
@@ -214,12 +192,11 @@ async fn handle_task_future(
         task_future.await
     };
     let mut state = state_ref.get_mut();
-    let (allocation, outputs) = match state.remove_task(task_id).unwrap().state {
+    let allocation = match state.remove_task(task_id).unwrap().state {
         TaskState::Running {
             allocation,
-            outputs,
             comm: _,
-        } => (allocation, outputs),
+        } => allocation,
         _ => unreachable!(),
     };
     state.running_tasks.remove(&task_id);
@@ -229,18 +206,13 @@ async fn handle_task_future(
     match result {
         Ok(TaskResult::Finished) => {
             log::debug!("Inner task finished id={task_id}");
-            task_updates.push(WorkerTaskUpdate::Finished(TaskFinishedMsg {
-                task_id,
-                outputs,
-            }));
+            task_updates.push(WorkerTaskUpdate::Finished(TaskFinishedMsg { task_id }));
         }
         Ok(TaskResult::Canceled) => {
             log::debug!("Inner task canceled id={task_id}");
-            drop_outputs(&mut state, task_id, outputs);
         }
         Ok(TaskResult::Timeouted) => {
             log::debug!("Inner task timeouted id={task_id}");
-            drop_outputs(&mut state, task_id, outputs);
             task_updates.push(WorkerTaskUpdate::Failed(TaskFailedMsg {
                 task_id,
                 info: TaskFailInfo::from_string("Time limit reached".to_string()),
@@ -248,7 +220,6 @@ async fn handle_task_future(
         }
         Err(e) => {
             log::debug!("Inner task failed id={task_id}, error={e:?}");
-            drop_outputs(&mut state, task_id, outputs);
             task_updates.push(WorkerTaskUpdate::Failed(TaskFailedMsg {
                 task_id,
                 info: TaskFailInfo::from_string(e.to_string()),
@@ -259,13 +230,5 @@ async fn handle_task_future(
         state
             .comm()
             .send_message_to_server(FromWorkerMessage::TaskUpdate(task_updates));
-    }
-}
-
-fn drop_outputs(state: &mut WorkerState, task_id: TaskId, outputs: Vec<TaskOutput>) {
-    for output in outputs {
-        state
-            .data_storage
-            .remove_object(DataObjectId::new(task_id, output.id));
     }
 }

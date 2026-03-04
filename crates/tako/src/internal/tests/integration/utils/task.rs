@@ -8,7 +8,7 @@ use thin_vec::ThinVec;
 
 use crate::gateway::{
     CrashLimit, ResourceRequest, ResourceRequestEntry, ResourceRequestVariants,
-    SharedTaskConfiguration, TaskConfiguration, TaskDataFlags,
+    SharedTaskConfiguration, TaskConfiguration,
 };
 use crate::internal::common::Map;
 use crate::internal::common::resources::{NumOfNodes, ResourceRqId};
@@ -116,7 +116,6 @@ pub fn build_task_def_from_config(
         time_limit,
         priority: UserPriority::new(0),
         crash_limit: CrashLimit::default(),
-        data_flags: TaskDataFlags::empty(),
         body: body.into(),
     };
     (
@@ -125,7 +124,6 @@ pub fn build_task_def_from_config(
             resource_rq_id: resources,
             shared_data_index: 0,
             task_deps: ThinVec::new(),
-            dataobj_deps: ThinVec::new(),
             entry: None,
         },
         conf,

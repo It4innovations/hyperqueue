@@ -9,6 +9,10 @@ use fxhash::FxBuildHasher;
 use hashbrown::hash_map::Entry;
 use std::cmp::Reverse;
 
+/// Always left at least this number of tasks out of filling
+const PROACTIVE_FILLING_RESERVE: u32 = 64;
+const PROACTIVE_FILLING_COUNT: u32 = 32;
+
 #[derive(Debug, Default)]
 pub struct WorkerTaskMapping {
     pub(crate) sn_tasks_to_workers: Map<WorkerId, Vec<(TaskId, ResourceVariantId)>>,
@@ -26,7 +30,7 @@ pub(crate) fn create_task_mapping(
         request_map,
         ..
     } = core.split_mut();
-    let mut result = WorkerTaskMapping::default();
+    let mut mapping = WorkerTaskMapping::default();
     for ((resource_rq_id, v_id), mut counts) in solution.sn_counts.into_iter() {
         let rq = request_map.get(resource_rq_id).get(v_id);
         let sum = counts.iter().map(|(_, c)| c).sum::<u32>();
@@ -42,7 +46,7 @@ pub(crate) fn create_task_mapping(
                         let new_state = match &task.state {
                             TaskRuntimeState::Waiting { .. } => {
                                 worker_map.get_worker_mut(*w_id).insert_sn_task(task_id, rq);
-                                result
+                                mapping
                                     .sn_tasks_to_workers
                                     .entry(*w_id)
                                     .or_default()
@@ -82,7 +86,7 @@ pub(crate) fn create_task_mapping(
         }
     }
 
-    result
+    mapping
         .sn_tasks_to_workers
         .iter_mut()
         .for_each(|(_, tasks)| {
@@ -97,7 +101,7 @@ pub(crate) fn create_task_mapping(
                 worker.set_mn_task(task_id, w_idx != 0);
             }
             let task = task_map.get_task_mut(task_id);
-            result.mn_tasks_to_workers.push(task_id);
+            mapping.mn_tasks_to_workers.push(task_id);
             let old_state =
                 std::mem::replace(&mut task.state, TaskRuntimeState::RunningMultiNode(workers));
             assert!(matches!(
@@ -107,19 +111,68 @@ pub(crate) fn create_task_mapping(
         }
     }
 
-    result
+    mapping
 }
+
+/*fn process_proactive_filling(core: &mut Core, task: Task, mapping: &mut WorkerTaskMapping) {
+    let CoreSplitMut {
+        task_map,
+        worker_map,
+        task_queues,
+        request_map,
+        ..
+    } = core.split_mut();
+    let top_priority = task_queues.top_priority();
+    for queue in task_queues.iter_mut() {
+        if queue.top_priority() != Some(top_priority) {
+            continue;
+        };
+        let size = queue
+            .top_size_without_filling()
+            .saturating_sub(PROACTIVE_FILLING_RESERVE);
+        for worker in worker_map.values_mut() {
+            let Some(sn) = worker.sn_assignment() else {
+                continue;
+            };
+            if !sn
+                .assign_tasks
+                .iter()
+                .any(|t| task_map.get_task(*t).resource_rq_id == queue.resource_rq_id)
+            {
+                continue;
+            }
+            let n_tasks = sn
+                .prefilled
+                .get(&queue.resource_rq_id)
+                .map(|ts| ts.len() as u32)
+                .unwrap_or(0);
+            let missing = PROACTIVE_FILLING_COUNT.saturating_sub(n_tasks);
+            let out = mapping.sn_tasks_to_workers.entry(worker.id).or_default();
+            for _ in 0..missing {
+                let task_id = queue.take_one().unwrap();
+                let task = task_map.get_task_mut(task_id);
+                assert!(task.is_ready());
+                task.state = TaskRuntimeState::Prefilled {
+                    worker_id: worker.id,
+                };
+                worker.insert_prefill_task(task_id, queue.resource_rq_id);
+                out.push((task_id, None))
+            }
+        }
+    }
+    //task_queues.
+}*/
 
 impl WorkerTaskMapping {
     pub fn dump(&mut self) {
         println!("=======================");
         for (w, ts) in &self.sn_tasks_to_workers {
             print!("w{w}:");
-            for (task_id, variant) in ts {
-                if variant.is_first() {
+            for (task_id, v) in ts {
+                if v.is_first() {
                     print!(" {}", task_id)
                 } else {
-                    print!(" {}/{}", task_id, variant)
+                    print!(" {}/{}", task_id, v)
                 }
             }
             println!();

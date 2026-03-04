@@ -10,7 +10,7 @@ use bstr::{BString, ByteSlice};
 use nix::libc;
 use tokio::process::Command;
 
-use crate::gateway::{EntryType, TaskDataFlags};
+use crate::gateway::EntryType;
 use crate::internal::common::resources::map::{ResourceIdMap, ResourceRqMap};
 use crate::internal::worker::configuration::WorkerConfiguration;
 use crate::internal::worker::localcomm::Token;
@@ -89,10 +89,6 @@ impl<'a> TaskBuildContext<'a> {
 
     pub fn resource_rq_id(&self) -> ResourceRqId {
         self.task.resource_rq_id
-    }
-
-    pub fn data_flags(&self) -> TaskDataFlags {
-        self.task.data_flags
     }
 
     pub fn resource_variant(&self) -> ResourceVariantId {

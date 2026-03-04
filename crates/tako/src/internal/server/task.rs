@@ -8,8 +8,7 @@ use crate::internal::common::Set;
 use crate::internal::common::stablemap::ExtractKey;
 use crate::{MAX_FRAME_SIZE, Map, ResourceVariantId, UserPriority, WorkerId};
 
-use crate::gateway::{CrashLimit, EntryType, TaskDataFlags};
-use crate::internal::datasrv::dataobj::DataObjectId;
+use crate::gateway::{CrashLimit, EntryType};
 
 use crate::internal::common::resources::ResourceRqId;
 use crate::internal::messages::worker::{
@@ -91,7 +90,6 @@ pub struct TaskConfiguration {
     pub user_priority: UserPriority,
     pub time_limit: Option<Duration>,
     pub crash_limit: CrashLimit,
-    pub data_flags: TaskDataFlags,
 }
 
 impl TaskConfiguration {
@@ -111,7 +109,6 @@ pub struct Task {
     pub state: TaskRuntimeState,
     consumers: Set<TaskId>,
     pub task_deps: ThinVec<TaskId>,
-    pub data_deps: ThinVec<DataObjectId>,
     pub resource_rq_id: ResourceRqId,
     pub configuration: Rc<TaskConfiguration>,
     pub instance_id: InstanceId,
@@ -120,7 +117,7 @@ pub struct Task {
 }
 
 // Task is a critical data structure, so we should keep its size in check
-static_assert_size!(Task, 104);
+static_assert_size!(Task, 96);
 
 impl fmt::Debug for Task {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -149,22 +146,14 @@ impl Task {
         id: TaskId,
         resource_rq_id: ResourceRqId,
         task_deps: ThinVec<TaskId>,
-        dataobj_deps: ThinVec<DataObjectId>,
         entry: Option<EntryType>,
         configuration: Rc<TaskConfiguration>,
     ) -> Self {
-        log::debug!(
-            "New task {} rs={} {:?} {:?}",
-            id,
-            resource_rq_id,
-            &task_deps,
-            &dataobj_deps,
-        );
+        log::debug!("New task rs={} {:?} {:?}", id, resource_rq_id, &task_deps,);
 
         Self {
             id,
             task_deps,
-            data_deps: dataobj_deps,
             resource_rq_id,
             configuration,
             entry,
@@ -407,7 +396,6 @@ impl ComputeTasksBuilder {
             .or_insert_with(|| {
                 let shared = ComputeTaskSharedData {
                     time_limit: conf.time_limit,
-                    data_flags: conf.data_flags,
                     body: conf.body.clone(),
                 };
                 let index = self.shared_data.len();
@@ -424,7 +412,6 @@ impl ComputeTasksBuilder {
             instance_id: task.instance_id,
             priority: task.priority(),
             node_list,
-            data_deps: task.data_deps.iter().copied().collect(),
             entry: task.entry.clone(),
         };
         self.estimated_size += estimate_task_data_size(&task_data);
@@ -473,7 +460,6 @@ fn estimate_task_data_size(data: &ComputeTaskSeparateData) -> usize {
         instance_id,
         priority,
         node_list,
-        data_deps,
         entry,
     } = data;
 
@@ -486,18 +472,13 @@ fn estimate_task_data_size(data: &ComputeTaskSeparateData) -> usize {
         + size_of_val(instance_id)
         + size_of_val(priority)
         + size_of_val(node_list.as_slice())
-        + size_of_val(data_deps.as_slice())
         + entry.as_ref().map(|e| e.len()).unwrap_or_default()
 }
 
 /// Estimate how much data it will take to serialize this shared task data
 fn estimate_shared_data_size(data: &ComputeTaskSharedData) -> usize {
-    let ComputeTaskSharedData {
-        time_limit,
-        data_flags,
-        body,
-    } = data;
-    size_of_val(time_limit) + size_of_val(data_flags) + body.len()
+    let ComputeTaskSharedData { time_limit, body } = data;
+    size_of_val(time_limit) + body.len()
 }
 
 #[cfg(test)]

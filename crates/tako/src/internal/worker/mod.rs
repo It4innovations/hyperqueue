@@ -9,7 +9,6 @@ pub mod comm;
 pub mod configuration;
 pub(crate) mod resources;
 
-pub(crate) mod data;
 pub(crate) mod localcomm;
 
 pub mod localclient;

@@ -1,4 +1,3 @@
-use crate::datasrv::{DataObjectId, OutputId};
 use crate::gateway::ResourceRequestVariants as ClientResourceRequestVariants;
 use crate::gateway::{CrashLimit, LostWorkerReason};
 use crate::internal::common::resources::ResourceRqId;
@@ -10,7 +9,6 @@ use crate::internal::messages::worker::{
 use crate::internal::scheduler::TaskQueue;
 use crate::internal::server::comm::Comm;
 use crate::internal::server::core::{Core, CoreSplitMut};
-use crate::internal::server::dataobj::{DataObjectHandle, ObjsToRemoveFromWorkers, RefCount};
 use crate::internal::server::task::ComputeTasksBuilder;
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::worker::{Worker, WorkerAssignment};
@@ -91,10 +89,6 @@ pub(crate) fn on_remove_worker(
     }
 
     //core.reset_stealing_tasks_on_worker(worker_id);
-
-    for data_obj in core.data_objects_mut().iter_mut() {
-        data_obj.remove_placement(worker_id);
-    }
 
     log::debug!("Running tasks on lost worker {worker_id}: {running_tasks:?}");
     let _ = core.remove_worker(worker_id);
@@ -246,12 +240,7 @@ pub(crate) fn on_task_finished(
         ..
     } = core.split_mut();
     if let Some(task) = task_map.find_task_mut(task_id) {
-        log::debug!(
-            "Task id={} finished on worker={}; outputs={:?}",
-            task_id,
-            worker_id,
-            &msg.outputs
-        );
+        log::debug!("Task id={} finished on worker={}", task_id, worker_id,);
         assert!(task.is_assigned_at(worker_id));
         let rqv = request_map.get(task.resource_rq_id);
 
@@ -293,61 +282,15 @@ pub(crate) fn on_task_finished(
         task.get_consumers().iter().copied().collect()
     };
 
-    let output_ids_set: Set<OutputId> = msg.outputs.iter().map(|o| o.id).collect();
-    let mut missing_inputs: Map<TaskId, Vec<OutputId>> = Map::new();
-
-    let mut data_ref_counts: Map<OutputId, RefCount> = Map::new();
-
     for consumer in consumers {
         let t = task_map.get_task_mut(consumer);
-        for obj_id in &t.data_deps {
-            let data_id = obj_id.data_id;
-            if obj_id.task_id == task_id {
-                if !output_ids_set.contains(&data_id) {
-                    let data_list = missing_inputs.entry(consumer).or_default();
-                    data_list.push(data_id);
-                } else {
-                    let cs = data_ref_counts.entry(data_id).or_insert(0);
-                    *cs += 1;
-                }
-            }
-        }
         if t.decrease_unfinished_deps() {
             task_queues.add_ready_task(t);
             comm.ask_for_scheduling();
         }
     }
-    let mut objs_to_remove = ObjsToRemoveFromWorkers::new();
-    let state = core.remove_task(msg.task_id, &mut objs_to_remove);
+    let state = core.remove_task(msg.task_id);
     assert!(matches!(state, TaskRuntimeState::Finished));
-
-    for data in msg.outputs {
-        let obj_id = DataObjectId::new(task_id, data.id);
-        if let Some(ref_count) = data_ref_counts.get(&data.id) {
-            core.add_data_object(DataObjectHandle::new(
-                obj_id, worker_id, data.size, *ref_count,
-            ));
-        } else {
-            objs_to_remove.add(worker_id, obj_id);
-        }
-    }
-
-    objs_to_remove.send(comm);
-
-    for (dep_task_id, missing_data_ids) in missing_inputs {
-        let mut message = format!(
-            "Task {task_id} did not produced expected output(s): {}",
-            missing_data_ids[0]
-        );
-        const LIMIT: usize = 16;
-        for data_id in missing_data_ids.iter().skip(1).take(LIMIT - 1) {
-            write!(&mut message, ", {data_id}").unwrap();
-        }
-        if missing_data_ids.len() > LIMIT {
-            message.write_str(", ...").unwrap();
-        }
-        fail_task_helper(core, comm, None, dep_task_id, TaskFailInfo { message })
-    }
 }
 
 pub(crate) fn on_steal_response(
@@ -490,16 +433,14 @@ fn fail_task_helper(
         }
     };
 
-    let mut objs_to_remove = ObjsToRemoveFromWorkers::new();
-
     for &consumer in &consumers {
         log::debug!("Task={consumer} canceled because of failed dependency");
         assert!(matches!(
-            core.remove_task(consumer, &mut objs_to_remove),
+            core.remove_task(consumer),
             TaskRuntimeState::Waiting { .. }
         ));
     }
-    let state = core.remove_task(task_id, &mut objs_to_remove);
+    let state = core.remove_task(task_id);
     if worker_id.is_some() {
         assert!(matches!(
             state,
@@ -513,7 +454,6 @@ fn fail_task_helper(
         assert!(matches!(state, TaskRuntimeState::Waiting { .. }));
     }
     drop(state);
-    objs_to_remove.send(comm);
     comm.ask_for_scheduling();
     let cancel_ids = comm.client().on_task_error(task_id, consumers, error_info);
     if !cancel_ids.is_empty() {
@@ -581,30 +521,11 @@ pub(crate) fn on_cancel_tasks(core: &mut Core, comm: &mut impl Comm, task_ids: &
         }
     }
 
-    let mut objs_to_remove = ObjsToRemoveFromWorkers::new();
-    core.remove_tasks_batched(&to_unregister, &mut objs_to_remove);
+    core.remove_tasks_batched(&to_unregister);
     for (w_id, ids) in running_ids {
         comm.send_worker_message(w_id, &ToWorkerMessage::CancelTasks(TaskIdsMsg { ids }));
     }
-    objs_to_remove.send(comm); // This needs to be sent after tasks are cancelled
     comm.ask_for_scheduling();
-}
-
-pub(crate) fn on_resolve_placement(
-    core: &mut Core,
-    comm: &mut impl Comm,
-    worker_id: WorkerId,
-    data_id: DataObjectId,
-) {
-    // TODO: Maybe randomize what placement to return?
-    let placement = core
-        .dataobj_map()
-        .find_data_object(data_id)
-        .and_then(|obj| obj.placement().iter().next().copied());
-    comm.send_worker_message(
-        worker_id,
-        &ToWorkerMessage::PlacementResponse(data_id, placement),
-    );
 }
 
 pub(crate) fn get_or_create_resource_rq_id(

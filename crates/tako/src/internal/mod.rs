@@ -1,6 +1,5 @@
 #[macro_use]
 pub(crate) mod common;
-pub(crate) mod datasrv;
 pub mod messages;
 pub mod scheduler;
 pub mod server;

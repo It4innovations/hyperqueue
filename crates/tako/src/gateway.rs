@@ -1,7 +1,6 @@
 use crate::gateway::WorkerRuntimeInfo::SingleNodeTasks;
 use crate::internal::common::error::DsError;
 use crate::internal::common::resources::ResourceRqId;
-use crate::internal::datasrv::dataobj::DataObjectId;
 use crate::resources::{AllocationRequest, CPU_RESOURCE_NAME, NumOfNodes, ResourceAmount};
 use crate::{InstanceId, Map, TaskId, UserPriority};
 use serde::{Deserialize, Serialize};
@@ -90,14 +89,6 @@ impl ResourceRequestVariants {
     }
 }
 
-bitflags::bitflags! {
-    #[derive(Default, Debug, Copy, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
-    #[serde(transparent)]
-    pub struct TaskDataFlags: u32 {
-        const ENABLE_DATA_LAYER = 0b00000001;
-    }
-}
-
 #[derive(Deserialize, Serialize, Debug, Eq, PartialEq, Hash, Clone, Copy)]
 pub enum CrashLimit {
     NeverRestart,
@@ -131,8 +122,6 @@ pub struct SharedTaskConfiguration {
 
     pub crash_limit: CrashLimit,
 
-    pub data_flags: TaskDataFlags,
-
     pub body: Rc<[u8]>,
 }
 
@@ -149,11 +138,6 @@ pub struct TaskConfiguration {
     pub shared_data_index: u32,
 
     pub task_deps: ThinVec<TaskId>,
-
-    /// If this task depends on a data object produced by a task X
-    /// then X has to be also in task_deps, it is a responsibility of the caller
-    /// to maintain the invariant.
-    pub dataobj_deps: ThinVec<DataObjectId>,
 
     pub entry: Option<EntryType>,
 }

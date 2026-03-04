@@ -1,8 +1,6 @@
 pub mod client;
 pub mod comm;
 pub mod core;
-pub(crate) mod dataobj;
-pub(crate) mod dataobjmap;
 pub(crate) mod explain;
 pub mod reactor;
 pub mod rpc;
