@@ -695,8 +695,6 @@ pub async fn submit_computation(
             .unwrap_or_else(|| "job".to_string())
     };
 
-    // Force task_dir for multi node tasks (for a place where to create node file)
-    let task_dir = task_dir | (resources.n_nodes > 0);
     let resources = ResourceRequestVariants::new(smallvec![resources]);
 
     let args: Vec<BString> = commands.into_iter().map(|arg| arg.into()).collect();

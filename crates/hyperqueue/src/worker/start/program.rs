@@ -86,7 +86,7 @@ pub(super) fn build_program_task(
 
         pin_program(&mut program, build_ctx.allocation(), pin_mode, &build_ctx)?;
 
-        let task_dir = if task_dir {
+        let task_dir = if task_dir || !build_ctx.node_list().is_empty() {
             let task_dir = TempDir::with_prefix_in("t", &build_ctx.worker_configuration().work_dir)
                 .map_err(|error| {
                     format!(

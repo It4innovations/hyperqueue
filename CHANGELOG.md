@@ -1,3 +1,8 @@
+## Unreleased
+
+### Fixes
+* Fixes Multi-node tasks defined in job file.
+
 ## v0.25.0
 
 ### Breaking change
