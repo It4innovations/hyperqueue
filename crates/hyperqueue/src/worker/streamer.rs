@@ -5,7 +5,7 @@ use crate::stream::StreamSerializationConfig;
 use crate::transfer::stream::{ChannelId, StreamChunkHeader};
 use bincode::Options;
 use chrono::Utc;
-use rand::Rng;
+use rand::RngExt;
 use rand::distr::Alphanumeric;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
