@@ -9,14 +9,14 @@ use tako::resources::{FRACTIONS_MAX_DIGITS, ResourceAmount};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ParseError {
-    error: Simple<String>,
+    error: Box<Simple<String>>,
 }
 
 impl ParseError {
     /// Create an error with a custom error message.
     pub fn custom<M: ToString>(span: <Self as Error<char>>::Span, msg: M) -> Self {
         Self {
-            error: Simple::custom(span, msg),
+            error: Box::new(Simple::custom(span, msg)),
         }
     }
 
@@ -26,7 +26,7 @@ impl ParseError {
         found: Option<String>,
     ) -> Self {
         Self {
-            error: Simple::expected_input_found(span, expected, found),
+            error: Box::new(Simple::expected_input_found(span, expected, found)),
         }
     }
 
@@ -67,19 +67,25 @@ impl Error<char> for ParseError {
     ) -> Self {
         let expected = expected.into_iter().map(|c| c.map(|c| c.to_string()));
         Self {
-            error: Simple::expected_input_found(span, expected, found.map(|c| c.to_string())),
+            error: Box::new(Simple::expected_input_found(
+                span,
+                expected,
+                found.map(|c| c.to_string()),
+            )),
         }
     }
 
     fn with_label(self, label: Self::Label) -> Self {
         Self {
-            error: self.error.with_label(label),
+            error: Box::new(self.error.with_label(label)),
         }
     }
 
     fn merge(self, other: Self) -> Self {
-        let merged = self.error.merge(other.error);
-        Self { error: merged }
+        let merged = self.error.merge(*other.error);
+        Self {
+            error: Box::new(merged),
+        }
     }
 }
 
