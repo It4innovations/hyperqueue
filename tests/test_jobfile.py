@@ -440,3 +440,23 @@ command = ["bash", "-c", "echo 'Hello'"]
     wait_for_job_state(hq_env, 1, "FINISHED")
     result = hq_env.command(["output-log", "output", "cat", "1", "stdout"])
     assert result == "Hello\n"
+
+
+def test_job_file_multinode(hq_env: HqEnv, tmp_path):
+    hq_env.start_server()
+    hq_env.start_worker()
+    hq_env.start_worker()
+    tmp_path.joinpath("job.toml").write_text(
+        """
+    [[task]]
+    id = 0
+    command = ["bash", "-c", "echo ${HQ_NUM_NODES}; cat ${HQ_NODE_FILE}"]
+    [[task.request]]
+    n_nodes = 2
+    """
+    )
+    hq_env.command(["job", "submit-file", "job.toml"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+    with open(default_task_output(1)) as f:
+        lines = sorted(f.read().rstrip().split("\n"))
+        assert lines == ["2", "worker1", "worker2"]
