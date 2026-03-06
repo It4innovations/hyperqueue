@@ -44,10 +44,15 @@ fn test_task_grouping_basic() {
     let t8 = rt.new_task(&TaskBuilder::new().cpus(2).user_priority(123));
     let t9 = rt.new_task(&TaskBuilder::new().cpus(2).user_priority(123));
 
+    // Subitted tasks:
+    // 1 cpus: 123 123 20 20 5
+    // 2 cpus: 123 123 123
+    // 123 cpus:  123
     let a = create_task_batches(rt.core(), now, None);
     assert_eq!(a.len(), 2);
     let task1 = rt.task(t1);
     let task6 = rt.task(t6);
+    let task7 = rt.task(t7);
     assert_eq!(a[0].resource_rq_id, task1.resource_rq_id);
     assert_eq!(a[0].size, 5);
     assert!(!a[0].limit_reached);
@@ -55,7 +60,10 @@ fn test_task_grouping_basic() {
         a[0].cuts,
         vec![PriorityCut {
             size: 2,
-            blockers: vec![(ResourceRqId::new(1), Some(3))],
+            blockers: vec![
+                (task6.resource_rq_id, Some(3)),
+                (task7.resource_rq_id, None)
+            ],
         }]
     );
     assert_eq!(a[1].resource_rq_id, task6.resource_rq_id);
@@ -138,9 +146,10 @@ fn test_task_batching2() {
     rt.new_task(&TaskBuilder::new().cpus(3));
     let now = std::time::Instant::now();
     let a = create_task_batches(rt.core(), now, None);
-    assert_eq!(a.len(), 2);
+    assert_eq!(a.len(), 3);
     assert!(a[0].cuts.is_empty());
     assert!(a[1].cuts.is_empty());
+    assert!(a[2].cuts.is_empty());
 }
 
 #[test]
@@ -292,7 +301,7 @@ fn test_schedule_priorities() {
 
     let mut c = TestCase::new();
     let ts = c.pc_tasks(&[(1, 3), (1, 3), (1, 3), (0, 1)]);
-    c.w(&w4).expect_tasks(&[ts[0]]);
+    c.w(&w4).expect_tasks(&[ts[0], ts[3]]);
     c.check();
 }
 
@@ -1012,42 +1021,32 @@ fn test_generic_resource_variants2() {
     let task = TaskBuilder::new()
         .cpus(8)
         .next_variant()
-        .cpus(2)
+        .cpus(1)
         .add_resource(1, 1);
     rt.new_tasks(4, &task);
     rt.schedule();
 
     assert_eq!(rt.worker_tasks(w1).len(), 0);
-    assert_eq!(rt.worker_tasks(w2).len(), 4);
+    assert_eq!(rt.worker_tasks(w2).len(), 2);
 }
 
 #[test]
-fn test_resource_priority_balancing() {
+fn test_generic_resource_variants3() {
     let mut rt = TestEnv::new();
-    //                    0  1  2  3  4  5  6  7  8  9  10
-    let ws = rt.new_workers_cpus(&[4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 8]);
+    rt.new_generic_resource(1);
+    let w1 = rt.new_worker(&WorkerBuilder::new(2));
+    let w2 = rt.new_worker(&WorkerBuilder::new(5).res_range("Res0", 1, 1));
 
-    rt.set_job(7, 100);
-    for i in 0..=9 {
-        rt.new_task_running(&TaskBuilder::new().cpus(4), ws[i]);
-        for _j in 1..(4 + i) {
-            rt.new_task_assigned(&TaskBuilder::new().cpus(4), ws[i]);
-        }
-    }
-
-    rt.set_job(1, 1);
-    for _ in 1..=3 {
-        rt.new_task_assigned(&TaskBuilder::new().cpus(4), ws[0]);
-    }
-
+    let task = TaskBuilder::new()
+        .cpus(3)
+        .next_variant()
+        .cpus(1)
+        .add_resource(1, 1);
+    rt.new_tasks(4, &task);
     rt.schedule();
-    assert!(
-        rt.worker_tasks(ws[10])
-            .iter()
-            .filter(|t| t.job_id() == 1.into())
-            .count()
-            >= 2
-    );
+
+    assert_eq!(rt.worker_tasks(w1).len(), 0);
+    assert_eq!(rt.worker_tasks(w2).len(), 2);
 }
 
 #[test]

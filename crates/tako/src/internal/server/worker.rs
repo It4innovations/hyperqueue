@@ -117,7 +117,7 @@ impl Worker {
     }
 
     pub fn set_mn_task(&mut self, task_id: TaskId, reservation_only: bool) {
-        assert!(self.sn_assignment().unwrap().assign_tasks.is_empty());
+        assert!(self.is_free());
         self.assignment = WorkerAssignment::Mn(MultiNodeTaskAssignment {
             task_id,
             reservation_only,
@@ -286,52 +286,6 @@ impl Worker {
 
     pub fn is_stopping(&self) -> bool {
         self.stop_reason.is_some()
-    }
-
-    pub fn retract_overtime_tasks(
-        &mut self,
-        comm: &mut impl Comm,
-        task_map: &mut TaskMap,
-        request_map: &ResourceRqMap,
-        now: Instant,
-    ) {
-        todo!()
-        /*if self.termination_time.is_none() || self.mn_assignment().is_some() {
-            return;
-        }
-        let task_ids: Vec<TaskId> = self
-            .sn_assignment()
-            .unwrap()
-            .assign_tasks
-            .iter()
-            .filter_map(|task_id| {
-                let task = task_map.get_task_mut(*task_id);
-                if task.is_assigned()
-                    && !self.is_capable_to_run_rqv(request_map.get(task.resource_rq_id), now)
-                {
-                    log::debug!(
-                        "Retracting task={task_id}, time request cannot be fulfilled anymore"
-                    );
-                    task.state = TaskRuntimeState::Retracting { source: self.id };
-                    Some(*task_id)
-                } else {
-                    None
-                }
-            })
-            .collect();
-        if !task_ids.is_empty() {
-            for task_id in &task_ids {
-                let task = task_map.get_task(*task_id);
-                let (_, rv_id) = task.get_assignments().unwrap();
-                let rq = request_map.get(task.resource_rq_id).get(rv_id);
-                self.remove_sn_task(*task_id, rq);
-            }
-            comm.send_worker_message(
-                self.id,
-                &ToWorkerMessage::StealTasks(TaskIdsMsg { ids: task_ids }),
-            );
-            comm.ask_for_scheduling();
-        }*/
     }
 
     pub fn has_time_to_run(&self, time_request: TimeRequest, now: Instant) -> bool {

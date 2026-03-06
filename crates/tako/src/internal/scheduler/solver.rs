@@ -41,22 +41,22 @@ pub(crate) fn run_scheduling_solver(
     let mut workers: Vec<&Worker> = if let Some(ws) = custom_workers {
         ws.iter().collect()
     } else {
-        let mut ws = worker_map.get_workers().collect::<Vec<_>>();
+        let mut ws = worker_map
+            .get_workers()
+            .filter(|w| w.sn_assignment().is_some())
+            .collect::<Vec<_>>();
         ws.sort_unstable_by_key(|w| w.id);
         ws
     };
 
     workers.iter().for_each(|worker| {
-        resource_sums
-            .iter_mut()
-            .zip(
-                worker
-                    .sn_assignment()
-                    .unwrap()
-                    .free_resources
-                    .iter_amounts(),
-            )
-            .for_each(|(s, c)| {
+        let Some(a) = worker.sn_assignment() else {
+            unreachable!()
+        };
+        a.free_resources
+            .iter_amounts()
+            .zip(resource_sums.iter_mut())
+            .for_each(|(c, s)| {
                 if !c.is_max() {
                     *s += c.as_f64()
                 } else {
@@ -247,6 +247,9 @@ pub(crate) fn run_scheduling_solver(
                     }
                 } else {
                     for w in &workers {
+                        if !w.is_capable_to_run_rqv(&blocker_rqv, now) {
+                            continue;
+                        }
                         for v_id in batch_rqv.variant_ids() {
                             if let Some((var, _)) =
                                 placements.get(&(w.id, batch.resource_rq_id, v_id))
