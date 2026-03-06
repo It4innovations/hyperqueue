@@ -1,3 +1,6 @@
+// SendError<AutoAllocMessage> is large but that is acceptable here.
+#![allow(clippy::result_large_err)]
+
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
