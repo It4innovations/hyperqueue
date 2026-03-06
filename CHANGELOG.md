@@ -11,6 +11,11 @@
 * Fixes multi-node tasks defined in job file.
 * Fix selection of MILP solver when building from source
 
+### Changes
+
+* Failing non-root worker within multi-node tasks, does cause failing of task
+
+
 ## v0.25.0
 
 ### Breaking change

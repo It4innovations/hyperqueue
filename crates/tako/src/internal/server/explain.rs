@@ -168,15 +168,18 @@ mod tests {
                 .res_range("gpus", 1, 4)
                 .time_limit(Duration::from_secs(40_000)),
         );
-        todo!();
-        /*
         let resource_map = rt.core().create_resource_map();
         let explain = |rt: &mut TestEnv, task: TaskId, worker: WorkerId, now| {
             let group = WorkerGroup::new(Set::new());
-            let (task_map, worker_map, rqs) = rt.core().split_tasks_workers_requests_mut();
+            let CoreSplitMut {
+                task_map,
+                worker_map,
+                request_map,
+                ..
+            } = rt.core().split_mut();
             task_explain_for_worker(
                 &resource_map,
-                rqs,
+                request_map,
                 task_map.get_task(task),
                 worker_map.get_worker(worker),
                 &group,
@@ -187,7 +190,6 @@ mod tests {
         let _rqs = rt.core().resource_map_mut();
         let now = Instant::now();
         let t1 = rt.new_task(&TaskBuilder::new());
-        let (_task_map, _worker_map, _rqs) = rt.core().split_tasks_workers_requests_mut();
         let r = explain(&mut rt, t1, w1, now);
         assert_eq!(r.variants.len(), 1);
         assert_eq!(r.variants[0].len(), 1);
@@ -244,7 +246,7 @@ mod tests {
                 .time_request(30_000)
                 .cpus(15)
                 .add_resource(1, 8)
-                .next_resources()
+                .next_variant()
                 .cpus(2)
                 .add_resource(1, 32),
         );
@@ -276,7 +278,7 @@ mod tests {
             TaskExplainItem::Resources {
                 resource, request_amount, worker_amount
             } if resource == "gpus" && *request_amount == ResourceAmount::new_units(32) && *worker_amount == ResourceAmount::new_units(4)
-        ));*/
+        ));
     }
 
     #[test]

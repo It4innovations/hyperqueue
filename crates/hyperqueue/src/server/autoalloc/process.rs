@@ -1558,14 +1558,15 @@ mod tests {
                 );
             }
 
-            // Note: we currently create an allocation per queue even if the task count is smaller
-            // than the queue count. Could be improved in the future.
             let rq_id = ctx.default_rq_id();
             ctx.create_simple_tasks(1, rq_id).await;
             ctx.try_submit().await;
 
-            for queue_id in queues {
-                assert_eq!(ctx.get_allocations(queue_id).len(), 1);
+            for (idx, queue_id) in queues.iter().enumerate() {
+                assert_eq!(
+                    ctx.get_allocations(*queue_id).len(),
+                    if idx == 0 { 1 } else { 0 }
+                );
             }
         })
         .await;

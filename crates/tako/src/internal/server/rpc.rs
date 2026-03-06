@@ -22,8 +22,7 @@ use crate::internal::messages::worker::{
 use crate::internal::server::comm::{Comm, CommSenderRef};
 use crate::internal::server::core::{CoreRef, CoreSplitMut};
 use crate::internal::server::reactor::{
-    on_new_worker, on_remove_worker, on_steal_response, on_task_error, on_task_finished,
-    on_task_running,
+    on_new_worker, on_remove_worker, on_task_error, on_task_finished, on_task_running,
 };
 use crate::internal::server::worker::{DEFAULT_WORKER_OVERVIEW_INTERVAL, Worker};
 use crate::internal::transfer::auth::{
@@ -203,12 +202,6 @@ async fn worker_rpc_loop(
                     .max(Duration::from_millis(500)),
             )
         };
-        let mut retract_interval = Duration::from_secs(60 * 3);
-        if let Some(idle_timeout) = idle_timeout {
-            retract_interval = retract_interval.min(idle_timeout / 2);
-        }
-        let retract_interval = retract_interval.max(Duration::from_millis(500));
-        let mut last_retract_check = Instant::now();
         loop {
             interval.tick().await;
             let mut core = core_ref.get_mut();
@@ -224,14 +217,6 @@ async fn worker_rpc_loop(
             if elapsed > heartbeat_interval * 2 {
                 log::debug!("Heartbeat not arrived, worker={}", worker.id);
                 break LostWorkerReason::HeartbeatLost;
-            }
-
-            let elapsed = now - last_retract_check;
-            if elapsed > retract_interval {
-                log::debug!("Trying to retract overtime tasks, worker={}", worker.id);
-                let mut comm = comm_ref2.get_mut();
-                worker.retract_overtime_tasks(&mut *comm, task_map, request_map, now);
-                last_retract_check = now;
             }
 
             if let Some(timeout) = idle_timeout
@@ -332,7 +317,7 @@ pub(crate) async fn worker_receive_loop<
                 }
             }
             FromWorkerMessage::RetractResponse(msg) => {
-                on_steal_response(&mut core, &mut *comm, worker_id, msg)
+                unreachable!() // Not implemented yet
             }
             FromWorkerMessage::Heartbeat => {
                 if let Some(worker) = core.get_worker_mut(worker_id) {

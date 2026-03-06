@@ -40,13 +40,13 @@ pub(crate) fn on_remove_worker(
 
     let mut running_tasks = Vec::new();
 
+    let worker = core.remove_worker(worker_id);
     let CoreSplitMut {
         task_map,
-        worker_map,
         task_queues,
+        worker_map,
         ..
     } = core.split_mut();
-    let worker = worker_map.get_worker(worker_id);
     match worker.assignment() {
         WorkerAssignment::Sn(sn) => {
             for task_id in &sn.assign_tasks {
@@ -60,38 +60,32 @@ pub(crate) fn on_remove_worker(
             }
         }
         WorkerAssignment::Mn(mn) => {
-            /*
-            TaskRuntimeState::RunningMultiNode(ws) => {
-                if ws.contains(&worker_id) {
-                    let root_worker_id = ws[0];
-                    for w in ws {
-                        worker_map.get_worker_mut(*w).reset_mn_task();
+            running_tasks.push(mn.task_id);
+            let task = task_map.get_task_mut(mn.task_id);
+            task.increment_instance_id();
+            match &mut task.state {
+                TaskRuntimeState::RunningMultiNode(ws) => {
+                    if worker_id == ws[0] {
+                        // Root
+                        for worker_id in &ws[1..] {
+                            let worker = worker_map.get_worker_mut(*worker_id);
+                            worker.reset_mn_task();
+                        }
+                        task.state = TaskRuntimeState::Waiting { unfinished_deps: 0 };
+                        task_queues.add_ready_task(&task);
+                    } else {
+                        // Non-Root
+                        ws.retain(|&x| x != worker_id);
                     }
-                    task.increment_instance_id();
-                    ready_to_assign.push(task_id);
-                    running_tasks.push(task_id);
-
-                    // If non root then cancel task on root
-                    if worker_id != root_worker_id {
-                        comm.send_worker_message(
-                            root_worker_id,
-                            &ToWorkerMessage::CancelTasks(TaskIdsMsg { ids: vec![task_id] }),
-                        )
-                    }
-                    TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 })
-                } else {
-                    continue;
                 }
-            }
-             */
-            todo!()
+                _ => unreachable!(),
+            };
         }
     }
 
     //core.reset_stealing_tasks_on_worker(worker_id);
 
     log::debug!("Running tasks on lost worker {worker_id}: {running_tasks:?}");
-    let _ = core.remove_worker(worker_id);
 
     comm.broadcast_worker_message(&ToWorkerMessage::LostWorker(worker_id));
 
@@ -179,7 +173,6 @@ pub(crate) fn on_task_running(
             } => {
                 assert_eq!(*w_id, worker_id);
                 assert_eq!(*assigned_rv_id, rv_id);
-                comm.ask_for_scheduling();
                 task.state = TaskRuntimeState::Running { worker_id, rv_id };
                 /*let rqv = requests.get(task.resource_rq_id);
                 workers
@@ -265,7 +258,7 @@ pub(crate) fn on_task_finished(
             TaskRuntimeState::Retracting { .. }
             | TaskRuntimeState::Waiting { .. }
             | TaskRuntimeState::Finished => {
-                unreachable!();
+                unreachable!()
             }
         }
 
@@ -291,94 +284,6 @@ pub(crate) fn on_task_finished(
     }
     let state = core.remove_task(msg.task_id);
     assert!(matches!(state, TaskRuntimeState::Finished));
-}
-
-pub(crate) fn on_steal_response(
-    core: &mut Core,
-    comm: &mut impl Comm,
-    worker_id: WorkerId,
-    msg: RetractResponseMsg,
-) {
-    todo!()
-    /*
-    for (task_id, response) in msg.responses {
-        log::debug!("Steal response from {worker_id}, task={task_id} response={response:?}");
-        if core.find_task(task_id).is_none() {
-            log::debug!("Received trace response for invalid task {task_id}");
-            continue;
-        }
-
-        let new_state = {
-            let to_worker_id = {
-                let Some(task) = core.find_task(task_id) else {
-                    continue;
-                };
-                if task.is_done_or_running() {
-                    log::debug!("Received trace response for finished task={task_id}");
-                    continue;
-                }
-                match &task.state {
-                    TaskRuntimeState::Retracting { source } => {
-                        assert_eq!(*source, worker_id);
-                        None
-                    }
-                    TaskRuntimeState::Stealing {
-                        source,
-                        target,
-                        rv_id,
-                    } => {
-                        assert_eq!(*source, worker_id);
-                        Some((*target, *rv_id))
-                    }
-                    _ => {
-                        log::debug!("Invalid state of task={task_id} when steal response occurred");
-                        continue;
-                    }
-                }
-            };
-
-            match response {
-                StealResponse::Ok => {
-                    log::debug!("Task stealing was successful task={task_id}");
-                    if let Some((w_id, rv_id)) = to_worker_id {
-                        let Some(worker) = core.get_worker_mut(w_id) else {
-                            continue;
-                        };
-                        worker.insert_sn_task(task_id);
-                        let task = core.get_task(task_id);
-                        comm.send_worker_message(
-                            w_id,
-                            &ComputeTasksBuilder::single_task(task, Vec::new()),
-                        );
-                        TaskRuntimeState::Assigned {
-                            worker_id: w_id,
-                            rv_id,
-                        }
-                    } else {
-                        comm.ask_for_scheduling();
-                        core.add_ready_to_assign(task_id);
-                        TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 })
-                    }
-                }
-                StealResponse::Running => {
-                    log::debug!("Task stealing was not successful task={task_id}");
-                    // This should be unreachable because we should receive information
-                    // about the running task so the task is running state and the condition above
-                    // should skip the cycle previously
-                    panic!("Received Running response while stealing");
-                }
-                StealResponse::NotHere => {
-                    panic!(
-                        "Received NotHere while stealing, it seems that Finished message got lost"
-                    );
-                }
-            }
-        };
-
-        let task = core.get_task_mut(task_id);
-        task.state = new_state;
-    }
-     */
 }
 
 fn fail_task_helper(
@@ -446,8 +351,6 @@ fn fail_task_helper(
             state,
             TaskRuntimeState::Assigned { .. }
                 | TaskRuntimeState::Running { .. }
-                /*| TaskRuntimeState::Retracting { .. }
-                | TaskRuntimeState::Stealing { .. }*/
                 | TaskRuntimeState::RunningMultiNode(_)
         ));
     } else {

@@ -8,8 +8,8 @@ use crate::internal::messages::worker::{
 };
 use crate::internal::server::core::Core;
 use crate::internal::server::reactor::{
-    on_cancel_tasks, on_new_tasks, on_new_worker, on_remove_worker, on_steal_response,
-    on_task_error, on_task_finished, on_task_running,
+    on_cancel_tasks, on_new_tasks, on_new_worker, on_remove_worker, on_task_error,
+    on_task_finished, on_task_running,
 };
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::worker::Worker;
@@ -195,7 +195,6 @@ fn test_submit_jobs() {
 
     check_task_consumers_exact(task1, &[task2]);
 
-    let rmap = rt.core().resource_map_mut();
     let t3 = TaskId::new(100.into(), 604.into());
     let t4 = TaskId::new(100.into(), 503.into());
     let t5 = TaskId::new(100.into(), 603.into());
@@ -228,42 +227,36 @@ fn test_submit_jobs() {
     assert_eq!(t6.get_unfinished_deps(), 4);
 }
 
-fn no_data_task_finished(task_id: TaskId) -> TaskFinishedMsg {
-    TaskFinishedMsg { task_id: task_id }
+fn task_finished(task_id: TaskId) -> TaskFinishedMsg {
+    TaskFinishedMsg { task_id }
 }
 
 #[test]
 fn test_assignments_and_finish() {
-    todo!()
-    /*let mut rt = TestEnv::new();
-    let ws = rt.new_workers_cpus(&[1, 1, 1]);
+    let mut rt = TestEnv::new();
+    let ws = rt.new_workers_cpus(&[2, 3, 1]);
 
     /*
-       t1   t2    t4  t5
-        \   /     |
-          t3[k]   t7[k]
+       t1   t2[3]    t4[3]   t5[1]
+        \    /         |
+          t3           t7
     */
 
-    let t1 = rt.new_task(&TaskBuilder::new().user_priority(12));
-    let t2 = rt.new_task_default();
-    let t3 = rt.new_task(&TaskBuilder::new().task_deps(&[t1, t2]));
-    let t4 = rt.new_task_default();
-    let t5 = rt.new_task_default();
+    let t1 = rt.new_task(&TaskBuilder::new().user_priority(12).cpus(1));
+    let t2 = rt.new_task(&TaskBuilder::new().user_priority(12).cpus(3));
+    let t3 = rt.new_task(
+        &TaskBuilder::new()
+            .user_priority(12)
+            .cpus(1)
+            .task_deps(&[t1, t2]),
+    );
+    let t4 = rt.new_task(&TaskBuilder::new().cpus(3));
+    let t5 = rt.new_task(&TaskBuilder::new().user_priority(12).cpus(1));
     let t7 = rt.new_task(&TaskBuilder::new().task_deps(&[t4]));
 
     let mut comm = TestComm::new();
 
-    let mut scheduler = create_test_scheduler();
-
-    force_assign(rt.core(), &mut scheduler, t1, ws[0]);
-    force_assign(rt.core(), &mut scheduler, t2, ws[1]);
-    force_assign(rt.core(), &mut scheduler, t5, ws[0]);
-
-    scheduler.finish_scheduling(rt.core(), &mut comm);
-
-    check_worker_tasks_exact(rt.core(), ws[0], &[t1, t5]);
-    check_worker_tasks_exact(rt.core(), ws[1], &[t2]);
-    check_worker_tasks_exact(rt.core(), ws[2], &[]);
+    rt.schedule_with_comm(&mut comm);
 
     let msgs = comm.take_worker_msgs(ws[0], 1);
     assert!(matches!(
@@ -289,8 +282,7 @@ fn test_assignments_and_finish() {
 
     assert!(rt.task(t5).is_assigned());
 
-    // FINISH TASK WITHOUT CONSUMERS & KEEP FLAG
-    on_task_finished(rt.core(), &mut comm, ws[0], no_data_task_finished(t5));
+    on_task_finished(rt.core(), &mut comm, ws[0], task_finished(t5));
 
     assert!(rt.core().find_task(t5.into()).is_none());
     check_worker_tasks_exact(rt.core(), ws[0], &[t1]);
@@ -302,11 +294,9 @@ fn test_assignments_and_finish() {
     comm.emptiness_check();
 
     assert!(!rt.task_exists(t5));
-
-    // FINISHED TASK WITH CONSUMERS
     assert!(rt.task(t2).is_assigned());
 
-    on_task_finished(rt.core(), &mut comm, ws[1], no_data_task_finished(t2));
+    on_task_finished(rt.core(), &mut comm, ws[1], task_finished(t2));
 
     assert!(!rt.task_exists(t2));
     check_worker_tasks_exact(rt.core(), ws[0], &[t1]);
@@ -317,14 +307,13 @@ fn test_assignments_and_finish() {
     assert_eq!(comm.client.take_task_finished(1)[0], t2);
     comm.emptiness_check();
 
-    on_task_finished(rt.core(), &mut comm, ws[0], no_data_task_finished(t1));
+    on_task_finished(rt.core(), &mut comm, ws[0], task_finished(t1));
 
     comm.check_need_scheduling();
 
-    force_assign(rt.core(), &mut scheduler, t3, ws[1]);
-    scheduler.finish_scheduling(rt.core(), &mut comm);
+    rt.schedule_with_comm(&mut comm);
 
-    let msgs = comm.take_worker_msgs(ws[1], 1);
+    let msgs = comm.take_worker_msgs(ws[0], 1);
     assert!(matches!(
         &msgs[0],
         ToWorkerMessage::ComputeTasks(ComputeTasksMsg {
@@ -333,17 +322,25 @@ fn test_assignments_and_finish() {
         }) if tasks[0].id == t3
     ));
 
+    let msgs = comm.take_worker_msgs(ws[1], 1);
+    assert!(matches!(
+        &msgs[0],
+        ToWorkerMessage::ComputeTasks(ComputeTasksMsg {
+            tasks,
+            ..
+        }) if tasks[0].id == t4
+    ));
     assert_eq!(comm.client.take_task_finished(1)[0], t1);
     comm.emptiness_check();
     rt.sanity_check();
 
-    on_task_finished(rt.core(), &mut comm, ws[1], no_data_task_finished(t3));
+    on_task_finished(rt.core(), &mut comm, ws[0], task_finished(t3));
 
     comm.check_need_scheduling();
 
     assert_eq!(comm.client.take_task_finished(1), vec![t3]);
     comm.emptiness_check();
-    rt.sanity_check();*/
+    rt.sanity_check();
 }
 
 #[test]
@@ -383,122 +380,13 @@ fn test_running_task_on_error() {
 }
 
 #[test]
-fn test_steal_tasks_ok() {
-    todo!()
-    /*
-    let mut rt = TestEnv::new();
-    let ws = rt.new_workers_cpus(&[1, 1, 1]);
-    let wf = submit_example_1(&mut rt);
-    start_and_finish_on_worker(rt.core(), wf[0], ws[0]);
-    start_and_finish_on_worker(rt.core(), wf[1], ws[1]);
-
-    let task_id = wf[2];
-    rt.assign_task(task_id, ws[1]);
-
-    assert!(worker_has_task(rt.core(), ws[1], task_id));
-    assert!(!worker_has_task(rt.core(), ws[0], task_id));
-
-    let mut comm = TestComm::new();
-    let mut scheduler = create_test_scheduler();
-
-    force_reassign(rt.core(), &mut scheduler, task_id, ws[0]);
-    scheduler.finish_scheduling(rt.core(), &mut comm);
-
-    assert!(!worker_has_task(rt.core(), ws[1], task_id));
-    assert!(worker_has_task(rt.core(), ws[0], task_id));
-
-    let msgs = comm.take_worker_msgs(ws[1], 1);
-    assert!(matches!(&msgs[0], ToWorkerMessage::RetractTasks(ids) if ids.ids == vec![task_id]));
-    comm.emptiness_check();
-
-    on_steal_response(
-        rt.core(),
-        &mut comm,
-        ws[1],
-        RetractResponseMsg {
-            responses: vec![
-                (task_id.into(), RetractResponse::Ok),
-                (123.into(), RetractResponse::NotHere),
-                (11.into(), RetractResponse::NotHere),
-            ],
-        },
-    );
-
-    assert!(!worker_has_task(rt.core(), ws[1], task_id));
-    assert!(worker_has_task(rt.core(), ws[0], task_id));
-
-    let msgs = comm.take_worker_msgs(ws[0], 1);
-    assert!(matches!(
-        &msgs[0],
-        ToWorkerMessage::ComputeTasks(ComputeTasksMsg { tasks, .. })
-        if tasks[0].id == wf[2]
-    ));
-    comm.emptiness_check();
-    rt.sanity_check();*/
-}
-
-#[test]
-fn test_steal_tasks_running() {
-    todo!()
-    /*
-    let mut rt = TestEnv::new();
-    let ws = rt.new_workers_cpus(&[1, 1, 1]);
-    let wf = submit_example_1(&mut rt);
-    start_and_finish_on_worker(rt.core(), wf[0], ws[0]);
-    start_and_finish_on_worker(rt.core(), wf[1], ws[1]);
-    assign_to_worker(rt.core(), wf[2], ws[1]);
-
-    let mut comm = TestComm::new();
-    let mut scheduler = create_test_scheduler();
-
-    force_reassign(rt.core(), &mut scheduler, wf[2], ws[0]);
-    scheduler.finish_scheduling(rt.core(), &mut comm);
-
-    let msgs = comm.take_worker_msgs(ws[1], 1);
-    assert!(matches!(&msgs[0], ToWorkerMessage::RetractTasks(ids) if ids.ids == vec![wf[2]]));
-    comm.emptiness_check();
-
-    assert!(!worker_has_task(rt.core(), ws[1], wf[2]));
-    assert!(worker_has_task(rt.core(), ws[0], wf[2]));
-
-    on_task_running(rt.core(), &mut comm, ws[1], task_running_msg(wf[2]));
-    comm.client.take_task_running(1);
-    comm.check_need_scheduling();
-    comm.emptiness_check();
-    rt.sanity_check();
-
-    on_steal_response(
-        rt.core(),
-        &mut comm,
-        ws[1],
-        RetractResponseMsg {
-            responses: vec![(wf[2], RetractResponse::Running)],
-        },
-    );
-
-    assert!(worker_has_task(rt.core(), ws[1], wf[2]));
-    assert!(!worker_has_task(rt.core(), ws[0], wf[2]));
-    rt.sanity_check();
-    comm.emptiness_check();*/
-}
-
-#[test]
-#[should_panic]
-fn finish_unassigned_task() {
-    let mut rt = TestEnv::new();
-    let w1 = rt.new_workers_cpus(&[1, 1, 1]);
-    let wf = submit_example_1(&mut rt);
-    rt.start_and_finish_task(wf[0], w1[0]);
-}
-
-#[test]
 fn finish_task_without_outputs() {
     let mut rt = TestEnv::new();
     let w1 = rt.new_worker_cpus(1);
     let t1 = rt.new_task_assigned(&TaskBuilder::new(), w1);
 
     let mut comm = TestComm::new();
-    on_task_finished(rt.core(), &mut comm, w1, no_data_task_finished(t1));
+    on_task_finished(rt.core(), &mut comm, w1, task_finished(t1));
     comm.check_need_scheduling();
     assert_eq!(comm.client.take_task_finished(1)[0], t1);
     comm.emptiness_check();
@@ -507,9 +395,8 @@ fn finish_task_without_outputs() {
 
 #[test]
 fn test_task_cancel() {
-    todo!()
-    /*let mut rt = TestEnv::new();
-    let ws = rt.new_workers_cpus(&[1, 1, 1]);
+    let mut rt = TestEnv::new();
+    let ws = rt.new_workers_cpus(&[10, 10, 10]);
     let wf = submit_example_1(&mut rt);
 
     let t1 = rt.new_task_default();
@@ -520,12 +407,6 @@ fn test_task_cancel() {
     rt.assign_task(wf[1], ws[1]);
     rt.assign_task(t1, ws[1]);
     rt.assign_task(t2, ws[0]);
-
-    start_stealing(rt.core(), wf[1], ws[0]);
-    rt.start_task(wf[1], 0);
-    fail_steal(rt.core(), wf[1], ws[1]);
-    start_stealing(rt.core(), t1, ws[0]);
-    start_stealing(rt.core(), t2, ws[1]);
 
     let mut comm = TestComm::new();
     on_cancel_tasks(rt.core(), &mut comm, &vec![wf[0], wf[1], t1, t2, wf[2]]);
@@ -545,42 +426,34 @@ fn test_task_cancel() {
 
     comm.check_need_scheduling();
     comm.emptiness_check();
-    rt.sanity_check();*/
+    rt.sanity_check();
 }
 
 #[test]
 fn test_worker_lost_with_mn_task_non_root() {
-    todo!()
-    /*
     let mut rt = TestEnv::new();
     let ws = rt.new_workers_cpus(&[1, 1, 1, 1]);
     let t1 = rt.new_task(&TaskBuilder::new().n_nodes(3));
-    start_mn_task_on_worker(rt.core(), t1, vec![ws[3], ws[1], ws[0]]);
+    rt.start_task_mn(t1, &[ws[3], ws[1], ws[0]]);
     let mut comm = TestComm::new();
     on_remove_worker(rt.core(), &mut comm, ws[1], LostWorkerReason::HeartbeatLost);
     rt.sanity_check();
     assert_eq!(comm.client.take_lost_workers().len(), 1);
-    let msgs = comm.take_worker_msgs(ws[3], 1);
-    assert!(
-        matches!(&msgs[0], &ToWorkerMessage::CancelTasks(TaskIdsMsg { ref ids }) if ids == &vec![t1])
-    );
     assert!(matches!(
         comm.take_broadcasts(1)[0],
         ToWorkerMessage::LostWorker(w) if w == ws[1]));
     comm.check_need_scheduling();
     comm.emptiness_check();
-    assert!(rt.task(t1).is_waiting());
-    */
+    assert_eq!(rt.task(t1).mn_placement().unwrap(), &[ws[3], ws[0]]);
 }
 
 #[test]
 fn test_worker_lost_with_mn_task_root() {
-    todo!()
-    /*let mut rt = TestEnv::new();
+    let mut rt = TestEnv::new();
     let ws = rt.new_workers_cpus(&[1, 1, 1, 1]);
     let t1 = rt.new_task(&TaskBuilder::new().n_nodes(3));
 
-    start_mn_task_on_worker(rt.core(), t1, vec![ws[3], ws[1], ws[0]]);
+    rt.start_task_mn(t1, &[ws[3], ws[1], ws[0]]);
     let mut comm = TestComm::new();
     on_remove_worker(rt.core(), &mut comm, ws[3], LostWorkerReason::HeartbeatLost);
     rt.sanity_check();
@@ -591,7 +464,7 @@ fn test_worker_lost_with_mn_task_root() {
     ));
     comm.check_need_scheduling();
     comm.emptiness_check();
-    assert!(rt.task(t1).is_waiting());*/
+    assert!(rt.task(t1).is_waiting());
 }
 
 #[test]
@@ -635,11 +508,10 @@ fn test_worker_crashing_task() {
 
 #[test]
 fn test_task_mn_fail() {
-    todo!()
-    /*let mut rt = TestEnv::new();
+    let mut rt = TestEnv::new();
     let ws = rt.new_workers_cpus(&[1, 1, 1, 1]);
     let t1 = rt.new_task(&TaskBuilder::new().n_nodes(3));
-    start_mn_task_on_worker(rt.core(), t1, vec![ws[3], ws[1], ws[0]]);
+    rt.start_task_mn(t1, &[ws[3], ws[1], ws[0]]);
     let mut comm = TestComm::new();
     on_task_error(
         rt.core(),
@@ -663,17 +535,17 @@ fn test_task_mn_fail() {
                 .mn_assignment()
                 .is_none()
         );
-    }*/
+    }
 }
 
 #[test]
 fn test_task_mn_cancel() {
-    todo!()
-    /*let mut rt = TestEnv::new();
+    let mut rt = TestEnv::new();
     let ws = rt.new_workers_cpus(&[1, 1, 1, 1]);
     let t1 = rt.new_task(&TaskBuilder::new().n_nodes(3));
-    start_mn_task_on_worker(rt.core(), t1, vec![ws[3], ws[1], ws[0]]);
+    rt.start_task_mn(t1, &[ws[3], ws[1], ws[0]]);
     let mut comm = TestComm::new();
+
     on_cancel_tasks(rt.core(), &mut comm, &[t1]);
     rt.sanity_check();
     let msgs = comm.take_worker_msgs(ws[3], 1);
@@ -682,21 +554,21 @@ fn test_task_mn_cancel() {
     );
     comm.check_need_scheduling();
     comm.emptiness_check();
-    let mut scheduler = create_test_scheduler();
-    scheduler.run_scheduling(rt.core(), &mut comm);
+
+    rt.schedule_with_comm(&mut comm);
     rt.sanity_check();
     comm.emptiness_check();
 
     assert!(!rt.task_exists(t1));
     for w in rt.core().get_workers() {
         assert!(w.mn_assignment().is_none());
-    }*/
+    }
 }
 
 #[test]
 fn test_running_task() {
     let mut rt = TestEnv::new();
-    let ws = rt.new_workers_cpus(&[1, 1, 1]);
+    let ws = rt.new_workers_cpus(&[10, 10, 10]);
     let t1 = rt.new_task_assigned(&TaskBuilder::new(), ws[1]);
     let t2 = rt.new_task_assigned(&TaskBuilder::new(), ws[1]);
 
@@ -740,143 +612,17 @@ fn test_running_task() {
 }
 
 #[test]
-fn test_finished_before_steal_response() {
-    todo!()
-    /*let mut rt = TestEnv::new();
-    let ws = rt.new_workers_cpus(&[1, 1, 1]);
-    let t1 = rt.new_task_default();
-    rt.assign_task(t1, ws[1]);
-    start_stealing(rt.core(), t1, ws[2]);
-    assert!(worker_has_task(rt.core(), ws[2], t1));
-
-    let mut comm = TestComm::new();
-    on_task_finished(rt.core(), &mut comm, ws[1], no_data_task_finished(t1));
-
-    comm.check_need_scheduling();
-    assert_eq!(comm.client.take_task_finished(1)[0], t1);
-    comm.emptiness_check();
-
-    assert!(!worker_has_task(rt.core(), ws[1], t1));
-    assert!(!worker_has_task(rt.core(), ws[2], t1));
-
-    on_steal_response(
-        rt.core(),
-        &mut comm,
-        101.into(),
-        RetractResponseMsg {
-            responses: vec![(1.into(), RetractResponse::NotHere)],
-        },
-    );
-
-    comm.emptiness_check();
-
-    assert!(!worker_has_task(rt.core(), ws[1], t1));
-    assert!(!worker_has_task(rt.core(), ws[2], t1));*/
-}
-
-#[test]
-fn test_running_before_steal_response() {
-    todo!()
-    /*let mut rt = TestEnv::new();
-    let ws = rt.new_workers_cpus(&[1, 1, 1]);
-    let t1 = rt.new_task_default();
-    rt.assign_task(t1, ws[1]);
-    start_stealing(rt.core(), t1, ws[2]);
-    assert!(worker_has_task(rt.core(), ws[2], t1));
-
-    let mut comm = TestComm::new();
-    on_task_running(rt.core(), &mut comm, ws[1], task_running_msg(t1));
-    comm.check_need_scheduling();
-    assert_eq!(comm.client.take_task_running(1)[0], t1);
-    comm.emptiness_check();
-
-    assert!(worker_has_task(rt.core(), ws[1], t1));
-    assert!(!worker_has_task(rt.core(), ws[2], t1));
-
-    on_steal_response(
-        rt.core(),
-        &mut comm,
-        101.into(),
-        RetractResponseMsg {
-            responses: vec![(1.into(), RetractResponse::Running)],
-        },
-    );
-
-    comm.emptiness_check();
-    assert!(worker_has_task(rt.core(), ws[1], t1));
-    assert!(!worker_has_task(rt.core(), ws[2], t1));*/
-}
-
-fn test_after_cancel_messages() {
-    todo!()
-    /*
-    let mut rt = TestEnv::new();
-    let ws = rt.new_workers_cpus(&[1, 1, 1]);
-    let t1 = rt.new_task_assigned(&TaskBuilder::new(), ws[1]);
-    let t2 = rt.new_task_assigned(&TaskBuilder::new(), ws[1]);
-    let t3 = rt.new_task_assigned(&TaskBuilder::new(), ws[1]);
-    let t4 = rt.new_task_assigned(&TaskBuilder::new(), ws[1]);
-    cancel_tasks(rt.core(), &[t1, t2, t3, t4]);
-
-    let mut comm = TestComm::new();
-    on_task_finished(rt.core(), &mut comm, ws[1], no_data_task_finished(t1));
-    comm.emptiness_check();
-
-    on_steal_response(
-        rt.core(),
-        &mut comm,
-        ws[1],
-        RetractResponseMsg {
-            responses: vec![(t2, RetractResponse::Ok)],
-        },
-    );
-    comm.emptiness_check();
-
-    on_steal_response(
-        rt.core(),
-        &mut comm,
-        ws[1],
-        RetractResponseMsg {
-            responses: vec![(t2, RetractResponse::Running)],
-        },
-    );
-    comm.emptiness_check();
-
-    on_task_error(
-        rt.core(),
-        &mut comm,
-        ws[1],
-        t3,
-        TaskFailInfo {
-            message: "".to_string(),
-        },
-    );
-    comm.emptiness_check();
-
-    on_task_running(rt.core(), &mut comm, ws[1], task_running_msg(t4));
-    comm.emptiness_check();*/
-}
-
-#[test]
 fn lost_worker_with_running_and_assign_tasks() {
-    todo!()
-    /*let mut rt = TestEnv::new();
-    let ws = rt.new_workers_cpus(&[1, 1, 1]);
+    let mut rt = TestEnv::new();
+    let ws = rt.new_workers_cpus(&[10, 10, 10]);
     let wf = submit_example_1(&mut rt);
 
     let t1 = rt.new_task_default();
     let t2 = rt.new_task_default();
 
-    assign_to_worker(rt.core(), wf[0], ws[1]);
-    assign_to_worker(rt.core(), wf[1], ws[1]);
-    assign_to_worker(rt.core(), t1, ws[1]);
-    assign_to_worker(rt.core(), t2, ws[0]);
-
-    start_stealing(rt.core(), wf[1], ws[0]);
-    set_as_running(rt.core(), wf[1], ws[1]);
-    fail_steal(rt.core(), wf[1], ws[1]);
-    start_stealing(rt.core(), t1, ws[0]);
-    start_stealing(rt.core(), t2, ws[1]);
+    rt.assign_task(wf[0], ws[1]);
+    rt.assign_and_start_task(wf[1], ws[1], 0);
+    rt.assign_task(t1, ws[1]);
 
     rt.core().assert_running(&[wf[1]]);
     assert_eq!(rt.task(wf[1]).instance_id, 0.into());
@@ -890,10 +636,6 @@ fn lost_worker_with_running_and_assign_tasks() {
     assert_eq!(rt.task(wf[1]).instance_id, 1.into());
     assert!(rt.task(t1).is_ready());
     rt.core().assert_ready(&[t1]);
-    assert!(matches!(
-        rt.task(t2).state,
-        TaskRuntimeState::Retracting { source } if source == ws[0]
-    ));
 
     assert!(matches!(
         comm.take_broadcasts(1)[0],
@@ -902,56 +644,25 @@ fn lost_worker_with_running_and_assign_tasks() {
 
     comm.check_need_scheduling();
     comm.emptiness_check();
-
-    on_steal_response(
-        rt.core(),
-        &mut comm,
-        ws[0],
-        StealResponseMsg {
-            responses: vec![(t2.into(), StealResponse::Ok)],
-        },
-    );
-
     rt.core().assert_ready(&[t2]);
-
-    comm.check_need_scheduling();
-    comm.emptiness_check();
-    rt.sanity_check();*/
-}
-
-fn start_stealing<W: Into<WorkerId>>(core: &mut Core, task_id: TaskId, new_worker_id: W) {
-    todo!()
-    /*let mut scheduler = create_test_scheduler();
-    force_reassign(core, &mut scheduler, task_id, new_worker_id.into());
-    let mut comm = TestComm::new();
-    scheduler.finish_scheduling(core, &mut comm);*/
-}
-
-fn cancel_tasks<T: Into<TaskId> + Copy>(core: &mut Core, task_ids: &[T]) {
-    let mut comm = TestComm::new();
-    on_cancel_tasks(
-        core,
-        &mut comm,
-        &task_ids.iter().map(|&v| v.into()).collect::<Vec<_>>(),
-    );
+    rt.sanity_check();
 }
 
 fn check_worker_tasks_exact(core: &Core, worker_id: WorkerId, tasks: &[TaskId]) {
-    todo!()
-    /*let worker = core.get_worker_by_id_or_panic(worker_id.into());
-    assert_eq!(worker.sn_tasks().len(), tasks.len());
+    let worker = core.get_worker_by_id_or_panic(worker_id.into());
+    let sn = worker.sn_assignment().unwrap();
+    assert_eq!(sn.assign_tasks.len(), tasks.len());
     for task in tasks {
-        assert!(worker.sn_tasks().contains(task));
-    }*/
+        assert!(sn.assign_tasks.contains(task));
+    }
 }
 
 fn worker_has_task(core: &Core, worker_id: WorkerId, task_id: TaskId) -> bool {
-    todo!()
-    /*
     core.get_worker_by_id_or_panic(worker_id.into())
-        .sn_tasks()
+        .sn_assignment()
+        .unwrap()
+        .assign_tasks
         .contains(&task_id)
-     */
 }
 
 fn check_task_consumers_exact(task: &Task, consumers: &[&Task]) {

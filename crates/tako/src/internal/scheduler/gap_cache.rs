@@ -85,8 +85,9 @@ fn compute_gap(
     low_priority_rq: &ResourceRequest,
     resources: &WorkerResources,
 ) -> u32 {
-    assert!(!high_priority_rqv.is_multi_node());
-    assert!(!low_priority_rq.is_multi_node());
+    if high_priority_rqv.is_multi_node() || low_priority_rq.is_multi_node() {
+        return 0;
+    }
     if high_priority_rqv.is_trivial() {
         let high_priority_rq = high_priority_rqv.get(0.into());
         let count = resources.task_max_count_for_request(high_priority_rq);

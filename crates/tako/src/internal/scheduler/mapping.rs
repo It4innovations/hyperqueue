@@ -164,7 +164,7 @@ pub(crate) fn create_task_mapping(
 }*/
 
 impl WorkerTaskMapping {
-    pub fn dump(&mut self) {
+    pub fn dump(&self) {
         println!("=======================");
         for (w, ts) in &self.sn_tasks_to_workers {
             print!("w{w}:");
