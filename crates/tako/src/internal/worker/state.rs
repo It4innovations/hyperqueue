@@ -482,7 +482,7 @@ impl WorkerStateRef {
             secret_key,
             tasks: Default::default(),
             ready_task_queue,
-            random: SmallRng::from_os_rng(),
+            random: SmallRng::from_rng(&mut rand::rng()),
             start_task_scheduled: false,
             running_tasks: Default::default(),
             start_time: now,

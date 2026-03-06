@@ -6,7 +6,7 @@ use crate::internal::worker::state::WorkerStateRef;
 use crate::{MAX_FRAME_SIZE, Map, TaskId};
 use bstr::{BStr, BString, ByteSlice, ByteVec};
 use futures::StreamExt;
-use rand::Rng;
+use rand::RngExt;
 use rand::distr::Alphanumeric;
 use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;

@@ -27,7 +27,7 @@ use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::ServerInfo;
 use chrono::Utc;
 use orion::kdf::SecretKey;
-use rand::Rng;
+use rand::RngExt;
 use rand::distr::Alphanumeric;
 use std::time::Duration;
 use tako::WorkerId;
