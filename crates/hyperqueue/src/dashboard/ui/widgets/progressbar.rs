@@ -30,6 +30,25 @@ pub fn get_progress_bar_color(progress: f64) -> Style {
     }
 }
 
+pub fn get_progress_bar_cpu_color(progress: f64, used: bool) -> Style {
+    let color = if !used {
+        Color::Gray
+    } else if progress <= GREEN_THRESHOLD {
+        Color::Green
+    } else if progress <= YELLOW_THRESHOLD {
+        Color::Yellow
+    } else {
+        Color::Red
+    };
+
+    Style {
+        fg: Some(color),
+        bg: None,
+        add_modifier: Modifier::empty(),
+        sub_modifier: Modifier::empty(),
+    }
+}
+
 /**
  * Creates a string progress bar for 0 < progress < 1
  */
