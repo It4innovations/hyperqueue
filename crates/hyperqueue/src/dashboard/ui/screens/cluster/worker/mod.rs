@@ -12,6 +12,7 @@ use crate::dashboard::ui::widgets::text::draw_text;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use tako::hwstats::MemoryStats;
+use tako::resources::{CPU_RESOURCE_NAME, ResourceIndex};
 use tako::{JobTaskId, WorkerId};
 
 mod cpu_util_table;
@@ -26,6 +27,7 @@ pub struct WorkerDetail {
     worker_tasks_table: TasksTable,
 
     utilization: Option<Utilization>,
+    utilization_render_mode: UtilizationRenderMode,
 }
 
 impl Default for WorkerDetail {
@@ -36,6 +38,29 @@ impl Default for WorkerDetail {
             worker_config_table: Default::default(),
             worker_tasks_table: TasksTable::non_interactive(),
             utilization: None,
+            utilization_render_mode: UtilizationRenderMode::Worker,
+        }
+    }
+}
+
+#[derive(PartialEq)]
+enum UtilizationRenderMode {
+    Global,
+    Worker,
+}
+
+impl UtilizationRenderMode {
+    fn next(&mut self) {
+        *self = match self {
+            UtilizationRenderMode::Global => UtilizationRenderMode::Worker,
+            UtilizationRenderMode::Worker => UtilizationRenderMode::Global,
+        }
+    }
+
+    fn next_text(&self) -> &str {
+        match self {
+            UtilizationRenderMode::Global => "Show worker CPU utilization",
+            UtilizationRenderMode::Worker => "Show global CPU utilization",
         }
     }
 }
@@ -43,6 +68,7 @@ impl Default for WorkerDetail {
 struct Utilization {
     cpu: Vec<f64>,
     memory: MemoryStats,
+    used_cpus: Vec<ResourceIndex>,
 }
 
 impl WorkerDetail {
@@ -66,12 +92,24 @@ impl WorkerDetail {
             frame,
             style_header_text(),
         );
-        draw_text("<backspace>: Back", layout.footer, frame, style_footer());
+
+        draw_text(
+            format!(
+                "<backspace>: Back, <c>: {}",
+                self.utilization_render_mode.next_text()
+            )
+            .as_str(),
+            layout.footer,
+            frame,
+            style_footer(),
+        );
 
         if let Some(util) = &self.utilization {
             render_cpu_util_table(
                 &util.cpu,
                 &util.memory,
+                &util.used_cpus,
+                &self.utilization_render_mode,
                 layout.current_utilization,
                 frame,
                 table_style_deselected(),
@@ -95,21 +133,45 @@ impl WorkerDetail {
         if let Some(worker_id) = self.worker_id {
             self.utilization_history.update(data, worker_id);
 
-            if let Some((cpu_util, mem_util)) = data
+            if let Some(overview) = data
                 .workers()
                 .query_worker_overview_at(worker_id, data.current_time())
-                .and_then(|overview| overview.item.hw_state.as_ref())
-                .map(|hw_state| {
-                    (
-                        &hw_state.state.cpu_usage.cpu_per_core_percent_usage,
-                        &hw_state.state.memory_usage,
-                    )
-                })
             {
-                self.utilization = Some(Utilization {
-                    cpu: cpu_util.iter().map(|&v| v as f64).collect(),
-                    memory: mem_util.clone(),
-                });
+                let worker_used_cpus: Vec<ResourceIndex> = match self.utilization_render_mode {
+                    UtilizationRenderMode::Worker => overview
+                        .item
+                        .running_tasks
+                        .iter()
+                        .flat_map(|(_id, task_resource_alloc)| {
+                            task_resource_alloc
+                                .resources
+                                .iter()
+                                .filter_map(|resource_alloc| {
+                                    if resource_alloc.resource == CPU_RESOURCE_NAME {
+                                        Some(resource_alloc.indices.iter().map(|(index, _)| *index))
+                                    } else {
+                                        None
+                                    }
+                                })
+                        })
+                        .flatten()
+                        .collect(),
+                    UtilizationRenderMode::Global => vec![],
+                };
+
+                if let Some(hw_state) = overview.item.hw_state.as_ref() {
+                    self.utilization = Some(Utilization {
+                        cpu: hw_state
+                            .state
+                            .cpu_usage
+                            .cpu_per_core_percent_usage
+                            .iter()
+                            .map(|&v| v as f64)
+                            .collect(),
+                        memory: hw_state.state.memory_usage.clone(),
+                        used_cpus: worker_used_cpus,
+                    })
+                }
             }
 
             let tasks_info: Vec<(JobTaskId, &TaskInfo)> =
@@ -127,6 +189,7 @@ impl WorkerDetail {
     pub fn handle_key(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Backspace => self.worker_tasks_table.clear_selection(),
+            KeyCode::Char('c') => self.utilization_render_mode.next(),
             _ => self.worker_tasks_table.handle_key(key),
         }
     }
