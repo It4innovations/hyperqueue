@@ -222,7 +222,6 @@ async fn worker_rpc_loop(
             if let Some(timeout) = idle_timeout
                 && worker.idle_timestamp + timeout < now
                 && worker.is_free()
-                && !worker.is_reserved()
             {
                 log::debug!("Idle timeout reached, worker={}", worker.id);
                 worker.set_stop(LostWorkerReason::IdleTimeout);

@@ -45,6 +45,7 @@ pub(crate) fn create_task_mapping(
                         let task = task_map.get_task_mut(task_id);
                         let new_state = match &task.state {
                             TaskRuntimeState::Waiting { .. } => {
+                                log::debug!("Waiting task={} assigned to worker={}", task_id, w_id);
                                 worker_map.get_worker_mut(*w_id).insert_sn_task(task_id, rq);
                                 mapping
                                     .sn_tasks_to_workers
@@ -96,9 +97,14 @@ pub(crate) fn create_task_mapping(
     for ((resource_rq_id, _), worker_sets) in solution.mn_workers {
         for workers in worker_sets {
             let task_id = task_queues.get_mut(resource_rq_id).take_one().unwrap();
+            log::debug!(
+                "Multi-node task={} assigned to workers={:?}",
+                task_id,
+                workers
+            );
             for (w_idx, w_id) in workers.iter().enumerate() {
                 let worker = worker_map.get_worker_mut(*w_id);
-                worker.set_mn_task(task_id, w_idx != 0);
+                worker.set_mn_task(task_id, w_idx == 0);
             }
             let task = task_map.get_task_mut(task_id);
             mapping.mn_tasks_to_workers.push(task_id);
