@@ -239,7 +239,7 @@ impl TestEnv {
     pub fn start_task_mn(&mut self, task_id: TaskId, workers: &[WorkerId]) {
         for (idx, worker_id) in workers.iter().enumerate() {
             let worker = self.core.get_worker_mut_by_id_or_panic(*worker_id);
-            worker.set_mn_task(task_id, idx != 0)
+            worker.set_mn_task(task_id, idx == 0)
         }
         let task = self.core.get_task_mut(task_id);
         assert!(task.is_waiting());

@@ -11,6 +11,8 @@ use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::configuration::WorkerConfiguration;
 use crate::resources::ResourceRqId;
 use crate::{Map, TaskId, WorkerId};
+use bitflags::Flags;
+use nix::libc::W_OK;
 use serde_json::json;
 use std::time::{Duration, Instant};
 
@@ -30,11 +32,11 @@ bitflags::bitflags! {
 pub struct MultiNodeTaskAssignment {
     pub task_id: TaskId,
 
-    // If true, then task is assigned to this worker on a logical level and no other task
+    // If false, then task is assigned to this worker on a logical level and no other task
     // is running. However, no work is done by HQ on this node.
     // For example for MPI application, HQ starts "mpirun" on a root node and HQ
     // does no other action other nodes expect ensuring that nothing else is running there.
-    pub reservation_only: bool,
+    pub is_root: bool,
 }
 
 pub struct SingleNodeTaskAssignment {
@@ -116,15 +118,9 @@ impl Worker {
         }
     }
 
-    pub fn set_mn_task(&mut self, task_id: TaskId, reservation_only: bool) {
+    pub fn set_mn_task(&mut self, task_id: TaskId, is_root: bool) {
         assert!(self.is_free());
-        self.assignment = WorkerAssignment::Mn(MultiNodeTaskAssignment {
-            task_id,
-            reservation_only,
-        });
-        if reservation_only {
-            self.set_reservation(true);
-        }
+        self.assignment = WorkerAssignment::Mn(MultiNodeTaskAssignment { task_id, is_root });
     }
 
     pub fn has_mn_task(&self) -> bool {
@@ -132,6 +128,10 @@ impl Worker {
             WorkerAssignment::Sn(_) => false,
             WorkerAssignment::Mn(_) => true,
         }
+    }
+
+    pub fn is_reserved(&self) -> bool {
+        self.flags.contains(WorkerFlags::RESERVED)
     }
 
     pub fn worker_info(&self, task_map: &TaskMap) -> WorkerRuntimeInfo {
@@ -151,7 +151,7 @@ impl Worker {
                 }
             }
             WorkerAssignment::Mn(a) => WorkerRuntimeInfo::MultiNodeTask {
-                main_node: !a.reservation_only,
+                main_node: a.is_root,
             },
         }
     }
@@ -162,13 +162,7 @@ impl Worker {
     }
 
     pub fn set_reservation(&mut self, value: bool) {
-        if self.is_reserved() != value {
-            self.flags.set(WorkerFlags::RESERVED, value);
-        }
-    }
-
-    pub fn is_reserved(&self) -> bool {
-        self.flags.contains(WorkerFlags::RESERVED)
+        self.flags.set(WorkerFlags::RESERVED, value);
     }
 
     pub fn is_free(&self) -> bool {
@@ -329,7 +323,7 @@ impl Worker {
                 }),
                 WorkerAssignment::Mn(a) => json! ({
                     "task_id": a.task_id,
-                    "reservation_only": a.reservation_only,
+                    "is_root": a.is_root,
                 })
             },
             "flags": self.flags.bits(),

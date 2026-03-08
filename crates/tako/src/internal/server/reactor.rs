@@ -279,7 +279,6 @@ pub(crate) fn on_task_finished(
         let t = task_map.get_task_mut(consumer);
         if t.decrease_unfinished_deps() {
             task_queues.add_ready_task(t);
-            comm.ask_for_scheduling();
         }
     }
     let state = core.remove_task(msg.task_id);
