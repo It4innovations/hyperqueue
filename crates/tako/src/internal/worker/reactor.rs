@@ -98,6 +98,10 @@ pub fn try_start_task(
         }
         Err(e) => {
             state.allocator.release_allocation(allocation);
+            task_updates.push(WorkerTaskUpdate::Failed(TaskFailedMsg {
+                task_id: task.id,
+                info: TaskFailInfo::from_string(e.to_string()),
+            }));
             false
         }
     }

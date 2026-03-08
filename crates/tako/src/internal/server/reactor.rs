@@ -60,9 +60,7 @@ pub(crate) fn on_remove_worker(
             }
         }
         WorkerAssignment::Mn(mn) => {
-            running_tasks.push(mn.task_id);
             let task = task_map.get_task_mut(mn.task_id);
-            task.increment_instance_id();
             match &mut task.state {
                 TaskRuntimeState::RunningMultiNode(ws) => {
                     if worker_id == ws[0] {
@@ -72,6 +70,8 @@ pub(crate) fn on_remove_worker(
                             worker.reset_mn_task();
                         }
                         task.state = TaskRuntimeState::Waiting { unfinished_deps: 0 };
+                        running_tasks.push(mn.task_id);
+                        task.increment_instance_id();
                         task_queues.add_ready_task(&task);
                     } else {
                         // Non-Root
