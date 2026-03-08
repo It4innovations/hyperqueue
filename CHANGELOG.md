@@ -13,7 +13,8 @@
 
 ### Changes
 
-* Failing non-root worker within multi-node tasks, does cause failing of task
+* Failing non-root worker within multi-node tasks, does NOT cause failing of task.
+  The task may continue. It is up to root worker to signal error if necessary.
 
 
 ## v0.25.0
