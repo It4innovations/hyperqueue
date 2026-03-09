@@ -1,5 +1,8 @@
-use crate::gateway::ResourceRequestVariants as ClientResourceRequestVariants;
 use crate::gateway::{CrashLimit, LostWorkerReason};
+use crate::gateway::{
+    ResourceRequest, ResourceRequestVariants as ClientResourceRequestVariants,
+    ResourceRequestVariants,
+};
 use crate::internal::common::resources::ResourceRqId;
 use crate::internal::common::{Map, Set};
 use crate::internal::messages::common::TaskFailInfo;
@@ -13,7 +16,7 @@ use crate::internal::server::task::ComputeTasksBuilder;
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::worker::{Worker, WorkerAssignment};
 use crate::internal::server::workermap::WorkerMap;
-use crate::{TaskId, WorkerId};
+use crate::{ResourceVariantId, TaskId, WorkerId};
 use std::fmt::Write;
 
 pub(crate) fn on_new_worker(core: &mut Core, comm: &mut impl Comm, worker: Worker) {
@@ -216,6 +219,75 @@ fn reset_mn_task_workers(worker_map: &mut WorkerMap, workers: &[WorkerId], task_
         assert_eq!(worker.mn_assignment().unwrap().task_id, task_id);
         worker.reset_mn_task();
     }
+}
+
+pub(crate) fn on_task_reject(
+    core: &mut Core,
+    comm: &mut impl Comm,
+    worker_id: WorkerId,
+    task_id: TaskId,
+    resource_rq_variant: ResourceVariantId,
+) {
+    let CoreSplitMut {
+        task_map,
+        task_queues,
+        worker_map,
+        request_map,
+        ..
+    } = core.split_mut();
+    let Some(task) = task_map.find_task_mut(task_id) else {
+        log::debug!("Unknown task rejected id={task_id}");
+        return;
+    };
+    log::debug!("Task id={task_id} (variant={resource_rq_variant}) rejected on worker={worker_id}");
+    match &task.state {
+        TaskRuntimeState::Assigned {
+            worker_id: w_id,
+            rv_id,
+        } => {
+            if worker_id != *w_id {
+                log::debug!("Rejection from invalid worker");
+            }
+            if resource_rq_variant != *rv_id {
+                log::debug!("Rejection from invalid worker");
+            }
+        }
+        TaskRuntimeState::Retracting { .. } => {
+            todo!()
+        }
+        TaskRuntimeState::Waiting { .. }
+        | TaskRuntimeState::Running { .. }
+        | TaskRuntimeState::RunningMultiNode(_)
+        | TaskRuntimeState::Finished => {
+            unreachable!()
+        }
+    };
+    task.state = TaskRuntimeState::Waiting { unfinished_deps: 0 };
+    let resource_rq_id = task.resource_rq_id;
+    task_queues.add_ready_task(&task);
+    let rq = request_map.get(resource_rq_id).get(resource_rq_variant);
+
+    let worker = worker_map.get_worker_mut(worker_id);
+    worker.remove_sn_task(task_id, rq);
+    worker.block_request(resource_rq_id, resource_rq_variant);
+
+    comm.ask_for_scheduling();
+}
+
+pub(crate) fn on_request_enabled(
+    core: &mut Core,
+    comm: &mut impl Comm,
+    worker_id: WorkerId,
+    resource_rq_id: ResourceRqId,
+    resource_rq_variant: ResourceVariantId,
+) {
+    let CoreSplitMut { worker_map, .. } = core.split_mut();
+    log::debug!(
+        "Resource request {resource_rq_id} (variant={resource_rq_variant}) enabled on worker={worker_id}"
+    );
+    let worker = worker_map.get_worker_mut(worker_id);
+    worker.unblock_request(resource_rq_id, resource_rq_variant);
+    comm.ask_for_scheduling();
 }
 
 pub(crate) fn on_task_finished(

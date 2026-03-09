@@ -8,10 +8,12 @@ use crate::internal::common::resources::{ResourceRequest, ResourceRequestVariant
 use crate::internal::server::comm::Comm;
 use crate::internal::server::taskmap::TaskMap;
 use crate::internal::server::workerload::WorkerResources;
+use crate::internal::server::workermap::WorkerMap;
 use crate::internal::worker::configuration::WorkerConfiguration;
 use crate::resources::ResourceRqId;
-use crate::{Map, TaskId, WorkerId};
+use crate::{Map, ResourceVariantId, TaskId, WorkerId};
 use bitflags::Flags;
+use itertools::Itertools;
 use nix::libc::W_OK;
 use serde_json::json;
 use std::time::{Duration, Instant};
@@ -67,9 +69,11 @@ pub struct Worker {
     assignment: WorkerAssignment,
 
     pub(crate) resources: WorkerResources,
-    pub(crate) flags: WorkerFlags,
+    pub(crate) blocked_requests: Set<(ResourceRqId, ResourceVariantId)>,
     // When the worker will be terminated
     pub(crate) termination_time: Option<Instant>,
+
+    pub(crate) flags: WorkerFlags,
     pub(crate) stop_reason: Option<(LostWorkerReason, Instant)>,
 
     // Saved timestamp when a worker is put into an idle state
@@ -294,6 +298,22 @@ impl Worker {
         self.has_time_to_run(rqv.min_time(), now)
     }
 
+    pub fn is_request_blocked(
+        &self,
+        resource_rq_id: ResourceRqId,
+        rv_id: ResourceVariantId,
+    ) -> bool {
+        self.blocked_requests.contains(&(resource_rq_id, rv_id))
+    }
+
+    pub fn block_request(&mut self, resource_rq_id: ResourceRqId, rv_id: ResourceVariantId) {
+        self.blocked_requests.insert((resource_rq_id, rv_id));
+    }
+
+    pub fn unblock_request(&mut self, resource_rq_id: ResourceRqId, rv_id: ResourceVariantId) {
+        self.blocked_requests.remove(&(resource_rq_id, rv_id));
+    }
+
     pub fn new(
         id: WorkerId,
         configuration: WorkerConfiguration,
@@ -311,6 +331,7 @@ impl Worker {
             stop_reason: None,
             last_heartbeat: now,
             idle_timestamp: now,
+            blocked_requests: Set::new(),
         }
     }
 

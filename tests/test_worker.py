@@ -443,7 +443,7 @@ def test_worker_state_info(hq_env: HqEnv):
     table = hq_env.command(["worker", "info", "1"], as_table=True)
     table.check_row_value("State", "RUNNING")
     assert "1@" in table.get_row_value("Last task started")
-    table.check_row_value("Runtime Info", "assigned tasks: 2; running tasks: 1")
+    table.check_row_value("Runtime Info", "assigned tasks: 1; running tasks: 1")
     hq_env.start_worker()
     hq_env.command(["submit", "--nodes=2", "--", "sleep", "1"])
     wait_for_job_state(hq_env, 2, "RUNNING")

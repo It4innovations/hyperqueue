@@ -146,7 +146,7 @@ pub enum WorkerTaskUpdate {
     TaskRunning(TaskRunningMsg),
     RejectRequest {
         task_id: TaskId,
-        resource_rq_variant: ResourceRqId,
+        resource_rq_variant: ResourceVariantId,
     },
     EnableRequest {
         resource_rq_id: ResourceRqId,
