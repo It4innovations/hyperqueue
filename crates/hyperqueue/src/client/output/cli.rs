@@ -59,6 +59,7 @@ pub const TASK_COLOR_INVALID: Colorization = Colorization::BrightRed;
 const TERMINAL_WIDTH: usize = 80;
 const ERROR_TRUNCATE_LENGTH_LIST: usize = 16;
 const ERROR_TRUNCATE_LENGTH_INFO: usize = 237;
+pub const CANCEL_REASON_MAX_LEN: usize = 200;
 
 pub struct CliOutput {
     color_policy: ColorChoice,
@@ -475,15 +476,15 @@ impl Output for CliOutput {
         }
     }
 
-    fn print_job_list(&self, jobs: Vec<JobInfo>, total_jobs: usize) {
+    fn print_job_list(&self, jobs: Vec<JobInfo>, total_jobs: usize, verbose: bool) {
         let job_count = jobs.len();
         let mut has_opened = false;
         let rows: Vec<_> = jobs
             .into_iter()
             .map(|t| {
                 let status = status_to_cell(&job_status(&t));
-                vec![
-                    if t.is_open {
+                let mut row = vec![
+                    if t.is_open() {
                         has_opened = true;
                         format!("*{}", t.id).cell()
                     } else {
@@ -493,16 +494,25 @@ impl Output for CliOutput {
                     truncate_middle(&t.name, 50).cell(),
                     status,
                     t.n_tasks.cell(),
-                ]
+                ];
+                if verbose {
+                    row.push(t.cancel_reason.unwrap_or_default().cell())
+                }
+                row
             })
             .collect();
 
-        let header = vec![
+        let mut header = vec![
             "ID".cell().bold(true),
             "Name".cell().bold(true),
             "State".cell().bold(true),
             "Tasks".cell().bold(true),
         ];
+
+        if verbose {
+            header.push("Cancel Reason".cell().bold(true));
+        }
+
         self.print_horizontal_table(rows, header);
 
         if has_opened {
@@ -560,8 +570,12 @@ impl Output for CliOutput {
             let state_label = "State".cell().bold(true);
             rows.push(vec![state_label, status]);
 
+            let cancel_reason_label = "Cancel Reason".cell().bold(true);
+            let cancel_reason = info.cancel_reason.clone().unwrap_or_default().cell();
+            rows.push(vec![cancel_reason_label, cancel_reason]);
+
             let state_label = "Session".cell().bold(true);
-            rows.push(vec![state_label, session_to_cell(info.is_open)]);
+            rows.push(vec![state_label, session_to_cell(info.is_open())]);
 
             let mut n_tasks = info.n_tasks.to_string();
 

@@ -271,7 +271,9 @@ pub async fn client_rpc_loop<
                         handle_worker_stop(&state_ref, senders, msg.selector)
                     }
                     FromClientMessage::Cancel(msg) => {
-                        let response = handle_job_cancel(&state_ref, senders, &msg.selector).await;
+                        let response =
+                            handle_job_cancel(&state_ref, senders, &msg.selector, &msg.reason)
+                                .await;
                         if !response.is_error() {
                             senders.events.flush_journal().await;
                         };
@@ -664,6 +666,7 @@ async fn handle_job_cancel(
     state_ref: &StateRef,
     senders: &Senders,
     selector: &IdSelector,
+    reason: &Option<String>,
 ) -> ToClientMessage {
     let job_ids: Vec<JobId> = match selector {
         IdSelector::All => state_ref
@@ -679,7 +682,7 @@ async fn handle_job_cancel(
 
     let mut responses: Vec<(JobId, CancelJobResponse)> = Vec::new();
     for job_id in job_ids {
-        let response = cancel_job(state_ref, senders, job_id).await;
+        let response = cancel_job(state_ref, senders, job_id, reason).await;
         responses.push((job_id, response));
     }
     ToClientMessage::CancelJobResponse(responses)
@@ -723,8 +726,13 @@ async fn handle_job_close(
     ToClientMessage::CloseJobResponse(responses)
 }
 
-async fn cancel_job(state_ref: &StateRef, senders: &Senders, job_id: JobId) -> CancelJobResponse {
-    let task_ids = match state_ref.get().get_job(job_id) {
+async fn cancel_job(
+    state_ref: &StateRef,
+    senders: &Senders,
+    job_id: JobId,
+    reason: &Option<String>,
+) -> CancelJobResponse {
+    let task_ids = match state_ref.get_mut().get_job_mut(job_id) {
         None => {
             return CancelJobResponse::InvalidJob;
         }
@@ -747,6 +755,7 @@ async fn cancel_job(state_ref: &StateRef, senders: &Senders, job_id: JobId) -> C
             .map(|task_id| task_id.job_task_id())
             .collect();
         job.set_cancel_state(task_ids, senders);
+        job.cancel(reason.clone());
         CancelJobResponse::Canceled(job_task_ids, already_finished)
     } else {
         CancelJobResponse::Canceled(vec![], 0)

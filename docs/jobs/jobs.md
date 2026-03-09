@@ -274,10 +274,21 @@ You can prematurely terminate a submitted job that haven't been completed yet by
 the [`hq job cancel`](cli:hq.job.cancel) command[^1]:
 
 ```bash
-$ hq job cancel <job-selector>
+$ hq job cancel <job-selector> [--reason <cancel-reason>]
 ```
 
 Cancelling a job will cancel all of its tasks that are not yet completed.
+
+When cancelling a job, you can use the `--reason` flag to attach a brief explanation for why the job is being terminated. This is useful for future reference and auditing.
+
+You can view a job's cancellation reason using either of the following commands:
+- `hq job info <job-id>`
+- `hq job list --verbose`
+
+Note that:
+- The `<cancel-reason>` is a string, that isn't interpreted by HQ and cannot exceed 200 characters
+- If a job is cancelled multiple times, only the reason from the most recent hq job cancel command is saved.
+- If a job has no tasks left to cancel when the command is run, the cancellation reason will not be saved.
 
 ## Forgetting jobs
 
@@ -430,7 +441,7 @@ You can display basic job information using [`hq job list`](cli:hq.job.list).
     ```
 === "List all jobs"
     ```bash
-    $ hq job list --all
+    $ hq job list --all [--verbose]
     ```
 === "List jobs by status"
     You can display only jobs having the selected [states](#job-state) by using the `--filter` flag:

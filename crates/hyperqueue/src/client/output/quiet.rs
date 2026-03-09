@@ -75,7 +75,8 @@ impl Output for Quiet {
         println!("{job_id}");
     }
 
-    fn print_job_list(&self, jobs: Vec<JobInfo>, _total_jobs: usize) {
+    fn print_job_list(&self, jobs: Vec<JobInfo>, _total_jobs: usize, _verbose: bool) {
+        // TODO! How to deal with verbose here -> Is it wanted or not. Quite maybe shoudn't use it
         for task in jobs {
             let status = job_status(&task);
             println!("{} {}", task.id, format_status(&status))

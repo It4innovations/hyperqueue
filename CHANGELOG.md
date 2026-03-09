@@ -32,6 +32,8 @@
   the operation is immediately a part of the written journal.
 * `hq worker info` can now be used with a selector, to display information about multiple workers at once.
   * Note that this is a breaking change for the JSON format, as it now outputs the worker infos as an array of objects. Before it was a single object.   
+* `hq job cancel` now adds new possibility to add a reason to the cancelation of the job using `--reason <cancel-reason>`
+  * This is connected with this information added in `hq job list --verbose` and `hq job info`
 
 ### Changes
 

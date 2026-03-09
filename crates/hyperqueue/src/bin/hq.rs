@@ -99,7 +99,7 @@ async fn command_job_list(gsettings: &GlobalSettings, opts: JobListOpts) -> anyh
         (opts.filter, false)
     };
 
-    output_job_list(gsettings, &mut connection, filter, show_open).await
+    output_job_list(gsettings, &mut connection, filter, show_open, opts.verbose).await
 }
 
 async fn command_job_summary(gsettings: &GlobalSettings) -> anyhow::Result<()> {
@@ -128,7 +128,7 @@ async fn command_job_cat(gsettings: &GlobalSettings, opts: JobCatOpts) -> anyhow
 
 async fn command_job_cancel(gsettings: &GlobalSettings, opts: JobCancelOpts) -> anyhow::Result<()> {
     let mut connection = get_client_session(gsettings.server_directory()).await?;
-    cancel_job(gsettings, &mut connection, opts.selector).await
+    cancel_job(gsettings, &mut connection, opts.selector, opts.reason).await
 }
 
 async fn command_job_close(gsettings: &GlobalSettings, opts: JobCloseOpts) -> anyhow::Result<()> {

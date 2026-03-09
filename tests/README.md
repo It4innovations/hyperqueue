@@ -6,9 +6,17 @@ The following commands are supposed to be executed from the root HyperQueue dire
 
 1) Install `pytest` and other dependencies
     ```bash
-    $ python -m pip install tests/requirements.txt
+    $ python -m venv .env
+    $ source .env/bin/activate
+    $ python -m pip install -r tests/requirements.txt
     ```
-2) Run tests
+2) Build and install rust bindings 
+    ```bash
+    $ cd crates/pyhq
+    $ maturin develop
+    $ cd ../..
+    ```
+3) Run tests
     ```bash
     $ python -m pytest tests
     ```
