@@ -143,7 +143,8 @@ pub struct Job {
     // If true, new tasks may be submitted into this job
     // If true and all tasks in the job are terminated then the job
     // is in state OPEN not FINISHED.
-    is_open: bool,
+    pub is_open: bool,
+    pub cancel_reason: Option<String>,
 
     pub submission_date: DateTime<Utc>,
     pub completion_date: Option<DateTime<Utc>>,
@@ -156,10 +157,11 @@ impl Job {
             counters: Default::default(),
             tasks: Default::default(),
             job_desc,
-            submit_descs: Default::default(),
             is_open,
+            submit_descs: Default::default(),
             submission_date: Utc::now(),
             completion_date: None,
+            cancel_reason: None,
         }
     }
 
@@ -171,6 +173,10 @@ impl Job {
     pub fn close(&mut self, senders: &Senders) {
         self.is_open = false;
         senders.events.on_job_closed(self.job_id);
+    }
+
+    pub fn cancel(&mut self, reason: Option<String>) {
+        self.cancel_reason = reason;
     }
 
     pub fn max_id(&self) -> Option<JobTaskId> {
@@ -244,6 +250,7 @@ impl Job {
             n_tasks: self.n_tasks(),
             counters: self.counters,
             is_open: self.is_open,
+            cancel_reason: self.cancel_reason.clone(),
             running_tasks: if include_running_tasks {
                 self.tasks
                     .iter()
@@ -271,7 +278,7 @@ impl Job {
     }
 
     pub fn is_terminated(&self) -> bool {
-        !self.is_open && self.has_no_active_tasks()
+        !self.is_open() && self.has_no_active_tasks()
     }
 
     pub fn iter_task_states(&self) -> impl Iterator<Item = (JobTaskId, &JobTaskState)> + '_ {
@@ -321,7 +328,7 @@ impl Job {
 
     pub fn check_termination(&mut self, senders: &Senders, now: DateTime<Utc>) {
         if self.has_no_active_tasks() {
-            if self.is_open {
+            if self.is_open() {
                 senders.events.on_job_idle(self.job_id, now);
             } else {
                 self.completion_date = Some(now);

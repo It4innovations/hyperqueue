@@ -2,6 +2,7 @@ use clap::Parser;
 
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::job::get_worker_map;
+use crate::client::output::cli::CANCEL_REASON_MAX_LEN;
 use crate::client::output::outputs::OutputStream;
 use crate::client::output::resolve_task_paths;
 use crate::client::status::{Status, job_status};
@@ -26,6 +27,10 @@ pub struct JobListOpts {
     /// You can use multiple states separated by a comma.
     #[arg(long, value_delimiter(','), value_enum)]
     pub filter: Vec<Status>,
+
+    /// Display additional information <Cancel Reason>
+    #[arg(long)]
+    pub verbose: bool,
 }
 
 #[derive(Parser)]
@@ -35,11 +40,26 @@ pub struct JobInfoOpts {
     pub selector: IdSelector,
 }
 
+fn check_max_reason_len(s: &str) -> Result<String, String> {
+    if s.len() <= CANCEL_REASON_MAX_LEN {
+        Ok(s.to_string())
+    } else {
+        Err(format!(
+            "Cancel reason must be shorter than {} you entered {}.",
+            CANCEL_REASON_MAX_LEN,
+            s.len()
+        ))
+    }
+}
+
 #[derive(Parser)]
 pub struct JobCancelOpts {
     /// Select job(s) to cancel
     #[arg(value_parser = parse_last_all_range)]
     pub selector: IdSelector,
+    /// Reason for the cancelation
+    #[arg(long, value_parser = check_max_reason_len)]
+    pub reason: Option<String>,
 }
 
 #[derive(Parser)]
@@ -123,6 +143,7 @@ pub async fn output_job_list(
     session: &mut ClientSession,
     job_filters: Vec<Status>,
     show_open: bool,
+    verbose: bool,
 ) -> anyhow::Result<()> {
     let message = FromClientMessage::JobInfo(
         JobInfoRequest {
@@ -138,12 +159,12 @@ pub async fn output_job_list(
     if !job_filters.is_empty() {
         response
             .jobs
-            .retain(|j| (show_open && j.is_open) || job_filters.contains(&job_status(j)));
+            .retain(|j| (show_open && j.is_open()) || job_filters.contains(&job_status(j)));
     }
     response.jobs.sort_unstable_by_key(|j| j.id);
     gsettings
         .printer()
-        .print_job_list(response.jobs, total_count);
+        .print_job_list(response.jobs, total_count, verbose);
     Ok(())
 }
 
@@ -253,9 +274,11 @@ pub async fn cancel_job(
     _gsettings: &GlobalSettings,
     session: &mut ClientSession,
     selector: IdSelector,
+    reason: Option<String>,
 ) -> anyhow::Result<()> {
     let mut responses = rpc_call!(session.connection(), FromClientMessage::Cancel(CancelRequest {
          selector,
+         reason,
     }), ToClientMessage::CancelJobResponse(r) => r)
     .await?;
     responses.sort_unstable_by_key(|x| x.0);

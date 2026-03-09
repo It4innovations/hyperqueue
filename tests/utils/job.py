@@ -10,12 +10,15 @@ def default_task_output(job_id=1, task_id=0, type="stdout", working_dir: Optiona
     return f"{working_dir}/job-{job_id}/{task_id}.{type}"
 
 
-def list_jobs(hq_env: HqEnv, all=True, filters: List[str] = None) -> Table:
+def list_jobs(hq_env: HqEnv, all=True, filters: List[str] = None, verbose=False) -> Table:
     args = ["job", "list"]
     if all:
         assert filters is None
         args.append("--all")
     elif filters:
         args.extend(["--filter", ",".join(filters)])
+
+    if verbose:
+        args.append("--verbose")
 
     return hq_env.command(args, as_table=True)

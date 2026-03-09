@@ -96,7 +96,8 @@ impl Output for JsonOutput {
         }))
     }
 
-    fn print_job_list(&self, jobs: Vec<JobInfo>, _total_jobs: usize) {
+    fn print_job_list(&self, jobs: Vec<JobInfo>, _total_jobs: usize, _verbose: bool) {
+        // TODO! I think JSON should have all the information, so verbose shouldn't be used here
         self.print(
             jobs.into_iter()
                 .map(|info| format_job_info(&info))
@@ -391,6 +392,7 @@ fn format_job_info(info: &JobInfo) -> Value {
         n_tasks,
         counters,
         is_open,
+        cancel_reason,
         running_tasks: _,
     } = info;
 
@@ -405,7 +407,8 @@ fn format_job_info(info: &JobInfo) -> Value {
             "failed": counters.n_failed_tasks,
             "canceled": counters.n_canceled_tasks,
             "waiting": counters.n_waiting_tasks(*n_tasks)
-        })
+        }),
+        "cancel_reason": cancel_reason,
     })
 }
 

@@ -436,6 +436,47 @@ def test_cancel_all(hq_env: HqEnv):
     assert "Job 3 canceled" in r[0]
 
 
+def test_cancel_with_reason(hq_env: HqEnv):
+    # First 2 shouldn't be canceled so it shouldn't have any cancelation reason,
+    # third one is cancelled, so it should have a reason
+    hq_env.start_server()
+    hq_env.start_worker(cpus=1)
+    hq_env.command(["submit", "uname"])
+    hq_env.command(["submit", "/invalid"])
+
+    wait_for_job_state(hq_env, [1, 2], ["FINISHED", "FAILED"])
+
+    hq_env.command(["submit", "sleep", "100"])
+
+    hq_env.command(["job", "cancel", "all", "--reason", "Wrong task"])
+
+    table = list_jobs(hq_env, all=True, verbose=True)
+    for i, cancel_reason in enumerate(["", "", "Wrong task"]):
+        table.check_column_value("Cancel Reason", i, cancel_reason)
+
+
+def test_cancel_reason_overwrite(hq_env: HqEnv):
+    # First job is canceled 2 times, so it should take the cancellation reason from the 2 cancel
+    hq_env.start_server()
+    hq_env.start_worker(cpus=1)
+
+    hq_env.command(["job", "open"])
+
+    hq_env.command(["submit", "--job", "1", "sleep", "100"])
+
+    hq_env.command(["job", "cancel", "1", "--reason", "Wrong task"])
+
+    hq_env.command(["submit", "--job", "1", "sleep", "100"])
+
+    reason_n2 = "Updated task reason"
+
+    hq_env.command(["job", "cancel", "1", "--reason", reason_n2])
+
+    table = list_jobs(hq_env, all=True, verbose=True)
+    for i, cancel_reason in enumerate(["Updated task reason"]):
+        table.check_column_value("Cancel Reason", i, cancel_reason)
+
+
 def test_reporting_state_after_worker_lost(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_workers(2, cpus=1)

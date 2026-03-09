@@ -290,6 +290,7 @@ pub struct TaskSelector {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CancelRequest {
     pub selector: IdSelector,
+    pub reason: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -478,7 +479,14 @@ pub struct JobInfo {
     pub n_tasks: JobTaskCount,
     pub counters: JobTaskCounters,
     pub is_open: bool,
+    pub cancel_reason: Option<String>,
     pub running_tasks: Vec<JobTaskId>,
+}
+
+impl JobInfo {
+    pub fn is_open(&self) -> bool {
+        self.is_open
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

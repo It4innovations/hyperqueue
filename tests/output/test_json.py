@@ -146,6 +146,7 @@ ARRAY_JOB_DETAIL_SCHEMA = {
         "task_count": 1,
         "task_stats": dict,
         "is_open": bool,
+        "cancel_reason": None,
     },
     "submits": [
         {

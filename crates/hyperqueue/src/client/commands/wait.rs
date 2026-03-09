@@ -52,7 +52,7 @@ pub async fn wait_for_jobs(
 ) -> anyhow::Result<()> {
     let mut unfinished_jobs = Set::new();
     for job in jobs {
-        if !is_terminated(job) || (wait_for_close && job.is_open) {
+        if !is_terminated(job) || (wait_for_close && job.is_open()) {
             unfinished_jobs.insert(job.id);
         }
     }
