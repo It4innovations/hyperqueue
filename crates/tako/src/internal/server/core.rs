@@ -373,7 +373,7 @@ impl Core {
                         if set.contains(worker_id) {
                             let mn = worker.mn_assignment().unwrap();
                             assert_eq!(mn.task_id, task_id);
-                            assert_eq!(ws[0] != *worker_id, mn.reservation_only);
+                            assert_eq!(ws[0] == *worker_id, mn.is_root);
                         } else {
                             match worker.assignment() {
                                 WorkerAssignment::Sn(sn) => {

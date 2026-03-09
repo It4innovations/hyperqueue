@@ -601,3 +601,17 @@ def test_fractional_force_compact(hq_env: HqEnv):
     hq_env.start_worker(cpus="[[1, 2], [11, 12], [21, 22]]")
     wait_for_job_state(hq_env, [1, 2], "FINISHED")
     assert groups(2) == [1, 2]
+
+
+def test_fractions_blocked(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["submit", "--array=1-3", "--cpus=0.60", "--", "sleep", "1"])
+    hq_env.start_worker(cpus=2)
+    wait_for_job_state(hq_env, [1], "FINISHED")
+
+
+def test_strict_compact_blocked(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["submit", "--array=1-3", "--cpus=2 compact!", "--", "sleep", "1"])
+    hq_env.start_worker(cpus="[[1, 2, 3], [11, 12, 13]]")
+    wait_for_job_state(hq_env, [1], "FINISHED")

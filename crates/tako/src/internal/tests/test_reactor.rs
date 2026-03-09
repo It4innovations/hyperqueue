@@ -8,8 +8,8 @@ use crate::internal::messages::worker::{
 };
 use crate::internal::server::core::Core;
 use crate::internal::server::reactor::{
-    on_cancel_tasks, on_new_tasks, on_new_worker, on_remove_worker, on_task_error,
-    on_task_finished, on_task_running,
+    on_cancel_tasks, on_new_tasks, on_new_worker, on_remove_worker, on_request_enabled,
+    on_task_error, on_task_finished, on_task_reject, on_task_running,
 };
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::worker::Worker;
@@ -25,7 +25,7 @@ use crate::resources::{ResourceAmount, ResourceDescriptorItem, ResourceIdMap};
 use crate::tests::utils::env::{TestComm, TestEnv};
 use crate::tests::utils::worker::WorkerBuilder;
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
-use crate::{Priority, TaskId, WorkerId};
+use crate::{Priority, ResourceVariantId, TaskId, WorkerId};
 
 #[test]
 fn test_worker_add() {
@@ -702,4 +702,75 @@ fn test_worker_groups() {
     let mut comm = TestComm::new();
     on_remove_worker(rt.core(), &mut comm, ws[0], LostWorkerReason::HeartbeatLost);
     assert!(rt.core().worker_group("default").is_none());
+}
+
+#[test]
+fn test_task_reject1() {
+    let mut rt = TestEnv::new();
+    let w = rt.new_worker_cpus(4);
+    let t = rt.new_task_default();
+    rt.schedule();
+    assert!(rt.task(t).is_assigned());
+    let mut comm = TestComm::new();
+    on_task_reject(rt.core(), &mut comm, w, t, ResourceVariantId::new(0));
+    comm.check_need_scheduling();
+    comm.emptiness_check();
+    assert!(rt.task(t).is_waiting());
+    assert!(rt.worker(w).is_free());
+
+    rt.schedule();
+    assert!(rt.task(t).is_waiting());
+    assert!(rt.worker(w).is_free());
+
+    let rq_id = rt.task(t).resource_rq_id;
+    on_request_enabled(rt.core(), &mut comm, w, rq_id, ResourceVariantId::new(0));
+    comm.check_need_scheduling();
+    comm.emptiness_check();
+
+    rt.schedule();
+    assert!(rt.task(t).is_assigned());
+}
+
+#[test]
+fn test_task_reject2() {
+    let mut rt = TestEnv::new();
+    let w = rt.new_worker_cpus(4);
+    let t = rt.new_task(&TaskBuilder::new().cpus(4).next_variant().cpus(2));
+    rt.schedule();
+    assert!(
+        matches!(&rt.task(t).state, TaskRuntimeState::Assigned { worker_id, rv_id } if *worker_id == w && rv_id.as_num() == 0)
+    );
+    let mut comm = TestComm::new();
+    on_task_reject(rt.core(), &mut comm, w, t, ResourceVariantId::new(0));
+    comm.check_need_scheduling();
+    comm.emptiness_check();
+    assert!(rt.task(t).is_waiting());
+    rt.schedule();
+    assert!(
+        matches!(&rt.task(t).state, TaskRuntimeState::Assigned { worker_id, rv_id } if *worker_id == w && rv_id.as_num() == 1)
+    );
+    assert!(!rt.worker(w).is_free());
+}
+
+#[test]
+fn test_task_reject3() {
+    let mut rt = TestEnv::new();
+    let w = rt.new_worker_cpus(4);
+    let t1 = rt.new_task_default();
+    let t2 = rt.new_task_default();
+    rt.schedule();
+    assert!(rt.task(t1).is_assigned());
+    assert!(rt.task(t2).is_assigned());
+    let mut comm = TestComm::new();
+    on_task_reject(rt.core(), &mut comm, w, t1, ResourceVariantId::new(0));
+    comm.check_need_scheduling();
+    comm.emptiness_check();
+    assert!(rt.task(t1).is_waiting());
+    assert!(rt.task(t2).is_assigned());
+
+    on_task_reject(rt.core(), &mut comm, w, t2, ResourceVariantId::new(0));
+    comm.check_need_scheduling();
+    comm.emptiness_check();
+    assert!(rt.task(t1).is_waiting());
+    assert!(rt.task(t2).is_waiting());
 }

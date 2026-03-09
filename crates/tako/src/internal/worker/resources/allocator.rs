@@ -207,6 +207,15 @@ impl ResourceAllocator {
         allocation
     }
 
+    pub(crate) fn is_enabled(&self, request: &ResourceRequest) -> bool {
+        Self::has_resources_for_request(
+            &self.pools,
+            &self.free_resources,
+            request,
+            &self.static_info,
+        )
+    }
+
     pub(crate) fn try_allocate(&mut self, request: &ResourceRequest) -> Option<Rc<Allocation>> {
         if !Self::has_resources_for_request(
             &self.pools,

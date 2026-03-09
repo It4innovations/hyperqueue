@@ -100,7 +100,8 @@ pub(crate) fn run_scheduling_solver(
                             worker_res_constraint[r.as_usize()].push((v, amount.as_f64()));
                         }
                     }
-                } else if worker.has_time_to_run(rq.min_time(), now)
+                } else if !worker.is_request_blocked(batch.resource_rq_id, v_idx)
+                    && worker.has_time_to_run(rq.min_time(), now)
                     && worker.have_immediate_resources_for_rq(rq)
                 {
                     has_variant = true;

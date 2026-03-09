@@ -64,7 +64,7 @@ pub fn try_start_task(
             // Hard reject, we never unblock this rejection so we do not need to update blocked requests
             task_updates.push(WorkerTaskUpdate::RejectRequest {
                 task_id: task.id,
-                resource_rq_variant: task.resource_rq_id,
+                resource_rq_variant: task.resource_rq_variant,
             });
             return false;
         }
@@ -77,7 +77,7 @@ pub fn try_start_task(
             .insert((task.resource_rq_id, task.resource_rq_variant));
         task_updates.push(WorkerTaskUpdate::RejectRequest {
             task_id: task.id,
-            resource_rq_variant: task.resource_rq_id,
+            resource_rq_variant: task.resource_rq_variant,
         });
         return false;
     };
@@ -230,6 +230,25 @@ async fn handle_task_future(
             }));
         }
     }
+
+    if !state.blocked_requests.is_empty() {
+        let mut unblocked = Vec::new();
+
+        for (rq_id, rv_id) in &state.blocked_requests {
+            let rq = state.resource_rq_map.get(*rq_id).get(*rv_id);
+            if state.allocator.is_enabled(&rq) {
+                unblocked.push((*rq_id, *rv_id));
+            }
+        }
+        for (rq_id, rv_id) in unblocked {
+            task_updates.push(WorkerTaskUpdate::EnableRequest {
+                resource_rq_id: rq_id,
+                resource_rq_variant: rv_id,
+            });
+            state.blocked_requests.remove(&(rq_id, rv_id));
+        }
+    }
+
     if !task_updates.is_empty() {
         state
             .comm()
