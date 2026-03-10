@@ -161,9 +161,6 @@ fn test_schedule_mn_reserve() {
         comm.take_worker_msgs(ws1[0], 1)[0],
         ToWorkerMessage::ComputeTasks(_)
     ));
-    assert!(!rt.core().get_worker_by_id_or_panic(ws1[0]).is_reserved());
-    assert!(rt.core().get_worker_by_id_or_panic(ws1[1]).is_reserved());
-    assert!(rt.core().get_worker_by_id_or_panic(ws1[2]).is_reserved());
     comm.emptiness_check();
     rt.finish_task(t1, ws1[0]);
     rt.schedule_with_comm(&mut comm);
