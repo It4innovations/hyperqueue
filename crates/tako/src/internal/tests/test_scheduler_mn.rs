@@ -96,8 +96,7 @@ fn test_schedule_mn_simple() {
     let t3 = rt.new_task(&TaskBuilder::new().user_priority(3).n_nodes(2));
     let t4 = rt.new_task(&TaskBuilder::new().user_priority(4).n_nodes(2));
 
-    let mut comm = TestComm::new();
-    rt.schedule_with_comm(&mut comm);
+    let mut comm = rt.schedule();
     rt.sanity_check();
 
     let test_mn_task = |task: &Task, comm: &mut TestComm| -> Vec<WorkerId> {
@@ -133,7 +132,7 @@ fn test_schedule_mn_simple() {
         );
     }
 
-    rt.schedule_with_comm(&mut comm);
+    let mut comm = rt.schedule();
     rt.sanity_check();
 
     let ws2 = test_mn_task(rt.task(t2), &mut comm);
@@ -152,8 +151,7 @@ fn test_schedule_mn_reserve() {
     let t2 = rt.new_task(&TaskBuilder::new().user_priority(5).n_nodes(2));
     let t3 = rt.new_task(&TaskBuilder::new().user_priority(0).n_nodes(3));
     rt.sanity_check();
-    let mut comm = TestComm::new();
-    rt.schedule_with_comm(&mut comm);
+    let mut comm = rt.schedule();
     rt.sanity_check();
 
     let ws1 = rt.task(t1).mn_placement().unwrap().to_vec();
@@ -163,7 +161,7 @@ fn test_schedule_mn_reserve() {
     ));
     comm.emptiness_check();
     rt.finish_task(t1, ws1[0]);
-    rt.schedule_with_comm(&mut comm);
+    let mut comm = rt.schedule();
 
     let ws2 = rt.task(t2).mn_placement().unwrap().to_vec();
     for w in &ws {
@@ -176,7 +174,7 @@ fn test_schedule_mn_reserve() {
     rt.sanity_check();
 
     rt.finish_task(t2, ws2[0]);
-    rt.schedule_with_comm(&mut comm);
+    let mut comm = rt.schedule();
     let ws3 = rt.task(t3).mn_placement().unwrap().to_vec();
 
     for w in &ws {
@@ -189,7 +187,7 @@ fn test_schedule_mn_reserve() {
     rt.sanity_check();
 
     rt.finish_task(t3, ws3[0]);
-    rt.schedule_with_comm(&mut comm);
+    let mut comm = rt.schedule();
 
     for w in &ws {
         let s = get_worker_status(&ws3, (*w).into());

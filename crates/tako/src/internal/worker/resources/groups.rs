@@ -63,7 +63,7 @@ pub fn group_solver(
     entries: &[&crate::resources::ResourceAllocRequest],
     weights: &[CouplingWeightItem],
 ) -> Option<(SelectedGroups, f64)> {
-    let mut solver = LpSolver::new(true);
+    let mut solver = LpSolver::new(false);
     let vars: SmallVec<[SmallVec<_>; FAST_MAX_COUPLED_RESOURCES]> = entries
         .iter()
         .map(|entry| {

@@ -1,11 +1,15 @@
 use crate::internal::messages::worker::ToWorkerMessage;
-use crate::internal::scheduler::{PriorityCut, create_task_batches};
+use crate::internal::scheduler::{PriorityCut, create_task_batches, SchedulerConfig};
 use crate::internal::tests::utils::scheduler::TestCase;
 use crate::resources::ResourceRqId;
 use crate::tests::utils::env::{TestComm, TestEnv};
 use crate::tests::utils::task::TaskBuilder;
 use crate::tests::utils::worker::WorkerBuilder;
 use std::time::Duration;
+use crate::{Priority, ResourceVariantId, TaskId, WorkerId};
+use crate::internal::server::reactor::{on_retract_response};
+use crate::internal::server::task::TaskRuntimeState;
+use crate::internal::worker::comm::WorkerComm::Test;
 
 #[test]
 fn test_task_grouping_basic() {
@@ -778,8 +782,7 @@ fn test_no_deps_scattering_1() {
     let ws = rt.new_workers_cpus(&[5, 5, 5]);
     rt.new_tasks(4, &TaskBuilder::new());
 
-    let mut comm = TestComm::new();
-    rt.schedule_with_comm(&mut comm);
+    let mut comm = rt.schedule();
 
     let m1 = comm.take_worker_msgs(ws[0], 0);
     let m2 = comm.take_worker_msgs(ws[1], 0);
@@ -840,8 +843,7 @@ fn test_no_deps_distribute() {
     let ws = rt.new_workers_cpus(&[10, 10, 10]);
     rt.new_tasks(150, &TaskBuilder::new());
 
-    let mut comm = TestComm::new();
-    rt.schedule_with_comm(&mut comm);
+    let mut comm = rt.schedule();
 
     let m1 = comm.take_worker_msgs(ws[0], 1);
     let m2 = comm.take_worker_msgs(ws[1], 1);
@@ -1083,4 +1085,135 @@ fn test_many_cuts() {
     assert!(c1.abs_diff(c2) < 10);
     assert!(c1.abs_diff(800) < 10);
     assert!(c2.abs_diff(800) < 10);
+}
+
+fn prefill_count(rt: &mut TestEnv, worker_id: WorkerId) -> u32 {
+    let n = rt.worker(worker_id).sn_assignment().unwrap().prefilled_tasks.len();
+    let mut count = 0;
+    for task in rt.core().task_map().tasks() {
+        match task.state {
+            TaskRuntimeState::Prefilled { worker_id: w_id } if w_id == worker_id => {
+                count += 1;
+            }
+            _ => {}
+        }
+    }
+    assert_eq!(count, n);
+    n as u32
+}
+
+#[test]
+fn test_prefill_basic() {
+    let mut rt = TestEnv::new();
+    let ws = rt.new_workers(2, &WorkerBuilder::new(8));
+    let tasks = rt.new_tasks(300, &TaskBuilder::new().cpus(4));
+    let resource_rq_id = rt.task(tasks[0]).resource_rq_id;
+    let priority = rt.task(tasks[0]).priority();
+    let mut comm = rt.schedule();
+    for w in &ws {
+        let msg = comm.take_worker_msgs(*w, 1);
+        match &msg[0] {
+            ToWorkerMessage::ComputeTasks(ts) => {
+                assert_eq!(ts.tasks.len(), 34);
+                for (i, t) in ts.tasks.iter().enumerate() {
+                    assert_eq!(t.resource_rq_variant.is_none(), i < 32);
+                }
+            },
+            _ => panic!("unexpected message"),
+        };
+    }
+    comm.emptiness_check();
+    for w in &ws {
+        assert_eq!(prefill_count(&mut rt, *w), 32);
+    }
+    let queue = rt.core().task_queues_mut().get(resource_rq_id);
+    let p: Vec<_> = queue.iter_priority_sizes().collect();
+    assert_eq!(p, vec![(priority, 232)]); // 232 = 300 - 2*32 prefill - 4 assigned tasks
+}
+
+#[test]
+fn test_prefill_choose_waiting() {
+    let mut rt = TestEnv::new();
+    rt.set_scheduler_config(SchedulerConfig {
+        proactive_filling_reserve: 3,
+        proactive_filling_max: 6,
+        ..Default::default()
+    });
+    let w1 = rt.new_worker(&WorkerBuilder::new(1));
+    rt.new_tasks(15, &TaskBuilder::new());
+    rt.schedule();
+    assert_eq!(prefill_count(&mut rt, w1), 6);
+    let w2 = rt.new_worker(&WorkerBuilder::new(1));
+    rt.schedule();
+    assert_eq!(prefill_count(&mut rt, w1), 6);
+    assert_eq!(prefill_count(&mut rt, w2), 4);
+    let w3 = rt.new_worker(&WorkerBuilder::new(1));
+    rt.schedule();
+    assert_eq!(prefill_count(&mut rt, w1), 6);
+    assert_eq!(prefill_count(&mut rt, w2), 4);
+    assert_eq!(prefill_count(&mut rt, w3), 0);
+}
+
+
+#[test]
+fn test_prefill_steal() {
+    let mut rt = TestEnv::new();
+    rt.set_scheduler_config(SchedulerConfig {
+        proactive_filling_reserve: 3,
+        proactive_filling_max: 6,
+        ..Default::default()
+    });
+    let w1 = rt.new_worker(&WorkerBuilder::new(1));
+    let tasks = rt.new_tasks(9, &TaskBuilder::new());
+    let resource_rq_id = rt.task(tasks[0]).resource_rq_id;
+    let priority = rt.task(tasks[0]).priority();
+    rt.schedule();
+    assert_eq!(prefill_count(&mut rt, w1), 5);
+    let w2 = rt.new_worker(&WorkerBuilder::new(5));
+
+    let queue = rt.core().task_queues_mut().get(resource_rq_id);
+    let p: Vec<_> = queue.iter_priority_sizes().collect();
+    assert_eq!(p, vec![(priority, 8)]);
+
+    let mut comm = rt.schedule();
+    let msg = comm.take_worker_msgs(w1, 1);
+    assert!(matches!(&msg[0], ToWorkerMessage::RetractTasks(ts) if ts.ids.len() == 2));
+    let msg = comm.take_worker_msgs(w2, 1);
+    match &msg[0] {
+        ToWorkerMessage::ComputeTasks(ts) => {
+            assert_eq!(ts.tasks.len(), 3);
+        }
+        _ => unreachable!()
+    }
+    comm.emptiness_check();
+    let r = rt.core().split().scheduler_state.redirects.values().cloned().collect::<Vec<_>>();
+    let rv = ResourceVariantId::new(0);
+    assert_eq!(r, vec![(w2, rv), (w2, rv)]);
+    assert_eq!(prefill_count(&mut rt, w1), 3);
+    assert_eq!(prefill_count(&mut rt, w2), 0);
+    assert_eq!(rt.worker(w1).sn_assignment().unwrap().assign_tasks.len(), 1);
+    assert_eq!(rt.worker(w2).sn_assignment().unwrap().assign_tasks.len(), 5);
+    assert_eq!(rt.core().split_mut().scheduler_state.redirects.len(),  2);
+    let (t, _) = rt.core().split_mut().scheduler_state.redirects.iter().next().unwrap();
+    let t = *t;
+
+    let mut comm = TestComm::new();
+    on_retract_response(rt.core(), &mut comm, w1, &[t]);
+    let msgs = comm.take_worker_msgs(w2, 1);
+    match &msgs[0] {
+        ToWorkerMessage::ComputeTasks(ts) => {
+            assert_eq!(ts.tasks.len(), 1);
+            assert_eq!(ts.tasks[0].id, t);
+        }
+        _ => unreachable!()
+    }
+    comm.emptiness_check();
+    match &rt.task(t).state {
+        TaskRuntimeState::Assigned { worker_id, .. } => {
+            assert_eq!(*worker_id, w2);
+        }
+        _ => unreachable!()
+    }
+    assert_eq!(rt.core().split_mut().scheduler_state.redirects.len(),  1);
+    rt.sanity_check();
 }

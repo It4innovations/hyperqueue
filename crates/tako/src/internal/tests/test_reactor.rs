@@ -1,15 +1,14 @@
-use std::time::{Duration, Instant};
-
 use crate::gateway::LostWorkerReason;
 use crate::internal::common::resources::ResourceDescriptor;
 use crate::internal::messages::common::TaskFailInfo;
+use crate::internal::messages::worker::FromWorkerMessage::TaskUpdate;
 use crate::internal::messages::worker::{
-    ComputeTasksMsg, NewWorkerMsg, TaskFinishedMsg, TaskIdsMsg, ToWorkerMessage,
+    ComputeTasksMsg, NewWorkerMsg, TaskIdsMsg, TaskUpdates, ToWorkerMessage, WorkerTaskUpdate,
 };
+use crate::internal::scheduler::SchedulerConfig;
 use crate::internal::server::core::Core;
 use crate::internal::server::reactor::{
-    on_cancel_tasks, on_new_tasks, on_new_worker, on_remove_worker, on_request_enabled,
-    on_task_error, on_task_finished, on_task_reject, on_task_running,
+    on_cancel_tasks, on_new_tasks, on_new_worker, on_remove_worker, on_task_update,
 };
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::worker::Worker;
@@ -26,6 +25,8 @@ use crate::tests::utils::env::{TestComm, TestEnv};
 use crate::tests::utils::worker::WorkerBuilder;
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
 use crate::{Priority, ResourceVariantId, TaskId, WorkerId};
+use smallvec::smallvec;
+use std::time::{Duration, Instant};
 
 #[test]
 fn test_worker_add() {
@@ -227,8 +228,8 @@ fn test_submit_jobs() {
     assert_eq!(t6.get_unfinished_deps(), 4);
 }
 
-fn task_finished(task_id: TaskId) -> TaskFinishedMsg {
-    TaskFinishedMsg { task_id }
+fn task_finished(task_id: TaskId) -> WorkerTaskUpdate {
+    WorkerTaskUpdate::Finished { task_id }
 }
 
 #[test]
@@ -254,9 +255,7 @@ fn test_assignments_and_finish() {
     let t5 = rt.new_task(&TaskBuilder::new().user_priority(12).cpus(1));
     let t7 = rt.new_task(&TaskBuilder::new().task_deps(&[t4]));
 
-    let mut comm = TestComm::new();
-
-    rt.schedule_with_comm(&mut comm);
+    let mut comm = rt.schedule();
 
     let msgs = comm.take_worker_msgs(ws[0], 1);
     assert!(matches!(
@@ -282,7 +281,7 @@ fn test_assignments_and_finish() {
 
     assert!(rt.task(t5).is_assigned());
 
-    on_task_finished(rt.core(), &mut comm, ws[0], task_finished(t5));
+    on_task_update(rt.core(), &mut comm, ws[0], smallvec![task_finished(t5)]);
 
     assert!(rt.core().find_task(t5.into()).is_none());
     check_worker_tasks_exact(rt.core(), ws[0], &[t1]);
@@ -296,7 +295,7 @@ fn test_assignments_and_finish() {
     assert!(!rt.task_exists(t5));
     assert!(rt.task(t2).is_assigned());
 
-    on_task_finished(rt.core(), &mut comm, ws[1], task_finished(t2));
+    on_task_update(rt.core(), &mut comm, ws[1], smallvec![task_finished(t2)]);
 
     assert!(!rt.task_exists(t2));
     check_worker_tasks_exact(rt.core(), ws[0], &[t1]);
@@ -307,11 +306,11 @@ fn test_assignments_and_finish() {
     assert_eq!(comm.client.take_task_finished(1)[0], t2);
     comm.emptiness_check();
 
-    on_task_finished(rt.core(), &mut comm, ws[0], task_finished(t1));
+    on_task_update(rt.core(), &mut comm, ws[0], smallvec![task_finished(t1)]);
 
     comm.check_need_scheduling();
 
-    rt.schedule_with_comm(&mut comm);
+    let mut comm = rt.schedule();
 
     let msgs = comm.take_worker_msgs(ws[0], 1);
     assert!(matches!(
@@ -334,7 +333,7 @@ fn test_assignments_and_finish() {
     comm.emptiness_check();
     rt.sanity_check();
 
-    on_task_finished(rt.core(), &mut comm, ws[0], task_finished(t3));
+    on_task_update(rt.core(), &mut comm, ws[0], smallvec![task_finished(t3)]);
 
     comm.check_need_scheduling();
 
@@ -356,14 +355,15 @@ fn test_running_task_on_error() {
     assert!(worker_has_task(rt.core(), ws[2], wf[2]));
 
     let mut comm = TestComm::new();
-    on_task_error(
+    let info = TaskFailInfo::from_string("".to_string());
+    on_task_update(
         rt.core(),
         &mut comm,
         ws[2],
-        wf[2],
-        TaskFailInfo {
-            message: "".to_string(),
-        },
+        smallvec![WorkerTaskUpdate::Failed {
+            task_id: wf[2],
+            info
+        }],
     );
     assert!(!worker_has_task(rt.core(), ws[2], wf[2]));
 
@@ -386,7 +386,7 @@ fn finish_task_without_outputs() {
     let t1 = rt.new_task_assigned(&TaskBuilder::new(), w1);
 
     let mut comm = TestComm::new();
-    on_task_finished(rt.core(), &mut comm, w1, task_finished(t1));
+    on_task_update(rt.core(), &mut comm, w1, smallvec![task_finished(t1)]);
     comm.check_need_scheduling();
     assert_eq!(comm.client.take_task_finished(1)[0], t1);
     comm.emptiness_check();
@@ -513,14 +513,12 @@ fn test_task_mn_fail() {
     let t1 = rt.new_task(&TaskBuilder::new().n_nodes(3));
     rt.start_task_mn(t1, &[ws[3], ws[1], ws[0]]);
     let mut comm = TestComm::new();
-    on_task_error(
+    let info = TaskFailInfo::from_string("".to_string());
+    on_task_update(
         rt.core(),
         &mut comm,
         ws[3],
-        t1,
-        TaskFailInfo {
-            message: "".to_string(),
-        },
+        smallvec![WorkerTaskUpdate::Failed { task_id: t1, info }],
     );
     rt.sanity_check();
     let msgs = comm.client.take_task_errors(1);
@@ -555,7 +553,7 @@ fn test_task_mn_cancel() {
     comm.check_need_scheduling();
     comm.emptiness_check();
 
-    rt.schedule_with_comm(&mut comm);
+    let comm = rt.schedule();
     rt.sanity_check();
     comm.emptiness_check();
 
@@ -576,11 +574,13 @@ fn test_running_task() {
 
     comm.emptiness_check();
 
-    on_task_running(rt.core(), &mut comm, ws[1], task_running_msg(t1));
+    let up = WorkerTaskUpdate::Running(task_running_msg(t1));
+    on_task_update(rt.core(), &mut comm, ws[1], smallvec![up]);
     assert_eq!(comm.client.take_task_running(1), vec![t1]);
     comm.emptiness_check();
 
-    on_task_running(rt.core(), &mut comm, ws[1], task_running_msg(t2));
+    let up = WorkerTaskUpdate::Running(task_running_msg(t2));
+    on_task_update(rt.core(), &mut comm, ws[1], smallvec![up]);
     assert_eq!(comm.client.take_task_running(1)[0], t2);
     comm.emptiness_check();
 
@@ -712,7 +712,15 @@ fn test_task_reject1() {
     rt.schedule();
     assert!(rt.task(t).is_assigned());
     let mut comm = TestComm::new();
-    on_task_reject(rt.core(), &mut comm, w, t, ResourceVariantId::new(0));
+    on_task_update(
+        rt.core(),
+        &mut comm,
+        w,
+        smallvec![WorkerTaskUpdate::RejectRequest {
+            task_id: t,
+            rv_id: ResourceVariantId::new(0)
+        }],
+    );
     comm.check_need_scheduling();
     comm.emptiness_check();
     assert!(rt.task(t).is_waiting());
@@ -723,7 +731,15 @@ fn test_task_reject1() {
     assert!(rt.worker(w).is_free());
 
     let rq_id = rt.task(t).resource_rq_id;
-    on_request_enabled(rt.core(), &mut comm, w, rq_id, ResourceVariantId::new(0));
+    on_task_update(
+        rt.core(),
+        &mut comm,
+        w,
+        smallvec![WorkerTaskUpdate::EnableRequest {
+            resource_rq_id: rq_id,
+            rv_id: ResourceVariantId::new(0)
+        }],
+    );
     comm.check_need_scheduling();
     comm.emptiness_check();
 
@@ -741,7 +757,15 @@ fn test_task_reject2() {
         matches!(&rt.task(t).state, TaskRuntimeState::Assigned { worker_id, rv_id } if *worker_id == w && rv_id.as_num() == 0)
     );
     let mut comm = TestComm::new();
-    on_task_reject(rt.core(), &mut comm, w, t, ResourceVariantId::new(0));
+    on_task_update(
+        rt.core(),
+        &mut comm,
+        w,
+        smallvec![WorkerTaskUpdate::RejectRequest {
+            task_id: t,
+            rv_id: ResourceVariantId::new(0)
+        }],
+    );
     comm.check_need_scheduling();
     comm.emptiness_check();
     assert!(rt.task(t).is_waiting());
@@ -762,15 +786,339 @@ fn test_task_reject3() {
     assert!(rt.task(t1).is_assigned());
     assert!(rt.task(t2).is_assigned());
     let mut comm = TestComm::new();
-    on_task_reject(rt.core(), &mut comm, w, t1, ResourceVariantId::new(0));
+    on_task_update(
+        rt.core(),
+        &mut comm,
+        w,
+        smallvec![WorkerTaskUpdate::RejectRequest {
+            task_id: t1,
+            rv_id: ResourceVariantId::new(0)
+        }],
+    );
     comm.check_need_scheduling();
     comm.emptiness_check();
     assert!(rt.task(t1).is_waiting());
     assert!(rt.task(t2).is_assigned());
 
-    on_task_reject(rt.core(), &mut comm, w, t2, ResourceVariantId::new(0));
+    on_task_update(
+        rt.core(),
+        &mut comm,
+        w,
+        smallvec![WorkerTaskUpdate::RejectRequest {
+            task_id: t2,
+            rv_id: ResourceVariantId::new(0)
+        }],
+    );
     comm.check_need_scheduling();
     comm.emptiness_check();
     assert!(rt.task(t1).is_waiting());
     assert!(rt.task(t2).is_waiting());
+}
+
+fn setup_prefill(rt: &mut TestEnv) -> (WorkerId, TaskId, TaskId) {
+    rt.set_scheduler_config(SchedulerConfig {
+        proactive_filling_reserve: 1,
+        proactive_filling_max: 1,
+        ..Default::default()
+    });
+    let tasks = rt.new_tasks(3, &TaskBuilder::new());
+    let w1 = rt.new_worker(&WorkerBuilder::new(1));
+    rt.schedule();
+    let prefilled = tasks
+        .iter()
+        .find(|t| rt.task(**t).is_prefilled())
+        .copied()
+        .unwrap();
+    let assigned = tasks
+        .iter()
+        .find(|t| rt.task(**t).is_assigned())
+        .copied()
+        .unwrap();
+    (w1, assigned, prefilled)
+}
+
+#[test]
+fn test_prefill_submit_high_priority() {
+    for cpus in [1, 2] {
+        let mut rt = TestEnv::new();
+        let (w1, _t1, t2) = setup_prefill(&mut rt);
+        let mut comm = TestComm::new();
+
+        let t1 = TaskId::new(100.into(), 501.into());
+        let task1 = TaskBuilder::new()
+            .user_priority(10)
+            .cpus(cpus)
+            .build(t1, rt.core());
+        on_new_tasks(rt.core(), &mut comm, vec![task1]);
+        comm.check_need_scheduling();
+        match &comm.take_worker_msgs(w1, 1)[0] {
+            ToWorkerMessage::RetractTasks(ts) => {
+                assert_eq!(ts.ids, vec![t2]);
+            }
+            _ => panic!("Invalid worker msg"),
+        }
+        comm.emptiness_check();
+        dbg!(&rt.task(t2).state);
+        match rt.task(t2).state {
+            TaskRuntimeState::Retracting { worker_id } => {
+                assert_eq!(worker_id, w1);
+            }
+            _ => panic!("Invalid state"),
+        }
+        rt.sanity_check();
+    }
+}
+
+#[test]
+fn test_prefill_submit_same_priority() {
+    for cpus in [1, 2] {
+        let mut rt = TestEnv::new();
+        let (w1, _t1, t2) = setup_prefill(&mut rt);
+        let mut comm = TestComm::new();
+
+        let t1 = TaskId::new(100.into(), 501.into());
+        let task1 = TaskBuilder::new().cpus(cpus).build(t1, rt.core());
+        on_new_tasks(rt.core(), &mut comm, vec![task1]);
+        comm.check_need_scheduling();
+        comm.emptiness_check();
+        match rt.task(t2).state {
+            TaskRuntimeState::Prefilled { worker_id } => {
+                assert_eq!(worker_id, w1);
+            }
+            _ => panic!("Invalid state"),
+        }
+        rt.sanity_check();
+    }
+}
+
+#[test]
+fn test_prefill_worker_lost() {
+    let mut rt = TestEnv::new();
+    let (w1, t1, t2) = setup_prefill(&mut rt);
+    let mut comm = TestComm::new();
+    on_remove_worker(rt.core(), &mut comm, w1, LostWorkerReason::ConnectionLost);
+    comm.check_need_scheduling();
+    comm.take_broadcasts(1);
+    comm.client.take_lost_workers();
+    comm.emptiness_check();
+    assert!(rt.task(t1).is_waiting());
+    assert!(rt.task(t2).is_waiting());
+    rt.sanity_check();
+}
+
+#[test]
+fn test_prefill_started() {
+    let mut rt = TestEnv::new();
+    let (w1, t1, t2) = setup_prefill(&mut rt);
+    let mut comm = TestComm::new();
+    let up1 = WorkerTaskUpdate::Finished { task_id: t1 };
+    let up2 = WorkerTaskUpdate::RunningPrefilled(task_running_msg(t2));
+    on_task_update(rt.core(), &mut comm, w1, smallvec![up1, up2]);
+    assert_eq!(comm.client.take_task_finished(1)[0], t1);
+    assert_eq!(comm.client.take_task_running(1)[0], t2);
+    comm.emptiness_check();
+    match rt.task(t2).state {
+        TaskRuntimeState::Running { worker_id, .. } => {
+            assert_eq!(worker_id, w1);
+        }
+        _ => panic!(),
+    }
+    assert!(!rt.task_exists(t1));
+    assert!(
+        rt.worker(w1)
+            .sn_assignment()
+            .unwrap()
+            .prefilled_tasks
+            .is_empty()
+    );
+    rt.sanity_check();
+}
+
+#[test]
+fn test_prefill_failed() {
+    let mut rt = TestEnv::new();
+    let (w1, t1, t2) = setup_prefill(&mut rt);
+    let mut comm = TestComm::new();
+    let up1 = WorkerTaskUpdate::Finished { task_id: t1 };
+    let up2 = WorkerTaskUpdate::Failed {
+        task_id: t2,
+        info: TaskFailInfo::from_string("".to_string()),
+    };
+    on_task_update(rt.core(), &mut comm, w1, smallvec![up1, up2]);
+    assert_eq!(comm.client.take_task_finished(1)[0], t1);
+    assert_eq!(comm.client.take_task_errors(1)[0].0, t2);
+    comm.check_need_scheduling();
+    comm.emptiness_check();
+    assert!(!rt.task_exists(t1));
+    assert!(!rt.task_exists(t2));
+    assert!(rt.worker(w1).is_free());
+    assert!(
+        rt.worker(w1)
+            .sn_assignment()
+            .unwrap()
+            .prefilled_tasks
+            .is_empty()
+    );
+    rt.sanity_check();
+}
+
+#[test]
+fn test_prefill_cancel() {
+    let mut rt = TestEnv::new();
+    let (w1, t1, t2) = setup_prefill(&mut rt);
+    let mut comm = TestComm::new();
+    on_cancel_tasks(rt.core(), &mut comm, &[t2]);
+    let msgs = comm.take_worker_msgs(w1, 1);
+    assert!(
+        matches!(&msgs[0], &ToWorkerMessage::CancelTasks(TaskIdsMsg { ref ids }) if ids == &vec![t2])
+    );
+    comm.emptiness_check();
+    assert!(rt.task_exists(t1));
+    assert!(!rt.task_exists(t2));
+    rt.sanity_check();
+}
+
+fn setup_retracting(rt: &mut TestEnv) -> (WorkerId, WorkerId, TaskId) {
+    rt.set_scheduler_config(SchedulerConfig {
+        proactive_filling_reserve: 1,
+        proactive_filling_max: 1,
+        ..Default::default()
+    });
+    let tasks = rt.new_tasks(3, &TaskBuilder::new());
+    let w1 = rt.new_worker(&WorkerBuilder::new(1));
+    rt.schedule();
+    let w2 = rt.new_worker(&WorkerBuilder::new(2));
+    rt.schedule();
+    let t = tasks.iter().find(|t| rt.task(**t).is_retracting()).unwrap();
+    (w1, w2, *t)
+}
+
+#[test]
+fn test_steal_finished() {
+    let mut rt = TestEnv::new();
+    let (w1, _w2, t) = setup_retracting(&mut rt);
+    let mut comm = TestComm::new();
+    on_task_update(rt.core(), &mut comm, w1, smallvec![task_finished(t)]);
+    assert_eq!(comm.client.take_task_finished(1), vec![t]);
+    comm.check_need_scheduling();
+    comm.emptiness_check();
+    assert!(!rt.task_exists(t));
+    rt.sanity_check();
+}
+
+#[test]
+fn test_steal_running() {
+    let mut rt = TestEnv::new();
+    let (w1, _w2, t) = setup_retracting(&mut rt);
+    let mut comm = TestComm::new();
+    let up1 = task_finished(
+        *rt.worker(w1)
+            .sn_assignment()
+            .unwrap()
+            .assign_tasks
+            .iter()
+            .next()
+            .unwrap(),
+    );
+    let up2 = WorkerTaskUpdate::Running(task_running_msg(t));
+    on_task_update(rt.core(), &mut comm, w1, smallvec![up1, up2]);
+    assert_eq!(comm.client.take_task_running(1), vec![t]);
+    comm.client.take_task_finished(1);
+    comm.check_need_scheduling();
+    comm.emptiness_check();
+    match &rt.task(t).state {
+        TaskRuntimeState::Running { worker_id, .. } => {
+            assert_eq!(*worker_id, w1);
+        }
+        _ => panic!(),
+    }
+    rt.sanity_check();
+}
+
+#[test]
+fn test_steal_failed() {
+    let mut rt = TestEnv::new();
+    let (w1, _w2, t) = setup_retracting(&mut rt);
+    let mut comm = TestComm::new();
+    let up1 = task_finished(
+        *rt.worker(w1)
+            .sn_assignment()
+            .unwrap()
+            .assign_tasks
+            .iter()
+            .next()
+            .unwrap(),
+    );
+    let up2 = WorkerTaskUpdate::Failed {
+        task_id: t,
+        info: TaskFailInfo::from_string("".to_string()),
+    };
+    on_task_update(rt.core(), &mut comm, w1, smallvec![up1, up2]);
+    comm.client.take_task_finished(1);
+    assert_eq!(comm.client.take_task_errors(1)[0].0, t);
+    comm.check_need_scheduling();
+    comm.emptiness_check();
+    assert!(!rt.task_exists(t));
+    rt.sanity_check();
+}
+
+#[test]
+fn test_steal_cancel() {
+    let mut rt = TestEnv::new();
+    let (w1, _w2, t) = setup_retracting(&mut rt);
+    let mut comm = TestComm::new();
+    on_cancel_tasks(rt.core(), &mut comm, &[t]);
+    match &comm.take_worker_msgs(w1, 1)[0] {
+        ToWorkerMessage::CancelTasks(msg) => {
+            assert_eq!(msg.ids, vec![t]);
+        }
+        _ => panic!(),
+    }
+    comm.check_need_scheduling();
+    comm.emptiness_check();
+    assert!(!rt.task_exists(t));
+    rt.sanity_check();
+}
+
+#[test]
+fn test_steal_source_worker_lost() {
+    let mut rt = TestEnv::new();
+    let (w1, w2, t) = setup_retracting(&mut rt);
+    let mut comm = TestComm::new();
+    on_remove_worker(rt.core(), &mut comm, w1, LostWorkerReason::ConnectionLost);
+    comm.check_need_scheduling();
+    comm.take_broadcasts(1);
+    match &comm.take_worker_msgs(w2, 1)[0] {
+        ToWorkerMessage::ComputeTasks(_) => {}
+        _ => panic!(),
+    }
+    comm.client.take_lost_workers();
+    comm.emptiness_check();
+    match &rt.task(t).state {
+        TaskRuntimeState::Assigned { worker_id, .. } => {
+            assert_eq!(*worker_id, w2);
+        }
+        _ => panic!(),
+    }
+    rt.sanity_check();
+}
+
+#[test]
+fn test_steal_target_worker_lost() {
+    let mut rt = TestEnv::new();
+    let (w1, w2, t) = setup_retracting(&mut rt);
+    let mut comm = TestComm::new();
+    on_remove_worker(rt.core(), &mut comm, w2, LostWorkerReason::ConnectionLost);
+    comm.check_need_scheduling();
+    comm.take_broadcasts(1);
+    comm.client.take_lost_workers();
+    comm.emptiness_check();
+    match &rt.task(t).state {
+        TaskRuntimeState::Retracting { worker_id, .. } => {
+            assert_eq!(*worker_id, w1);
+        }
+        _ => panic!(),
+    }
+    assert!(rt.core().split().scheduler_state.redirects.is_empty());
+    rt.sanity_check();
 }

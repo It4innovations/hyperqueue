@@ -74,6 +74,7 @@ impl TaskLaunchData {
 pub struct TaskBuildContext<'a> {
     pub(crate) state: &'a WorkerState,
     pub(crate) task: &'a Task,
+    pub(crate) rv_id: ResourceVariantId,
     pub(crate) allocation: &'a Allocation,
     pub(crate) token: Token,
 }
@@ -92,7 +93,7 @@ impl<'a> TaskBuildContext<'a> {
     }
 
     pub fn resource_variant(&self) -> ResourceVariantId {
-        self.task.resource_rq_variant
+        self.rv_id
     }
 
     pub fn allocation(&self) -> &'a Allocation {

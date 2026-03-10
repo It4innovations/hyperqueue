@@ -1,21 +1,25 @@
+use crate::internal::messages::worker::{TaskIdsMsg, ToWorkerMessage};
 use crate::internal::scheduler::solver::SchedulingSolution;
 use crate::internal::server::comm::Comm;
 use crate::internal::server::core::{Core, CoreSplitMut};
 use crate::internal::server::task::{ComputeTasksBuilder, Task, TaskRuntimeState};
-use crate::internal::worker::task::TaskState;
 use crate::resources::ResourceRqId;
 use crate::{Map, ResourceVariantId, Set, TaskId, WorkerId};
 use fxhash::FxBuildHasher;
 use hashbrown::hash_map::Entry;
 use std::cmp::Reverse;
 
-/// Always left at least this number of tasks out of filling
-const PROACTIVE_FILLING_RESERVE: u32 = 64;
-const PROACTIVE_FILLING_COUNT: u32 = 32;
+#[derive(Debug, Default)]
+#[cfg_attr(test, derive(Clone, PartialEq, PartialOrd, Eq, Ord))]
+pub struct WorkerTaskUpdate {
+    pub(crate) assigned: Vec<(TaskId, ResourceVariantId)>,
+    pub(crate) prefills: Vec<TaskId>,
+    pub(crate) retracts: Vec<TaskId>,
+}
 
 #[derive(Debug, Default)]
 pub struct WorkerTaskMapping {
-    pub(crate) sn_tasks_to_workers: Map<WorkerId, Vec<(TaskId, ResourceVariantId)>>,
+    pub(crate) workers: Map<WorkerId, WorkerTaskUpdate>,
     pub(crate) mn_tasks_to_workers: Vec<TaskId>,
 }
 
@@ -28,6 +32,7 @@ pub(crate) fn create_task_mapping(
         worker_map,
         task_queues,
         request_map,
+        scheduler_state,
         ..
     } = core.split_mut();
     let mut mapping = WorkerTaskMapping::default();
@@ -42,34 +47,65 @@ pub(crate) fn create_task_mapping(
                     if *c > 0 {
                         *c -= 1;
                         let task_id = tasks[task_idx];
+                        worker_map.get_worker_mut(*w_id).insert_sn_task(task_id, rq);
                         let task = task_map.get_task_mut(task_id);
                         let new_state = match &task.state {
                             TaskRuntimeState::Waiting { .. } => {
                                 log::debug!("Waiting task={} assigned to worker={}", task_id, w_id);
-                                worker_map.get_worker_mut(*w_id).insert_sn_task(task_id, rq);
                                 mapping
-                                    .sn_tasks_to_workers
+                                    .workers
                                     .entry(*w_id)
                                     .or_default()
+                                    .assigned
                                     .push((task_id, v_id));
                                 TaskRuntimeState::Assigned {
                                     worker_id: *w_id,
                                     rv_id: v_id,
                                 }
                             }
-                            TaskRuntimeState::Retracting { source } => {
-                                todo!()
+                            TaskRuntimeState::Retracting {
+                                worker_id: old_worker_id,
+                            } => {
+                                if old_worker_id != w_id {
+                                    if let Some((old_target, v_id)) =
+                                        scheduler_state.redirects.insert(task_id, (*w_id, v_id))
+                                    {
+                                        let rq = request_map.get(task.resource_rq_id).get(v_id);
+                                        worker_map
+                                            .get_worker_mut(old_target)
+                                            .remove_sn_task(task_id, rq);
+                                    }
+                                }
+                                TaskRuntimeState::Retracting {
+                                    worker_id: *old_worker_id,
+                                }
+                            }
+                            TaskRuntimeState::Prefilled {
+                                worker_id: old_worker_id,
+                            } => {
+                                worker_map
+                                    .get_mut(old_worker_id)
+                                    .unwrap()
+                                    .remove_prefill_task(task_id);
+                                mapping
+                                    .workers
+                                    .entry(*old_worker_id)
+                                    .or_default()
+                                    .retracts
+                                    .push(task_id);
+                                assert!(
+                                    scheduler_state
+                                        .redirects
+                                        .insert(task_id, (*w_id, v_id))
+                                        .is_none()
+                                );
+                                TaskRuntimeState::Retracting {
+                                    worker_id: *old_worker_id,
+                                }
                             }
                             TaskRuntimeState::Assigned { worker_id, rv_id } => {
                                 unreachable!()
                             }
-                            /*| TaskRuntimeState::Stealing { source, .. } => {
-                                TaskRuntimeState::Stealing {
-                                    source: *source,
-                                    target: *w_id,
-                                    rv_id: v_id,
-                                }
-                            }*/
                             TaskRuntimeState::Running { .. }
                             | TaskRuntimeState::RunningMultiNode(_)
                             | TaskRuntimeState::Finished => {
@@ -87,12 +123,10 @@ pub(crate) fn create_task_mapping(
         }
     }
 
-    mapping
-        .sn_tasks_to_workers
-        .iter_mut()
-        .for_each(|(_, tasks)| {
-            tasks.sort_by_key(|(task, _)| Reverse(task_map.get_task(*task).priority()));
-        });
+    mapping.workers.iter_mut().for_each(|(_, up)| {
+        up.assigned
+            .sort_by_key(|(task, _)| Reverse(task_map.get_task(*task).priority()));
+    });
 
     for ((resource_rq_id, _), worker_sets) in solution.mn_workers {
         for workers in worker_sets {
@@ -116,16 +150,17 @@ pub(crate) fn create_task_mapping(
             ));
         }
     }
-
+    process_proactive_filling(core, &mut mapping);
     mapping
 }
 
-/*fn process_proactive_filling(core: &mut Core, task: Task, mapping: &mut WorkerTaskMapping) {
+fn process_proactive_filling(core: &mut Core, mapping: &mut WorkerTaskMapping) {
     let CoreSplitMut {
         task_map,
         worker_map,
         task_queues,
         request_map,
+        scheduler_state,
         ..
     } = core.split_mut();
     let top_priority = task_queues.top_priority();
@@ -134,68 +169,108 @@ pub(crate) fn create_task_mapping(
             continue;
         };
         let size = queue
-            .top_size_without_filling()
-            .saturating_sub(PROACTIVE_FILLING_RESERVE);
-        for worker in worker_map.values_mut() {
-            let Some(sn) = worker.sn_assignment() else {
-                continue;
-            };
-            if !sn
-                .assign_tasks
-                .iter()
-                .any(|t| task_map.get_task(*t).resource_rq_id == queue.resource_rq_id)
-            {
-                continue;
-            }
-            let n_tasks = sn
-                .prefilled
-                .get(&queue.resource_rq_id)
-                .map(|ts| ts.len() as u32)
-                .unwrap_or(0);
-            let missing = PROACTIVE_FILLING_COUNT.saturating_sub(n_tasks);
-            let out = mapping.sn_tasks_to_workers.entry(worker.id).or_default();
-            for _ in 0..missing {
-                let task_id = queue.take_one().unwrap();
-                let task = task_map.get_task_mut(task_id);
-                assert!(task.is_ready());
+            .top_size_no_prefill()
+            .saturating_sub(scheduler_state.config.proactive_filling_reserve);
+        if size == 0 {
+            continue;
+        }
+        let workers: Vec<_> = worker_map
+            .values_mut()
+            .filter(|worker| {
+                let Some(sn) = worker.sn_assignment() else {
+                    return false;
+                };
+                if !mapping
+                    .workers
+                    .get(&worker.id)
+                    .map(|up| {
+                        up.assigned.iter().any(|(t, _)| {
+                            task_map.get_task(*t).resource_rq_id == queue.resource_rq_id
+                        })
+                    })
+                    .unwrap_or(false)
+                {
+                    return false;
+                }
+                if sn
+                    .prefilled_tasks
+                    .iter()
+                    .any(|t| task_map.get_task(*t).resource_rq_id == queue.resource_rq_id)
+                {
+                    return false;
+                }
+                true
+            })
+            .collect();
+        if workers.is_empty() {
+            continue;
+        }
+        let prefill_size =
+            (size / workers.len() as u32).min(scheduler_state.config.proactive_filling_max);
+        if prefill_size == 0 {
+            continue;
+        }
+        for worker in workers {
+            let tasks = queue.take_tasks_for_prefill(prefill_size);
+            for task_id in &tasks {
+                let task = task_map.get_task_mut(*task_id);
+                assert!(task.is_waiting());
                 task.state = TaskRuntimeState::Prefilled {
                     worker_id: worker.id,
                 };
-                worker.insert_prefill_task(task_id, queue.resource_rq_id);
-                out.push((task_id, None))
+                worker.insert_prefill_task(*task_id);
             }
+            mapping.workers.entry(worker.id).or_default().prefills = tasks;
         }
     }
     //task_queues.
-}*/
+}
 
 impl WorkerTaskMapping {
     pub fn dump(&self) {
-        println!("=======================");
-        for (w, ts) in &self.sn_tasks_to_workers {
+        println!("====== MAPPING =================");
+        for (w, up) in &self.workers {
             print!("w{w}:");
-            for (task_id, v) in ts {
+            for (task_id, v) in &up.assigned {
                 if v.is_first() {
                     print!(" {}", task_id)
                 } else {
                     print!(" {}/{}", task_id, v)
                 }
             }
+            if !up.prefills.is_empty() {
+                print!(" pf({})", up.prefills.len())
+            }
+            if !up.retracts.is_empty() {
+                print!(" ret({})", up.retracts.len())
+            }
             println!();
         }
     }
 
-    pub fn send_messages(&self, core: &mut Core, comm: &mut impl Comm) {
-        for (worker_id, tasks) in &self.sn_tasks_to_workers {
+    pub fn send_messages(self, core: &mut Core, comm: &mut impl Comm) {
+        for (worker_id, up) in self.workers {
+            if !up.retracts.is_empty() {
+                comm.send_worker_message(
+                    worker_id,
+                    &ToWorkerMessage::RetractTasks(TaskIdsMsg { ids: up.retracts }),
+                );
+            }
             let mut task_msg_builder = ComputeTasksBuilder::default();
-            for (task_id, variant) in tasks {
+            for task_id in &up.prefills {
                 let task = core.get_task_mut(*task_id);
-                if let Some(msg) = task_msg_builder.add_task(task, *variant, Vec::new()) {
-                    comm.send_worker_message(*worker_id, &msg);
+                if let Some(msg) = task_msg_builder.add_task(task, None, Vec::new()) {
+                    comm.send_worker_message(worker_id, &msg);
+                }
+            }
+            for (task_id, variant) in &up.assigned {
+                let task = core.get_task_mut(*task_id);
+                if let Some(msg) = task_msg_builder.add_task(task, Some(*variant), Vec::new()) {
+                    comm.send_worker_message(worker_id, &msg);
                 }
             }
             if let Some(msg) = task_msg_builder.into_last_message() {
-                comm.send_worker_message(*worker_id, &msg);
+                comm.send_worker_message(worker_id, &msg);
             }
         }
         for task_id in &self.mn_tasks_to_workers {

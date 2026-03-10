@@ -27,8 +27,11 @@ pub enum TaskRuntimeState {
         worker_id: WorkerId,
         rv_id: ResourceVariantId,
     },
+    Prefilled {
+        worker_id: WorkerId,
+    },
     Retracting {
-        source: WorkerId,
+        worker_id: WorkerId,
     },
     Running {
         worker_id: WorkerId,
@@ -44,7 +47,8 @@ impl fmt::Debug for TaskRuntimeState {
         match self {
             Self::Waiting { unfinished_deps } => write!(f, "W({})", unfinished_deps),
             Self::Assigned { worker_id, rv_id } => write!(f, "A({worker_id}, {rv_id})"),
-            Self::Retracting { source } => write!(f, "S({source})"),
+            Self::Prefilled { worker_id } => write!(f, "P({worker_id})"),
+            Self::Retracting { worker_id } => write!(f, "S({worker_id})"),
             Self::Running { worker_id, rv_id } => write!(f, "R({worker_id}, {rv_id})"),
             Self::RunningMultiNode(ws) => write!(f, "M({ws:?})"),
             Self::Finished => write!(f, "F"),
@@ -64,9 +68,13 @@ impl TaskRuntimeState {
                 "worker_id": worker_id,
                 "rv_id": rv_id,
             }),
-            Self::Retracting { source } => json!({
+            Self::Retracting { worker_id } => json!({
                 "state": "Retracting",
-                "from_worker": source,
+                "worker_id": worker_id,
+            }),
+            Self::Prefilled { worker_id } => json!({
+                "state": "Prefilled",
+                "worker_id": worker_id,
             }),
             Self::Running { worker_id, .. } => json!({
                 "state": "Running",
@@ -182,6 +190,17 @@ impl Task {
     }
 
     #[inline]
+    pub(crate) fn is_retracting(&self) -> bool {
+        matches!(
+            self.state,
+            TaskRuntimeState::Retracting {
+                ..
+            }
+        )
+    }
+    
+
+    #[inline]
     pub(crate) fn is_sn_running(&self) -> bool {
         matches!(self.state, TaskRuntimeState::Running { .. })
     }
@@ -279,6 +298,12 @@ impl Task {
     }
 
     #[inline]
+    pub(crate) fn is_prefilled(&self) -> bool {
+        matches!(&self.state, TaskRuntimeState::Prefilled { .. })
+    }
+
+
+    #[inline]
     pub(crate) fn is_assigned_at(&self, worker_id: WorkerId) -> bool {
         match &self.state {
             TaskRuntimeState::Assigned { worker_id: w, .. }
@@ -374,7 +399,7 @@ impl ComputeTasksBuilder {
     ) -> ToWorkerMessage {
         // TODO: optimize this
         let mut builder = Self::default();
-        if let Some(msg) = builder.add_task(task, variant, node_list) {
+        if let Some(msg) = builder.add_task(task, Some(variant), node_list) {
             msg
         } else {
             builder.into_last_message().unwrap()
@@ -386,7 +411,7 @@ impl ComputeTasksBuilder {
     pub fn add_task(
         &mut self,
         task: &Task,
-        variant: ResourceVariantId,
+        variant: Option<ResourceVariantId>, // If None then task is prefill
         node_list: Vec<WorkerId>,
     ) -> Option<ToWorkerMessage> {
         let conf = &task.configuration;

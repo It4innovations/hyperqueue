@@ -26,7 +26,6 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tako::gateway::{
     CrashLimit, ResourceRequestEntries, ResourceRequestEntry, ResourceRequestVariants,
-    TaskDataFlags,
 };
 use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
 use tako::resources::{AllocationRequest, NumOfNodes, ResourceAmount};

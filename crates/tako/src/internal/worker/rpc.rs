@@ -36,7 +36,7 @@ use crate::internal::worker::hwmonitor::HwSampler;
 use crate::internal::worker::localcomm::handle_local_comm;
 use crate::internal::worker::reactor::compute_tasks;
 use crate::internal::worker::state::{WorkerState, WorkerStateRef};
-use crate::internal::worker::task::{Task, TaskState};
+use crate::internal::worker::task::Task;
 use crate::launcher::TaskLauncher;
 use futures::future::Either;
 use smallvec::SmallVec;
@@ -287,14 +287,12 @@ async fn cancel_running_tasks_on_worker_end(state: WorkerStateRef) {
     let notify = {
         let mut state = state.get_mut();
         state.drop_non_running_tasks();
-        for task in state.running_tasks.clone() {
-            state.cancel_task(task);
-        }
-
         if state.running_tasks.is_empty() {
             return;
         }
-
+        for task in state.running_tasks.values_mut() {
+            task.cancel();
+        }
         let notify = Rc::new(Notify::new());
         state.comm().set_idle_worker_notify(notify.clone());
         notify
@@ -364,14 +362,15 @@ pub(crate) fn process_worker_message(state: &mut WorkerState, message: ToWorkerM
         }
         ToWorkerMessage::RetractTasks(mut msg) => {
             log::debug!("Steal {} attempts", msg.ids.len());
-            msg.ids.retain(|task_id| {
-                let response = state.retract_task(*task_id);
-                log::debug!("Retract attempt: {task_id}, response {response:?}");
-                response
-            });
-            let message =
-                FromWorkerMessage::RetractResponse(RetractResponseMsg { responses: msg.ids });
-            state.comm().send_message_to_server(message);
+            let responses = state.retract_tasks(&msg.ids);
+            log::debug!(
+                "Retract attempt: tried: {:?}, successful: {responses:?}",
+                msg.ids
+            );
+            if !msg.ids.is_empty() {
+                let message = FromWorkerMessage::RetractResponse(RetractResponseMsg { responses });
+                state.comm().send_message_to_server(message);
+            }
         }
         ToWorkerMessage::CancelTasks(msg) => {
             for task_id in msg.ids {
@@ -487,14 +486,12 @@ async fn send_overview_loop(state_ref: WorkerStateRef) -> crate::Result<()> {
                     id: worker_state.worker_id,
                     running_tasks: worker_state
                         .running_tasks
-                        .iter()
-                        .map(|&task_id| {
-                            let task = worker_state.get_task(task_id);
-                            let allocation: &Allocation = task.resource_allocation().unwrap();
+                        .values()
+                        .map(|task| {
                             (
-                                task_id,
+                                task.task.id,
                                 resource_allocation_to_msg(
-                                    allocation,
+                                    &task.allocation,
                                     worker_state.get_resource_map(),
                                 ),
                             )

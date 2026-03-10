@@ -21,10 +21,7 @@ use crate::internal::messages::worker::{
 };
 use crate::internal::server::comm::{Comm, CommSenderRef};
 use crate::internal::server::core::{CoreRef, CoreSplitMut};
-use crate::internal::server::reactor::{
-    on_new_worker, on_remove_worker, on_request_enabled, on_task_error, on_task_finished,
-    on_task_reject, on_task_running,
-};
+use crate::internal::server::reactor::{on_new_worker, on_remove_worker, on_task_update};
 use crate::internal::server::worker::{DEFAULT_WORKER_OVERVIEW_INTERVAL, Worker};
 use crate::internal::transfer::auth::{
     do_authentication, forward_queue_to_sealed_sink, open_message, serialize,
@@ -296,29 +293,30 @@ pub(crate) async fn worker_receive_loop<
         let mut comm = comm_ref.get_mut();
         match message {
             FromWorkerMessage::TaskUpdate(updates) => {
-                for update in updates {
-                    match update {
-                        WorkerTaskUpdate::Finished(msg) => {
-                            on_task_finished(&mut core, &mut *comm, worker_id, msg);
-                        }
-                        WorkerTaskUpdate::Failed(msg) => {
-                            on_task_error(&mut core, &mut *comm, worker_id, msg.task_id, msg.info);
-                        }
-                        WorkerTaskUpdate::TaskRunning(msg) => {
-                            on_task_running(&mut core, &mut *comm, worker_id, msg);
-                        }
-                        WorkerTaskUpdate::RejectRequest {
-                            task_id,
-                            resource_rq_variant: rv_id,
-                        } => on_task_reject(&mut core, &mut *comm, worker_id, task_id, rv_id),
-                        WorkerTaskUpdate::EnableRequest {
-                            resource_rq_id: rq_id,
-                            resource_rq_variant: rv_id,
-                        } => {
-                            on_request_enabled(&mut core, &mut *comm, worker_id, rq_id, rv_id);
-                        }
-                    }
-                }
+                on_task_update(&mut core, &mut *comm, worker_id, updates);
+                // for update in updates {
+                //     match update {
+                //         WorkerTaskUpdate::Finished(msg) => {
+                //             on_task_finished(&mut core, &mut *comm, worker_id, msg);
+                //         }
+                //         WorkerTaskUpdate::Failed(msg) => {
+                //             on_task_error(&mut core, &mut *comm, worker_id, msg.task_id, msg.info);
+                //         }
+                //         WorkerTaskUpdate::TaskRunning(msg) => {
+                //             on_task_running(&mut core, &mut *comm, worker_id, msg);
+                //         }
+                //         WorkerTaskUpdate::RejectRequest {
+                //             task_id,
+                //             resource_rq_variant: rv_id,
+                //         } => on_task_reject(&mut core, &mut *comm, worker_id, task_id, rv_id),
+                //         WorkerTaskUpdate::EnableRequest {
+                //             resource_rq_id: rq_id,
+                //             resource_rq_variant: rv_id,
+                //         } => {
+                //             on_request_enabled(&mut core, &mut *comm, worker_id, rq_id, rv_id);
+                //         }
+                //     }
+                // }
             }
             FromWorkerMessage::RetractResponse(msg) => {
                 unreachable!() // Not implemented yet

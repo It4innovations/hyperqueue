@@ -7,6 +7,7 @@ use crate::internal::common::resources::map::{
 use crate::internal::common::resources::{ResourceId, ResourceRequestVariants, ResourceRqId};
 use crate::internal::common::{Set, WrappedRcRefCell};
 use crate::internal::scheduler::{SchedulerState, TaskQueue, TaskQueues};
+use crate::internal::server::comm::Comm;
 use crate::internal::server::rpc::ConnectionDescriptor;
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::taskmap::TaskMap;
@@ -26,6 +27,7 @@ pub(crate) struct CoreSplitMut<'a> {
     pub request_map: &'a ResourceRqMap,
     pub task_queues: &'a mut TaskQueues,
     pub worker_groups: &'a mut Map<String, WorkerGroup>,
+    pub scheduler_state: &'a mut SchedulerState,
 }
 
 pub(crate) struct CoreSplit<'a> {
@@ -34,7 +36,7 @@ pub(crate) struct CoreSplit<'a> {
     pub request_map: &'a ResourceRqMap,
     pub task_queues: &'a TaskQueues,
     pub worker_groups: &'a Map<String, WorkerGroup>,
-    pub scheduler_cache: &'a SchedulerState,
+    pub scheduler_state: &'a SchedulerState,
 }
 
 #[derive(Default)]
@@ -92,6 +94,7 @@ impl Core {
             request_map: self.resource_map.get_resource_rq_map(),
             task_queues: &mut self.task_queues,
             worker_groups: &mut self.worker_groups,
+            scheduler_state: &mut self.scheduler_state,
         }
     }
 
@@ -103,7 +106,7 @@ impl Core {
             request_map: self.resource_map.get_resource_rq_map(),
             task_queues: &self.task_queues,
             worker_groups: &self.worker_groups,
-            scheduler_cache: &self.scheduler_state,
+            scheduler_state: &self.scheduler_state,
         }
     }
 
@@ -220,9 +223,9 @@ impl Core {
         !self.workers.is_empty()
     }
 
-    pub fn add_task(&mut self, task: Task) {
+    pub fn add_task(&mut self, task: Task, retracted: &mut Vec<TaskId>) {
         if task.is_ready() {
-            self.task_queues.get_mut(task.resource_rq_id).add(&task);
+            self.task_queues.add_ready_task(&task, retracted);
         }
         assert!(self.tasks.insert(task).is_none());
     }
@@ -303,14 +306,22 @@ impl Core {
             }
         };
 
-        let worker_check_sn = |core: &Core, task_id: TaskId, wid: WorkerId| {
+        let worker_check_sn = |core: &Core,
+                               task_id: TaskId,
+                               assigned: Option<WorkerId>,
+                               prefilled: Option<WorkerId>| {
             for (worker_id, worker) in core.workers.iter() {
                 match worker.assignment() {
                     WorkerAssignment::Sn(s) => {
-                        if wid == *worker_id {
+                        if assigned == Some(*worker_id) {
                             assert!(s.assign_tasks.contains(&task_id));
                         } else {
                             assert!(!s.assign_tasks.contains(&task_id));
+                        }
+                        if prefilled == Some(*worker_id) {
+                            assert!(s.prefilled_tasks.contains(&task_id));
+                        } else {
+                            assert!(!s.prefilled_tasks.contains(&task_id));
                         }
                     }
                     WorkerAssignment::Mn(m) => {
@@ -322,7 +333,35 @@ impl Core {
 
         for (worker_id, worker) in self.workers.iter() {
             assert_eq!(worker.id, *worker_id);
-            worker.sanity_check(&self.tasks, self.resource_map.get_resource_rq_map());
+            worker.sanity_check(
+                &self.tasks,
+                self.resource_map.get_resource_rq_map(),
+                &self.scheduler_state.redirects,
+            );
+        }
+
+        for (task_id, (worker_id, _)) in &self.scheduler_state.redirects {
+            let task = self.tasks.get_task(*task_id);
+            match task.state {
+                TaskRuntimeState::Retracting { .. } => {
+                    let worker = self.workers.get_worker(*worker_id);
+                    assert!(
+                        worker
+                            .sn_assignment()
+                            .unwrap()
+                            .assign_tasks
+                            .contains(task_id)
+                    );
+                    assert!(
+                        !worker
+                            .sn_assignment()
+                            .unwrap()
+                            .prefilled_tasks
+                            .contains(task_id)
+                    );
+                }
+                _ => unreachable!(),
+            }
         }
 
         for task_id in self.tasks.task_ids() {
@@ -344,22 +383,32 @@ impl Core {
                         assert!(self.tasks.get_task(task_id).is_waiting());
                     }
                     assert_eq!(*unfinished_deps, count);
-                    worker_check_sn(self, task.id, 0.into());
+                    worker_check_sn(self, task.id, None, None);
                 }
 
                 TaskRuntimeState::Assigned { worker_id, .. }
                 | TaskRuntimeState::Running { worker_id, .. } => {
                     fw_check(task);
-                    worker_check_sn(self, task.id, *worker_id);
+                    worker_check_sn(self, task.id, Some(*worker_id), None);
                 }
-                TaskRuntimeState::Retracting { source: _ } => {
+                TaskRuntimeState::Retracting { .. } => {
                     fw_check(task);
-                    worker_check_sn(self, task.id, WorkerId::new(0));
+                    let worker_id = self
+                        .scheduler_state
+                        .redirects
+                        .get(&task_id)
+                        .map(|x| x.0)
+                        .unwrap_or(WorkerId::new(0));
+                    worker_check_sn(self, task.id, Some(worker_id), None);
                 }
                 TaskRuntimeState::Finished => {
                     for task_dep in &task.task_deps {
                         assert!(self.tasks.find_task(*task_dep).is_none());
                     }
+                }
+                TaskRuntimeState::Prefilled { worker_id } => {
+                    fw_check(task);
+                    worker_check_sn(self, task.id, None, Some(*worker_id));
                 }
                 TaskRuntimeState::RunningMultiNode(ws) => {
                     assert!(!ws.is_empty());
@@ -388,6 +437,8 @@ impl Core {
                 }
             }
         }
+
+        self.task_queues.sanity_check(&self.tasks, &self.workers);
     }
 
     #[inline]

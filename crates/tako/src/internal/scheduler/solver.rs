@@ -31,7 +31,7 @@ pub(crate) fn run_scheduling_solver(
         task_queues,
         request_map,
         worker_groups,
-        scheduler_cache,
+        scheduler_state: scheduler_cache,
         ..
     } = core.split();
     if request_map.is_empty() {
@@ -67,7 +67,7 @@ pub(crate) fn run_scheduling_solver(
 
     let n_workers = workers.len();
 
-    let mut solver = LpSolver::new(true);
+    let mut solver = LpSolver::new(false);
 
     let mut placements: Map<(WorkerId, ResourceRqId, ResourceVariantId), (_, u32)> = Map::new();
     let mut tasks_count_vars: Map<ResourceRqId, Vec<_>> = Map::new();

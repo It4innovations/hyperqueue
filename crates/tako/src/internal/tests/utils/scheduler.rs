@@ -37,7 +37,7 @@ impl TestCase {
         self.checked = true;
         let mut mapping = self.rt.get_mut().schedule_mapping();
 
-        mapping.dump();
+        //mapping.dump();
 
         let eq_classes: Set<u32> = self
             .workers
@@ -57,10 +57,10 @@ impl TestCase {
             worker.check(
                 &self.rt.get(),
                 mapping
-                    .sn_tasks_to_workers
+                    .workers
                     .get(&worker.get_worker_id())
                     .as_deref()
-                    .map_or(&[], |v| v),
+                    .map_or(&[], |up| up.assigned.as_slice()),
             );
         }
     }
@@ -101,17 +101,11 @@ impl TestCase {
 pub fn normalize_workers(mapping: &mut WorkerTaskMapping, workers: &[WorkerId]) {
     let mut tasks: Vec<_> = workers
         .iter()
-        .map(|w| {
-            mapping
-                .sn_tasks_to_workers
-                .get(w)
-                .cloned()
-                .unwrap_or_default()
-        })
+        .map(|w| mapping.workers.get(w).cloned().unwrap_or_default())
         .collect();
     tasks.sort_unstable();
-    for (w, tasks) in workers.iter().zip(tasks.into_iter()) {
-        mapping.sn_tasks_to_workers.insert(*w, tasks);
+    for (w, up) in workers.iter().zip(tasks.into_iter()) {
+        mapping.workers.insert(*w, up);
     }
 }
 
