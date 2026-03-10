@@ -111,7 +111,7 @@ jobs:
       - name: Compile
         env:
           HQ_BUILD_VERSION: ${{ needs.set-env.outputs.version }}
-        run: cross build --target ${{ matrix.arch }} --no-default-features --profile dist
+        run: cross build --target ${{ matrix.arch }} --no-default-features --features dashboard,highs --profile dist
 
       - name: Prepare archive
         id: archive
