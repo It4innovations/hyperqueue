@@ -1,12 +1,10 @@
 use crate::internal::messages::worker::ToWorkerMessage;
 use crate::internal::scheduler::{PriorityCut, create_task_batches};
-use crate::internal::server::core::Core;
 use crate::internal::tests::utils::scheduler::TestCase;
-use crate::resources::{ResourceAmount, ResourceRqId, ResourceUnits};
+use crate::resources::ResourceRqId;
 use crate::tests::utils::env::{TestComm, TestEnv};
 use crate::tests::utils::task::TaskBuilder;
 use crate::tests::utils::worker::WorkerBuilder;
-use psutil::process::Status::Dead;
 use std::time::Duration;
 
 #[test]
@@ -1066,4 +1064,23 @@ fn test_scheduler_two_running_three_waiting() {
     assert!(rt.task(ts[1]).is_sn_running());
     assert!(rt.task(ts[2]).is_waiting());
     assert!(rt.task(ts[3]).is_waiting());
+}
+
+#[test]
+fn test_many_cuts() {
+    let mut rt = TestEnv::new();
+    rt.new_workers(300, &WorkerBuilder::new(8));
+    let mut ts1 = Vec::new();
+    let mut ts2 = Vec::new();
+    for i in 0..3200 {
+        ts1.push(rt.new_task(&TaskBuilder::new().cpus(1).user_priority(i)));
+        ts2.push(rt.new_task(&TaskBuilder::new().cpus(2).user_priority(i)));
+    }
+    rt.schedule();
+    let c1 = ts1.iter().filter(|t| rt.task(**t).is_assigned()).count();
+    let c2 = ts2.iter().filter(|t| rt.task(**t).is_assigned()).count();
+    dbg!(c1, c2);
+    assert!(c1.abs_diff(c2) < 10);
+    assert!(c1.abs_diff(800) < 10);
+    assert!(c2.abs_diff(800) < 10);
 }

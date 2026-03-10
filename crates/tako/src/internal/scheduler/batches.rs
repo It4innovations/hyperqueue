@@ -5,6 +5,9 @@ use crate::resources::ResourceRqId;
 use std::cmp::Ordering;
 use std::time::Instant;
 
+const BATCH_PRUNING_MAX_SIZE: usize = 32;
+const BATCH_PRUNING_FIXED_PREFIX: usize = 4;
+
 #[derive(Debug)]
 #[cfg_attr(test, derive(Eq, PartialEq))]
 pub(crate) struct PriorityCut {
@@ -170,6 +173,84 @@ pub(crate) fn create_task_batches(
             };
         }
     }
-    batches.retain(|b| b.size > 0);
+    batches.retain_mut(|b| {
+        prune_progressive(
+            &mut b.cuts,
+            BATCH_PRUNING_FIXED_PREFIX,
+            BATCH_PRUNING_MAX_SIZE,
+        );
+        b.size > 0
+    });
     batches
+}
+
+fn prune_progressive<T>(vec: &mut Vec<T>, prefix_size: usize, size_limit: usize) {
+    let original_len = vec.len();
+
+    if original_len <= size_limit {
+        return;
+    }
+
+    let remaining_slots = size_limit - prefix_size;
+
+    let mut indices = Vec::with_capacity(size_limit);
+    for i in 0..prefix_size {
+        indices.push(i);
+    }
+
+    // Map the remaining slots using a quadratic function:
+    // index = prefix_size + (normalized_step^2 * (source_pool_size - 1))
+    let source_pool_size = original_len - prefix_size;
+    let mut last = prefix_size - 1;
+    for i in 0..remaining_slots {
+        let t = i as f64 / (remaining_slots - 1) as f64; // Normalized 0.0 to 1.0
+        let mut index = prefix_size + (t * t * (source_pool_size - 1) as f64).round() as usize;
+        if index <= last {
+            index = last + 1;
+        }
+        indices.push(index);
+        last = index;
+    }
+
+    // To prune in-place
+    for i in 0..size_limit {
+        let target_idx = indices[i];
+        vec.swap(i, target_idx);
+    }
+
+    vec.truncate(size_limit);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_prune_progressive() {
+        let mut vec = (0..40).collect::<Vec<_>>();
+        prune_progressive(&mut vec, 4, 100);
+        assert_eq!(vec, (0..40).collect::<Vec<_>>());
+
+        let mut vec = (0..1000).collect::<Vec<_>>();
+        prune_progressive(&mut vec, 4, 32);
+        assert_eq!(vec.len(), 32);
+        assert_eq!(
+            vec,
+            vec![
+                0, 1, 2, 3, 4, 5, 9, 16, 26, 38, 53, 71, 91, 115, 140, 169, 201, 235, 272, 311,
+                353, 398, 446, 497, 550, 606, 665, 726, 790, 857, 927, 999
+            ]
+        );
+
+        let mut vec = (0..40).collect::<Vec<_>>();
+        prune_progressive(&mut vec, 4, 32);
+        assert_eq!(vec.len(), 32);
+        assert_eq!(
+            vec,
+            vec![
+                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+                23, 24, 25, 27, 29, 32, 34, 36, 39
+            ]
+        );
+    }
 }
