@@ -17,7 +17,7 @@ name = "hyperqueue"
 crate-type = ["cdylib"]
 
 [dependencies]
-hyperqueue = { path = "../hyperqueue" }
+hyperqueue = { path = "../hyperqueue", default-features = false, features = ["jemalloc"] }
 tako = { path = "../tako" }
 
 serde = { workspace = true }
@@ -30,6 +30,11 @@ pyo3 = { version = "0.25", features = ["extension-module", "abi3", "abi3-py39", 
 pyo3-async-runtimes = { version = "0.25", features = ["tokio-runtime"] }
 pythonize = "0.25"
 termcolor = "1.1"
+
+[features]
+default = ["highs"]
+highs = ["hyperqueue/highs"]
+microlp = ["hyperqueue/microlp"]
 
 [package.metadata.maturin]
 python-source = "python"

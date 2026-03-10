@@ -108,9 +108,9 @@ jobs:
           key: ${{ matrix.os }}
 
       - name: Build HyperQueue
-        run: cargo build --no-default-features
+        run: cargo build --no-default-features --features dashboard,highs
       - name: Run HyperQueue
-        run: cargo run --no-default-features -- --version
+        run: ./target/debug/hq --version
 
       - name: Setup Python
         uses: actions/setup-python@v2
