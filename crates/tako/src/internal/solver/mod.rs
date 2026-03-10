@@ -76,7 +76,7 @@ impl LpSolver {
         #[cfg(not(any(feature = "highs", feature = "microlp")))]
         {
             compile_error!(
-            "You have to enable either the `highs` or the `microlp` feature using `cargo build ... --features <highs/microlp>`"
+                "You have to enable either the `highs` or the `microlp` feature using `cargo build ... --features <highs/microlp>`"
             )
         }
         LpSolver {
@@ -194,21 +194,14 @@ impl LpSolver {
     }
 
     #[inline]
-    pub fn add_min_constraint(
+    pub fn add_constraint(
         &mut self,
-        min: f64,
+        constraint_type: ConstraintType,
+        value: f64,
         variables: impl Iterator<Item = (Variable, f64)>,
     ) {
-        self.solver.add_min_constraint(min, variables)
-    }
-
-    #[inline]
-    pub fn add_max_constraint(
-        &mut self,
-        max: f64,
-        variables: impl Iterator<Item = (Variable, f64)>,
-    ) {
-        self.solver.add_max_constraint(max, variables)
+        self.solver
+            .add_constraint(constraint_type, value, variables)
     }
 
     #[inline]

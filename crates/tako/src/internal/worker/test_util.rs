@@ -5,7 +5,7 @@ use crate::internal::messages::worker::{ComputeTaskSeparateData, ComputeTaskShar
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::tests::utils::resources::cpus_compact;
 use crate::internal::worker::state::TaskMap;
-use crate::internal::worker::task::{Task, TaskState};
+use crate::internal::worker::task::Task;
 use crate::{InstanceId, Priority, TaskId, WorkerId};
 use smallvec::smallvec;
 use std::rc::Rc;
@@ -16,7 +16,6 @@ pub struct WorkerTaskBuilder {
     instance_id: InstanceId,
     resources: Vec<ResourceRequest>,
     priority: Priority,
-    task_state: TaskState,
 }
 
 impl WorkerTaskBuilder {
@@ -26,7 +25,6 @@ impl WorkerTaskBuilder {
             instance_id: 0.into(),
             resources: Vec::new(),
             priority: Priority::new(0),
-            task_state: TaskState::Waiting,
         }
     }
     pub fn resources(mut self, resources: ResourceRequest) -> Self {
@@ -53,7 +51,7 @@ impl WorkerTaskBuilder {
                 shared_index: 0,
                 id: self.task_id,
                 instance_id: self.instance_id,
-                resource_rq_variant: 0.into(),
+                resource_rq_variant: Some(0.into()),
                 priority: self.priority,
                 node_list: vec![],
                 entry: None,
@@ -63,5 +61,6 @@ impl WorkerTaskBuilder {
                 body: Default::default(),
             },
         )
+        .0
     }
 }

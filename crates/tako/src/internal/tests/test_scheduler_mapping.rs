@@ -10,8 +10,7 @@ fn test_schedule_apply_mapping() {
     let mut rt = TestEnv::new();
     let w1 = rt.new_worker_cpus(5);
     rt.new_task(&TaskBuilder::new().cpus(5));
-    let mut comm = TestComm::new();
-    rt.schedule_with_comm(&mut comm);
+    let mut comm = rt.schedule();
     comm.take_worker_msgs(w1, 1);
     comm.emptiness_check();
 }
@@ -39,10 +38,10 @@ fn test_schedule_mapping_do_not_change() {
         .contains(&t1);
 
     let m = rt.schedule_mapping();
-    assert!(m.sn_tasks_to_workers.is_empty());
+    assert!(m.workers.is_empty());
 
     let _w3 = rt.new_worker_cpus(6);
     let t2 = rt.new_task(&TaskBuilder::new().cpus(4).add_resource(1, 2));
     let m = rt.schedule_mapping();
-    assert!(m.sn_tasks_to_workers.is_empty());
+    assert!(m.workers.is_empty());
 }

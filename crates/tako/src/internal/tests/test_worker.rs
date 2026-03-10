@@ -14,7 +14,7 @@ use std::ops::Deref;
 fn pop_task_running(msg: &mut FromWorkerMessage) -> TaskRunningMsg {
     match msg {
         FromWorkerMessage::TaskUpdate(update) => match update.pop().unwrap() {
-            WorkerTaskUpdate::TaskRunning(msg) => msg,
+            WorkerTaskUpdate::Running(msg) => msg,
             _ => unreachable!(),
         },
         _ => {
@@ -26,10 +26,7 @@ fn pop_task_running(msg: &mut FromWorkerMessage) -> TaskRunningMsg {
 fn pop_task_rejection(msg: &mut FromWorkerMessage) -> TaskId {
     match msg {
         FromWorkerMessage::TaskUpdate(update) => match update.pop().unwrap() {
-            WorkerTaskUpdate::RejectRequest {
-                task_id,
-                resource_rq_variant: _,
-            } => task_id,
+            WorkerTaskUpdate::RejectRequest { task_id, rv_id: _ } => task_id,
             _ => unreachable!(),
         },
         _ => {
@@ -64,10 +61,10 @@ fn test_worker_start_task() {
     check_empty_update(&mut msg[0]);
     comm.check_emptiness();
 
-    let task = state.find_task(7.into()).unwrap();
-    assert_eq!(task.id, TaskId::new_test(7));
+    let task = state.get_running_task(7.into());
+    assert_eq!(task.task.id, TaskId::new_test(7));
     assert_eq!(state.running_tasks.len(), 1);
-    assert!(state.running_tasks.contains(&TaskId::new_test(7)));
+    assert!(state.running_tasks.find(&TaskId::new_test(7)).is_some());
     drop(state);
 
     let msg = rt.compute_msg(TaskId::new_test(9), 0, &TaskBuilder::new().cpus(3));

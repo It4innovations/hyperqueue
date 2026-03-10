@@ -5,18 +5,11 @@ use crate::internal::common::index::ItemId;
 use crate::internal::common::resources::ResourceId;
 use crate::internal::common::utils::format_comma_delimited;
 use crate::internal::messages::common::TaskFailInfo;
-use crate::internal::messages::worker::{
-    TaskFinishedMsg, TaskRunningMsg, ToWorkerMessage, WorkerOverview,
-};
-use crate::internal::scheduler::{
-    TaskBatch, WorkerTaskMapping, create_task_batches, create_task_mapping, run_scheduling,
-    run_scheduling_inner, run_scheduling_solver,
-};
+use crate::internal::messages::worker::{TaskRunningMsg, ToWorkerMessage, WorkerOverview, WorkerTaskUpdate};
+use crate::internal::scheduler::{TaskBatch, WorkerTaskMapping, create_task_batches, create_task_mapping, run_scheduling, run_scheduling_inner, run_scheduling_solver, SchedulerConfig};
 use crate::internal::server::comm::Comm;
 use crate::internal::server::core::{Core, CoreSplitMut};
-use crate::internal::server::reactor::{
-    on_new_tasks, on_new_worker, on_task_finished, on_task_running,
-};
+use crate::internal::server::reactor::{on_new_tasks, on_new_worker, on_task_update};
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::taskmap::TaskMap;
 use crate::internal::server::worker::Worker;
@@ -30,6 +23,7 @@ use crate::tests::utils::worker::WorkerBuilder;
 use crate::worker::WorkerConfiguration;
 use crate::{InstanceId, JobId, JobTaskId, ResourceVariantId, Set, TaskId, WorkerId};
 use std::time::Instant;
+use smallvec::smallvec;
 
 pub struct TestEnv {
     core: Core,
@@ -54,6 +48,10 @@ impl TestEnv {
             task_id_counter: 1,
             worker_id_counter: 50,
         }
+    }
+
+    pub fn set_scheduler_config(&mut self, config: SchedulerConfig) {
+        self.core.split_mut().scheduler_state.config = config;
     }
 
     pub fn set_job<J: Into<JobId>>(&mut self, job_id: J, task_id_counter: u32) {
@@ -176,14 +174,8 @@ impl TestEnv {
 
     pub fn finish_task(&mut self, task_id: TaskId, worker_id: WorkerId) {
         let mut comm = TestComm::new();
-        on_task_finished(
-            &mut self.core,
-            &mut comm,
-            worker_id.into(),
-            TaskFinishedMsg {
-                task_id: task_id.into(),
-            },
-        );
+        let up = WorkerTaskUpdate::Finished { task_id };
+        on_task_update(&mut self.core, &mut comm, worker_id, smallvec![up]);
     }
 
     pub fn assign_task(&mut self, task_id: TaskId, worker_id: WorkerId) {
@@ -224,16 +216,12 @@ impl TestEnv {
             _ => panic!("Task {} is not assigned", task_id),
         };
         let mut comm = TestComm::default();
-        on_task_running(
-            &mut self.core,
-            &mut comm,
-            worker_id,
-            TaskRunningMsg {
-                task_id: task_id,
-                rv_id: variant.into(),
-                context: Default::default(),
-            },
-        );
+        let up = WorkerTaskUpdate::Running(            TaskRunningMsg {
+            task_id,
+            rv_id: variant.into(),
+            context: Default::default(),
+        });
+        on_task_update(&mut self.core, &mut comm, worker_id, smallvec![up]);
     }
 
     pub fn start_task_mn(&mut self, task_id: TaskId, workers: &[WorkerId]) {
@@ -257,14 +245,11 @@ impl TestEnv {
         self.start_task(task_id, variant);
     }
 
-    pub fn schedule(&mut self) {
+    pub fn schedule(&mut self) -> TestComm {
         let mut comm = TestComm::new();
-        self.schedule_with_comm(&mut comm);
+        run_scheduling_inner(&mut self.core, &mut comm, self.now);
         self.core.sanity_check();
-    }
-
-    pub fn schedule_with_comm(&mut self, comm: &mut TestComm) {
-        run_scheduling_inner(&mut self.core, comm, self.now);
+        comm
     }
 
     pub fn schedule_mapping(&mut self) -> WorkerTaskMapping {

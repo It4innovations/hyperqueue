@@ -6,6 +6,7 @@ use crate::internal::common::resources::TimeRequest;
 use crate::internal::common::resources::map::{ResourceIdMap, ResourceRqMap};
 use crate::internal::common::resources::{ResourceRequest, ResourceRequestVariants};
 use crate::internal::server::comm::Comm;
+use crate::internal::server::task::TaskRuntimeState;
 use crate::internal::server::taskmap::TaskMap;
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::server::workermap::WorkerMap;
@@ -41,10 +42,12 @@ pub struct MultiNodeTaskAssignment {
     pub is_root: bool,
 }
 
+#[derive(Debug)]
 pub struct SingleNodeTaskAssignment {
     // This is list of single node assigned tasks
     pub assign_tasks: Set<TaskId>,
     pub free_resources: WorkerResources,
+    pub prefilled_tasks: Set<TaskId>,
 }
 
 pub enum WorkerAssignment {
@@ -57,6 +60,7 @@ impl WorkerAssignment {
         Self::Sn(SingleNodeTaskAssignment {
             assign_tasks: Default::default(),
             free_resources: wr.clone(),
+            prefilled_tasks: Default::default(),
         })
     }
 }
@@ -186,43 +190,30 @@ impl Worker {
         }
     }
 
-    /*pub fn insert_prefill_task(&mut self, task_id: TaskId, resource_rq_id: ResourceRqId) {
+    pub fn insert_prefill_task(&mut self, task_id: TaskId) {
+        match &mut self.assignment {
+            WorkerAssignment::Sn(a) => assert!(a.prefilled_tasks.insert(task_id)),
+            WorkerAssignment::Mn(_) => unreachable!(),
+        }
+    }
+
+    pub fn remove_prefill_task(&mut self, task_id: TaskId) {
+        match &mut self.assignment {
+            WorkerAssignment::Sn(a) => assert!(a.prefilled_tasks.remove(&task_id)),
+            WorkerAssignment::Mn(_) => unreachable!(),
+        }
+    }
+
+    pub fn task_from_prefilled_to_started(&mut self, task_id: TaskId, rq: &ResourceRequest) {
         match &mut self.assignment {
             WorkerAssignment::Sn(a) => {
-                a.prefilled
-                    .entry(resource_rq_id)
-                    .or_default()
-                    .insert(task_id);
+                assert!(a.prefilled_tasks.remove(&task_id));
+                assert!(a.assign_tasks.insert(task_id));
+                a.free_resources.remove(rq);
             }
             WorkerAssignment::Mn(_) => unreachable!(),
         }
-    }*/
-
-    /*pub fn start_task(&mut self, task_id: TaskId, rq: &ResourceRequest) {
-        match &mut self.assignment {
-            WorkerAssignment::Sn(a) => {
-                a.free_resources.remove(rq);
-            }
-            WorkerAssignment::Mn(_) => {
-                unreachable!()
-            }
-        }
-    }*/
-
-    /*pub fn collect_assigned_non_running_tasks(&mut self, out: &mut Vec<TaskId>) {
-        match &self.assignment {
-            WorkerAssignment::Sn(sn) => {
-                for (task_id, is_running) in &sn.assign_tasks {
-                    if !is_running {
-                        out.push(*task_id);
-                    }
-                }
-            }
-            WorkerAssignment::Mn(_) => {
-                todo!()
-            }
-        }
-    }*/
+    }
 
     pub fn remove_sn_task(&mut self, task_id: TaskId, rq: &ResourceRequest) {
         match &mut self.assignment {
@@ -237,7 +228,41 @@ impl Worker {
         }
     }
 
-    pub fn sanity_check(&self, task_map: &TaskMap, request_map: &ResourceRqMap) {}
+    pub fn sanity_check(
+        &self,
+        task_map: &TaskMap,
+        request_map: &ResourceRqMap,
+        transfers: &Map<TaskId, (WorkerId, ResourceVariantId)>,
+    ) {
+        if let Some(a) = self.sn_assignment() {
+            let mut resources = self.resources.clone();
+            for task_id in a.assign_tasks.iter() {
+                let task = task_map.get_task(*task_id);
+                let (worker_id, rv_id) = match &task.state {
+                    TaskRuntimeState::Assigned { worker_id, rv_id }
+                    | TaskRuntimeState::Running { worker_id, rv_id } => (*worker_id, *rv_id),
+                    TaskRuntimeState::Retracting { .. } => {
+                        let (worker_id, rv_id) = transfers.get(task_id).unwrap();
+                        (*worker_id, *rv_id)
+                    }
+                    s => panic!("Invalid state {s:?}"),
+                };
+                assert_eq!(self.id, worker_id);
+                let rq = request_map.get(task.resource_rq_id).get(rv_id);
+                resources.remove(rq);
+            }
+            assert_eq!(a.free_resources, resources);
+            for task_id in a.prefilled_tasks.iter() {
+                let task = task_map.get_task(*task_id);
+                match &task.state {
+                    TaskRuntimeState::Prefilled { worker_id } => {
+                        assert_eq!(self.id, *worker_id);
+                    }
+                    _ => panic!("Invalid state {:?}", task.state),
+                }
+            }
+        }
+    }
 
     pub fn have_immediate_resources_for_rq(&self, request: &ResourceRequest) -> bool {
         let Some(a) = self.sn_assignment() else {

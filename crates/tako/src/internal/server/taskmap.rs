@@ -59,6 +59,11 @@ impl TaskMap {
     }
 
     #[inline(always)]
+    pub fn tasks_mut(&mut self) -> impl Iterator<Item = &mut Task> {
+        self.tasks.values_mut()
+    }
+
+    #[inline(always)]
     pub fn len(&self) -> usize {
         self.tasks.len()
     }

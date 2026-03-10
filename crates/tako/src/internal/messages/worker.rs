@@ -30,7 +30,7 @@ pub struct ComputeTaskSeparateData {
     pub shared_index: usize,
     pub id: TaskId,
     pub resource_rq_id: ResourceRqId,
-    pub resource_rq_variant: ResourceVariantId,
+    pub resource_rq_variant: Option<ResourceVariantId>,
     pub instance_id: InstanceId,
     pub priority: Priority,
     pub node_list: Vec<WorkerId>,
@@ -88,17 +88,6 @@ pub enum ToWorkerMessage {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct TaskFinishedMsg {
-    pub task_id: TaskId,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct TaskFailedMsg {
-    pub task_id: TaskId,
-    pub info: TaskFailInfo,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
 pub struct TaskRunningMsg {
     pub task_id: TaskId,
     pub rv_id: ResourceVariantId,
@@ -141,20 +130,26 @@ pub enum WorkerStopReason {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum WorkerTaskUpdate {
-    Finished(TaskFinishedMsg),
-    Failed(TaskFailedMsg),
-    TaskRunning(TaskRunningMsg),
+    Finished {
+        task_id: TaskId,
+    },
+    Failed {
+        task_id: TaskId,
+        info: TaskFailInfo,
+    },
+    Running(TaskRunningMsg),
+    RunningPrefilled(TaskRunningMsg),
     RejectRequest {
         task_id: TaskId,
-        resource_rq_variant: ResourceVariantId,
+        rv_id: ResourceVariantId,
     },
     EnableRequest {
         resource_rq_id: ResourceRqId,
-        resource_rq_variant: ResourceVariantId,
+        rv_id: ResourceVariantId,
     },
 }
 
-pub type TaskUpdates = SmallVec<[WorkerTaskUpdate; 1]>;
+pub type TaskUpdates = SmallVec<[WorkerTaskUpdate; 2]>;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum FromWorkerMessage {

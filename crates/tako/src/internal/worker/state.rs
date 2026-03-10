@@ -4,8 +4,7 @@ use crate::internal::common::stablemap::StableMap;
 use crate::internal::common::{Map, Set, WrappedRcRefCell};
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{
-    FromWorkerMessage, NewWorkerMsg, TaskFailedMsg, TaskFinishedMsg, TaskUpdates,
-    WorkerNotifyMessage,
+    FromWorkerMessage, NewWorkerMsg, TaskUpdates, WorkerNotifyMessage,
 };
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::comm::WorkerComm;
@@ -18,7 +17,7 @@ use std::time::{Duration, Instant};
 use crate::internal::worker::localcomm::LocalCommState;
 use crate::internal::worker::resources::allocator::ResourceAllocator;
 use crate::internal::worker::resources::map::ResourceLabelMap;
-use crate::internal::worker::task::{Task, TaskState};
+use crate::internal::worker::task::{RunningTask, Task};
 use crate::internal::worker::task_comm::RunningTaskComm;
 use crate::launcher::TaskLauncher;
 use crate::resources::{ResourceRequest, ResourceRequestVariants};
@@ -30,16 +29,16 @@ use rand::prelude::IndexedRandom;
 use rand::rngs::SmallRng;
 use tokio::sync::oneshot;
 
-pub type TaskMap = StableMap<TaskId, Task>;
+pub type TaskMap = StableMap<TaskId, RunningTask>;
 
 pub type WorkerStateRef = WrappedRcRefCell<WorkerState>;
 
 pub struct WorkerState {
     comm: WorkerComm,
-    tasks: TaskMap,
     pub(crate) allocator: ResourceAllocator,
     pub(crate) blocked_requests: Set<(ResourceRqId, ResourceVariantId)>,
-    pub(crate) running_tasks: Set<TaskId>,
+    pub(crate) running_tasks: TaskMap,
+    pub(crate) prefilled_tasks: Map<ResourceRqId, Vec<Task>>,
 
     pub(crate) worker_id: WorkerId,
     pub(crate) worker_addresses: Map<WorkerId, String>,
@@ -85,13 +84,13 @@ impl WorkerState {
     }
 
     #[inline]
-    pub fn get_task(&self, task_id: TaskId) -> &Task {
-        self.tasks.get(&task_id)
+    pub fn get_running_task(&self, task_id: TaskId) -> &RunningTask {
+        self.running_tasks.get(&task_id)
     }
 
     #[inline]
-    pub fn find_task(&self, task_id: TaskId) -> Option<&Task> {
-        self.tasks.find(&task_id)
+    pub fn find_running_task(&self, task_id: TaskId) -> Option<&RunningTask> {
+        self.running_tasks.find(&task_id)
     }
 
     pub(crate) fn remaining_time(&self) -> Option<Duration> {
@@ -104,49 +103,18 @@ impl WorkerState {
     }
 
     #[inline]
-    pub fn get_task_mut(&mut self, task_id: TaskId) -> &mut Task {
-        self.tasks.get_mut(&task_id)
+    pub fn get_running_task_mut(&mut self, task_id: TaskId) -> &mut RunningTask {
+        self.running_tasks.get_mut(&task_id)
     }
 
     pub fn is_empty(&self) -> bool {
-        self.tasks.is_empty()
-    }
-
-    /*pub fn add_ready_task(&mut self, task: &Task) {
-        self.ready_task_queue.add_task(&self.resource_rq_map, task);
-        self.schedule_task_start();
-    }
-
-    pub fn add_ready_tasks(&mut self, resource_rq_map: &ResourceRqMap, tasks: &[Task]) {
-        for task in tasks {
-            self.ready_task_queue.add_task(resource_rq_map, task);
-        }
-        self.schedule_task_start();
-    }*/
-
-    pub fn add_task(&mut self, task: Task) {
-        /*if task.is_ready() {
-            log::debug!("Task {} is directly ready", task.id);
-            self.add_ready_task(&task);
-        } else {
-            log::debug!(
-                "Task {} is blocked by {} remote objects",
-                task.id,
-                task.get_waiting()
-            );
-        }*/
-        self.tasks.insert(task);
-    }
-
-    #[inline]
-    pub fn has_tasks(&self) -> bool {
-        !self.tasks.is_empty()
+        self.running_tasks.is_empty()
     }
 
     #[must_use]
-    pub(crate) fn remove_task(&mut self, task_id: TaskId) -> Option<Task> {
-        let task = self.tasks.remove(&task_id);
-        if self.tasks.is_empty() {
+    pub(crate) fn remove_running_task(&mut self, task_id: TaskId) -> Option<RunningTask> {
+        let task = self.running_tasks.remove(&task_id);
+        if self.running_tasks.is_empty() {
             self.comm.notify_worker_is_empty();
         }
         task
@@ -157,12 +125,12 @@ impl WorkerState {
     }
 
     pub fn drop_non_running_tasks(&mut self) {
-        // Do nothing in this version
+        self.prefilled_tasks = Default::default();
     }
 
     pub fn cancel_task(&mut self, task_id: TaskId) {
         log::debug!("Canceling task {task_id}");
-        match self.tasks.find_mut(&task_id) {
+        match self.running_tasks.find_mut(&task_id) {
             None => {
                 /* This may happen that task was computed or when work steal
                   was successful
@@ -170,30 +138,24 @@ impl WorkerState {
                 log::debug!("Task not found");
                 return;
             }
-            Some(task) => match &mut task.state {
-                TaskState::Running { comm, .. } => {
-                    comm.send_cancel_notification();
-                    return;
-                }
-                TaskState::Waiting => unreachable!(),
-            },
+            Some(task) => task.cancel(),
         };
     }
 
-    pub fn retract_task(&mut self, task_id: TaskId) -> bool {
-        todo!()
-        /*
-        let response = match self.tasks.find(&task_id) {
-            None => RetractResponse::NotHere,
-            Some(task) => match task.state {
-                TaskState::Waiting { .. } => RetractResponse::Ok,
-                TaskState::Running { .. } => RetractResponse::Running,
-            },
-        };
-        if let RetractResponse::Ok = &response {
-            self.remove_task(task_id, false, false);
-        }
-        response*/
+    pub fn retract_tasks(&mut self, task_ids: &[TaskId]) -> Vec<TaskId> {
+        let task_set: Set<TaskId> = task_ids.iter().copied().collect();
+        let mut out: Vec<TaskId> = Vec::with_capacity(task_set.len());
+        self.prefilled_tasks.values_mut().for_each(|tasks| {
+            tasks.retain(|t| {
+                if task_set.contains(&t.id) {
+                    out.push(t.id);
+                    false
+                } else {
+                    true
+                }
+            })
+        });
+        out
     }
 
     /*pub fn finish_task(&mut self, task_id: TaskId) {
@@ -312,10 +274,10 @@ impl WorkerStateRef {
             task_launcher,
             server_uid,
             secret_key,
-            tasks: Default::default(),
             allocator,
             blocked_requests: Set::new(),
             running_tasks: Default::default(),
+            prefilled_tasks: Default::default(),
             start_time: now,
             resource_id_map: resource_map,
             resource_rq_map,
