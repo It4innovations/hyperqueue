@@ -1,7 +1,11 @@
 ## Unreleased
 
+## v0.25.1
+
 ### Fixes
-* Fixes Multi-node tasks defined in job file.
+
+* Fixes multi-node tasks defined in job file.
+* Fix selection of MILP solver when building from source
 
 ## v0.25.0
 
