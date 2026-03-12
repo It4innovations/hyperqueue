@@ -6,7 +6,9 @@ edition.workspace = true
 rust-version.workspace = true
 
 [features]
-default = []
+# The default feature is set for convenience, so that tako can be compiled without specifying
+# any features. It also helps with IDE integration.
+default = ["highs"]
 highs = ["dep:highs"]
 microlp = ["dep:microlp"]
 
