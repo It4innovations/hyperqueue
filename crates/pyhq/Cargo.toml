@@ -18,7 +18,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 hyperqueue = { path = "../hyperqueue", default-features = false, features = ["jemalloc"] }
-tako = { path = "../tako" }
+tako = { path = "../tako", default-features = false }
 
 serde = { workspace = true }
 tokio = { workspace = true }
