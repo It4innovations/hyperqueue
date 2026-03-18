@@ -125,6 +125,22 @@ impl TaskQueue {
         }
     }
 
+    #[cfg(test)]
+    pub(crate) fn is_ready(&self, task_id: TaskId, priority: Priority) -> bool {
+        let Some(item) = self.queue.get(&Reverse(priority)) else {
+            return false;
+        };
+        match item {
+            OneOrMoreTaskIds::One(t) => *t == task_id,
+            OneOrMoreTaskIds::More(ts) => ts.contains(&task_id),
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn is_prefilled(&self, task_id: TaskId) -> bool {
+        self.prefill.as_ref().unwrap().1.contains(&task_id)
+    }
+
     fn check_dispose_prefill(&mut self, priority: Priority, retracted: &mut Vec<TaskId>) {
         if self.prefill.as_ref().map_or(false, |(p, _)| *p < priority) {
             let (p, ts) = self.prefill.take().unwrap();
@@ -202,7 +218,7 @@ impl TaskQueue {
     }
 
     pub fn shrink_to_fit(&mut self) {
-        todo!()
+        // Do nothing
     }
 
     pub fn size(&self) -> u32 {
@@ -294,7 +310,7 @@ impl TaskQueue {
         if let Some(prefill) = &mut self.prefill {
             assert_eq!(prefill.0, priority);
             for task_id in &result {
-                prefill.1.remove(task_id);
+                prefill.1.insert(*task_id);
             }
         } else {
             self.prefill = Some((priority, result.iter().copied().collect()))

@@ -384,6 +384,13 @@ impl Core {
                     }
                     assert_eq!(*unfinished_deps, count);
                     worker_check_sn(self, task.id, None, None);
+                    let priority = task.priority();
+                    assert_eq!(
+                        self.task_queues
+                            .get(task.resource_rq_id)
+                            .is_ready(task_id, priority),
+                        *unfinished_deps == 0
+                    )
                 }
 
                 TaskRuntimeState::Assigned { worker_id, .. }
@@ -409,6 +416,11 @@ impl Core {
                 TaskRuntimeState::Prefilled { worker_id } => {
                     fw_check(task);
                     worker_check_sn(self, task.id, None, Some(*worker_id));
+                    assert!(
+                        self.task_queues
+                            .get(task.resource_rq_id)
+                            .is_prefilled(task_id)
+                    );
                 }
                 TaskRuntimeState::RunningMultiNode(ws) => {
                     assert!(!ws.is_empty());
