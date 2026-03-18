@@ -278,8 +278,7 @@ pub(crate) fn on_task_update(
                 task_id,
                 rv_id: rv_id,
             } => {
-                task_reject(core, &mut *comm, worker_id, task_id, rv_id);
-                need_scheduling = true;
+                need_scheduling |= task_reject(core, &mut *comm, worker_id, task_id, rv_id);
             }
             WorkerTaskUpdate::EnableRequest {
                 resource_rq_id: rq_id,
@@ -393,19 +392,23 @@ fn task_reject(
     worker_id: WorkerId,
     task_id: TaskId,
     resource_rq_variant: ResourceVariantId,
-) {
+) -> bool {
     let CoreSplitMut {
         task_map,
         task_queues,
         worker_map,
         request_map,
+        scheduler_state,
         ..
     } = core.split_mut();
     let Some(task) = task_map.find_task_mut(task_id) else {
         log::debug!("Unknown task rejected id={task_id}");
-        return;
+        return false;
     };
     log::debug!("Task id={task_id} (variant={resource_rq_variant}) rejected on worker={worker_id}");
+    let worker = worker_map.get_worker_mut(worker_id);
+    let resource_rq_id = task.resource_rq_id;
+    worker.block_request(resource_rq_id, resource_rq_variant);
     match &task.state {
         TaskRuntimeState::Assigned {
             worker_id: w_id,
@@ -417,12 +420,35 @@ fn task_reject(
             if resource_rq_variant != *rv_id {
                 log::debug!("Rejection from invalid worker");
             }
+            let rq = request_map.get(resource_rq_id).get(resource_rq_variant);
+            worker.remove_sn_task(task_id, rq);
         }
-        TaskRuntimeState::Prefilled { .. } => {
-            todo!()
+        TaskRuntimeState::Prefilled { worker_id: w_id } => {
+            if worker_id != *w_id {
+                log::debug!("Rejection from invalid worker");
+            }
+            worker.remove_prefill_task(task_id);
+            task_queues
+                .get_mut(resource_rq_id)
+                .remove_prefilled(task_id);
         }
-        TaskRuntimeState::Retracting { .. } => {
-            todo!()
+        TaskRuntimeState::Retracting { worker_id: w_id } => {
+            if worker_id != *w_id {
+                log::debug!("Rejection from invalid worker");
+                return false;
+            }
+            if let Some((target_id, rv_id)) = scheduler_state.redirects.remove(&task_id) {
+                log::debug!("Transfering to {target_id}");
+                task.state = TaskRuntimeState::Assigned {
+                    worker_id: target_id,
+                    rv_id,
+                };
+                comm.send_worker_message(
+                    target_id,
+                    &ComputeTasksBuilder::single_task(task, rv_id, Vec::new()),
+                );
+                return false;
+            }
         }
         TaskRuntimeState::Waiting { .. }
         | TaskRuntimeState::Running { .. }
@@ -432,15 +458,10 @@ fn task_reject(
         }
     };
     task.state = TaskRuntimeState::Waiting { unfinished_deps: 0 };
-    let resource_rq_id = task.resource_rq_id;
     let mut retracted = Vec::new();
     task_queues.add_ready_task(&task, &mut retracted);
     process_retracted(task_map, worker_map, comm, retracted);
-    let rq = request_map.get(resource_rq_id).get(resource_rq_variant);
-
-    let worker = worker_map.get_worker_mut(worker_id);
-    worker.remove_sn_task(task_id, rq);
-    worker.block_request(resource_rq_id, resource_rq_variant);
+    true
 }
 
 fn request_enabled(
@@ -615,6 +636,7 @@ fn task_failed(
             worker_map,
             request_map,
             task_queues,
+            scheduler_state,
             ..
         } = core.split_mut();
         if let Some(task) = task_map.find_task(task_id) {
@@ -648,6 +670,16 @@ fn task_failed(
                             worker_map
                                 .get_worker_mut(worker_id)
                                 .remove_prefill_task(task_id);
+                        }
+                        TaskRuntimeState::Retracting { worker_id: w } => {
+                            assert_eq!(worker_id, *w);
+                            try_remove_redirection(
+                                worker_map,
+                                scheduler_state,
+                                request_map,
+                                task_id,
+                                task.resource_rq_id,
+                            );
                         }
                         _ => {}
                     }

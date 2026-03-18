@@ -20,13 +20,22 @@ pub(crate) fn compute_new_worker_query(
 
     let fake_worker_id_base = core.worker_counter() + 1;
     let mut fake_worker_counter = fake_worker_id_base;
+
+    /* Make sure that all resources provided by Worker has an Id */
+    for query in queries {
+        for item in &query.descriptor.resources {
+            dbg!(&item.name);
+            core.get_or_create_resource_id(&item.name);
+        }
+    }
+
     let resource_map = core.resource_map().create_resource_id_map();
     let mut fake_workers = Vec::new();
     let now = std::time::Instant::now();
+
     queries.iter().for_each(|query| {
         for _ in 0..query.max_sn_workers {
             let mut resources = query.descriptor.clone();
-
             if query.partial {
                 // If query is partial, add a fake maximal resources for resource that was not explicitly defined
                 for name in resource_map.iter_names() {

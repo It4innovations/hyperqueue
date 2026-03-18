@@ -66,12 +66,10 @@ fn create_worker_task(id: u32, resource_rq_id: ResourceRqId) -> Task {
             instance_id: Default::default(),
             priority: Default::default(),
             node_list: vec![],
-            data_deps: vec![],
             entry: None,
         },
         ComputeTaskSharedData {
             time_limit: None,
-            data_flags: TaskDataFlags::empty(),
             body: Default::default(),
         },
         TaskState::Waiting(0),

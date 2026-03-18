@@ -305,10 +305,11 @@ fn test_assignments_and_finish() {
     comm.check_need_scheduling();
     assert_eq!(comm.client.take_task_finished(1)[0], t2);
     comm.emptiness_check();
-
+    rt.sanity_check();
     on_task_update(rt.core(), &mut comm, ws[0], smallvec![task_finished(t1)]);
-
+    assert_eq!(comm.client.take_task_finished(1)[0], t1);
     comm.check_need_scheduling();
+    comm.emptiness_check();
 
     let mut comm = rt.schedule();
 
@@ -329,8 +330,6 @@ fn test_assignments_and_finish() {
             ..
         }) if tasks[0].id == t4
     ));
-    assert_eq!(comm.client.take_task_finished(1)[0], t1);
-    comm.emptiness_check();
     rt.sanity_check();
 
     on_task_update(rt.core(), &mut comm, ws[0], smallvec![task_finished(t3)]);
@@ -935,6 +934,23 @@ fn test_prefill_started() {
 }
 
 #[test]
+fn test_prefill_rejected() {
+    let mut rt = TestEnv::new();
+    let (w1, _t1, t2) = setup_prefill(&mut rt);
+    let up = WorkerTaskUpdate::RejectRequest {
+        task_id: t2,
+        rv_id: 0.into(),
+    };
+    let mut comm = TestComm::new();
+    on_task_update(rt.core(), &mut comm, w1, smallvec![up]);
+    comm.check_need_scheduling();
+    comm.emptiness_check();
+    assert!(rt.task(t2).is_waiting());
+    assert!(!rt.worker(w1).blocked_requests.is_empty());
+    rt.sanity_check();
+}
+
+#[test]
 fn test_prefill_failed() {
     let mut rt = TestEnv::new();
     let (w1, t1, t2) = setup_prefill(&mut rt);
@@ -1100,6 +1116,28 @@ fn test_steal_source_worker_lost() {
         }
         _ => panic!(),
     }
+    rt.sanity_check();
+}
+
+#[test]
+fn test_steal_rejected() {
+    let mut rt = TestEnv::new();
+    let (w1, w2, t) = setup_retracting(&mut rt);
+    let up = WorkerTaskUpdate::RejectRequest {
+        task_id: t,
+        rv_id: 0.into(),
+    };
+    let mut comm = TestComm::new();
+    on_task_update(rt.core(), &mut comm, w1, smallvec![up]);
+    comm.take_worker_msgs(w2, 1);
+    comm.emptiness_check();
+    match &rt.task(t).state {
+        TaskRuntimeState::Assigned { worker_id, .. } => {
+            assert_eq!(*worker_id, w2);
+        }
+        _ => panic!(),
+    }
+    assert!(!rt.worker(w1).blocked_requests.is_empty());
     rt.sanity_check();
 }
 

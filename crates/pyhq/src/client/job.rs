@@ -160,9 +160,7 @@ fn build_tasks(
                     .into_iter()
                     .map(|id| id.into())
                     .collect(),
-                data_deps: Vec::new(),
                 task_desc: build_task_desc(task, submit_dir)?,
-                data_flags: TaskDataFlags::empty(),
             })
         })
         .collect()

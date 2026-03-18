@@ -5,8 +5,13 @@ use crate::internal::common::index::ItemId;
 use crate::internal::common::resources::ResourceId;
 use crate::internal::common::utils::format_comma_delimited;
 use crate::internal::messages::common::TaskFailInfo;
-use crate::internal::messages::worker::{TaskRunningMsg, ToWorkerMessage, WorkerOverview, WorkerTaskUpdate};
-use crate::internal::scheduler::{TaskBatch, WorkerTaskMapping, create_task_batches, create_task_mapping, run_scheduling, run_scheduling_inner, run_scheduling_solver, SchedulerConfig};
+use crate::internal::messages::worker::{
+    TaskRunningMsg, ToWorkerMessage, WorkerOverview, WorkerTaskUpdate,
+};
+use crate::internal::scheduler::{
+    SchedulerConfig, TaskBatch, WorkerTaskMapping, create_task_batches, create_task_mapping,
+    run_scheduling, run_scheduling_inner, run_scheduling_solver,
+};
 use crate::internal::server::comm::Comm;
 use crate::internal::server::core::{Core, CoreSplitMut};
 use crate::internal::server::reactor::{on_new_tasks, on_new_worker, on_task_update};
@@ -22,8 +27,8 @@ use crate::tests::utils::task::task_running_msg;
 use crate::tests::utils::worker::WorkerBuilder;
 use crate::worker::WorkerConfiguration;
 use crate::{InstanceId, JobId, JobTaskId, ResourceVariantId, Set, TaskId, WorkerId};
-use std::time::Instant;
 use smallvec::smallvec;
+use std::time::Instant;
 
 pub struct TestEnv {
     core: Core,
@@ -216,7 +221,7 @@ impl TestEnv {
             _ => panic!("Task {} is not assigned", task_id),
         };
         let mut comm = TestComm::default();
-        let up = WorkerTaskUpdate::Running(            TaskRunningMsg {
+        let up = WorkerTaskUpdate::Running(TaskRunningMsg {
             task_id,
             rv_id: variant.into(),
             context: Default::default(),

@@ -1,15 +1,15 @@
 use crate::internal::messages::worker::ToWorkerMessage;
-use crate::internal::scheduler::{PriorityCut, create_task_batches, SchedulerConfig};
+use crate::internal::scheduler::{PriorityCut, SchedulerConfig, create_task_batches};
+use crate::internal::server::reactor::on_retract_response;
+use crate::internal::server::task::TaskRuntimeState;
 use crate::internal::tests::utils::scheduler::TestCase;
+use crate::internal::worker::comm::WorkerComm::Test;
 use crate::resources::ResourceRqId;
 use crate::tests::utils::env::{TestComm, TestEnv};
 use crate::tests::utils::task::TaskBuilder;
 use crate::tests::utils::worker::WorkerBuilder;
-use std::time::Duration;
 use crate::{Priority, ResourceVariantId, TaskId, WorkerId};
-use crate::internal::server::reactor::{on_retract_response};
-use crate::internal::server::task::TaskRuntimeState;
-use crate::internal::worker::comm::WorkerComm::Test;
+use std::time::Duration;
 
 #[test]
 fn test_task_grouping_basic() {
@@ -801,9 +801,7 @@ fn test_no_deps_scattering_1() {
 
 #[test]
 fn test_no_deps_scattering_2() {
-    todo!() // This needs oversubscribing
-
-    /*let mut rt = TestEnv::new();
+    let mut rt = TestEnv::new();
     rt.new_workers_cpus(&[5, 5, 5]);
 
     let mut submit_and_check = |expected| {
@@ -830,16 +828,18 @@ fn test_no_deps_scattering_2() {
         submit_and_check(vec![i as usize, 5, 5]);
     }
 
-    submit_and_check(vec![5, 5, 6]);
-    submit_and_check(vec![5, 6, 6]);
-    submit_and_check(vec![6, 6, 6]);
-    submit_and_check(vec![6, 6, 7]);
-    submit_and_check(vec![6, 7, 7]);*/
+    submit_and_check(vec![5, 5, 5]);
+    submit_and_check(vec![5, 5, 5]);
 }
 
 #[test]
 fn test_no_deps_distribute() {
     let mut rt = TestEnv::new();
+    rt.set_scheduler_config(SchedulerConfig {
+        proactive_filling_reserve: 10,
+        proactive_filling_max: 20,
+        ..Default::default()
+    });
     let ws = rt.new_workers_cpus(&[10, 10, 10]);
     rt.new_tasks(150, &TaskBuilder::new());
 
@@ -851,9 +851,9 @@ fn test_no_deps_distribute() {
     comm.emptiness_check();
     rt.sanity_check();
 
-    assert_eq!(task_count(&m1[0]), 10);
-    assert_eq!(task_count(&m2[0]), 10);
-    assert_eq!(task_count(&m3[0]), 10);
+    assert_eq!(task_count(&m1[0]), 30);
+    assert_eq!(task_count(&m2[0]), 30);
+    assert_eq!(task_count(&m3[0]), 30);
 }
 
 #[test]
@@ -977,19 +977,63 @@ fn test_generic_resource_balance2() {
 
 #[test]
 fn test_generic_resource_balancing3() {
-    todo!() // Needs overscheduling
+    // Submits 80 (rq1) + 20 (rq2) tasks,
+    // Expects:
+    // on w1 there will be 2 rq1 assigned + 38 prefilled rq1
+    // on w2 there will be 1 rq1 and 1 rq2 + 38 prefilled rq1 and 19 prefilled rq2
 
-    /*let mut rt = TestEnv::new();
+    let mut rt = TestEnv::new();
+    rt.set_scheduler_config(SchedulerConfig {
+        proactive_filling_reserve: 0,
+        proactive_filling_max: 100,
+        ..Default::default()
+    });
     rt.new_generic_resource(1);
     let w1 = rt.new_worker(&WorkerBuilder::new(2));
     let w2 = rt.new_worker(&WorkerBuilder::new(2).res_range("Res0", 1, 1));
-    let _w3 = rt.new_tasks(80, &TaskBuilder::new());
-    rt.new_tasks(20, &TaskBuilder::new().cpus(1).add_resource(1, 1));
+    let ts1 = rt.new_tasks(80, &TaskBuilder::new());
+    let ts2 = rt.new_tasks(20, &TaskBuilder::new().cpus(1).add_resource(1, 1));
+
+    let rq1 = rt.task(ts1[0]).resource_rq_id;
+    let rq2 = rt.task(ts2[0]).resource_rq_id;
 
     rt.schedule();
 
-    assert!(rt.worker_tasks(w1).len() >= 40);
-    assert!(rt.worker_tasks(w2).len() >= 40);*/
+    let w = rt.worker(w1);
+    let a = w.sn_assignment().unwrap();
+    assert_eq!(a.assign_tasks.len(), 2);
+    assert!(
+        a.assign_tasks
+            .iter()
+            .all(|t| rt.task(*t).resource_rq_id == rq1)
+    );
+    assert_eq!(a.prefilled_tasks.len(), 38);
+    assert_eq!(
+        a.prefilled_tasks
+            .iter()
+            .filter(|t| rt.task(**t).resource_rq_id == rq1)
+            .count(),
+        38
+    );
+
+    let w = rt.worker(w2);
+    let a = w.sn_assignment().unwrap();
+    assert_eq!(a.assign_tasks.len(), 2);
+    assert_eq!(a.prefilled_tasks.len(), 57);
+    assert_eq!(
+        a.prefilled_tasks
+            .iter()
+            .filter(|t| rt.task(**t).resource_rq_id == rq1)
+            .count(),
+        38
+    );
+    assert_eq!(
+        a.prefilled_tasks
+            .iter()
+            .filter(|t| rt.task(**t).resource_rq_id == rq2)
+            .count(),
+        19
+    );
 }
 
 #[test]
@@ -1088,7 +1132,12 @@ fn test_many_cuts() {
 }
 
 fn prefill_count(rt: &mut TestEnv, worker_id: WorkerId) -> u32 {
-    let n = rt.worker(worker_id).sn_assignment().unwrap().prefilled_tasks.len();
+    let n = rt
+        .worker(worker_id)
+        .sn_assignment()
+        .unwrap()
+        .prefilled_tasks
+        .len();
     let mut count = 0;
     for task in rt.core().task_map().tasks() {
         match task.state {
@@ -1105,6 +1154,11 @@ fn prefill_count(rt: &mut TestEnv, worker_id: WorkerId) -> u32 {
 #[test]
 fn test_prefill_basic() {
     let mut rt = TestEnv::new();
+    rt.set_scheduler_config(SchedulerConfig {
+        proactive_filling_reserve: 4,
+        proactive_filling_max: 32,
+        ..Default::default()
+    });
     let ws = rt.new_workers(2, &WorkerBuilder::new(8));
     let tasks = rt.new_tasks(300, &TaskBuilder::new().cpus(4));
     let resource_rq_id = rt.task(tasks[0]).resource_rq_id;
@@ -1118,7 +1172,7 @@ fn test_prefill_basic() {
                 for (i, t) in ts.tasks.iter().enumerate() {
                     assert_eq!(t.resource_rq_variant.is_none(), i < 32);
                 }
-            },
+            }
             _ => panic!("unexpected message"),
         };
     }
@@ -1128,7 +1182,7 @@ fn test_prefill_basic() {
     }
     let queue = rt.core().task_queues_mut().get(resource_rq_id);
     let p: Vec<_> = queue.iter_priority_sizes().collect();
-    assert_eq!(p, vec![(priority, 232)]); // 232 = 300 - 2*32 prefill - 4 assigned tasks
+    assert_eq!(p, vec![(priority, 296)]); // 296 = 300 - 4 assigned tasks
 }
 
 #[test]
@@ -1153,7 +1207,6 @@ fn test_prefill_choose_waiting() {
     assert_eq!(prefill_count(&mut rt, w2), 4);
     assert_eq!(prefill_count(&mut rt, w3), 0);
 }
-
 
 #[test]
 fn test_prefill_steal() {
@@ -1183,18 +1236,32 @@ fn test_prefill_steal() {
         ToWorkerMessage::ComputeTasks(ts) => {
             assert_eq!(ts.tasks.len(), 3);
         }
-        _ => unreachable!()
+        _ => unreachable!(),
     }
     comm.emptiness_check();
-    let r = rt.core().split().scheduler_state.redirects.values().cloned().collect::<Vec<_>>();
+    let r = rt
+        .core()
+        .split()
+        .scheduler_state
+        .redirects
+        .values()
+        .cloned()
+        .collect::<Vec<_>>();
     let rv = ResourceVariantId::new(0);
     assert_eq!(r, vec![(w2, rv), (w2, rv)]);
     assert_eq!(prefill_count(&mut rt, w1), 3);
     assert_eq!(prefill_count(&mut rt, w2), 0);
     assert_eq!(rt.worker(w1).sn_assignment().unwrap().assign_tasks.len(), 1);
     assert_eq!(rt.worker(w2).sn_assignment().unwrap().assign_tasks.len(), 5);
-    assert_eq!(rt.core().split_mut().scheduler_state.redirects.len(),  2);
-    let (t, _) = rt.core().split_mut().scheduler_state.redirects.iter().next().unwrap();
+    assert_eq!(rt.core().split_mut().scheduler_state.redirects.len(), 2);
+    let (t, _) = rt
+        .core()
+        .split_mut()
+        .scheduler_state
+        .redirects
+        .iter()
+        .next()
+        .unwrap();
     let t = *t;
 
     let mut comm = TestComm::new();
@@ -1205,15 +1272,15 @@ fn test_prefill_steal() {
             assert_eq!(ts.tasks.len(), 1);
             assert_eq!(ts.tasks[0].id, t);
         }
-        _ => unreachable!()
+        _ => unreachable!(),
     }
     comm.emptiness_check();
     match &rt.task(t).state {
         TaskRuntimeState::Assigned { worker_id, .. } => {
             assert_eq!(*worker_id, w2);
         }
-        _ => unreachable!()
+        _ => unreachable!(),
     }
-    assert_eq!(rt.core().split_mut().scheduler_state.redirects.len(),  1);
+    assert_eq!(rt.core().split_mut().scheduler_state.redirects.len(), 1);
     rt.sanity_check();
 }
