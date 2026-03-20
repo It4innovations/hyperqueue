@@ -45,7 +45,7 @@ pub(crate) fn create_task_batches(
     custom_workers: Option<&[Worker]>,
 ) -> Vec<TaskBatch> {
     let CoreSplitMut {
-        task_map,
+        task_map: _,
         worker_map,
         task_queues,
         request_map,
@@ -55,8 +55,7 @@ pub(crate) fn create_task_batches(
 
     let queues: Vec<_> = task_queues
         .iter()
-        .enumerate()
-        .filter_map(|(idx, q)| (!q.is_empty()).then(|| q))
+        .filter_map(|q| (!q.is_empty()).then_some(q))
         .collect();
     if queues.is_empty() {
         return Vec::new();
@@ -84,11 +83,11 @@ pub(crate) fn create_task_batches(
                 custom_workers
                     .map(|ws| itertools::Either::Right(ws.iter()))
                     .unwrap_or(itertools::Either::Left(worker_map.get_workers()))
-                    .filter(|w| w.is_capable_to_run_rqv(&rqv, now))
+                    .filter(|w| w.is_capable_to_run_rqv(rqv, now))
                     .map(|w| {
                         let runnable = w
                             .sn_assignment()
-                            .map(|a| a.free_resources.task_max_count(&rqv))
+                            .map(|a| a.free_resources.task_max_count(rqv))
                             .unwrap_or(0);
                         if runnable > 0 { runnable } else { 1 }
                     })
@@ -145,7 +144,7 @@ pub(crate) fn create_task_batches(
                     .filter(|(i, b)| i != idx && (b.size > 0 || b.limit_reached))
                     .map(|(_, b)| {
                         b.is_blocker = true;
-                        (b.resource_rq_id, (!b.limit_reached).then(|| b.size))
+                        (b.resource_rq_id, (!b.limit_reached).then_some(b.size))
                     })
                     .collect();
                 if !higher_priorities.is_empty() {

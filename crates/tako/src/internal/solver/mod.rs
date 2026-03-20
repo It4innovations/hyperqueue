@@ -116,7 +116,7 @@ impl LpSolver {
             let name = self
                 .var_name_map
                 .get(var)
-                .map(|idx| {
+                .map(|_idx| {
                     self.variables[*self.var_name_map.get(var).unwrap()]
                         .0
                         .as_str()

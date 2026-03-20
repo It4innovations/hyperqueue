@@ -2,7 +2,6 @@ use crate::internal::scheduler::mapping::create_task_mapping;
 use crate::internal::scheduler::{create_task_batches, run_scheduling_solver};
 use crate::internal::server::comm::{Comm, CommSender, CommSenderRef};
 use crate::internal::server::core::{Core, CoreRef};
-use crate::{Set, TaskId};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 use tokio::sync::Notify;
@@ -47,7 +46,11 @@ pub(crate) fn run_scheduling_inner(core: &mut Core, comm: &mut impl Comm, now: I
 }
 
 pub(crate) fn run_scheduling(core: &mut Core, comm: &mut CommSender, now: Instant) {
-    run_scheduling_inner(core, comm, now);
+    trace_time!(
+        "scheduler",
+        "run_scheduling_inner",
+        run_scheduling_inner(core, comm, now)
+    );
     comm.reset_scheduling_flag();
 }
 

@@ -97,7 +97,7 @@ pub struct TaskRunningMsg {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct RetractResponseMsg {
-    pub responses: Vec<TaskId>,
+    pub retracted: Vec<TaskId>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

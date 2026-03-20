@@ -5,7 +5,6 @@ use bytes::{Bytes, BytesMut};
 use futures::stream::{SplitSink, SplitStream};
 use futures::{Stream, StreamExt};
 use orion::aead::streaming::{StreamOpener, StreamSealer};
-use smallvec::smallvec;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::time::timeout;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
@@ -17,11 +16,12 @@ use crate::internal::common::error::DsError;
 use crate::internal::common::taskgroup::TaskGroup;
 use crate::internal::messages::worker::{
     FromWorkerMessage, NewWorkerMsg, ToWorkerMessage, WorkerRegistrationResponse, WorkerStopReason,
-    WorkerTaskUpdate,
 };
 use crate::internal::server::comm::{Comm, CommSenderRef};
 use crate::internal::server::core::{CoreRef, CoreSplitMut};
-use crate::internal::server::reactor::{on_new_worker, on_remove_worker, on_task_update};
+use crate::internal::server::reactor::{
+    on_new_worker, on_remove_worker, on_retract_response, on_task_update,
+};
 use crate::internal::server::worker::{DEFAULT_WORKER_OVERVIEW_INTERVAL, Worker};
 use crate::internal::transfer::auth::{
     do_authentication, forward_queue_to_sealed_sink, open_message, serialize,
@@ -204,9 +204,9 @@ async fn worker_rpc_loop(
             interval.tick().await;
             let mut core = core_ref.get_mut();
             let CoreSplitMut {
-                task_map,
+                task_map: _,
                 worker_map,
-                request_map,
+                request_map: _,
                 ..
             } = core.split_mut();
             let worker = worker_map.get_worker_mut(worker_id);
@@ -294,32 +294,9 @@ pub(crate) async fn worker_receive_loop<
         match message {
             FromWorkerMessage::TaskUpdate(updates) => {
                 on_task_update(&mut core, &mut *comm, worker_id, updates);
-                // for update in updates {
-                //     match update {
-                //         WorkerTaskUpdate::Finished(msg) => {
-                //             on_task_finished(&mut core, &mut *comm, worker_id, msg);
-                //         }
-                //         WorkerTaskUpdate::Failed(msg) => {
-                //             on_task_error(&mut core, &mut *comm, worker_id, msg.task_id, msg.info);
-                //         }
-                //         WorkerTaskUpdate::TaskRunning(msg) => {
-                //             on_task_running(&mut core, &mut *comm, worker_id, msg);
-                //         }
-                //         WorkerTaskUpdate::RejectRequest {
-                //             task_id,
-                //             resource_rq_variant: rv_id,
-                //         } => on_task_reject(&mut core, &mut *comm, worker_id, task_id, rv_id),
-                //         WorkerTaskUpdate::EnableRequest {
-                //             resource_rq_id: rq_id,
-                //             resource_rq_variant: rv_id,
-                //         } => {
-                //             on_request_enabled(&mut core, &mut *comm, worker_id, rq_id, rv_id);
-                //         }
-                //     }
-                // }
             }
             FromWorkerMessage::RetractResponse(msg) => {
-                unreachable!() // Not implemented yet
+                on_retract_response(&mut core, &mut *comm, worker_id, &msg.retracted);
             }
             FromWorkerMessage::Heartbeat => {
                 if let Some(worker) = core.get_worker_mut(worker_id) {

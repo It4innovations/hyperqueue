@@ -1,22 +1,17 @@
 use crate::internal::common::resources::Allocation;
 use crate::internal::messages::common::TaskFailInfo;
-use crate::internal::messages::worker::FromWorkerMessage::TaskUpdate;
 use crate::internal::messages::worker::{
     ComputeTasksMsg, FromWorkerMessage, TaskRunningMsg, TaskUpdates, WorkerTaskUpdate,
 };
-use crate::internal::server::worker::Worker;
-use crate::internal::worker::localcomm::{LocalCommState, Registration, Token};
+use crate::internal::worker::localcomm::{Registration, Token};
 use crate::internal::worker::state::{WorkerState, WorkerStateRef};
 use crate::internal::worker::task::{RunningTask, Task};
 use crate::internal::worker::task_comm::RunningTaskComm;
-use crate::launcher::{TaskBuildContext, TaskFuture, TaskLaunchData, TaskLauncher, TaskResult};
+use crate::launcher::{TaskBuildContext, TaskFuture, TaskLaunchData, TaskResult};
 use crate::resources::ResourceRqId;
 use crate::task::SerializedTaskContext;
 use crate::{ResourceVariantId, TaskId};
 use futures::future::Either;
-use itertools::{Itertools, all};
-use std::alloc::alloc;
-use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 use tokio::sync::oneshot;
@@ -36,7 +31,7 @@ pub(crate) fn compute_tasks(state: &mut WorkerState, mut msg: ComputeTasksMsg) {
         } else {
             shared.clone()
         };
-        let (mut new_task, rv_id) = Task::new(task, shared);
+        let (new_task, rv_id) = Task::new(task, shared);
         if let Some(rv_id) = rv_id {
             try_alloc_and_start_task(state, new_task, rv_id, remaining_time, &mut task_updates);
         } else {
@@ -58,11 +53,11 @@ fn try_alloc_and_start_task(
     state: &mut WorkerState,
     task: Task,
     rv_id: ResourceVariantId,
-    remaining_time: Option<Duration>,
+    _remaining_time: Option<Duration>,
     task_updates: &mut TaskUpdates,
 ) {
     let rq = state.resource_rq_map.get(task.resource_rq_id).get(rv_id);
-    let Some(allocation) = state.allocator.try_allocate(&rq) else {
+    let Some(allocation) = state.allocator.try_allocate(rq) else {
         // Soft reject, we remember rejection as we unblock in the future
         state.blocked_requests.insert((task.resource_rq_id, rv_id));
         task_updates.push(WorkerTaskUpdate::RejectRequest {
@@ -110,15 +105,15 @@ fn try_start_task(
 ) -> Option<Rc<Allocation>> {
     let rq = state.resource_rq_map.get(task.resource_rq_id).get(rv_id);
 
-    if let Some(time) = state.remaining_time() {
-        if time < rq.min_time() {
-            // Hard reject, we never unblock this rejection so we do not need to update blocked requests
-            task_updates.push(WorkerTaskUpdate::RejectRequest {
-                task_id: task.id,
-                rv_id: rv_id,
-            });
-            return Some(allocation);
-        }
+    if let Some(time) = state.remaining_time()
+        && time < rq.min_time()
+    {
+        // Hard reject, we never unblock this rejection so we do not need to update blocked requests
+        task_updates.push(WorkerTaskUpdate::RejectRequest {
+            task_id: task.id,
+            rv_id,
+        });
+        return Some(allocation);
     }
 
     // let Some(allocation) = state.allocator.try_allocate(&rq) else {
@@ -292,14 +287,14 @@ async fn handle_task_future(
 
         for (rq_id, rv_id) in &state.blocked_requests {
             let rq = state.resource_rq_map.get(*rq_id).get(*rv_id);
-            if state.allocator.is_enabled(&rq) {
+            if state.allocator.is_enabled(rq) {
                 unblocked.push((*rq_id, *rv_id));
             }
         }
         for (rq_id, rv_id) in unblocked {
             task_updates.push(WorkerTaskUpdate::EnableRequest {
                 resource_rq_id: rq_id,
-                rv_id: rv_id,
+                rv_id,
             });
             state.blocked_requests.remove(&(rq_id, rv_id));
         }

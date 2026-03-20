@@ -1,14 +1,10 @@
 use crate::internal::common::resources::{ResourceId, ResourceRequest};
 use crate::internal::scheduler::TaskBatch;
-use crate::internal::scheduler::mapping::WorkerTaskMapping;
 use crate::internal::server::core::{Core, CoreSplit};
 use crate::internal::server::worker::Worker;
-use crate::internal::solver::{ConstraintType, LpInnerSolver, LpSolution, LpSolver, Variable};
+use crate::internal::solver::{ConstraintType, LpSolution, LpSolver, Variable};
 use crate::resources::ResourceRqId;
-use crate::{Map, ResourceVariantId, Set, TaskId, WorkerId};
-use hashbrown::Equivalent;
-use std::cmp::Reverse;
-use std::collections::BTreeMap;
+use crate::{Map, ResourceVariantId, Set, WorkerId};
 use thin_vec::ThinVec;
 
 #[derive(Default, Debug)]
@@ -26,9 +22,9 @@ pub(crate) fn run_scheduling_solver(
     let n_resources = core.resource_map().n_resources();
 
     let CoreSplit {
-        task_map,
+        task_map: _,
         worker_map,
-        task_queues,
+        task_queues: _,
         request_map,
         worker_groups,
         scheduler_state: scheduler_cache,
@@ -38,7 +34,7 @@ pub(crate) fn run_scheduling_solver(
         return SchedulingSolution::default();
     }
     let mut resource_sums = vec![0f64; n_resources];
-    let mut workers: Vec<&Worker> = if let Some(ws) = custom_workers {
+    let workers: Vec<&Worker> = if let Some(ws) = custom_workers {
         ws.iter().collect()
     } else {
         let mut ws = worker_map
@@ -87,7 +83,7 @@ pub(crate) fn run_scheduling_solver(
                         && worker_groups
                             .get(&worker.configuration.group)
                             .unwrap()
-                            .is_capable_to_run_rq(&rq, now, worker_map)
+                            .is_capable_to_run_rq(rq, now, worker_map)
                     {
                         set_placement_name(&mut solver, worker.id, batch.resource_rq_id, v_idx);
                         let v =
@@ -133,7 +129,7 @@ pub(crate) fn run_scheduling_solver(
                 && !rqv.is_multi_node()
                 && !batch.limit_reached
                 && batch.is_blocker
-                && worker.is_capable_to_run_rqv(&rqv, now)
+                && worker.is_capable_to_run_rqv(rqv, now)
                 && let Some(a) = worker.sn_assignment()
             {
                 let weight = w_idx as f64 / (n_workers * 100) as f64;
@@ -209,7 +205,7 @@ pub(crate) fn run_scheduling_solver(
                 let vars = tasks_count_vars.get(&blocker_rq_id).unwrap();
                 solver.set_name(|| format!("blocker rq{blocker_rq_id} at size {size}"));
                 let bound = size as f64;
-                constraint_extra_var(solver, ConstraintType::Min, bound, &vars, new_v, bound);
+                constraint_extra_var(solver, ConstraintType::Min, bound, vars, new_v, bound);
                 new_v
             })
     };
@@ -248,7 +244,7 @@ pub(crate) fn run_scheduling_solver(
                     }
                 } else {
                     for w in &workers {
-                        if !w.is_capable_to_run_rqv(&blocker_rqv, now) {
+                        if !w.is_capable_to_run_rqv(blocker_rqv, now) {
                             continue;
                         }
                         for v_id in batch_rqv.variant_ids() {
@@ -436,8 +432,8 @@ fn create_sn_var(
         .sum::<f64>()
         * (n_workers - w_idx) as f64
         / n_workers as f64;
-    let v = solver.add_nat_variable(weight);
-    v
+
+    solver.add_nat_variable(weight)
 }
 
 fn create_mn_var(
@@ -460,8 +456,8 @@ fn create_mn_var(
         .sum::<f64>()
         * (n_workers - w_idx) as f64
         / n_workers as f64;
-    let v = solver.add_bool_variable(weight);
-    v
+
+    solver.add_bool_variable(weight)
 }
 
 fn constraint_extra_var(

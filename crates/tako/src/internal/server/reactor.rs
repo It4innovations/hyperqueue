@@ -1,16 +1,12 @@
+use crate::gateway::ResourceRequestVariants as ClientResourceRequestVariants;
 use crate::gateway::{CrashLimit, LostWorkerReason};
-use crate::gateway::{
-    ResourceRequest, ResourceRequestVariants as ClientResourceRequestVariants,
-    ResourceRequestVariants,
-};
 use crate::internal::common::resources::ResourceRqId;
 use crate::internal::common::{Map, Set};
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{
-    NewWorkerMsg, RetractResponseMsg, TaskIdsMsg, TaskRunningMsg, TaskUpdates, ToWorkerMessage,
-    WorkerTaskUpdate,
+    NewWorkerMsg, TaskIdsMsg, TaskRunningMsg, TaskUpdates, ToWorkerMessage, WorkerTaskUpdate,
 };
-use crate::internal::scheduler::{SchedulerState, TaskQueue};
+use crate::internal::scheduler::SchedulerState;
 use crate::internal::server::comm::Comm;
 use crate::internal::server::core::{Core, CoreSplitMut};
 use crate::internal::server::task::ComputeTasksBuilder;
@@ -20,7 +16,6 @@ use crate::internal::server::worker::{Worker, WorkerAssignment};
 use crate::internal::server::workermap::WorkerMap;
 use crate::resources::ResourceRqMap;
 use crate::{ResourceVariantId, TaskId, WorkerId};
-use std::fmt::Write;
 
 pub(crate) fn on_new_worker(core: &mut Core, comm: &mut impl Comm, worker: Worker) {
     comm.broadcast_worker_message(&ToWorkerMessage::NewWorker(NewWorkerMsg {
@@ -98,7 +93,7 @@ pub(crate) fn on_remove_worker(
                     task.state = TaskRuntimeState::Waiting { unfinished_deps: 0 };
                 }
                 task.increment_instance_id();
-                task_queues.add_ready_task(&task, &mut retracted);
+                task_queues.add_ready_task(task, &mut retracted);
             }
             for task_id in &sn.prefilled_tasks {
                 let task = task_map.get_task_mut(*task_id);
@@ -122,7 +117,7 @@ pub(crate) fn on_remove_worker(
                         task.state = TaskRuntimeState::Waiting { unfinished_deps: 0 };
                         running_tasks.push(mn.task_id);
                         task.increment_instance_id();
-                        task_queues.add_ready_task(&task, &mut retracted);
+                        task_queues.add_ready_task(task, &mut retracted);
                     } else {
                         // Non-Root
                         ws.retain(|&x| x != worker_id);
@@ -224,32 +219,6 @@ pub(crate) fn on_new_tasks(core: &mut Core, comm: &mut impl Comm, new_tasks: Vec
     comm.ask_for_scheduling()
 }
 
-enum NeedScheduling {
-    No,
-    Removed {
-        rq_id: ResourceRqId,
-        rv_id: ResourceVariantId,
-    },
-    Yes,
-}
-
-impl NeedScheduling {
-    pub fn set_removed(&mut self, rq_id: ResourceRqId, rv_id: ResourceVariantId) {
-        match &self {
-            NeedScheduling::No => {
-                *self = NeedScheduling::Removed { rq_id, rv_id };
-            }
-            _ => {
-                *self = NeedScheduling::Yes;
-            }
-        }
-    }
-
-    pub fn set_yes(&mut self) {
-        *self = NeedScheduling::Yes;
-    }
-}
-
 pub(crate) fn on_task_update(
     core: &mut Core,
     comm: &mut impl Comm,
@@ -257,8 +226,8 @@ pub(crate) fn on_task_update(
     updates: TaskUpdates,
 ) {
     let mut need_scheduling = false;
-    /// This relies on the fact that when worker switching to prefill, it will send Finish, followed by Start
-    /// And this cannot happen in any other way
+    // This relies on the fact that when worker switching to prefill, it will send Finish, followed by Start
+    // And this cannot happen in any other way
     let is_prefill_update = updates.len() == 2
         && matches!(updates[0], WorkerTaskUpdate::Finished { .. })
         && matches!(updates[1], WorkerTaskUpdate::RunningPrefilled { .. });
@@ -274,15 +243,12 @@ pub(crate) fn on_task_update(
             WorkerTaskUpdate::Running(msg) | WorkerTaskUpdate::RunningPrefilled(msg) => {
                 need_scheduling |= task_running(core, &mut *comm, worker_id, msg);
             }
-            WorkerTaskUpdate::RejectRequest {
-                task_id,
-                rv_id: rv_id,
-            } => {
+            WorkerTaskUpdate::RejectRequest { task_id, rv_id } => {
                 need_scheduling |= task_reject(core, &mut *comm, worker_id, task_id, rv_id);
             }
             WorkerTaskUpdate::EnableRequest {
                 resource_rq_id: rq_id,
-                rv_id: rv_id,
+                rv_id,
             } => {
                 request_enabled(core, &mut *comm, worker_id, rq_id, rv_id);
                 need_scheduling = true;
@@ -459,14 +425,14 @@ fn task_reject(
     };
     task.state = TaskRuntimeState::Waiting { unfinished_deps: 0 };
     let mut retracted = Vec::new();
-    task_queues.add_ready_task(&task, &mut retracted);
+    task_queues.add_ready_task(task, &mut retracted);
     process_retracted(task_map, worker_map, comm, retracted);
     true
 }
 
 fn request_enabled(
     core: &mut Core,
-    comm: &mut impl Comm,
+    _comm: &mut impl Comm,
     worker_id: WorkerId,
     resource_rq_id: ResourceRqId,
     resource_rq_variant: ResourceVariantId,
@@ -619,7 +585,7 @@ fn try_remove_redirection(
     if let Some((worker_id, rv_id)) = scheduler_state.redirects.remove(&task_id) {
         let worker = worker_map.get_worker_mut(worker_id);
         let rq = request_map.get(resource_rq_id).get(rv_id);
-        worker.remove_sn_task(task_id, &rq);
+        worker.remove_sn_task(task_id, rq);
     }
 }
 
@@ -812,7 +778,7 @@ pub(crate) fn get_or_create_resource_rq_id(
             map.get_resource_rq_map().get(rq_id).clone(),
         );
         comm.broadcast_worker_message(&msg);
-        core.task_queues_mut().add_task_queue();
+        core.split_mut().task_queues.add_task_queue();
     }
     (rq_id, is_new)
 }
@@ -826,7 +792,7 @@ pub(crate) fn get_or_create_raw_resource_rq_id(
     let map = core.resource_map_mut();
     let (rq_id, is_new) = map.get_or_create_rq_id(rqv);
     if is_new {
-        core.task_queues_mut().add_task_queue();
+        core.split_mut().task_queues.add_task_queue();
         let map = core.resource_map_mut();
         let msg = ToWorkerMessage::NewResourceRequest(
             rq_id,

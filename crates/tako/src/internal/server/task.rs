@@ -191,14 +191,8 @@ impl Task {
 
     #[inline]
     pub(crate) fn is_retracting(&self) -> bool {
-        matches!(
-            self.state,
-            TaskRuntimeState::Retracting {
-                ..
-            }
-        )
+        matches!(self.state, TaskRuntimeState::Retracting { .. })
     }
-    
 
     #[inline]
     pub(crate) fn is_sn_running(&self) -> bool {
@@ -275,95 +269,32 @@ impl Task {
         }
     }
 
-    pub(crate) fn mn_root_worker(&self) -> Option<WorkerId> {
-        self.mn_placement().map(|ws| ws[0])
-    }
-
-    #[inline]
-    pub(crate) fn running_variant(&self) -> Option<ResourceVariantId> {
-        match self.state {
-            TaskRuntimeState::Running { rv_id, .. } => Some(rv_id),
-            _ => None,
-        }
-    }
-
     #[inline]
     pub(crate) fn is_waiting(&self) -> bool {
         matches!(&self.state, TaskRuntimeState::Waiting { .. })
     }
 
     #[inline]
+    #[cfg(test)]
     pub(crate) fn is_assigned(&self) -> bool {
         matches!(&self.state, TaskRuntimeState::Assigned { .. })
     }
 
     #[inline]
+    #[cfg(test)]
     pub(crate) fn is_prefilled(&self) -> bool {
         matches!(&self.state, TaskRuntimeState::Prefilled { .. })
     }
 
-
-    #[inline]
-    pub(crate) fn is_assigned_at(&self, worker_id: WorkerId) -> bool {
-        match &self.state {
-            TaskRuntimeState::Assigned { worker_id: w, .. }
-            | TaskRuntimeState::Running { worker_id: w, .. }
-            /*| TaskRuntimeState::Retracting { source: w }
-            | TaskRuntimeState::Stealing { source: w, .. }*/ => worker_id == *w,
-            TaskRuntimeState::RunningMultiNode(ws) => ws[0] == worker_id,
-            _ => false,
-        }
+    #[cfg(test)]
+    pub(crate) fn mn_root_worker(&self) -> Option<WorkerId> {
+        self.mn_placement().map(|ws| ws[0])
     }
 
     #[inline]
     pub(crate) fn is_finished(&self) -> bool {
         matches!(&self.state, TaskRuntimeState::Finished)
     }
-
-    #[inline]
-    pub(crate) fn is_done_or_running(&self) -> bool {
-        matches!(
-            &self.state,
-            TaskRuntimeState::Finished | TaskRuntimeState::Running { .. }
-        )
-    }
-
-    #[inline]
-    pub(crate) fn get_assignments(&self) -> Option<(WorkerId, ResourceVariantId)> {
-        match &self.state {
-            TaskRuntimeState::Assigned { worker_id, rv_id }
-            | TaskRuntimeState::Running { worker_id, rv_id } => Some((*worker_id, *rv_id)),
-            _ => None,
-        }
-    }
-
-    #[inline]
-    pub(crate) fn get_mn_assignments(&self) -> Option<(WorkerId, ResourceVariantId)> {
-        match &self.state {
-            TaskRuntimeState::Assigned { worker_id, rv_id }
-            | TaskRuntimeState::Running { worker_id, rv_id } => Some((*worker_id, *rv_id)),
-            _ => None,
-        }
-    }
-
-    // #[inline]
-    // pub(crate) fn get_assigned_worker(&self) -> Option<WorkerId> {
-    //     match &self.state {
-    //         TaskRuntimeState::Assigned(id)
-    //         | TaskRuntimeState::Running { worker_id: id, .. }
-    //         | TaskRuntimeState::Stealing {
-    //             source: _,
-    //             target: Some(id),
-    //         } => Some(*id),
-    //         TaskRuntimeState::Waiting(_)
-    //         | TaskRuntimeState::Stealing {
-    //             source: _,
-    //             target: None,
-    //         }
-    //         | TaskRuntimeState::RunningMultiNode(_)
-    //         | TaskRuntimeState::Finished => None,
-    //     }
-    // }
 }
 
 impl ExtractKey<TaskId> for Task {

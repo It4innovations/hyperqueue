@@ -1,4 +1,3 @@
-use crate::gateway::WorkerRuntimeInfo::SingleNodeTasks;
 use crate::internal::common::error::DsError;
 use crate::internal::common::resources::ResourceRqId;
 use crate::resources::{AllocationRequest, CPU_RESOURCE_NAME, NumOfNodes, ResourceAmount};

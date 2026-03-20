@@ -18,10 +18,9 @@ use crate::hwstats::{WorkerHwState, WorkerHwStateMessage};
 use crate::internal::common::WrappedRcRefCell;
 use crate::internal::common::resources::Allocation;
 use crate::internal::common::resources::map::ResourceIdMap;
-use crate::internal::messages::worker::FromWorkerMessage::TaskUpdate;
 use crate::internal::messages::worker::{
-    FromWorkerMessage, RetractResponseMsg, TaskResourceAllocation, TaskUpdates, ToWorkerMessage,
-    WorkerOverview, WorkerRegistrationResponse, WorkerStopReason,
+    FromWorkerMessage, RetractResponseMsg, TaskResourceAllocation, ToWorkerMessage, WorkerOverview,
+    WorkerRegistrationResponse, WorkerStopReason,
 };
 use crate::internal::server::rpc::ConnectionDescriptor;
 use crate::internal::transfer::auth::{
@@ -36,10 +35,8 @@ use crate::internal::worker::hwmonitor::HwSampler;
 use crate::internal::worker::localcomm::handle_local_comm;
 use crate::internal::worker::reactor::compute_tasks;
 use crate::internal::worker::state::{WorkerState, WorkerStateRef};
-use crate::internal::worker::task::Task;
 use crate::launcher::TaskLauncher;
 use futures::future::Either;
-use smallvec::SmallVec;
 use tokio::sync::Notify;
 
 async fn start_listener() -> crate::Result<(TcpListener, u16)> {
@@ -107,7 +104,7 @@ pub async fn run_worker(
     (WorkerId, WorkerConfiguration),
     impl Future<Output = crate::Result<()>>,
 )> {
-    let (listener, port) = start_listener().await?;
+    let (_listener, port) = start_listener().await?;
     configuration.listen_address = format!("{}:{}", configuration.hostname, port);
     let ConnectionDescriptor {
         mut sender,
@@ -326,7 +323,7 @@ pub(crate) fn process_worker_message(state: &mut WorkerState, message: ToWorkerM
         ToWorkerMessage::ComputeTasks(msg) => {
             compute_tasks(state, msg);
         }
-        ToWorkerMessage::RetractTasks(mut msg) => {
+        ToWorkerMessage::RetractTasks(msg) => {
             log::debug!("Steal {} attempts", msg.ids.len());
             let responses = state.retract_tasks(&msg.ids);
             log::debug!(
@@ -334,7 +331,9 @@ pub(crate) fn process_worker_message(state: &mut WorkerState, message: ToWorkerM
                 msg.ids
             );
             if !msg.ids.is_empty() {
-                let message = FromWorkerMessage::RetractResponse(RetractResponseMsg { responses });
+                let message = FromWorkerMessage::RetractResponse(RetractResponseMsg {
+                    retracted: responses,
+                });
                 state.comm().send_message_to_server(message);
             }
         }

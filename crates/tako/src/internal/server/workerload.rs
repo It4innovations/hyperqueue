@@ -1,14 +1,11 @@
 use crate::internal::common::index::IndexVec;
 use crate::internal::common::resources::map::ResourceIdMap;
-use crate::internal::common::resources::request::ResourceAllocRequest;
 use crate::internal::common::resources::{
     ResourceAmount, ResourceDescriptor, ResourceId, ResourceRequest, ResourceRequestVariants,
     ResourceVec,
 };
 use crate::internal::messages::worker::WorkerResourceCounts;
-use crate::resources::{CPU_RESOURCE_ID, ResourceRqId};
-use crate::{Map, ResourceVariantId, Set, TaskId};
-use futures::TryFutureExt;
+use crate::resources::CPU_RESOURCE_ID;
 use serde_json::json;
 use std::ops::Deref;
 
@@ -22,12 +19,6 @@ pub struct WorkerResources {
 }
 
 impl WorkerResources {
-    pub(crate) fn from_transport(msg: WorkerResourceCounts) -> Self {
-        WorkerResources {
-            n_resources: msg.n_resources.into(),
-        }
-    }
-
     pub(crate) fn empty(resource_count: usize) -> WorkerResources {
         WorkerResources {
             n_resources: ResourceVec::filled(ResourceAmount::ZERO, resource_count),
@@ -57,10 +48,6 @@ impl WorkerResources {
 
     pub(crate) fn iter_amounts(&self) -> impl Iterator<Item = ResourceAmount> {
         self.n_resources.iter().copied()
-    }
-
-    pub(crate) fn get_or_none(&self, resource_id: ResourceId) -> Option<ResourceAmount> {
-        self.n_resources.get(resource_id).copied()
     }
 
     pub(crate) fn from_description(
@@ -97,51 +84,10 @@ impl WorkerResources {
         })
     }
 
-    pub(crate) fn is_lowerbound_for_request(&self, request: &ResourceRequest) -> bool {
-        request.entries().iter().all(|r| {
-            if let Some(has) = self.get_or_none(r.resource_id) {
-                let ask = r.request.min_amount();
-                ask <= has
-            } else {
-                true
-            }
-        })
-    }
-
-    pub(crate) fn is_capable_to_run(&self, rqv: &ResourceRequestVariants) -> bool {
-        rqv.requests()
-            .iter()
-            .any(|rq| self.is_capable_to_run_request(rq))
-    }
-
-    pub(crate) fn is_lowerbound_for(
-        &self,
-        rqv: &ResourceRequestVariants,
-        filter_fn: impl Fn(&ResourceRequest) -> bool,
-    ) -> bool {
-        rqv.requests()
-            .iter()
-            .any(|rq| filter_fn(rq) && self.is_lowerbound_for_request(rq))
-    }
-
-    pub(crate) fn is_capable_to_run_with(
-        &self,
-        rqv: &ResourceRequestVariants,
-        filter_fn: impl Fn(&ResourceRequest) -> bool,
-    ) -> bool {
-        rqv.requests()
-            .iter()
-            .any(|rq| filter_fn(rq) && self.is_capable_to_run_request(rq))
-    }
-
     pub(crate) fn to_transport(&self) -> WorkerResourceCounts {
         WorkerResourceCounts {
             n_resources: self.n_resources.deref().clone(),
         }
-    }
-
-    pub(crate) fn max_amount(&self, entry: &ResourceAllocRequest) -> ResourceAmount {
-        entry.request.amount(self.get(entry.resource_id))
     }
 
     fn compute_difficulty_score(&self, request: &ResourceRequest) -> u64 {

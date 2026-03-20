@@ -1180,7 +1180,7 @@ fn test_prefill_basic() {
     for w in &ws {
         assert_eq!(prefill_count(&mut rt, *w), 32);
     }
-    let queue = rt.core().task_queues_mut().get(resource_rq_id);
+    let queue = rt.core().split_mut().task_queues.get(resource_rq_id);
     let p: Vec<_> = queue.iter_priority_sizes().collect();
     assert_eq!(p, vec![(priority, 296)]); // 296 = 300 - 4 assigned tasks
 }
@@ -1224,7 +1224,7 @@ fn test_prefill_steal() {
     assert_eq!(prefill_count(&mut rt, w1), 5);
     let w2 = rt.new_worker(&WorkerBuilder::new(5));
 
-    let queue = rt.core().task_queues_mut().get(resource_rq_id);
+    let queue = rt.core().split_mut().task_queues.get(resource_rq_id);
     let p: Vec<_> = queue.iter_priority_sizes().collect();
     assert_eq!(p, vec![(priority, 8)]);
 

@@ -1,5 +1,5 @@
 use crate::internal::common::resources::ResourceId;
-use crate::internal::solver::{ConstraintType, LpInnerSolver, LpSolution, LpSolver};
+use crate::internal::solver::{ConstraintType, LpSolution, LpSolver};
 use crate::internal::worker::resources::concise::ConciseFreeResources;
 use crate::internal::worker::resources::pool::{FAST_MAX_COUPLED_RESOURCES, FAST_MAX_GROUPS};
 use crate::resources::{FRACTIONS_PER_UNIT, ResourceGroupIdx};

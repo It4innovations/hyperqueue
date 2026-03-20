@@ -97,7 +97,7 @@ impl<'a> TaskBuildContext<'a> {
     }
 
     pub fn allocation(&self) -> &'a Allocation {
-        &self.allocation
+        self.allocation
     }
 
     pub fn body(&self) -> &'a [u8] {

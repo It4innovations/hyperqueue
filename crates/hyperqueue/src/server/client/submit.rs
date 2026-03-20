@@ -444,7 +444,7 @@ fn build_tasks_graph(
     for task in tasks {
         let shared_data_index = allocate_shared_data(&task.task_desc);
 
-        let mut task_dep_ids: Set<JobTaskId> = task.task_deps.iter().copied().collect();
+        let task_dep_ids: Set<JobTaskId> = task.task_deps.iter().copied().collect();
 
         let task_deps = task_dep_ids
             .into_iter()

@@ -1,20 +1,16 @@
-use crate::ResourceVariantId;
+use crate::internal::common::resources::ResourceVec;
 use crate::internal::common::resources::request::{
-    AllocationRequest, ResourceAllocRequest, ResourceRequest, ResourceRequestVariants,
+    AllocationRequest, ResourceAllocRequest, ResourceRequest,
 };
-use crate::internal::common::resources::{ResourceId, ResourceVec};
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::resources::concise::ConciseFreeResources;
 use crate::internal::worker::resources::groups::{CouplingWeightItem, group_solver};
 use crate::internal::worker::resources::map::ResourceLabelMap;
 use crate::internal::worker::resources::pool::{FAST_MAX_COUPLED_RESOURCES, ResourcePool};
-use crate::resources::{
-    Allocation, ResourceAmount, ResourceDescriptor, ResourceIdMap, ResourceRqId,
-};
+use crate::resources::{Allocation, ResourceDescriptor, ResourceIdMap};
 use smallvec::SmallVec;
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::time::Duration;
 
 pub(crate) struct AllocatorStaticInfo {
     pub(super) coupling_weights: Vec<CouplingWeightItem>,

@@ -1,33 +1,23 @@
+use crate::internal::common::resources::ResourceRqId;
 use crate::internal::common::resources::map::{ResourceIdMap, ResourceRqMap};
-use crate::internal::common::resources::{Allocation, ResourceRqId};
 use crate::internal::common::stablemap::StableMap;
 use crate::internal::common::{Map, Set, WrappedRcRefCell};
-use crate::internal::messages::common::TaskFailInfo;
-use crate::internal::messages::worker::{
-    FromWorkerMessage, NewWorkerMsg, TaskUpdates, WorkerNotifyMessage,
-};
-use crate::internal::server::workerload::WorkerResources;
+use crate::internal::messages::worker::{FromWorkerMessage, NewWorkerMsg, WorkerNotifyMessage};
 use crate::internal::worker::comm::WorkerComm;
 use crate::internal::worker::configuration::WorkerConfiguration;
 use std::cell::RefCell;
-use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use crate::TaskId;
 use crate::internal::worker::localcomm::LocalCommState;
 use crate::internal::worker::resources::allocator::ResourceAllocator;
 use crate::internal::worker::resources::map::ResourceLabelMap;
 use crate::internal::worker::task::{RunningTask, Task};
-use crate::internal::worker::task_comm::RunningTaskComm;
 use crate::launcher::TaskLauncher;
 use crate::resources::{ResourceRequest, ResourceRequestVariants};
-use crate::{Priority, TaskId};
 use crate::{ResourceVariantId, WorkerId};
 use orion::aead::SecretKey;
-use rand::SeedableRng;
-use rand::prelude::IndexedRandom;
-use rand::rngs::SmallRng;
-use tokio::sync::oneshot;
 
 pub type TaskMap = StableMap<TaskId, RunningTask>;
 
@@ -136,10 +126,9 @@ impl WorkerState {
                   was successful
                 */
                 log::debug!("Task not found");
-                return;
             }
             Some(task) => task.cancel(),
-        };
+        }
     }
 
     pub fn retract_tasks(&mut self, task_ids: &[TaskId]) -> Vec<TaskId> {

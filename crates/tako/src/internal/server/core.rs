@@ -6,16 +6,14 @@ use crate::internal::common::resources::map::{
 };
 use crate::internal::common::resources::{ResourceId, ResourceRequestVariants, ResourceRqId};
 use crate::internal::common::{Set, WrappedRcRefCell};
-use crate::internal::scheduler::{SchedulerState, TaskQueue, TaskQueues};
-use crate::internal::server::comm::Comm;
+use crate::internal::scheduler::{SchedulerState, TaskQueues};
 use crate::internal::server::rpc::ConnectionDescriptor;
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::taskmap::TaskMap;
-use crate::internal::server::worker::{Worker, WorkerAssignment};
+use crate::internal::server::worker::Worker;
 use crate::internal::server::workergroup::WorkerGroup;
-use crate::internal::server::workerload::WorkerResources;
 use crate::internal::server::workermap::WorkerMap;
-use crate::{Map, Priority, TaskId, WorkerId};
+use crate::{Map, TaskId, WorkerId};
 use orion::aead::SecretKey;
 use serde_json::json;
 
@@ -31,6 +29,7 @@ pub(crate) struct CoreSplitMut<'a> {
 }
 
 pub(crate) struct CoreSplit<'a> {
+    #[allow(dead_code)] // To make it symmetric with CoreSplitMut, will be used later
     pub task_map: &'a TaskMap,
     pub worker_map: &'a WorkerMap,
     pub request_map: &'a ResourceRqMap,
@@ -108,10 +107,6 @@ impl Core {
             worker_groups: &self.worker_groups,
             scheduler_state: &self.scheduler_state,
         }
-    }
-
-    pub fn task_queues_mut(&mut self) -> &mut TaskQueues {
-        &mut self.task_queues
     }
 
     pub fn new_worker_id(&mut self) -> WorkerId {
@@ -232,7 +227,6 @@ impl Core {
 
     // TODO: move to TaskMap
     /// Removes a single task.
-    #[must_use]
     pub fn remove_task(&mut self, task_id: TaskId) -> TaskRuntimeState {
         let task = self
             .tasks
@@ -297,6 +291,7 @@ impl Core {
 
     #[cfg(test)]
     pub fn sanity_check(&self) {
+        use crate::internal::server::worker::WorkerAssignment;
         let fw_check = |task: &Task| {
             for task_dep in &task.task_deps {
                 assert!(self.tasks.find_task(*task_dep).is_none());
