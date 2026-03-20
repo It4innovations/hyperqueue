@@ -47,6 +47,10 @@ impl AllocationRequest {
         }
     }
 
+    pub fn amount_is_all(&self) -> bool {
+        matches!(self, AllocationRequest::All)
+    }
+
     pub fn amount(&self, all: ResourceAmount) -> ResourceAmount {
         match self {
             AllocationRequest::Compact(amount)
@@ -144,6 +148,14 @@ impl ResourceRequest {
 
     pub fn entries(&self) -> &ResourceRequestEntries {
         &self.resources
+    }
+
+    pub fn get_amount(&self, r_id: ResourceId) -> Option<ResourceAmount> {
+        self.resources
+            .iter()
+            .find(|r| r.resource_id == r_id)
+            .map(|e| e.request.amount_or_none_if_all())
+            .unwrap_or(Some(ResourceAmount::ZERO))
     }
 
     pub fn validate(&self) -> crate::Result<()> {
@@ -305,6 +317,13 @@ impl ResourceRequestVariants {
 #[cfg(test)]
 mod tests {
     use crate::internal::tests::utils::resources::ResBuilder;
+    use crate::resources::ResourceRequestVariants;
+
+    impl ResourceRequestVariants {
+        pub fn add_varint(&mut self, builder: ResBuilder) {
+            self.variants.push(builder.finish())
+        }
+    }
 
     #[test]
     fn test_resource_request_validate() {

@@ -1,9 +1,11 @@
 use crate::internal::common::resources::ResourceId;
 use crate::internal::server::workerload::WorkerResources;
+use crate::internal::solver::{ConstraintType, LpSolution, LpSolver};
 use crate::resources::{ResourceRequest, ResourceRequestVariants, ResourceRqId, ResourceRqMap};
 use crate::{Map, ResourceVariantId};
 use hashbrown::Equivalent;
 use std::cell::RefCell;
+use std::cmp::max;
 
 #[derive(Default)]
 pub(crate) struct GapCache {
@@ -95,7 +97,64 @@ fn compute_gap(
         resources.remove_multiple(high_priority_rq, count);
         resources.task_max_count_for_request(low_priority_rq)
     } else {
-        todo!()
+        if high_priority_rqv
+            .requests()
+            .iter()
+            .any(|rq| rq.entries().iter().any(|r| r.request.amount_is_all()))
+        {
+            return 0;
+        }
+        low_priority_rq
+            .entries()
+            .iter()
+            .map(|entry| {
+                let mut solver = LpSolver::new(false);
+                let vars: Vec<_> = high_priority_rqv
+                    .requests()
+                    .iter()
+                    .map(|rq| {
+                        solver.add_nat_variable(rq.get_amount(entry.resource_id).unwrap().as_f64())
+                    })
+                    .collect();
+                let max_resource: usize = high_priority_rqv
+                    .requests()
+                    .iter()
+                    .flat_map(|rq| rq.entries().iter().map(|r| r.resource_id.as_usize()))
+                    .max()
+                    .unwrap_or(0);
+                let mut cst = vec![Vec::new(); max_resource + 1];
+                for (i, rq) in high_priority_rqv.requests().iter().enumerate() {
+                    for entry in rq.entries() {
+                        cst[entry.resource_id.as_usize()].push((
+                            vars[i],
+                            entry.request.amount_or_none_if_all().unwrap().as_f64(),
+                        ));
+                    }
+                }
+                for (idx, c) in cst.into_iter().enumerate() {
+                    let r_id = ResourceId::new(idx as u32);
+                    solver.add_constraint(
+                        ConstraintType::Max,
+                        resources.get(r_id).as_f64(),
+                        c.into_iter(),
+                    );
+                }
+                let Some(solution) = solver.solve() else {
+                    return 0;
+                };
+                let counts = solution.0.get_values();
+                let mut resources = resources.clone();
+                for (idx, rq) in high_priority_rqv.requests().iter().enumerate() {
+                    resources.remove_multiple_masked(
+                        rq,
+                        counts[idx].round() as u32,
+                        entry.resource_id,
+                    );
+                }
+                resources.task_max_count_for_request(low_priority_rq)
+            })
+            .min()
+            .unwrap_or(0)
     }
 }
 
@@ -141,5 +200,32 @@ mod tests {
         let rqv1 = ResBuilder::default().cpus(5).add_compact(1, 2).finish_v();
         let rq2 = ResBuilder::default().cpus(1).add_compact(2, 1).finish();
         assert_eq!(compute_gap(&rqv1, &rq2, &rt.worker(w).resources), 1);
+
+        let mut rqv1 = ResBuilder::default().cpus(8).finish_v();
+        rqv1.add_varint(ResBuilder::default().cpus(2).add_compact(1, 2));
+        let rq2 = ResBuilder::default().cpus(1).finish();
+        assert_eq!(compute_gap(&rqv1, &rq2, &rt.worker(w).resources), 2);
+
+        let mut rqv1 = ResBuilder::default().cpus(8).finish_v();
+        rqv1.add_varint(ResBuilder::default().cpus(2).add_compact(1, 1));
+        let rq2 = ResBuilder::default().cpus(1).finish();
+        assert_eq!(compute_gap(&rqv1, &rq2, &rt.worker(w).resources), 0);
+
+        let mut rqv1 = ResBuilder::default().cpus(8).finish_v();
+        rqv1.add_varint(ResBuilder::default().cpus(2).add_compact(1, 2));
+        let rq2 = ResBuilder::default().cpus(1).add_compact(2, 1).finish();
+        assert_eq!(compute_gap(&rqv1, &rq2, &rt.worker(w).resources), 1);
+
+        let w = rt.new_worker(&WorkerBuilder::new(6).res_sum("foo", 2).res_sum("bar", 2));
+        let mut rqv1 = ResBuilder::default().cpus(2).add_compact(1, 1).finish_v();
+        rqv1.add_varint(ResBuilder::default().cpus(2).add_compact(2, 1));
+        let rq2 = ResBuilder::default().cpus(1).finish();
+        assert_eq!(compute_gap(&rqv1, &rq2, &rt.worker(w).resources), 0);
+
+        let w = rt.new_worker(&WorkerBuilder::new(58));
+        let mut rqv1 = ResBuilder::default().cpus(13).finish_v();
+        rqv1.add_varint(ResBuilder::default().cpus(7));
+        let rq2 = ResBuilder::default().cpus(1).finish();
+        assert_eq!(compute_gap(&rqv1, &rq2, &rt.worker(w).resources), 2);
     }
 }

@@ -234,6 +234,21 @@ impl WorkerResources {
         }
     }
 
+    pub fn remove_multiple_masked(&mut self, rq: &ResourceRequest, n: u32, r_id: ResourceId) {
+        for entry in rq.entries() {
+            if entry.resource_id == r_id {
+                if let Some(amount) = entry.request.amount_or_none_if_all() {
+                    let a = amount.times(n);
+                    assert!(self.n_resources[entry.resource_id] >= a);
+                    self.n_resources[entry.resource_id] -= a;
+                } else {
+                    self.n_resources[entry.resource_id] = ResourceAmount::ZERO;
+                }
+                return;
+            }
+        }
+    }
+
     pub fn add(&mut self, rq: &ResourceRequest, all: &WorkerResources) {
         for entry in rq.entries() {
             if let Some(amount) = entry.request.amount_or_none_if_all() {

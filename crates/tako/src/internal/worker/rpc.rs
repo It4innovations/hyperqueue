@@ -308,40 +308,6 @@ async fn cancel_running_tasks_on_worker_end(state: WorkerStateRef) {
     }
 }
 
-/// Tries to start tasks after a new task appears or some task finishes.
-async fn task_starter_process(state_ref: WrappedRcRefCell<WorkerState>, notify: Rc<Notify>) {
-    todo!()
-    /*loop {
-        notify.notified().await;
-
-        let mut state = state_ref.get_mut();
-        state.start_task_scheduled = false;
-
-        let remaining_time = if let Some(limit) = state.configuration.time_limit {
-            let life_time = std::time::Instant::now() - state.start_time;
-            if life_time >= limit {
-                log::debug!("Trying to start a task after time limit");
-                break;
-            }
-            Some(limit - life_time)
-        } else {
-            None
-        };
-        loop {
-            let (task_map, resource_rq_map, ready_task_queue) = state.borrow_tasks_and_queue();
-            let allocations =
-                ready_task_queue.try_start_tasks(task_map, resource_rq_map, remaining_time);
-            if allocations.is_empty() {
-                break;
-            }
-
-            for (task_id, allocation, rv_id) in allocations {
-                start_task(&mut state, &state_ref, task_id, allocation, rv_id);
-            }
-        }
-    }*/
-}
-
 /// Repeatedly sends a heartbeat message to the server.
 async fn heartbeat_process(heartbeat_interval: Duration, state_ref: WrappedRcRefCell<WorkerState>) {
     let mut interval = tokio::time::interval(heartbeat_interval);
