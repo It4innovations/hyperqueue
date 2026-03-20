@@ -86,7 +86,7 @@ def test_worker_lost_mn_task(hq_env: HqEnv, root: bool):
 
     table = hq_env.command(["task", "list", "1"], as_table=True)
     ws = table.get_column_value("Worker")[0].split("\n")
-    worker_ids = [int(w[len("worker"):]) for w in ws]
+    worker_ids = [int(w[len("worker") :]) for w in ws]
     hq_env.kill_worker(worker_ids[0 if root else 1])
     if root:
         wait_for_job_state(hq_env, 1, "WAITING")

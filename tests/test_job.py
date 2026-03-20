@@ -1407,3 +1407,12 @@ def test_on_notify(hq_env: HqEnv):
         assert lines[i + 3][2] == "msg2"
     for i in "1", "2", "3":
         assert lines.index(["1", i, "msg1"]) < lines.index(["1", i, "msg2"])
+
+
+def test_submit_many_cancel_some(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["submit", "--array=1-20000", "--stdout=none", "--stderr=none", "--", "sleep", "100"])
+    hq_env.start_worker(cpus=4)
+    wait_for_job_state(hq_env, 1, "RUNNING")
+    hq_env.command(["job", "cancel", "all"])
+    wait_for_job_state(hq_env, 1, "CANCELED")
