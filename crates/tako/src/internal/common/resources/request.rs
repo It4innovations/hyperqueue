@@ -6,8 +6,7 @@ use crate::internal::common::resources::{NumOfNodes, ResourceAmount, ResourceId}
 
 use crate::ResourceVariantId;
 use crate::internal::server::workerload::WorkerResources;
-use crate::internal::worker::resources::allocator::ResourceAllocator;
-use crate::resources::{ResourceIdMap, ResourceRqId, ResourceRqMap};
+use crate::resources::ResourceIdMap;
 use smallvec::{SmallVec, smallvec};
 use std::time::Duration;
 
@@ -257,7 +256,7 @@ impl ResourceRequestVariants {
     }
 
     pub fn variant_ids(&self) -> impl Iterator<Item = ResourceVariantId> {
-        (0u8..self.variants.len() as u8).map(|v| ResourceVariantId::new(v))
+        (0u8..self.variants.len() as u8).map(ResourceVariantId::new)
     }
 
     pub fn validate(&self) -> crate::Result<()> {

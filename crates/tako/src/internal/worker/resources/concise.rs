@@ -191,10 +191,6 @@ impl ConciseFreeResources {
         }
     }
 
-    pub fn n_resources(&self) -> usize {
-        self.resources.len()
-    }
-
     pub fn get(&self, resource_id: ResourceId) -> &ConciseResourceState {
         &self.resources[resource_id]
     }

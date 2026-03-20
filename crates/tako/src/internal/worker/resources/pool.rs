@@ -36,6 +36,7 @@ impl GroupsResourcePool {
             })
     }
 
+    #[cfg(test)]
     pub fn n_groups(&self) -> usize {
         self.indices.len()
     }
@@ -136,6 +137,7 @@ impl ResourcePool {
         }
     }
 
+    #[cfg(test)]
     pub fn n_groups(&self) -> usize {
         match self {
             ResourcePool::Empty | ResourcePool::Indices(..) | ResourcePool::Sum(..) => 1,

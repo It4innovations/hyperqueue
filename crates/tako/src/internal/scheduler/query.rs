@@ -1,15 +1,12 @@
 use crate::control::{NewWorkerAllocationResponse, WorkerTypeQuery};
 use crate::gateway::MultiNodeAllocationResponse;
-use crate::internal::common::resources::ResourceId;
-use crate::internal::scheduler::{create_task_batches, create_task_mapping, run_scheduling_solver};
+use crate::internal::scheduler::{create_task_batches, run_scheduling_solver};
 use crate::internal::server::core::{Core, CoreSplit};
-use crate::internal::server::task::Task;
 use crate::internal::server::worker::Worker;
 use crate::internal::server::workerload::WorkerResources;
 use crate::resources::{ResourceAmount, ResourceDescriptorItem, ResourceDescriptorKind};
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
 use crate::{Map, WorkerId};
-use std::time::Duration;
 
 /// Read the documentation of `new_worker_query`` in control.rs
 pub(crate) fn compute_new_worker_query(
@@ -24,7 +21,6 @@ pub(crate) fn compute_new_worker_query(
     /* Make sure that all resources provided by Worker has an Id */
     for query in queries {
         for item in &query.descriptor.resources {
-            dbg!(&item.name);
             core.get_or_create_resource_id(&item.name);
         }
     }
@@ -108,10 +104,10 @@ pub(crate) fn compute_new_worker_query(
         for _ in 0..query.max_sn_workers {
             let worker = &fake_workers[worker_idx];
             worker_idx += 1;
-            if let Some(load) = loads.get(&worker.id) {
-                if load.utilization(&worker.resources) >= query.min_utilization {
-                    count += 1;
-                }
+            if let Some(load) = loads.get(&worker.id)
+                && load.utilization(&worker.resources) >= query.min_utilization
+            {
+                count += 1;
             }
         }
         single_node_workers_per_query.push(count);

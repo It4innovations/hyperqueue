@@ -2,11 +2,8 @@ use crate::internal::messages::worker::{TaskIdsMsg, ToWorkerMessage};
 use crate::internal::scheduler::solver::SchedulingSolution;
 use crate::internal::server::comm::Comm;
 use crate::internal::server::core::{Core, CoreSplitMut};
-use crate::internal::server::task::{ComputeTasksBuilder, Task, TaskRuntimeState};
-use crate::resources::ResourceRqId;
-use crate::{Map, ResourceVariantId, Set, TaskId, WorkerId};
-use fxhash::FxBuildHasher;
-use hashbrown::hash_map::Entry;
+use crate::internal::server::task::{ComputeTasksBuilder, TaskRuntimeState};
+use crate::{Map, ResourceVariantId, TaskId, WorkerId};
 use std::cmp::Reverse;
 
 #[derive(Debug, Default)]
@@ -25,7 +22,7 @@ pub struct WorkerTaskMapping {
 
 pub(crate) fn create_task_mapping(
     core: &mut Core,
-    mut solution: SchedulingSolution,
+    solution: SchedulingSolution,
 ) -> WorkerTaskMapping {
     let CoreSplitMut {
         task_map,
@@ -66,15 +63,14 @@ pub(crate) fn create_task_mapping(
                             TaskRuntimeState::Retracting {
                                 worker_id: old_worker_id,
                             } => {
-                                if old_worker_id != w_id {
-                                    if let Some((old_target, v_id)) =
+                                if old_worker_id != w_id
+                                    && let Some((old_target, v_id)) =
                                         scheduler_state.redirects.insert(task_id, (*w_id, v_id))
-                                    {
-                                        let rq = request_map.get(task.resource_rq_id).get(v_id);
-                                        worker_map
-                                            .get_worker_mut(old_target)
-                                            .remove_sn_task(task_id, rq);
-                                    }
+                                {
+                                    let rq = request_map.get(task.resource_rq_id).get(v_id);
+                                    worker_map
+                                        .get_worker_mut(old_target)
+                                        .remove_sn_task(task_id, rq);
                                 }
                                 TaskRuntimeState::Retracting {
                                     worker_id: *old_worker_id,
@@ -103,7 +99,10 @@ pub(crate) fn create_task_mapping(
                                     worker_id: *old_worker_id,
                                 }
                             }
-                            TaskRuntimeState::Assigned { worker_id, rv_id } => {
+                            TaskRuntimeState::Assigned {
+                                worker_id: _,
+                                rv_id: _,
+                            } => {
                                 unreachable!()
                             }
                             TaskRuntimeState::Running { .. }
@@ -159,7 +158,7 @@ fn process_proactive_filling(core: &mut Core, mapping: &mut WorkerTaskMapping) {
         task_map,
         worker_map,
         task_queues,
-        request_map,
+        request_map: _,
         scheduler_state,
         ..
     } = core.split_mut();
@@ -223,10 +222,10 @@ fn process_proactive_filling(core: &mut Core, mapping: &mut WorkerTaskMapping) {
             mapping.workers.entry(worker.id).or_default().prefills = tasks;
         }
     }
-    //task_queues.
 }
 
 impl WorkerTaskMapping {
+    #[allow(dead_code)] // Function used for debugging
     pub fn dump(&self) {
         println!("====== MAPPING =================");
         for (w, up) in &self.workers {

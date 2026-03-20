@@ -5,17 +5,12 @@ use crate::internal::common::Set;
 use crate::internal::common::resources::TimeRequest;
 use crate::internal::common::resources::map::{ResourceIdMap, ResourceRqMap};
 use crate::internal::common::resources::{ResourceRequest, ResourceRequestVariants};
-use crate::internal::server::comm::Comm;
 use crate::internal::server::task::TaskRuntimeState;
 use crate::internal::server::taskmap::TaskMap;
 use crate::internal::server::workerload::WorkerResources;
-use crate::internal::server::workermap::WorkerMap;
 use crate::internal::worker::configuration::WorkerConfiguration;
 use crate::resources::ResourceRqId;
 use crate::{Map, ResourceVariantId, TaskId, WorkerId};
-use bitflags::Flags;
-use itertools::Itertools;
-use nix::libc::W_OK;
 use serde_json::json;
 use std::time::{Duration, Instant};
 
@@ -176,7 +171,7 @@ impl Worker {
     pub fn is_free(&self) -> bool {
         (match &self.assignment {
             WorkerAssignment::Sn(a) => a.assign_tasks.is_empty(),
-            WorkerAssignment::Mn(a) => false,
+            WorkerAssignment::Mn(_a) => false,
         }) && !self.is_stopping()
     }
 

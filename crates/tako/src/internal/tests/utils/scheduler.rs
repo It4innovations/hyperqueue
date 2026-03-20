@@ -1,8 +1,6 @@
 use crate::gateway::ResourceRequest;
 use crate::internal::common::resources::ResourceVec;
-use crate::internal::scheduler::{
-    PriorityCut, TaskBatch, TaskQueue, WorkerTaskMapping, create_task_batches,
-};
+use crate::internal::scheduler::{PriorityCut, TaskBatch, WorkerTaskMapping, create_task_batches};
 use crate::resources::{ResourceAmount, ResourceRqId, ResourceRqMap};
 use crate::tests::utils::env::TestEnv;
 use crate::tests::utils::task::TaskBuilder;

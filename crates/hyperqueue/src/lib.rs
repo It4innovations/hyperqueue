@@ -12,13 +12,10 @@ pub mod worker;
 #[cfg(test)]
 pub(crate) mod tests;
 
-use serde::{Deserialize, Serialize};
-
 pub type Error = crate::common::error::HqError;
 pub type Result<T> = std::result::Result<T, Error>;
 
 // ID types
-use tako::{JobId, JobTaskId};
 
 pub const DEFAULT_WORKER_GROUP_NAME: &str = "default";
 

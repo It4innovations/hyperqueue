@@ -1,17 +1,10 @@
-use crate::internal::common::SmallSet;
-use crate::internal::messages::worker::{TaskIdsMsg, ToWorkerMessage};
-use crate::internal::server::comm::Comm;
-use crate::internal::server::task::{Task, TaskRuntimeState};
-use crate::internal::server::taskmap::TaskMap;
-use crate::internal::server::workermap::WorkerMap;
-use crate::resources::{ResourceRqId, ResourceRqMap};
-use crate::{Map, Priority, Set, TaskId, WorkerId};
-use itertools::{Either, Itertools};
-use priority_queue::PriorityQueue;
+use crate::internal::server::task::Task;
+use crate::resources::ResourceRqId;
+use crate::{Priority, Set, TaskId};
+use itertools::Either;
 use std::cmp::Reverse;
 use std::collections::btree_map::{Entry, OccupiedEntry};
 use std::collections::{BTreeMap, BTreeSet};
-use std::time::Instant;
 
 #[derive(Debug)]
 pub(crate) enum OneOrMoreTaskIds {
@@ -55,12 +48,13 @@ impl TaskQueues {
         self.queues.iter_mut()
     }
 
-    pub fn get(&self, resource_rq_id: ResourceRqId) -> &TaskQueue {
-        &self.queues[resource_rq_id.as_usize()]
-    }
-
     pub fn get_mut(&mut self, resource_rq_id: ResourceRqId) -> &mut TaskQueue {
         &mut self.queues[resource_rq_id.as_usize()]
+    }
+
+    #[cfg(test)]
+    pub fn get(&self, resource_rq_id: ResourceRqId) -> &TaskQueue {
+        &self.queues[resource_rq_id.as_usize()]
     }
 
     pub fn top_priority(&self) -> Priority {
@@ -78,7 +72,11 @@ impl TaskQueues {
     }
 
     #[cfg(test)]
-    pub fn sanity_check(&self, task_map: &TaskMap, worker_map: &WorkerMap) {
+    pub fn sanity_check(
+        &self,
+        task_map: &crate::internal::server::taskmap::TaskMap,
+        worker_map: &crate::internal::server::workermap::WorkerMap,
+    ) {
         for queue in &self.queues {
             for ts in queue.queue.values() {
                 match ts {
@@ -98,7 +96,9 @@ impl TaskQueues {
                 for t in ts {
                     let task = task_map.get_task(*t);
                     match &task.state {
-                        TaskRuntimeState::Prefilled { worker_id } => {
+                        crate::internal::server::task::TaskRuntimeState::Prefilled {
+                            worker_id,
+                        } => {
                             let _worker = worker_map.get_worker(*worker_id);
                         }
                         _ => panic!("Invalid task state"),
@@ -142,7 +142,7 @@ impl TaskQueue {
     }
 
     fn check_dispose_prefill(&mut self, priority: Priority, retracted: &mut Vec<TaskId>) {
-        if self.prefill.as_ref().map_or(false, |(p, _)| *p < priority) {
+        if self.prefill.as_ref().is_some_and(|(p, _)| *p < priority) {
             let (p, ts) = self.prefill.take().unwrap();
             self.add_many(&ts, p);
             retracted.extend(ts.iter().copied());
@@ -195,10 +195,9 @@ impl TaskQueue {
     pub fn remove(&mut self, task_id: TaskId, priority: Priority) {
         if let Some((p, ts)) = &mut self.prefill
             && priority == *p
+            && ts.remove(&task_id)
         {
-            if ts.remove(&task_id) {
-                return;
-            }
+            return;
         }
         match self.queue.entry(Reverse(priority)) {
             Entry::Vacant(_) => {}

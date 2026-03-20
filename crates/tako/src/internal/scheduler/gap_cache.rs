@@ -5,7 +5,6 @@ use crate::resources::{ResourceRequest, ResourceRequestVariants, ResourceRqId, R
 use crate::{Map, ResourceVariantId};
 use hashbrown::Equivalent;
 use std::cell::RefCell;
-use std::cmp::max;
 
 #[derive(Default)]
 pub(crate) struct GapCache {
