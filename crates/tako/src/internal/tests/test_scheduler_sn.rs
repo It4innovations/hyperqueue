@@ -1284,3 +1284,23 @@ fn test_prefill_steal() {
     assert_eq!(rt.core().split_mut().scheduler_state.redirects.len(), 1);
     rt.sanity_check();
 }
+
+#[test]
+pub fn test_schedule_variant_gap() {
+    let mut rt = TestEnv::new();
+    rt.new_named_resource("gpus");
+    // 8 cpus OR 1 cpus + 2 gpus
+    rt.new_tasks(
+        10,
+        &TaskBuilder::new()
+            .user_priority(10)
+            .cpus(8)
+            .next_variant()
+            .cpus(4)
+            .add_resource(1, 2),
+    );
+    let ts = rt.new_tasks(10, &TaskBuilder::new());
+    rt.new_worker(&WorkerBuilder::new(14).res_sum("gpus", 4));
+    rt.schedule();
+    assert_eq!(ts.iter().filter(|t| rt.task(**t).is_assigned()).count(), 2);
+}
