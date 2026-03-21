@@ -13,6 +13,9 @@ ruff format
 # Lint Python code
 ruff check
 
+# Check for typos in documentation
+typos
+
 # Test Rust code
 cargo test
 
