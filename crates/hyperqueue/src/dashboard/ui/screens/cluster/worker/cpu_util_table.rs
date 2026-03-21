@@ -1,5 +1,5 @@
 use crate::common::format::human_size;
-use crate::dashboard::ui::screens::cluster::worker::UtilizationRenderMode;
+use crate::dashboard::ui::screens::cluster::worker::{CpuScope, CpuViewMode};
 use ratatui::layout::{Constraint, Rect};
 use ratatui::style::Style;
 use ratatui::widgets::{Cell, Row, Table};
@@ -10,7 +10,7 @@ use tako::resources::ResourceIndex;
 use crate::dashboard::ui::styles;
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::progressbar::{
-    ProgressPrintStyle, get_progress_bar_color, get_progress_bar_cpu_color, render_progress_bar_at,
+    ProgressPrintStyle, get_cpu_progress_bar_color, render_progress_bar_at,
 };
 use crate::dashboard::utils::calculate_average;
 
@@ -22,7 +22,8 @@ pub fn render_cpu_util_table(
     cpu_util_list: &[f64],
     mem_util: &MemoryStats,
     used_cpus: &[ResourceIndex],
-    util_render_mode: &UtilizationRenderMode,
+    util_render_mode: &CpuViewMode,
+    cpu_scope: &CpuScope,
     rect: Rect,
     frame: &mut DashboardFrame,
     table_style: Style,
@@ -36,13 +37,46 @@ pub fn render_cpu_util_table(
     let height = (cpu_util_list.len() as f64 / width as f64).ceil() as usize;
 
     let mut rows: Vec<Vec<(f64, usize, bool)>> = vec![vec![]; height];
-    if *util_render_mode == UtilizationRenderMode::Worker {
-        rows = get_utilization_sorted_by_usage(cpu_util_list, used_cpus, height)
-    } else {
-        for (position, &cpu_util) in cpu_util_list.iter().enumerate() {
-            let row = position % height;
-            let used = used_cpus.contains(&ResourceIndex::new(position as u32));
-            rows[row].push((cpu_util, position, used));
+
+    match util_render_mode {
+        CpuViewMode::Global => {
+            for (position, &cpu_util) in cpu_util_list.iter().enumerate() {
+                let row = position % height;
+                let used = used_cpus.contains(&ResourceIndex::new(position as u32));
+                rows[row].push((cpu_util, position, used));
+            }
+        }
+        CpuViewMode::WorkerManaged => match cpu_scope {
+            CpuScope::Node => {
+                rows = get_utilization_sorted_by_usage(cpu_util_list, used_cpus, height)
+            }
+            CpuScope::Subset(managed_cpus) => {
+                let managed_cpu_util_list: Vec<f64> = cpu_util_list
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(idx, &cpu_util)| {
+                        if managed_cpus.contains(&ResourceIndex::new(idx as u32)) {
+                            Some(cpu_util)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                rows = get_utilization_sorted_by_usage(&managed_cpu_util_list, used_cpus, height)
+            }
+        },
+        CpuViewMode::WorkerAssigned => {
+            let mut r = 0;
+            for (position, &cpu_util) in cpu_util_list.iter().enumerate() {
+                let row = r % height;
+                let used = used_cpus.contains(&ResourceIndex::new(position as u32));
+
+                if used {
+                    rows[row].push((cpu_util, position, used));
+                    r += 1;
+                }
+            }
         }
     }
 
@@ -53,10 +87,8 @@ pub fn render_cpu_util_table(
                 .into_iter()
                 .map(|(cpu_util, position, used)| {
                     let progress = cpu_util / 100.00;
-                    let style = match util_render_mode {
-                        UtilizationRenderMode::Global => get_progress_bar_color(progress),
-                        UtilizationRenderMode::Worker => get_progress_bar_cpu_color(progress, used),
-                    };
+
+                    let style = get_cpu_progress_bar_color(progress, used, util_render_mode);
 
                     Cell::from(render_progress_bar_at(
                         Some(format!("{position:>3} ")),
@@ -73,7 +105,7 @@ pub fn render_cpu_util_table(
 
     let mem_used = mem_util.total - mem_util.free;
     let (which_util, num_cpus, avg_cpu) =
-        create_title_info(cpu_util_list, used_cpus, util_render_mode);
+        create_title_info(cpu_util_list, used_cpus, util_render_mode, cpu_scope);
 
     let title = styles::table_title(format!(
         "{} Utilization ({} CPUs), Avg CPU = {:.0}%, Mem = {:.0}% ({}/{})",
@@ -133,35 +165,35 @@ fn get_utilization_sorted_by_usage(
 fn create_title_info(
     cpu_util_list: &[f64],
     used_cpus: &[ResourceIndex],
-    util_render_mode: &UtilizationRenderMode,
+    util_render_mode: &CpuViewMode,
+    cpu_manager_state: &CpuScope,
 ) -> (String, usize, f64) {
     let which_util = match util_render_mode {
-        UtilizationRenderMode::Global => "Node".to_string(),
-        UtilizationRenderMode::Worker => "Worker".to_string(),
-    };
+        CpuViewMode::Global => "Node",
+        CpuViewMode::WorkerManaged => "Worker Managed",
+        CpuViewMode::WorkerAssigned => "Worker Assigned",
+    }
+    .to_string();
 
-    let num_cpus = match util_render_mode {
-        UtilizationRenderMode::Global => cpu_util_list.len(),
-        UtilizationRenderMode::Worker => used_cpus.len(),
-    };
+    let filtered_utils: Vec<f64> = cpu_util_list
+        .iter()
+        .enumerate()
+        .filter(|(idx, _util)| {
+            let res_idx = ResourceIndex::new(*idx as u32);
+            match util_render_mode {
+                CpuViewMode::Global => true,
+                CpuViewMode::WorkerAssigned => used_cpus.contains(&res_idx),
+                CpuViewMode::WorkerManaged => match cpu_manager_state {
+                    CpuScope::Node => true,
+                    CpuScope::Subset(managed) => managed.contains(&res_idx),
+                },
+            }
+        })
+        .map(|(_, &util)| util)
+        .collect();
 
-    let avg_usage = match util_render_mode {
-        UtilizationRenderMode::Global => calculate_average(cpu_util_list),
-        UtilizationRenderMode::Worker => {
-            let used_cpu_util_list: Vec<f64> = cpu_util_list
-                .iter()
-                .enumerate()
-                .filter_map(|(idx, utilization)| {
-                    if used_cpus.contains(&ResourceIndex::new(idx as u32)) {
-                        Some(*utilization)
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-            calculate_average(&used_cpu_util_list)
-        }
-    };
+    let num_cpus = filtered_utils.len();
+    let avg_usage = calculate_average(&filtered_utils);
 
     (which_util, num_cpus, avg_usage)
 }

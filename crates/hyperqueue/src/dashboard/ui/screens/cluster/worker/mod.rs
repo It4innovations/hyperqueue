@@ -12,7 +12,9 @@ use crate::dashboard::ui::widgets::text::draw_text;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use tako::hwstats::MemoryStats;
-use tako::resources::{CPU_RESOURCE_NAME, ResourceIndex};
+use tako::resources::{
+    CPU_RESOURCE_NAME, ResourceDescriptorItem, ResourceDescriptorKind, ResourceIndex,
+};
 use tako::{JobTaskId, WorkerId};
 
 mod cpu_util_table;
@@ -27,7 +29,8 @@ pub struct WorkerDetail {
     worker_tasks_table: TasksTable,
 
     utilization: Option<Utilization>,
-    utilization_render_mode: UtilizationRenderMode,
+    cpu_view_mode: CpuViewMode,
+    cpu_scope: CpuScope,
 }
 
 impl Default for WorkerDetail {
@@ -38,29 +41,112 @@ impl Default for WorkerDetail {
             worker_config_table: Default::default(),
             worker_tasks_table: TasksTable::non_interactive(),
             utilization: None,
-            utilization_render_mode: UtilizationRenderMode::Worker,
+            cpu_view_mode: CpuViewMode::WorkerManaged,
+            cpu_scope: CpuScope::Node,
         }
     }
 }
 
 #[derive(PartialEq)]
-enum UtilizationRenderMode {
+pub enum CpuViewMode {
     Global,
-    Worker,
+    WorkerManaged,
+    WorkerAssigned,
 }
 
-impl UtilizationRenderMode {
-    fn next(&mut self) {
-        *self = match self {
-            UtilizationRenderMode::Global => UtilizationRenderMode::Worker,
-            UtilizationRenderMode::Worker => UtilizationRenderMode::Global,
+#[derive(Debug)]
+pub enum CpuScope {
+    Node,
+    Subset(Vec<ResourceIndex>),
+}
+
+impl CpuScope {
+    fn estimate_scope(
+        detected_cpus: &mut Vec<ResourceIndex>,
+        managed_cpus: Vec<&ResourceDescriptorItem>,
+    ) -> Option<CpuScope> {
+        let mut all_managed_cpus = vec![];
+        for resource in managed_cpus {
+            match &resource.kind {
+                ResourceDescriptorKind::List { values } => {
+                    if let Ok(indices) = values
+                        .iter()
+                        .map(|s| s.parse::<ResourceIndex>())
+                        .collect::<Result<Vec<_>, _>>()
+                    {
+                        all_managed_cpus.extend(indices);
+                    } else {
+                        return None;
+                    }
+                }
+                ResourceDescriptorKind::Range { start, end } => {
+                    for idx in (u32::from(*start))..=(u32::from(*end)) {
+                        all_managed_cpus.push(ResourceIndex::new(idx));
+                    }
+                }
+                ResourceDescriptorKind::Groups { groups } => {
+                    for group in groups {
+                        if let Ok(indices) = group
+                            .iter()
+                            .map(|s| s.parse::<ResourceIndex>())
+                            .collect::<Result<Vec<_>, _>>()
+                        {
+                            all_managed_cpus.extend(indices);
+                        } else {
+                            return None;
+                        }
+                    }
+                }
+                // Based on Resource kind `sum` cannot be used with CPUs. CPUs must have identity
+                ResourceDescriptorKind::Sum { .. } => unreachable!(),
+            }
+        }
+
+        detected_cpus.sort();
+        all_managed_cpus.sort();
+
+        if *detected_cpus == all_managed_cpus {
+            Some(CpuScope::Node)
+        } else {
+            Some(CpuScope::Subset(all_managed_cpus))
+        }
+    }
+}
+
+impl CpuViewMode {
+    fn next(&mut self, cpu_manager_state: &CpuScope) {
+        match cpu_manager_state {
+            CpuScope::Node => {
+                *self = match self {
+                    CpuViewMode::WorkerManaged => CpuViewMode::WorkerAssigned,
+                    CpuViewMode::WorkerAssigned => CpuViewMode::WorkerManaged,
+                    CpuViewMode::Global => CpuViewMode::WorkerManaged, // To skip out of the global in case the state changes
+                }
+            }
+            CpuScope::Subset(_items) => {
+                *self = match self {
+                    CpuViewMode::Global => CpuViewMode::WorkerManaged,
+                    CpuViewMode::WorkerManaged => CpuViewMode::WorkerAssigned,
+                    CpuViewMode::WorkerAssigned => CpuViewMode::Global,
+                }
+            }
         }
     }
 
-    fn next_text(&self) -> &str {
-        match self {
-            UtilizationRenderMode::Global => "Show worker CPU utilization",
-            UtilizationRenderMode::Worker => "Show global CPU utilization",
+    fn next_text(&self, cpu_manager_state: &CpuScope) -> &str {
+        match cpu_manager_state {
+            CpuScope::Node => {
+                match self {
+                    CpuViewMode::WorkerManaged => "Show worker assigned CPU utilization",
+                    CpuViewMode::WorkerAssigned => "Show worker managed CPU utilization",
+                    CpuViewMode::Global => "Show worker managed CPU utilization", // To skip out of the global in case the state changes
+                }
+            }
+            CpuScope::Subset(_items) => match self {
+                CpuViewMode::Global => "Show worker managed CPU utilization",
+                CpuViewMode::WorkerManaged => "Show worker assigned CPU utilization",
+                CpuViewMode::WorkerAssigned => "Show global CPU utilization",
+            },
         }
     }
 }
@@ -96,7 +182,7 @@ impl WorkerDetail {
         draw_text(
             format!(
                 "<backspace>: Back, <c>: {}",
-                self.utilization_render_mode.next_text()
+                self.cpu_view_mode.next_text(&self.cpu_scope)
             )
             .as_str(),
             layout.footer,
@@ -109,7 +195,8 @@ impl WorkerDetail {
                 &util.cpu,
                 &util.memory,
                 &util.used_cpus,
-                &self.utilization_render_mode,
+                &self.cpu_view_mode,
+                &self.cpu_scope,
                 layout.current_utilization,
                 frame,
                 table_style_deselected(),
@@ -132,13 +219,19 @@ impl WorkerDetail {
     pub fn update(&mut self, data: &DashboardData) {
         if let Some(worker_id) = self.worker_id {
             self.utilization_history.update(data, worker_id);
+            let mut worker_config = None;
+
+            if let Some(configuration) = data.workers().query_worker_config_for(worker_id) {
+                self.worker_config_table.update(configuration);
+                worker_config = Some(configuration);
+            }
 
             if let Some(overview) = data
                 .workers()
                 .query_worker_overview_at(worker_id, data.current_time())
             {
-                let worker_used_cpus: Vec<ResourceIndex> = match self.utilization_render_mode {
-                    UtilizationRenderMode::Worker => overview
+                let worker_used_cpus: Vec<ResourceIndex> = match self.cpu_view_mode {
+                    CpuViewMode::WorkerManaged | CpuViewMode::WorkerAssigned => overview
                         .item
                         .running_tasks
                         .iter()
@@ -156,7 +249,7 @@ impl WorkerDetail {
                         })
                         .flatten()
                         .collect(),
-                    UtilizationRenderMode::Global => vec![],
+                    CpuViewMode::Global => vec![],
                 };
 
                 if let Some(hw_state) = overview.item.hw_state.as_ref() {
@@ -172,16 +265,35 @@ impl WorkerDetail {
                         used_cpus: worker_used_cpus,
                     })
                 }
+
+                if let Some(configuration) = worker_config {
+                    let managed_cpus: Vec<&ResourceDescriptorItem> = configuration
+                        .resources
+                        .resources
+                        .iter()
+                        .filter(|resource| resource.name == CPU_RESOURCE_NAME)
+                        .collect();
+                    if let Some(hw_state) = overview.item.hw_state.as_ref() {
+                        let mut detected_cpus: Vec<ResourceIndex> = hw_state
+                            .state
+                            .cpu_usage
+                            .cpu_per_core_percent_usage
+                            .iter()
+                            .enumerate()
+                            .map(|(idx, _)| ResourceIndex::new(idx as u32))
+                            .collect();
+                        let cpu_scope = CpuScope::estimate_scope(&mut detected_cpus, managed_cpus);
+                        if let Some(cpu_scope) = cpu_scope {
+                            self.cpu_scope = cpu_scope;
+                        }
+                    }
+                }
             }
 
             let tasks_info: Vec<(JobTaskId, &TaskInfo)> =
                 data.query_task_history_for_worker(worker_id).collect();
             self.worker_tasks_table
                 .update(tasks_info, data.current_time());
-
-            if let Some(configuration) = data.workers().query_worker_config_for(worker_id) {
-                self.worker_config_table.update(configuration);
-            }
         }
     }
 
@@ -189,7 +301,7 @@ impl WorkerDetail {
     pub fn handle_key(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Backspace => self.worker_tasks_table.clear_selection(),
-            KeyCode::Char('c') => self.utilization_render_mode.next(),
+            KeyCode::Char('c') => self.cpu_view_mode.next(&self.cpu_scope),
             _ => self.worker_tasks_table.handle_key(key),
         }
     }

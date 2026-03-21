@@ -1,6 +1,8 @@
 use ratatui::style::{Color, Modifier, Style};
 use unicode_width::UnicodeWidthStr;
 
+use crate::dashboard::ui::screens::cluster::worker::CpuViewMode;
+
 const GREEN_THRESHOLD: f64 = 0.5;
 const YELLOW_THRESHOLD: f64 = 0.7;
 
@@ -30,15 +32,29 @@ pub fn get_progress_bar_color(progress: f64) -> Style {
     }
 }
 
-pub fn get_progress_bar_cpu_color(progress: f64, used: bool) -> Style {
-    let color = if !used {
-        Color::Gray
-    } else if progress <= GREEN_THRESHOLD {
-        Color::Green
-    } else if progress <= YELLOW_THRESHOLD {
-        Color::Yellow
-    } else {
-        Color::Red
+pub fn get_cpu_progress_bar_color(
+    progress: f64,
+    used: bool,
+    util_render_mode: &CpuViewMode,
+) -> Style {
+    let color = match util_render_mode {
+        CpuViewMode::Global | CpuViewMode::WorkerAssigned => {
+            if progress <= GREEN_THRESHOLD {
+                Color::Green
+            } else if progress <= YELLOW_THRESHOLD {
+                Color::Yellow
+            } else {
+                Color::Red
+            }
+        }
+        CpuViewMode::WorkerManaged => match (progress, used) {
+            (progress, true) if progress <= GREEN_THRESHOLD => Color::Green,
+            (progress, true) if progress <= YELLOW_THRESHOLD => Color::Yellow,
+            (_, true) => Color::Red,
+            (progress, false) if progress <= GREEN_THRESHOLD => Color::LightBlue,
+            (progress, false) if progress <= YELLOW_THRESHOLD => Color::Cyan,
+            (_, false) => Color::Magenta,
+        },
     };
 
     Style {
