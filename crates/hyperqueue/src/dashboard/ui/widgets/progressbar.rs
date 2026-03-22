@@ -1,7 +1,7 @@
 use ratatui::style::{Color, Modifier, Style};
 use unicode_width::UnicodeWidthStr;
 
-use crate::dashboard::ui::screens::cluster::worker::CpuViewMode;
+use crate::dashboard::ui::screens::cluster::worker::cpu_util_table::CpuViewMode;
 
 const GREEN_THRESHOLD: f64 = 0.5;
 const YELLOW_THRESHOLD: f64 = 0.7;
