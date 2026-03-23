@@ -4,6 +4,17 @@
 
 * `min-utilization` now considers only CPUs, not other resources
 
+### New features
+
+* Complete rewrite of the main server scheduler, now based on MILP. This includes major rewrite of worker scheduler. It brings the following new features:
+  * Better resource allocation in complex situations
+  * Better handling resource variants
+  * Correctly solves priorities
+  * Better scheduler decisions in situations when single node & multi node tasks are mixed
+  * Better handling of situations when a worker cannot run a task because of strict resource requests of resource fragmentation
+  * Reduced the number of messages between server/worker when there are many tasks of the same resource requests
+  * Non-delayed reaction when a pre-assigned tasks cannot be run because of time request
+
 ## v0.25.1
 
 ### Fixes
