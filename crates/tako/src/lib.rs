@@ -38,10 +38,10 @@ pub mod resources {
         ResourceDescriptorCoupling, ResourceDescriptorCouplingItem, ResourceDescriptorItem,
         ResourceDescriptorKind, ResourceFractions, ResourceGroupIdx, ResourceIndex, ResourceLabel,
         ResourceRequest, ResourceRequestEntries, ResourceRequestVariants, ResourceRqId,
-        ResourceRqMap, ResourceUnits, TimeRequest,
+        ResourceUnits, TimeRequest,
     };
 
-    pub use crate::internal::common::resources::map::ResourceIdMap;
+    pub use crate::internal::common::resources::map::{ResourceIdMap, ResourceRqMap};
 
     pub use crate::internal::common::resources::descriptor::DescriptorError;
 

@@ -269,7 +269,7 @@ async fn worker_rpc_loop(
     let mut core = core_ref.get_mut();
     let mut comm = comm_ref.get_mut();
     let reason = core
-        .get_worker_by_id_or_panic(worker_id)
+        .get_worker(worker_id)
         .stop_reason
         .map(|(r, _)| r)
         .unwrap_or(reason);
@@ -299,7 +299,7 @@ pub(crate) async fn worker_receive_loop<
                 on_retract_response(&mut core, &mut *comm, worker_id, &msg.retracted);
             }
             FromWorkerMessage::Heartbeat => {
-                if let Some(worker) = core.get_worker_mut(worker_id) {
+                if let Some(worker) = core.find_worker_mut(worker_id) {
                     log::trace!("Heartbeat received, worker={worker_id}");
                     worker.last_heartbeat = Instant::now();
                 };

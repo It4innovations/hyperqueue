@@ -122,12 +122,7 @@ fn test_schedule_mn_simple() {
 
     assert!(!rt.task_exists(t3));
     for w in ws3 {
-        assert!(
-            rt.core()
-                .get_worker_by_id_or_panic(w)
-                .mn_assignment()
-                .is_none()
-        );
+        assert!(rt.core().get_worker(w).mn_assignment().is_none());
     }
 
     let mut comm = rt.schedule();

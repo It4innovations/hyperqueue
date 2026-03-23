@@ -39,7 +39,7 @@ pub(crate) struct CoreSplit<'a> {
 }
 
 #[derive(Default)]
-pub struct Core {
+pub(crate) struct Core {
     tasks: TaskMap,
     workers: WorkerMap,
     resource_map: GlobalResourceMapping,
@@ -109,12 +109,12 @@ impl Core {
         }
     }
 
-    pub fn new_worker_id(&mut self) -> WorkerId {
+    pub(crate) fn new_worker_id(&mut self) -> WorkerId {
         self.worker_id_counter += 1;
         WorkerId::new(self.worker_id_counter)
     }
 
-    pub fn worker_counter(&self) -> u32 {
+    pub(crate) fn worker_counter(&self) -> u32 {
         self.worker_id_counter
     }
 
@@ -175,26 +175,22 @@ impl Core {
     }
 
     #[inline]
-    pub fn get_worker_by_id(&self, id: WorkerId) -> Option<&Worker> {
-        self.workers.get(&id)
-    }
-
-    #[inline]
-    pub fn get_worker_by_id_or_panic(&self, id: WorkerId) -> &Worker {
+    pub fn get_worker(&self, id: WorkerId) -> &Worker {
         self.workers.get(&id).unwrap_or_else(|| {
             panic!("Asking for invalid worker id={id}");
         })
     }
 
     #[inline]
-    pub fn get_worker_mut_by_id_or_panic(&mut self, id: WorkerId) -> &mut Worker {
+    #[cfg(test)]
+    pub fn get_worker_mut(&mut self, id: WorkerId) -> &mut Worker {
         self.workers.get_mut(&id).unwrap_or_else(|| {
             panic!("Asking for invalid worker id={id}");
         })
     }
 
     #[inline]
-    pub fn get_worker_mut(&mut self, id: WorkerId) -> Option<&mut Worker> {
+    pub fn find_worker_mut(&mut self, id: WorkerId) -> Option<&mut Worker> {
         self.workers.get_mut(&id)
     }
 
@@ -204,18 +200,8 @@ impl Core {
     }
 
     #[inline]
-    pub fn get_workers_mut(&mut self) -> impl Iterator<Item = &mut Worker> {
-        self.workers.values_mut()
-    }
-
-    #[inline]
     pub fn get_worker_map(&self) -> &WorkerMap {
         &self.workers
-    }
-
-    #[inline]
-    pub fn has_workers(&self) -> bool {
-        !self.workers.is_empty()
     }
 
     pub fn add_task(&mut self, task: Task, retracted: &mut Vec<TaskId>) {
@@ -258,11 +244,6 @@ impl Core {
     #[inline]
     pub fn task_map(&self) -> &TaskMap {
         &self.tasks
-    }
-
-    #[inline]
-    pub fn task_map_mut(&mut self) -> &mut TaskMap {
-        &mut self.tasks
     }
 
     #[inline]
@@ -453,13 +434,6 @@ impl Core {
         self.resource_map.get_or_create_resource_id(name)
     }
 
-    pub fn convert_client_resource_rq(
-        &mut self,
-        resources: &crate::gateway::ResourceRequestVariants,
-    ) -> ResourceRequestVariants {
-        self.resource_map.convert_client_resource_rq(resources)
-    }
-
     #[inline]
     pub fn resource_map(&self) -> &GlobalResourceMapping {
         &self.resource_map
@@ -511,13 +485,10 @@ impl Core {
 mod tests {
     use crate::internal::server::core::Core;
     use crate::internal::server::task::Task;
-    
-    use crate::internal::server::worker::Worker;
+
     use crate::internal::server::workergroup::WorkerGroup;
 
-    
-
-    use crate::{TaskId, WorkerId};
+    use crate::TaskId;
 
     impl Core {
         pub fn worker_group(&self, group_name: &str) -> Option<&WorkerGroup> {
@@ -528,18 +499,6 @@ mod tests {
             for task_id in task_ids {
                 if !op(self.get_task(*task_id)) {
                     panic!("Task {task_id} does not satisfy the condition");
-                }
-            }
-        }
-
-        pub fn assert_worker_condition<F: Fn(&Worker) -> bool>(
-            &self,
-            worker_ids: &[WorkerId],
-            op: F,
-        ) {
-            for worker_id in worker_ids {
-                if !op(self.get_worker_by_id_or_panic(*worker_id)) {
-                    panic!("Worker {worker_id} does not satisfy the condition");
                 }
             }
         }

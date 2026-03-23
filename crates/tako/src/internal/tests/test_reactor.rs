@@ -523,12 +523,7 @@ fn test_task_mn_fail() {
     comm.emptiness_check();
     assert!(rt.core().find_task(1.into()).is_none());
     for w in &ws {
-        assert!(
-            rt.core()
-                .get_worker_by_id_or_panic((*w).into())
-                .mn_assignment()
-                .is_none()
-        );
+        assert!(rt.core().get_worker((*w).into()).mn_assignment().is_none());
     }
 }
 
@@ -645,7 +640,7 @@ fn lost_worker_with_running_and_assign_tasks() {
 }
 
 fn check_worker_tasks_exact(core: &Core, worker_id: WorkerId, tasks: &[TaskId]) {
-    let worker = core.get_worker_by_id_or_panic(worker_id.into());
+    let worker = core.get_worker(worker_id.into());
     let sn = worker.sn_assignment().unwrap();
     assert_eq!(sn.assign_tasks.len(), tasks.len());
     for task in tasks {
@@ -654,7 +649,7 @@ fn check_worker_tasks_exact(core: &Core, worker_id: WorkerId, tasks: &[TaskId]) 
 }
 
 fn worker_has_task(core: &Core, worker_id: WorkerId, task_id: TaskId) -> bool {
-    core.get_worker_by_id_or_panic(worker_id.into())
+    core.get_worker(worker_id.into())
         .sn_assignment()
         .unwrap()
         .assign_tasks

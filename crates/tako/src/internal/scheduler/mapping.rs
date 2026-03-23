@@ -8,14 +8,14 @@ use std::cmp::Reverse;
 
 #[derive(Debug, Default)]
 #[cfg_attr(test, derive(Clone, PartialEq, PartialOrd, Eq, Ord))]
-pub struct WorkerTaskUpdate {
+pub(crate) struct WorkerTaskUpdate {
     pub(crate) assigned: Vec<(TaskId, ResourceVariantId)>,
     pub(crate) prefills: Vec<TaskId>,
     pub(crate) retracts: Vec<TaskId>,
 }
 
 #[derive(Debug, Default)]
-pub struct WorkerTaskMapping {
+pub(crate) struct WorkerTaskMapping {
     pub(crate) workers: Map<WorkerId, WorkerTaskUpdate>,
     pub(crate) mn_tasks_to_workers: Vec<TaskId>,
 }

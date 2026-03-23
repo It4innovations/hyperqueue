@@ -8,7 +8,7 @@ use crate::tests::utils::worker::WorkerBuilder;
 use crate::{ResourceVariantId, TaskId, WorkerId};
 use tokio::sync::oneshot::Receiver;
 
-pub struct WorkerTestEnv {
+pub(crate) struct WorkerTestEnv {
     state: WorkerStateRef,
 }
 
@@ -27,7 +27,6 @@ impl WorkerTestEnv {
             WorkerComm::new_test_comm(),
             WorkerId::from(100),
             config,
-            None,
             resource_map,
             ResourceRqMap::default(),
             Box::new(TestLauncher),
