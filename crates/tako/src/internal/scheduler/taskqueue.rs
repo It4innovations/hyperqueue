@@ -7,9 +7,11 @@ use std::collections::btree_map::{Entry, OccupiedEntry};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug)]
+/// Do not allocate BTreeSet if there is just one task (per priority level)
+/// There may be a many tasks but each with different priority
 pub(crate) enum OneOrMoreTaskIds {
     One(TaskId),
-    More(Box<BTreeSet<TaskId>>),
+    More(BTreeSet<TaskId>),
 }
 
 impl OneOrMoreTaskIds {
@@ -159,7 +161,7 @@ impl TaskQueue {
                     let mut task_ids: BTreeSet<_> = Default::default();
                     task_ids.insert(*t_id);
                     task_ids.insert(task_id);
-                    e.insert(OneOrMoreTaskIds::More(Box::new(task_ids)));
+                    e.insert(OneOrMoreTaskIds::More(task_ids));
                 }
                 OneOrMoreTaskIds::More(tasks) => {
                     tasks.insert(task_id);
@@ -174,16 +176,14 @@ impl TaskQueue {
         }
         match self.queue.entry(Reverse(priority)) {
             Entry::Vacant(e) => {
-                e.insert(OneOrMoreTaskIds::More(Box::new(
-                    task_ids.iter().copied().collect(),
-                )));
+                e.insert(OneOrMoreTaskIds::More(task_ids.iter().copied().collect()));
             }
             Entry::Occupied(mut e) => match e.get_mut() {
                 OneOrMoreTaskIds::One(t_id) => {
                     let mut new_ids: BTreeSet<_> = Default::default();
                     new_ids.insert(*t_id);
                     new_ids.extend(task_ids.iter().copied());
-                    e.insert(OneOrMoreTaskIds::More(Box::new(new_ids)));
+                    e.insert(OneOrMoreTaskIds::More(new_ids));
                 }
                 OneOrMoreTaskIds::More(tasks) => {
                     tasks.extend(task_ids.iter().copied());
@@ -355,9 +355,7 @@ impl TaskQueue {
     }
 
     pub fn take_one(&mut self) -> Option<TaskId> {
-        let Some(mut entry) = self.queue.first_entry() else {
-            return None;
-        };
+        let mut entry = self.queue.first_entry()?;
         match entry.get_mut() {
             OneOrMoreTaskIds::One(x) => {
                 let r = *x;

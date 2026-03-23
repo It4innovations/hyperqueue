@@ -132,16 +132,14 @@ impl WorkerResources {
                         .unwrap_or(ResourceAmount::ZERO)
                         .div(requested)
                         .min(MAX_TASK_PER_WORKER) as u32
+                } else if self
+                    .n_resources
+                    .get(e.resource_id)
+                    .is_none_or(|r| r.is_zero())
+                {
+                    0
                 } else {
-                    if self
-                        .n_resources
-                        .get(e.resource_id)
-                        .is_none_or(|r| r.is_zero())
-                    {
-                        0
-                    } else {
-                        1
-                    }
+                    1
                 }
             })
             .min()
