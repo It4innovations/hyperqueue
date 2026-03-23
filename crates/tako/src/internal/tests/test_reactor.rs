@@ -1,9 +1,8 @@
 use crate::gateway::LostWorkerReason;
 use crate::internal::common::resources::ResourceDescriptor;
 use crate::internal::messages::common::TaskFailInfo;
-use crate::internal::messages::worker::FromWorkerMessage::TaskUpdate;
 use crate::internal::messages::worker::{
-    ComputeTasksMsg, NewWorkerMsg, TaskIdsMsg, TaskUpdates, ToWorkerMessage, WorkerTaskUpdate,
+    ComputeTasksMsg, NewWorkerMsg, TaskIdsMsg, ToWorkerMessage, WorkerTaskUpdate,
 };
 use crate::internal::scheduler::SchedulerConfig;
 use crate::internal::server::core::Core;

@@ -1,19 +1,15 @@
 use crate::internal::common::resources::descriptor::{ResourceDescriptor, ResourceDescriptorKind};
-use crate::internal::common::resources::{Allocation, ResourceId, ResourceRequestVariants};
+use crate::internal::common::resources::{Allocation, ResourceId};
 use crate::internal::tests::utils::resources::{ResBuilder, cpus_compact};
 use crate::internal::tests::utils::shared::res_allocator_from_descriptor;
 use crate::internal::tests::utils::sorted_vec;
-use crate::internal::worker::resources::allocator::{AllocatorStaticInfo, ResourceAllocator};
+use crate::internal::worker::resources::allocator::ResourceAllocator;
 use crate::internal::worker::resources::concise::{ConciseFreeResources, ConciseResourceState};
-use crate::internal::worker::resources::pool::ResourcePool;
 use crate::resources::{
     AllocationRequest, ResourceAmount, ResourceDescriptorCoupling, ResourceDescriptorItem,
     ResourceIndex, ResourceUnits,
 };
-use std::cell::RefCell;
 
-use std::rc::Rc;
-use std::time::Duration;
 
 impl ResourceAllocator {
     pub fn get_sockets(&self, allocation: &Allocation, idx: u32) -> Vec<usize> {

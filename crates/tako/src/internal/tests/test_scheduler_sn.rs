@@ -3,12 +3,11 @@ use crate::internal::scheduler::{PriorityCut, SchedulerConfig, create_task_batch
 use crate::internal::server::reactor::on_retract_response;
 use crate::internal::server::task::TaskRuntimeState;
 use crate::internal::tests::utils::scheduler::TestCase;
-use crate::internal::worker::comm::WorkerComm::Test;
 use crate::resources::ResourceRqId;
 use crate::tests::utils::env::{TestComm, TestEnv};
 use crate::tests::utils::task::TaskBuilder;
 use crate::tests::utils::worker::WorkerBuilder;
-use crate::{Priority, ResourceVariantId, TaskId, WorkerId};
+use crate::{ResourceVariantId, WorkerId};
 use std::time::Duration;
 
 #[test]
@@ -28,10 +27,10 @@ fn test_task_grouping_basic() {
     assert_eq!(a[0].size, 1);
     assert!(!a[0].limit_reached);
 
-    let t2 = rt.new_task(&TaskBuilder::new().user_priority(20));
-    let t3 = rt.new_task(&TaskBuilder::new().user_priority(5));
-    let t4 = rt.new_task(&TaskBuilder::new().user_priority(123));
-    let t5 = rt.new_task(&TaskBuilder::new().user_priority(20));
+    let _t2 = rt.new_task(&TaskBuilder::new().user_priority(20));
+    let _t3 = rt.new_task(&TaskBuilder::new().user_priority(5));
+    let _t4 = rt.new_task(&TaskBuilder::new().user_priority(123));
+    let _t5 = rt.new_task(&TaskBuilder::new().user_priority(20));
 
     let a = create_task_batches(rt.core(), now, None);
     assert_eq!(a.len(), 1);
@@ -43,8 +42,8 @@ fn test_task_grouping_basic() {
 
     let t6 = rt.new_task(&TaskBuilder::new().cpus(2).user_priority(123));
     let t7 = rt.new_task(&TaskBuilder::new().cpus(123).user_priority(123));
-    let t8 = rt.new_task(&TaskBuilder::new().cpus(2).user_priority(123));
-    let t9 = rt.new_task(&TaskBuilder::new().cpus(2).user_priority(123));
+    let _t8 = rt.new_task(&TaskBuilder::new().cpus(2).user_priority(123));
+    let _t9 = rt.new_task(&TaskBuilder::new().cpus(2).user_priority(123));
 
     // Subitted tasks:
     // 1 cpus: 123 123 20 20 5
@@ -91,12 +90,12 @@ fn test_task_grouping_blocker() {
 fn test_task_group_saturation() {
     let mut rt = TestEnv::new();
     rt.new_workers_cpus(&[5, 5, 5]);
-    let t1 = rt.new_task(&TaskBuilder::new().cpus(4).user_priority(2));
-    let t2 = rt.new_task(&TaskBuilder::new().cpus(4).user_priority(2));
-    let t3 = rt.new_task(&TaskBuilder::new().cpus(4).user_priority(4));
-    let t4 = rt.new_task(&TaskBuilder::new().cpus(4).user_priority(4));
-    let t5 = rt.new_task(&TaskBuilder::new().cpus(4).user_priority(6));
-    let t6 = rt.new_task(&TaskBuilder::new().cpus(4).user_priority(6));
+    let _t1 = rt.new_task(&TaskBuilder::new().cpus(4).user_priority(2));
+    let _t2 = rt.new_task(&TaskBuilder::new().cpus(4).user_priority(2));
+    let _t3 = rt.new_task(&TaskBuilder::new().cpus(4).user_priority(4));
+    let _t4 = rt.new_task(&TaskBuilder::new().cpus(4).user_priority(4));
+    let _t5 = rt.new_task(&TaskBuilder::new().cpus(4).user_priority(6));
+    let _t6 = rt.new_task(&TaskBuilder::new().cpus(4).user_priority(6));
     let now = std::time::Instant::now();
     let a = create_task_batches(rt.core(), now, None);
     assert_eq!(a.len(), 1);
@@ -104,8 +103,8 @@ fn test_task_group_saturation() {
     assert!(a[0].limit_reached);
     assert!(a[0].cuts.is_empty());
 
-    let t10 = rt.new_task(&TaskBuilder::new().cpus(1).user_priority(5));
-    let t11 = rt.new_task(&TaskBuilder::new().cpus(1).user_priority(0));
+    let _t10 = rt.new_task(&TaskBuilder::new().cpus(1).user_priority(5));
+    let _t11 = rt.new_task(&TaskBuilder::new().cpus(1).user_priority(0));
 
     let a = create_task_batches(rt.core(), now, None);
     assert_eq!(a.len(), 2);
@@ -399,7 +398,7 @@ fn test_priority_switching() {
         rt.new_tasks(5, &ta.clone().user_priority(4));
         rt.new_tasks(1, &tb.clone().user_priority(3));
         rt.schedule();
-        let mut counts = assigned_counts(&mut rt);
+        let counts = assigned_counts(&mut rt);
         assert_eq!(counts[0], count_a);
         assert_eq!(counts[1], count_b);
     }
@@ -606,7 +605,7 @@ fn test_schedule_reservation4() {
 #[test]
 fn test_schedule_reservation5() {
     let mut c = TestCase::new();
-    let ts = c.pc_tasks(&[(4, 3), (3, 3), (3, 3), (2, 1), (2, 1)]);
+    let _ts = c.pc_tasks(&[(4, 3), (3, 3), (3, 3), (2, 1), (2, 1)]);
     c.w(&WorkerBuilder::new(3))
         .running_c(2)
         .expect_request(1, &TaskBuilder::new());
@@ -651,7 +650,7 @@ fn test_schedule_multiple_resources1() {
     c.check();
 
     let mut c = create();
-    let t1 = c.t(&tb1_2);
+    let _t1 = c.t(&tb1_2);
     c.w(&w4_1).expect_tasks(&[]);
     c.check();
 

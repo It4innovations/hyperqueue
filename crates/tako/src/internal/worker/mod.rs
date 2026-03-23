@@ -13,5 +13,3 @@ pub(crate) mod localcomm;
 
 pub mod localclient;
 pub mod notifications;
-#[cfg(test)]
-mod test_util;

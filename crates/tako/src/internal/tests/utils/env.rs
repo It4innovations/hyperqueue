@@ -3,14 +3,12 @@ use crate::gateway::LostWorkerReason;
 use crate::internal::common::Map;
 use crate::internal::common::index::ItemId;
 use crate::internal::common::resources::ResourceId;
-use crate::internal::common::utils::format_comma_delimited;
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{
     TaskRunningMsg, ToWorkerMessage, WorkerOverview, WorkerTaskUpdate,
 };
 use crate::internal::scheduler::{
-    SchedulerConfig, TaskBatch, WorkerTaskMapping, create_task_batches, create_task_mapping,
-    run_scheduling, run_scheduling_inner, run_scheduling_solver,
+    SchedulerConfig, WorkerTaskMapping, create_task_batches, create_task_mapping, run_scheduling_inner, run_scheduling_solver,
 };
 use crate::internal::server::comm::Comm;
 use crate::internal::server::core::{Core, CoreSplitMut};
@@ -21,9 +19,8 @@ use crate::internal::server::worker::Worker;
 use crate::internal::tests::utils;
 use crate::internal::tests::utils::task::TaskBuilder;
 use crate::internal::transfer::auth::{deserialize, serialize};
-use crate::resources::{ResourceAmount, ResourceUnits};
+use crate::resources::ResourceUnits;
 use crate::task::SerializedTaskContext;
-use crate::tests::utils::task::task_running_msg;
 use crate::tests::utils::worker::WorkerBuilder;
 use crate::worker::WorkerConfiguration;
 use crate::{InstanceId, JobId, JobTaskId, ResourceVariantId, Set, TaskId, WorkerId};

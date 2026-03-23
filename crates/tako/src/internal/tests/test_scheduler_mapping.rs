@@ -1,7 +1,5 @@
-use crate::ResourceVariantId;
 use crate::internal::server::task::TaskRuntimeState;
-use crate::tests::utils::env::{TestComm, TestEnv};
-use crate::tests::utils::scheduler::TestCase;
+use crate::tests::utils::env::TestEnv;
 use crate::tests::utils::task::TaskBuilder;
 use crate::tests::utils::worker::WorkerBuilder;
 
@@ -41,7 +39,7 @@ fn test_schedule_mapping_do_not_change() {
     assert!(m.workers.is_empty());
 
     let _w3 = rt.new_worker_cpus(6);
-    let t2 = rt.new_task(&TaskBuilder::new().cpus(4).add_resource(1, 2));
+    let _t2 = rt.new_task(&TaskBuilder::new().cpus(4).add_resource(1, 2));
     let m = rt.schedule_mapping();
     assert!(m.workers.is_empty());
 }

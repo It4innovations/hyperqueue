@@ -1,12 +1,10 @@
 use crate::internal::messages::worker::ComputeTasksMsg;
 use crate::internal::worker::comm::WorkerComm;
-use crate::internal::worker::state::{WorkerState, WorkerStateRef};
+use crate::internal::worker::state::WorkerStateRef;
 use crate::launcher::{StopReason, TaskBuildContext, TaskLaunchData, TaskLauncher, TaskResult};
 use crate::resources::{ResourceIdMap, ResourceRqMap};
-use crate::tests::utils::env::TestComm;
 use crate::tests::utils::task::TaskBuilder;
 use crate::tests::utils::worker::WorkerBuilder;
-use crate::tests::utils::worker_comm::TestWorkerComm;
 use crate::{ResourceVariantId, TaskId, WorkerId};
 use tokio::sync::oneshot::Receiver;
 

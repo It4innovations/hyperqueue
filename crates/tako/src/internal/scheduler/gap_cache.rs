@@ -160,11 +160,11 @@ fn compute_gap(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::internal::server::workerload::WorkerResources;
-    use crate::resources::ResourceRequestVariants;
+    
+    
     use crate::tests::utils::env::TestEnv;
     use crate::tests::utils::resources::ResBuilder;
-    use crate::tests::utils::task::TaskBuilder;
+    
     use crate::tests::utils::worker::WorkerBuilder;
 
     #[test]

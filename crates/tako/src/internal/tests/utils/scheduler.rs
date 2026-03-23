@@ -1,11 +1,9 @@
-use crate::gateway::ResourceRequest;
-use crate::internal::common::resources::ResourceVec;
-use crate::internal::scheduler::{PriorityCut, TaskBatch, WorkerTaskMapping, create_task_batches};
-use crate::resources::{ResourceAmount, ResourceRqId, ResourceRqMap};
+use crate::internal::scheduler::WorkerTaskMapping;
+use crate::resources::ResourceRqId;
 use crate::tests::utils::env::TestEnv;
 use crate::tests::utils::task::TaskBuilder;
 use crate::tests::utils::worker::WorkerBuilder;
-use crate::{Map, Priority, ResourceVariantId, Set, TaskGroup, TaskId, WorkerId, WrappedRcRefCell};
+use crate::{Map, ResourceVariantId, Set, TaskId, WorkerId, WrappedRcRefCell};
 
 type TestEnvRef = WrappedRcRefCell<TestEnv>;
 
@@ -111,7 +109,6 @@ enum ExpectWorkerState {
     Empty,
     TaskIds(Vec<(TaskId, ResourceVariantId)>),
     RequestIds(Map<(ResourceRqId, ResourceVariantId), u32>),
-    Any,
 }
 
 pub(crate) struct TestWorker {
@@ -158,11 +155,6 @@ impl TestWorker {
         self.expect_request_v(count, builder, 0)
     }
 
-    pub fn expect_anything(&mut self) -> &mut Self {
-        self.expect = ExpectWorkerState::Any;
-        self
-    }
-
     pub fn expect_request_v(
         &mut self,
         count: u32,
@@ -205,7 +197,6 @@ impl TestWorker {
                     );
                 }
             }
-            ExpectWorkerState::Any => { /* Do not check anything */ }
         }
     }
 
