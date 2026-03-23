@@ -38,7 +38,6 @@ fn create_task_submit(
             task_desc,
             resource_rq,
         } => {
-            //let rqv = grm.convert_client_resource_rq(resource_rq);
             let resource_rq_id = server_ref.get_or_create_resource_rq_id(resource_rq);
             build_tasks_array(
                 job_id,

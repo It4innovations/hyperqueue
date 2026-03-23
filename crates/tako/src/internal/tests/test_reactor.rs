@@ -144,8 +144,6 @@ fn test_worker_add() {
 #[test]
 fn test_scheduler_priority() {
     let mut rt = TestEnv::new();
-    //new_workers(&mut core, &mut comm, vec![1]);
-
     let t = TaskBuilder::new();
 
     let t1 = rt.new_task(&t);

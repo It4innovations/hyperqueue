@@ -179,11 +179,9 @@ pub async fn run_worker(
         Some(d) => Either::Right(tokio::time::sleep(d)),
     };
     let future = async move {
-        //let try_start_tasks = task_starter_process(state_ref.clone(), start_task_notify);
         let send_loop = forward_queue_to_sealed_sink(queue_receiver, sender, sealer);
         tokio::pin! {
             let send_loop = send_loop;
-            //let try_start_tasks = try_start_tasks;
         }
 
         let result: crate::Result<Option<FromWorkerMessage>> = tokio::select! {
@@ -203,7 +201,6 @@ pub async fn run_worker(
                 log::info!("Worker received an external stop notification");
                 Ok(Some(FromWorkerMessage::Stop(WorkerStopReason::Interrupted)))
             }
-            //_ = &mut try_start_tasks => { unreachable!() }
             _ = heartbeat_fut => { unreachable!() }
             _ = overview_fut => { unreachable!() }
             _ = local_comm_fut => { unreachable!() }
@@ -227,7 +224,6 @@ pub async fn run_worker(
             Err(e) => {
                 // Server has disconnected
                 tokio::select! {
-                    //_ = &mut try_start_tasks => { unreachable!() }
                     r = finish_tasks_on_server_lost(state_ref.clone()) => r
                 }
                 Err(e)

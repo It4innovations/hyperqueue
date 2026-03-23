@@ -37,7 +37,6 @@ pub struct WorkerState {
     /// If `Some`, forcefully overrides `configuration.overview_configuration.send_interval`.
     pub(crate) worker_overview_interval_override: Option<Duration>,
     pub(crate) task_launcher: Box<dyn TaskLauncher>,
-    //pub(crate) secret_key: Option<Arc<SecretKey>>,
     pub(crate) start_time: Instant,
 
     pub(crate) lc_state: RefCell<LocalCommState>,
@@ -252,7 +251,6 @@ impl WorkerStateRef {
         let resource_label_map = ResourceLabelMap::new(&configuration.resources, &resource_map);
         let allocator =
             ResourceAllocator::new(&configuration.resources, &resource_map, &resource_label_map);
-        //let ready_task_queue = ResourceWaitQueue::new(allocator);
         let now = Instant::now();
 
         let state = Self::wrap(WorkerState {

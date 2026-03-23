@@ -30,7 +30,6 @@ pub enum FromClientMessage {
     /// It is basically as sending Submit and StreamEvents, but it is done atomically,
     /// so no message is lost.
     Submit(SubmitRequest, Option<StreamEvents>),
-    //GetResourceRqId(Vec<ResourceRequestVariants>),
     Cancel(CancelRequest),
     ForgetJob(ForgetJobRequest),
     JobDetail(JobDetailRequest),

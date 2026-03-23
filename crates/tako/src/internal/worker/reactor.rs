@@ -116,18 +116,6 @@ fn try_start_task(
         return Some(allocation);
     }
 
-    // let Some(allocation) = state.allocator.try_allocate(&rq) else {
-    //     // Soft reject, we remember rejection as we unblock in the future
-    //     state
-    //         .blocked_requests
-    //         .insert((task.resource_rq_id, resource_rq_variant));
-    //     task_updates.push(WorkerTaskUpdate::RejectRequest {
-    //         task_id: task.id,
-    //         resource_rq_variant,
-    //     });
-    //     return Some(allocation);
-    // };
-
     match launch_task(state, &task, rv_id, &allocation) {
         Ok((task_comm, task_context)) => {
             let msg = TaskRunningMsg {
@@ -198,7 +186,6 @@ fn launch_task(
             log::debug!("Task initialization failed id={task_id}, error={error:?}");
             state.lc_state.borrow_mut().unregister_token(&token);
             Err(error)
-            //state.finish_task_failed(task_id, TaskFailInfo::from_string(error.to_string()));
         }
     }
 }

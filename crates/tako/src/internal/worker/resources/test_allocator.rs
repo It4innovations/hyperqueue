@@ -10,7 +10,6 @@ use crate::resources::{
     ResourceIndex, ResourceUnits,
 };
 
-
 impl ResourceAllocator {
     pub fn get_sockets(&self, allocation: &Allocation, idx: u32) -> Vec<usize> {
         let idx = ResourceId::new(idx);
@@ -1071,21 +1070,3 @@ fn test_tight_scattering() {
     assert_eq!(r1[4].group_idx, r1[5].group_idx);
     assert_ne!(r1[0].group_idx, r1[4].group_idx);
 }
-
-// #[test]
-// fn test_coupling_tight() {
-//     for coupled in [true, false] {
-//         let descriptor = descriptor_cpus_gpus(3, 4, 2, coupled);
-//         let mut allocator = test_allocator(&descriptor);
-//
-//         allocator.force_claim_from_groups(0.into(), &[0], 4.into());
-//         allocator.force_claim_from_groups(1.into(), &[1, 2], 4.into());
-//
-//         let rq = ResBuilder::default()
-//             .add_force_compact(0, ResourceAmount::new_units(1))
-//             .add_force_compact(1, ResourceAmount::new_units(1))
-//             .finish_v();
-//         let al = allocator.try_allocate(&rq);
-//         assert_eq!(al.is_none(), coupled);
-//     }
-// }
