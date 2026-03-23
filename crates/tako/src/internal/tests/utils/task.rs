@@ -1,6 +1,5 @@
 use super::resources::ResBuilder;
 use crate::gateway::CrashLimit;
-use crate::internal::common::resources::map::GlobalResourceMapping;
 use crate::internal::common::resources::{
     NumOfNodes, ResourceAmount, ResourceId, ResourceRequestVariants,
 };
@@ -10,13 +9,12 @@ use crate::internal::messages::worker::{
 use crate::internal::server::core::Core;
 use crate::internal::server::reactor::get_or_create_raw_resource_rq_id;
 use crate::internal::server::task::{Task, TaskConfiguration};
-use crate::resources::{ResourceIdMap, ResourceRequest, ResourceRqId, ResourceRqMap};
+use crate::resources::{ResourceRequest, ResourceRqId, ResourceRqMap};
 use crate::tests::utils::env::TestComm;
 use crate::{Priority, ResourceVariantId, Set, TaskId, UserPriority};
 use smallvec::SmallVec;
 use std::rc::Rc;
 use std::time::Duration;
-use thin_vec::ThinVec;
 
 #[derive(Clone)]
 pub struct TaskBuilder {

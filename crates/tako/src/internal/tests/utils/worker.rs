@@ -36,7 +36,7 @@ impl WorkerBuilder {
         self
     }
 
-    pub fn time_limit_s(mut self, duration: u64) -> Self {
+    pub fn time_limit_s(self, duration: u64) -> Self {
         self.time_limit(Duration::from_secs(duration))
     }
 

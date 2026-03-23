@@ -2,10 +2,8 @@ use crate::WorkerId;
 use crate::internal::messages::worker::ToWorkerMessage;
 use crate::internal::scheduler::create_task_batches;
 use crate::internal::server::task::Task;
-use crate::resources::ResourceAmount;
 use crate::tests::utils::env::{TestComm, TestEnv};
 use crate::tests::utils::resources::ResBuilder;
-use crate::tests::utils::scheduler::TestCase;
 use crate::tests::utils::task::TaskBuilder;
 use crate::tests::utils::worker::WorkerBuilder;
 use std::time::Duration;
@@ -75,7 +73,7 @@ fn test_mn_task_batches1() {
 fn test_mn_task_batches2() {
     let mut rt = TestEnv::new();
     let now = std::time::Instant::now();
-    let ws = rt.new_workers_cpus(&[1, 1, 1]);
+    let _ws = rt.new_workers_cpus(&[1, 1, 1]);
 
     rt.new_task(&TaskBuilder::new().user_priority(0).n_nodes(3));
     rt.new_task(&TaskBuilder::new().user_priority(5).n_nodes(2));
