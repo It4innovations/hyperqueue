@@ -49,13 +49,5 @@ derive_more = { version = "2", features = ["add", "add_assign", "sum"] }
 env_logger = { workspace = true }
 criterion = { workspace = true }
 
-[[bench]]
-name = "benchmark"
-harness = false
-
-# Workaround for Criterion (https://bheisler.github.io/criterion.rs/book/faq.html#cargo-bench-gives-unrecognized-option-errors-for-valid-command-line-options)
-[lib]
-bench = false
-
 [lints]
 workspace = true
