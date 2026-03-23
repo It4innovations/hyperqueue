@@ -35,12 +35,7 @@ pub(crate) fn compute_new_worker_query(
             if query.partial {
                 // If query is partial, add a fake maximal resources for resource that was not explicitly defined
                 for name in resource_map.iter_names() {
-                    if resources
-                        .resources
-                        .iter()
-                        .find(|r| r.name == *name)
-                        .is_none()
-                    {
+                    if !resources.resources.iter().any(|r| r.name == *name) {
                         resources.resources.push(ResourceDescriptorItem {
                             name: name.to_string(),
                             kind: ResourceDescriptorKind::Sum {

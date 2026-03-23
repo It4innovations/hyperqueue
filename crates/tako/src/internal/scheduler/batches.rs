@@ -53,10 +53,7 @@ pub(crate) fn create_task_batches(
         ..
     } = core.split_mut();
 
-    let queues: Vec<_> = task_queues
-        .iter()
-        .filter_map(|q| (!q.is_empty()).then_some(q))
-        .collect();
+    let queues: Vec<_> = task_queues.iter().filter(|q| !q.is_empty()).collect();
     if queues.is_empty() {
         return Vec::new();
     }
@@ -212,9 +209,8 @@ fn prune_progressive<T>(vec: &mut Vec<T>, prefix_size: usize, size_limit: usize)
     }
 
     // To prune in-place
-    for i in 0..size_limit {
-        let target_idx = indices[i];
-        vec.swap(i, target_idx);
+    for (i, target_idx) in indices.iter().enumerate().take(size_limit) {
+        vec.swap(i, *target_idx);
     }
 
     vec.truncate(size_limit);

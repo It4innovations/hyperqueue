@@ -127,8 +127,10 @@ impl LpSolver {
                 "{}{}*{}",
                 if i == 0 {
                     ""
+                } else if *weight < 0.0 {
+                    " - "
                 } else {
-                    if *weight < 0.0 { " - " } else { " + " }
+                    " + "
                 },
                 if *weight >= 0.0 || i == 0 {
                     *weight
