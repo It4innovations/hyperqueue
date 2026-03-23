@@ -6,7 +6,6 @@ use crate::internal::messages::worker::{FromWorkerMessage, NewWorkerMsg, WorkerN
 use crate::internal::worker::comm::WorkerComm;
 use crate::internal::worker::configuration::WorkerConfiguration;
 use std::cell::RefCell;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::TaskId;
@@ -15,15 +14,14 @@ use crate::internal::worker::resources::allocator::ResourceAllocator;
 use crate::internal::worker::resources::map::ResourceLabelMap;
 use crate::internal::worker::task::{RunningTask, Task};
 use crate::launcher::TaskLauncher;
-use crate::resources::{ResourceRequest, ResourceRequestVariants};
+use crate::resources::ResourceRequestVariants;
 use crate::{ResourceVariantId, WorkerId};
-use orion::aead::SecretKey;
 
-pub type TaskMap = StableMap<TaskId, RunningTask>;
+pub(crate) type TaskMap = StableMap<TaskId, RunningTask>;
 
-pub type WorkerStateRef = WrappedRcRefCell<WorkerState>;
+pub(crate) type WorkerStateRef = WrappedRcRefCell<WorkerState>;
 
-pub struct WorkerState {
+pub(crate) struct WorkerState {
     comm: WorkerComm,
     pub(crate) allocator: ResourceAllocator,
     pub(crate) blocked_requests: Set<(ResourceRqId, ResourceVariantId)>,
@@ -46,8 +44,6 @@ pub struct WorkerState {
     resource_label_map: ResourceLabelMap,
 
     state_ref: Option<WorkerStateRef>,
-
-    secret_key: Option<Arc<SecretKey>>,
     server_uid: String,
 }
 
@@ -64,15 +60,8 @@ impl WorkerState {
         &self.server_uid
     }
 
-    pub fn secret_key(&self) -> Option<&Arc<SecretKey>> {
-        self.secret_key.as_ref()
-    }
-
-    pub fn allocator(&mut self) -> &mut ResourceAllocator {
-        &mut self.allocator
-    }
-
     #[inline]
+    #[cfg(test)]
     pub fn get_running_task(&self, task_id: TaskId) -> &RunningTask {
         self.running_tasks.get(&task_id)
     }
@@ -107,10 +96,6 @@ impl WorkerState {
             self.comm.notify_worker_is_empty();
         }
         task
-    }
-
-    pub fn get_worker_address(&self, worker_id: WorkerId) -> Option<&String> {
-        self.worker_addresses.get(&worker_id)
     }
 
     pub fn drop_non_running_tasks(&mut self) {
@@ -177,20 +162,6 @@ impl WorkerState {
         (&self.resource_id_map, &self.resource_rq_map)
     }
 
-    #[inline]
-    pub fn get_resource_rq_map(&self) -> &ResourceRqMap {
-        &self.resource_rq_map
-    }
-
-    #[inline]
-    pub fn get_resource_rq(
-        &self,
-        rq_id: ResourceRqId,
-        r_id: ResourceVariantId,
-    ) -> &ResourceRequest {
-        self.resource_rq_map.get(rq_id).get(r_id)
-    }
-
     pub fn get_resource_label_map(&self) -> &ResourceLabelMap {
         &self.resource_label_map
     }
@@ -242,7 +213,6 @@ impl WorkerStateRef {
         comm: WorkerComm,
         worker_id: WorkerId,
         configuration: WorkerConfiguration,
-        secret_key: Option<Arc<SecretKey>>,
         resource_map: ResourceIdMap,
         resource_rq_map: ResourceRqMap,
         task_launcher: Box<dyn TaskLauncher>,
@@ -260,7 +230,6 @@ impl WorkerStateRef {
             worker_overview_interval_override: None,
             task_launcher,
             server_uid,
-            secret_key,
             allocator,
             blocked_requests: Set::new(),
             running_tasks: Default::default(),

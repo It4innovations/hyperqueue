@@ -146,7 +146,6 @@ pub async fn run_worker(
                     comm,
                     worker_id,
                     configuration.clone(),
-                    secret_key.clone(),
                     ResourceIdMap::from_vec(resource_names),
                     resource_rq_map,
                     launcher,

@@ -86,6 +86,7 @@ where
     }
 
     #[inline]
+    #[allow(dead_code)]
     pub fn get<Q>(&self, key: &Q) -> &V
     where
         K: Borrow<Q>,

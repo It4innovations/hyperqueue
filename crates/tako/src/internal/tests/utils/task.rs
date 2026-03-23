@@ -17,7 +17,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 #[derive(Clone)]
-pub struct TaskBuilder {
+pub(crate) struct TaskBuilder {
     task_deps: Set<TaskId>,
     finished_resources: Vec<ResourceRequest>,
     resources_builder: ResBuilder,
@@ -55,11 +55,6 @@ impl TaskBuilder {
         self
     }
 
-    pub fn resources(mut self, resources: ResBuilder) -> TaskBuilder {
-        self.resources_builder = resources;
-        self
-    }
-
     pub fn n_nodes(mut self, count: NumOfNodes) -> TaskBuilder {
         self.resources_builder = self.resources_builder.n_nodes(count);
         self
@@ -75,6 +70,7 @@ impl TaskBuilder {
         self
     }
 
+    #[allow(dead_code)]
     pub fn time_limit(mut self, time_s: u64) -> TaskBuilder {
         self.time_limit = Some(Duration::from_secs(time_s));
         self

@@ -8,7 +8,8 @@ use crate::internal::messages::worker::{
     TaskRunningMsg, ToWorkerMessage, WorkerOverview, WorkerTaskUpdate,
 };
 use crate::internal::scheduler::{
-    SchedulerConfig, WorkerTaskMapping, create_task_batches, create_task_mapping, run_scheduling_inner, run_scheduling_solver,
+    SchedulerConfig, WorkerTaskMapping, create_task_batches, create_task_mapping,
+    run_scheduling_inner, run_scheduling_solver,
 };
 use crate::internal::server::comm::Comm;
 use crate::internal::server::core::{Core, CoreSplitMut};
@@ -27,7 +28,7 @@ use crate::{InstanceId, JobId, JobTaskId, ResourceVariantId, Set, TaskId, Worker
 use smallvec::smallvec;
 use std::time::Instant;
 
-pub struct TestEnv {
+pub(crate) struct TestEnv {
     core: Core,
     job_id: JobId,
     task_id_counter: u32,
@@ -131,7 +132,7 @@ impl TestEnv {
     }
 
     pub fn worker(&self, worker_id: WorkerId) -> &Worker {
-        self.core.get_worker_by_id_or_panic(worker_id)
+        self.core.get_worker(worker_id)
     }
 
     pub fn worker_tasks(&self, worker_id: WorkerId) -> &Set<TaskId> {
@@ -228,7 +229,7 @@ impl TestEnv {
 
     pub fn start_task_mn(&mut self, task_id: TaskId, workers: &[WorkerId]) {
         for (idx, worker_id) in workers.iter().enumerate() {
-            let worker = self.core.get_worker_mut_by_id_or_panic(*worker_id);
+            let worker = self.core.get_worker_mut(*worker_id);
             worker.set_mn_task(task_id, idx == 0)
         }
         let task = self.core.get_task_mut(task_id);

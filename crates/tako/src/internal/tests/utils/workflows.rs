@@ -2,7 +2,7 @@ use crate::TaskId;
 use crate::internal::tests::utils::task::TaskBuilder;
 use crate::tests::utils::env::TestEnv;
 
-pub fn submit_example_1(rt: &mut TestEnv) -> Vec<TaskId> {
+pub(crate) fn submit_example_1(rt: &mut TestEnv) -> Vec<TaskId> {
     /*
         0   1
         \  / \
@@ -22,7 +22,7 @@ pub fn submit_example_1(rt: &mut TestEnv) -> Vec<TaskId> {
     [t0, t1, t2, t3, t4, t5, t6].to_vec()
 }
 
-pub fn submit_example_3(rt: &mut TestEnv) -> Vec<TaskId> {
+pub(crate) fn submit_example_3(rt: &mut TestEnv) -> Vec<TaskId> {
     /* Task deps
          T0   T1
         / |\ /  \
