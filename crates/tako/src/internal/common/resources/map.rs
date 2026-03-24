@@ -54,6 +54,7 @@ impl GlobalResourceMapping {
                                 }
                             })
                             .collect(),
+                        rq.weight,
                     )
                 })
                 .collect(),

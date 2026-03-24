@@ -1303,3 +1303,41 @@ pub fn test_schedule_variant_gap() {
     rt.schedule();
     assert_eq!(ts.iter().filter(|t| rt.task(**t).is_assigned()).count(), 2);
 }
+
+#[test]
+pub fn test_schedule_resource_weights1() {
+    let mut rt = TestEnv::new();
+    let t1 = rt.new_task(&TaskBuilder::new().cpus(3));
+    let t2 = rt.new_task(&TaskBuilder::new().cpus(2).weight(1.49));
+    rt.new_worker(&WorkerBuilder::new(4));
+    rt.schedule();
+    assert!(rt.task(t1).is_assigned());
+    assert!(rt.task(t2).is_waiting());
+
+    let mut rt = TestEnv::new();
+    let t1 = rt.new_task(&TaskBuilder::new().cpus(3).weight(1.0));
+    let t2 = rt.new_task(&TaskBuilder::new().cpus(2).weight(1.51));
+    rt.new_worker(&WorkerBuilder::new(4));
+    rt.schedule();
+    assert!(rt.task(t1).is_waiting());
+    assert!(rt.task(t2).is_assigned());
+}
+
+#[test]
+pub fn test_schedule_resource_weights2() {
+    let mut rt = TestEnv::new();
+    let ts = rt.new_tasks(5, &TaskBuilder::new().cpus(3).weight(1.1));
+    let t1 = rt.new_task(&TaskBuilder::new().cpus_all());
+    rt.new_worker(&WorkerBuilder::new(12));
+    rt.schedule();
+    assert_eq!(ts.iter().filter(|t| rt.task(**t).is_assigned()).count(), 4);
+    assert!(rt.task(t1).is_waiting());
+
+    let mut rt = TestEnv::new();
+    let ts = rt.new_tasks(5, &TaskBuilder::new().cpus(3));
+    let t1 = rt.new_task(&TaskBuilder::new().cpus_all().weight(1.1));
+    rt.new_worker(&WorkerBuilder::new(12));
+    rt.schedule();
+    assert_eq!(ts.iter().filter(|t| rt.task(**t).is_assigned()).count(), 0);
+    assert!(rt.task(t1).is_assigned());
+}

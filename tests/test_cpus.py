@@ -184,7 +184,8 @@ def test_job_show_pin_in_table(hq_env: HqEnv):
 
     wait_for_job_state(hq_env, 1, "FINISHED")
     table = hq_env.command(["job", "info", "1"], as_table=True)
-    table.check_row_value("Resources", "cpus: 2 compact! [pin]")
+    table.check_row_value("Resources", "cpus: 2 compact!")
+    table.check_row_value("Pin", "taskset")
 
 
 def test_job_pin_taskset(hq_env: HqEnv):

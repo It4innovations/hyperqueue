@@ -19,7 +19,7 @@ pub use map::{
 
 pub use request::{
     AllocationRequest, ResourceAllocRequest, ResourceRequest, ResourceRequestEntries,
-    ResourceRequestVariants, TimeRequest,
+    ResourceRequestVariants, ResourceWeight, TimeRequest,
 };
 
 pub use amount::{ResourceAmount, ResourceFractions, ResourceUnits};

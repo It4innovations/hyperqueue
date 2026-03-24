@@ -328,6 +328,7 @@ fn format_task_description(task_desc: &TaskDescription, rqv: &ResourceRequestVar
                             n_nodes,
                             resources,
                             min_time,
+                            weight,
                         } = v;
                         json!({
                             "n_nodes": n_nodes,
@@ -337,7 +338,8 @@ fn format_task_description(task_desc: &TaskDescription, rqv: &ResourceRequestVar
                                     "request": res.policy
                                 })
                             }).collect::<Vec<_>>(),
-                            "min_time": format_duration(*min_time)
+                            "min_time": format_duration(*min_time),
+                            "weight": weight,
                         })
                     })
                     .collect::<Vec<_>>(),

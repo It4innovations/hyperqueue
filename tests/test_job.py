@@ -1416,3 +1416,13 @@ def test_submit_many_cancel_some(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "RUNNING")
     hq_env.command(["job", "cancel", "all"])
     wait_for_job_state(hq_env, 1, "CANCELED")
+
+
+def test_resource_weight(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["submit", "--cpus=2", "--resource", "gpus=1", "--weight=2.5", "--", "sleep", "100"])
+    table = hq_env.command(["job", "info", "1"], as_table=True)
+    table.check_row_value("Resources", "cpus: 2 compact\ngpus: 1 compact\n[weight: 2.5]")
+    hq_env.command(["submit", "--cpus=2", "--resource", "gpus=2", "--", "sleep", "100"])
+    hq_env.start_worker(cpus=2)
+    wait_for_job_state(hq_env, [1, 2], ["RUNNING", "WAITING"])

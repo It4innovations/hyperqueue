@@ -1,5 +1,6 @@
 use crate::internal::common::error::DsError;
 use crate::internal::common::resources::ResourceRqId;
+use crate::internal::common::resources::request::ResourceWeight;
 use crate::resources::{AllocationRequest, CPU_RESOURCE_NAME, NumOfNodes, ResourceAmount};
 use crate::{InstanceId, Map, TaskId, UserPriority};
 use serde::{Deserialize, Serialize};
@@ -27,6 +28,8 @@ pub struct ResourceRequest {
 
     #[serde(default)]
     pub min_time: Duration,
+
+    pub weight: ResourceWeight,
 }
 
 impl Default for ResourceRequest {
@@ -38,6 +41,7 @@ impl Default for ResourceRequest {
                 policy: AllocationRequest::Compact(ResourceAmount::new_units(1)),
             }],
             min_time: Default::default(),
+            weight: Default::default(),
         }
     }
 }

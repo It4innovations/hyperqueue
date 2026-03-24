@@ -12,7 +12,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 use tako::gateway::{CrashLimit, ResourceRequest, ResourceRequestEntries, ResourceRequestEntry};
 use tako::program::FileOnCloseBehavior;
-use tako::resources::{AllocationRequest, NumOfNodes, ResourceAmount};
+use tako::resources::{AllocationRequest, NumOfNodes, ResourceAmount, ResourceWeight};
 use tako::{JobTaskCount, JobTaskId, Map, UserPriority};
 
 #[derive(Deserialize)]
@@ -42,6 +42,14 @@ impl PinMode {
             PinMode::OpenMP => crate::transfer::messages::PinMode::OpenMP,
         }
     }
+}
+
+fn deserialize_resource_weight<'de, D>(deserializer: D) -> Result<ResourceWeight, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let f = f32::deserialize(deserializer)?;
+    ResourceWeight::try_from(f).map_err(serde::de::Error::custom)
 }
 
 fn deserialize_human_duration<'de, D>(deserializer: D) -> Result<Duration, D::Error>
@@ -200,6 +208,10 @@ pub struct ResourceRequestDef {
     #[serde(default)]
     #[serde(deserialize_with = "deserialize_resource_entries")]
     pub resources: ResourceRequestEntries,
+
+    #[serde(default)]
+    #[serde(deserialize_with = "deserialize_resource_weight")]
+    pub weight: ResourceWeight,
 }
 
 impl ResourceRequestDef {
@@ -208,6 +220,7 @@ impl ResourceRequestDef {
             n_nodes: self.n_nodes,
             resources: self.resources,
             min_time: self.time_request,
+            weight: self.weight,
         }
     }
 }
