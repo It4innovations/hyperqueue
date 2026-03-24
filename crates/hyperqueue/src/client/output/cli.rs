@@ -13,7 +13,7 @@ use crate::server::autoalloc::{Allocation, AllocationState};
 use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState};
 use crate::stream::reader::outputlog::Summary;
 use crate::transfer::messages::{
-    AutoAllocListQueuesResponse, JobDetail, JobInfo, JobTaskDescription, PinMode, QueueData,
+    AutoAllocListQueuesResponse, JobDetail, JobInfo, JobTaskDescription, QueueData,
     QueueState, ServerInfo, TaskDescription, TaskKind, TaskKindProgram, WaitForJobsResponse,
     WorkerExitInfo, WorkerInfo,
 };
@@ -119,16 +119,8 @@ impl CliOutput {
                 task_dir: _task_dir,
             }) => {
                 let resources = format_resource_variants(resource_rq);
-                rows.push(vec![
-                    "Resources".cell().bold(true),
-                    if !matches!(pin_mode, PinMode::None) {
-                        format!("{resources} [pin]")
-                    } else {
-                        resources
-                    }
-                    .cell(),
-                ]);
-
+                rows.push(vec!["Resources".cell().bold(true), resources.cell()]);
+                rows.push(vec!["Pin".cell().bold(true), pin_mode.to_str().cell()]);
                 rows.push(vec!["Priority".cell().bold(true), priority.cell()]);
 
                 rows.push(vec![
@@ -1454,25 +1446,28 @@ fn status_to_cell(status: &Status) -> CellStruct {
 }
 
 fn format_resource_request(rq: &ResourceRequest) -> String {
-    if rq.n_nodes > 0 {
-        return format!("nodes: {}", rq.n_nodes);
-    }
     let mut result = String::new();
-    let mut first = true;
+    if rq.n_nodes > 0 {
+        write!(result, "nodes: {}", rq.n_nodes).unwrap();
+    } else {
+        let mut first = true;
+        let mut entries: Vec<&ResourceRequestEntry> = rq.resources.iter().collect();
+        entries.sort_unstable_by_key(|x| &x.resource);
 
-    let mut entries: Vec<&ResourceRequestEntry> = rq.resources.iter().collect();
-    entries.sort_unstable_by_key(|x| &x.resource);
-
-    for grq in entries {
-        write!(
-            result,
-            "{}{}: {}",
-            if first { "" } else { "\n" },
-            grq.resource,
-            grq.policy
-        )
-        .unwrap();
-        first = false;
+        for grq in entries {
+            write!(
+                result,
+                "{}{}: {}",
+                if first { "" } else { "\n" },
+                grq.resource,
+                grq.policy
+            )
+            .unwrap();
+            first = false;
+        }
+        if !rq.weight.is_default() {
+            write!(result, "\n[weight: {}]", rq.weight.as_f32()).unwrap();
+        }
     }
     result
 }

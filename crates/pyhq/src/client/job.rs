@@ -200,6 +200,7 @@ fn build_task_resources(
                             })
                             .collect::<anyhow::Result<ResourceRequestEntries>>()?,
                         min_time: rq.min_time.unwrap_or_default(),
+                        weight: Default::default(),
                     })
                 })
                 .collect::<anyhow::Result<_>>()?,

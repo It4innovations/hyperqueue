@@ -53,6 +53,7 @@ command = ["bash", "-c", "echo test1"]
 [[task.request]]
 resources = { "cpus" = "4 compact!", "gpus" = 2 }
 time_request = "10s"
+weight = 11.2
 
 
 [[task]]
@@ -93,6 +94,7 @@ resources = { "gpus" = 1.1 }
     table.check_row_value("Priority", "0")
     table.check_row_value("Crash limit", "5")
     table.check_row_value("Task dir", "no")
+    table.check_row_value("Resources", "cpus: 4 compact!\ngpus: 2 compact\n[weight: 11.2]")
 
     assert table.get_row_value("Workdir").endswith("test-200")
     assert table.get_row_value("Stdout").endswith("/test-200/job-1/200.stdout")

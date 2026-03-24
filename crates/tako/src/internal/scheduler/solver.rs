@@ -63,7 +63,7 @@ pub(crate) fn run_scheduling_solver(
 
     let n_workers = workers.len();
 
-    let mut solver = LpSolver::new(false);
+    let mut solver = LpSolver::new(true);
 
     let mut placements: Map<(WorkerId, ResourceRqId, ResourceVariantId), (_, u32)> = Map::new();
     let mut tasks_count_vars: Map<ResourceRqId, Vec<_>> = Map::new();
@@ -86,8 +86,14 @@ pub(crate) fn run_scheduling_solver(
                             .is_capable_to_run_rq(rq, now, worker_map)
                     {
                         set_placement_name(&mut solver, worker.id, batch.resource_rq_id, v_idx);
-                        let v =
-                            create_mn_var(&mut solver, n_workers, w_idx, worker, &resource_sums);
+                        let v = create_mn_var(
+                            &mut solver,
+                            rq,
+                            n_workers,
+                            w_idx,
+                            worker,
+                            &resource_sums,
+                        );
                         placements.insert((worker.id, batch.resource_rq_id, v_idx), (v, var_idx));
                         var_idx += 1;
 
@@ -431,6 +437,7 @@ fn create_sn_var(
         })
         .sum::<f64>()
         * (n_workers - w_idx) as f64
+        * rq.weight().as_f64()
         / n_workers as f64;
 
     solver.add_nat_variable(weight)
@@ -438,6 +445,7 @@ fn create_sn_var(
 
 fn create_mn_var(
     solver: &mut LpSolver,
+    rq: &ResourceRequest,
     n_workers: usize,
     w_idx: usize,
     worker: &Worker,
@@ -455,6 +463,7 @@ fn create_mn_var(
         })
         .sum::<f64>()
         * (n_workers - w_idx) as f64
+        * rq.weight().as_f64()
         / n_workers as f64;
 
     solver.add_bool_variable(weight)

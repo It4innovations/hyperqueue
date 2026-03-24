@@ -11,6 +11,7 @@ use crate::gateway::{
     SharedTaskConfiguration, TaskConfiguration,
 };
 use crate::internal::common::Map;
+use crate::internal::common::resources::request::ResourceWeight;
 use crate::internal::common::resources::{NumOfNodes, ResourceRqId};
 use crate::program::{ProgramDefinition, StdioDef};
 use crate::resources::{AllocationRequest, ResourceAmount};
@@ -162,6 +163,8 @@ pub struct ResourceRequestConfig {
     entries: Vec<ResourceRequestEntry>,
     #[builder(default)]
     min_time: Duration,
+    #[builder(default)]
+    weight: ResourceWeight,
 }
 
 impl ResourceRequestConfigBuilder {
@@ -195,12 +198,14 @@ impl ResourceRequestConfigBuilder {
             n_nodes,
             entries,
             min_time,
+            weight,
         }: ResourceRequestConfig = self.build().unwrap();
         ResourceRequestVariants {
             variants: smallvec![ResourceRequest {
                 n_nodes,
                 resources: entries.into(),
                 min_time,
+                weight
             }],
         }
     }

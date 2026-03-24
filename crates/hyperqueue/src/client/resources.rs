@@ -2,7 +2,7 @@ use chumsky::Parser;
 use chumsky::primitive::{choice, filter, just};
 use chumsky::text::TextParser;
 
-use tako::resources::AllocationRequest;
+use tako::resources::{AllocationRequest, ResourceWeight};
 
 use crate::common::parser2::{
     CharParser, ParseError, all_consuming, parse_exact_string, parse_resource_amount,
@@ -58,6 +58,11 @@ pub fn parse_resource_request(input: &str) -> anyhow::Result<(String, Allocation
 
 pub fn parse_allocation_request(input: &str) -> anyhow::Result<AllocationRequest> {
     all_consuming(p_allocation_request()).parse_text(input)
+}
+
+pub fn parse_resource_weight(input: &str) -> anyhow::Result<ResourceWeight> {
+    let f: f32 = input.parse()?;
+    Ok(ResourceWeight::try_from(f)?)
 }
 
 #[cfg(test)]

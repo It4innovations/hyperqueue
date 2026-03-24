@@ -1,6 +1,8 @@
 use std::time::Duration;
 
-use crate::internal::common::resources::request::{ResourceAllocRequest, ResourceRequest};
+use crate::internal::common::resources::request::{
+    ResourceAllocRequest, ResourceRequest, ResourceWeight,
+};
 use crate::internal::common::resources::{ResourceId, ResourceRequestVariants, ResourceVec};
 use crate::resources::{AllocationRequest, NumOfNodes, ResourceAmount, ResourceUnits};
 pub use ResourceRequestBuilder as ResBuilder;
@@ -10,6 +12,7 @@ pub struct ResourceRequestBuilder {
     n_nodes: NumOfNodes,
     resources: Vec<ResourceAllocRequest>,
     min_time: Duration,
+    weight: ResourceWeight,
 }
 
 impl ResourceRequestBuilder {
@@ -19,6 +22,11 @@ impl ResourceRequestBuilder {
 
     pub fn n_nodes(mut self, n_nodes: NumOfNodes) -> Self {
         self.n_nodes = n_nodes;
+        self
+    }
+
+    pub fn weight(mut self, weight: f32) -> Self {
+        self.weight = ResourceWeight::try_from(weight).unwrap();
         self
     }
 
@@ -99,7 +107,12 @@ impl ResourceRequestBuilder {
                 },
             )
         }
-        ResourceRequest::new(self.n_nodes, self.min_time, self.resources.into())
+        ResourceRequest::new(
+            self.n_nodes,
+            self.min_time,
+            self.resources.into(),
+            self.weight,
+        )
     }
 
     pub fn finish_v(self) -> ResourceRequestVariants {

@@ -104,19 +104,50 @@ pub struct ResourceAllocRequest {
 pub type ResourceRequestEntries = SmallVec<[ResourceAllocRequest; 3]>;
 pub type TimeRequest = Duration;
 
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, Eq, PartialEq)]
+pub struct ResourceWeight(u32);
+
+impl ResourceWeight {
+    pub fn try_from(value: f32) -> crate::Result<Self> {
+        if value <= 0.0 {
+            return Err(crate::Error::GenericError(
+                "Resource weight has to be positive number".into(),
+            ));
+        }
+        Ok(ResourceWeight((value * 10_000f32).round() as u32))
+    }
+    pub fn is_default(&self) -> bool {
+        self.0 == 10_000
+    }
+    pub fn as_f64(&self) -> f64 {
+        self.0 as f64 / 10_000.0
+    }
+    pub fn as_f32(&self) -> f32 {
+        self.0 as f32 / 10_000.0
+    }
+}
+
+impl Default for ResourceWeight {
+    fn default() -> Self {
+        ResourceWeight(10_000)
+    }
+}
+
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub struct ResourceRequest {
     n_nodes: NumOfNodes,
 
     resources: ResourceRequestEntries,
 
-    /// Minimal remaining time of the worker life time needed to START the task
+    /// Minimal remaining time of the worker lifetime needed to START the task
     /// !!! Do not confuse with time_limit.
     /// If task is started and task is running, it is not stopped if
     /// it consumes more. If you need this, see time_limit in task configuration
-    /// On worker with not defined life time, this resource is always satisfied.
+    /// On worker with not defined lifetime, this resource is always satisfied.
     #[serde(default)]
     min_time: TimeRequest,
+
+    weight: ResourceWeight,
 }
 
 impl ResourceRequest {
@@ -124,13 +155,19 @@ impl ResourceRequest {
         n_nodes: NumOfNodes,
         time: TimeRequest,
         mut resources: ResourceRequestEntries,
+        weight: ResourceWeight,
     ) -> ResourceRequest {
         resources.sort_unstable_by_key(|r| r.resource_id);
         ResourceRequest {
             n_nodes,
             resources,
             min_time: time,
+            weight,
         }
+    }
+
+    pub fn weight(&self) -> ResourceWeight {
+        self.weight
     }
 
     pub fn is_multi_node(&self) -> bool {
@@ -184,6 +221,7 @@ impl ResourceRequest {
                 })
                 .collect(),
             min_time: self.min_time,
+            weight: self.weight,
         }
     }
 }
@@ -210,6 +248,7 @@ impl ResourceRequestVariants {
                 resource_id: crate::resources::CPU_RESOURCE_ID,
                 request: AllocationRequest::Compact(ResourceAmount::ONE),
             }],
+            ResourceWeight::default(),
         ))
     }
 

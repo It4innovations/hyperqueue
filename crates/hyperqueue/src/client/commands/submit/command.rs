@@ -3,7 +3,9 @@ use crate::client::commands::duration_doc;
 use crate::client::commands::submit::directives::parse_hq_directives_from_file;
 use crate::client::commands::wait::{wait_for_jobs, wait_for_jobs_with_progress};
 use crate::client::globalsettings::GlobalSettings;
-use crate::client::resources::{parse_allocation_request, parse_resource_request};
+use crate::client::resources::{
+    parse_allocation_request, parse_resource_request, parse_resource_weight,
+};
 use crate::common::arraydef::IntArray;
 use crate::common::cli::OptsWithMatches;
 use crate::common::parser2::{CharParser, ParseError, all_consuming};
@@ -43,7 +45,9 @@ use tako::gateway::{
     ResourceRequestVariants,
 };
 use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
-use tako::resources::{AllocationRequest, CPU_RESOURCE_NAME, NumOfNodes, ResourceAmount};
+use tako::resources::{
+    AllocationRequest, CPU_RESOURCE_NAME, NumOfNodes, ResourceAmount, ResourceWeight,
+};
 use tako::{JobId, JobTaskCount, Map, UserPriority};
 
 const SUBMIT_ARRAY_LIMIT: JobTaskCount = 999;
@@ -238,6 +242,13 @@ pub struct SubmitJobTaskConfOpts {
     )]
     time_request: Duration,
 
+    /// Resource weight
+    ///
+    /// Weight of resource request within main scheduler.
+    /// Resource weight has to be a positive number.
+    #[arg(long, value_parser = parse_resource_weight)]
+    weight: Option<ResourceWeight>,
+
     /// Pins the job to the cores specified in `--cpus`
     #[arg(long, value_enum)]
     pin: Option<PinModeArg>,
@@ -360,6 +371,7 @@ impl OptsWithMatches<SubmitJobTaskConfOpts> {
             cpus: opts.cpus.or(other_opts.cpus),
             resource,
             time_request: get_or_default(&self_matches, &other_matches, "time_request"),
+            weight: opts.weight,
             pin: opts.pin.or(other_opts.pin),
             task_dir: opts.task_dir || other_opts.task_dir,
             cwd: opts.cwd.or(other_opts.cwd),
@@ -533,6 +545,7 @@ impl JobSubmitOpts {
             n_nodes: self.conf.nodes,
             min_time: self.conf.time_request,
             resources,
+            weight: self.conf.weight.unwrap_or_default(),
         };
         request.validate()?;
         Ok(request)
@@ -668,6 +681,7 @@ pub async fn submit_computation(
                 nodes: _,
                 cpus: _,
                 resource: _,
+                weight: _,
                 time_request: _,
                 pin,
                 task_dir,

@@ -9,7 +9,7 @@ use crate::internal::messages::worker::{
 use crate::internal::server::core::Core;
 use crate::internal::server::reactor::get_or_create_raw_resource_rq_id;
 use crate::internal::server::task::{Task, TaskConfiguration};
-use crate::resources::{ResourceRequest, ResourceRqId, ResourceRqMap};
+use crate::resources::{CPU_RESOURCE_ID, ResourceRequest, ResourceRqId, ResourceRqMap};
 use crate::tests::utils::env::TestComm;
 use crate::{Priority, ResourceVariantId, Set, TaskId, UserPriority};
 use smallvec::SmallVec;
@@ -62,6 +62,16 @@ impl TaskBuilder {
 
     pub fn cpus<A: Into<ResourceAmount>>(mut self, count: A) -> TaskBuilder {
         self.resources_builder = self.resources_builder.cpus(count);
+        self
+    }
+
+    pub fn cpus_all(mut self) -> TaskBuilder {
+        self.resources_builder = self.resources_builder.add_all(CPU_RESOURCE_ID);
+        self
+    }
+
+    pub fn weight(mut self, weight: f32) -> TaskBuilder {
+        self.resources_builder = self.resources_builder.weight(weight);
         self
     }
 
