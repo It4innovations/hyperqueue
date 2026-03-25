@@ -14,6 +14,9 @@
   * Better handling of situations when a worker cannot run a task because of strict resource requests of resource fragmentation
   * Reduced the number of messages between server/worker when there are many tasks of the same resource requests
   * Non-delayed reaction when a pre-assigned tasks cannot be run because of time request
+* Resource weights (configured via `--weight`). They are used to adjust priority between different tasks or between
+  multiple resource request variants within the same task.
+
 
 ## v0.25.1
 
