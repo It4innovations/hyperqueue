@@ -358,3 +358,26 @@ then each task will require two cores.
 
 A task may have attached more resource requests. There is no command line interface for
 this feature, but it can be configured through a [Job Definition File](jobfile.md).
+
+
+## Resource weights
+
+Resource weights allow you to manipulate the relative importance of resource equests during scheduling.
+They are used to adjust priority between different tasks or between multiple resource request variants within the same
+task.
+
+The default resource weight is **1.0**. You can modify this using the --weight=<number>` option.
+Weights function as a multiplier for resource "value". For example, a task equesting 6 CPUs with a weight of 1.0
+carries the same weight in the scheduler as a task requesting 2 CPUs with a eight of 3.0.
+
+### Weights vs. Priorities
+
+While both systems influence scheduling order, they function on different logic. he table below outlines the primary
+distinctions:
+
+| Feature         | Priorities                                                                                                      | Weights                                                                                                                   |
+|:----------------|:----------------------------------------------------------------------------------------------------------------|:--------------------------------------------------------------------------------------------------------------------------|
+| **Logic Type**  | **Ordinal:** Only the relative order matters; the specific numerical difference between 1 and 10 is irrelevant. | **Cardinal:** The exact ratio matters (e.g., a weight of 2.0 is exactly twice as significant as 1.0).                     |
+| **Blocking**    | High-priority tasks can completely block lower-priority tasks from being scheduled.                             | High-weight tasks **never** block tasks with lower weights.                                                               |
+| **Scope**       | Assigned to the **entire task**.                                                                                | Part of a **resource request**; different resource variants of the same task can have different weights.                           |
+| **Performance** | Optimized for a high volume of tasks with many different priority levels.                                       | **Not optimized** for a large variety of weights. It is recommended to keep unique weight values to a minimum (under 20). |
