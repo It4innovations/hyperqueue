@@ -53,6 +53,7 @@ impl RunningWorker {
                 time_limit: None,
                 on_server_lost: ServerLostPolicy::Stop,
                 extra: Default::default(),
+                min_utilization: 0.0,
             };
             finalize_configuration(&mut configuration);
 

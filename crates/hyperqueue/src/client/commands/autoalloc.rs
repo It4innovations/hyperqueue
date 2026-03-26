@@ -372,6 +372,14 @@ wasted allocation duration."
             format!("\"{}\"", overview_interval.into_original_input()),
         ]);
     }
+
+    if min_utilization > 0.0 {
+        worker_args.extend([
+            "--min-utilization".to_string(),
+            format!("{}", min_utilization),
+        ]);
+    }
+
     worker_args.extend([
         "--on-server-lost".to_string(),
         format!("\"{}\"", server_lost_policy_to_str(&on_server_lost.into())),
