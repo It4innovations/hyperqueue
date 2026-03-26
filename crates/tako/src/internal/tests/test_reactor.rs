@@ -45,6 +45,7 @@ fn test_worker_add() {
         idle_timeout: None,
         time_limit: None,
         on_server_lost: ServerLostPolicy::Stop,
+        min_utilization: 0.0,
         extra: Default::default(),
         group: "default".to_string(),
     };
@@ -102,6 +103,7 @@ fn test_worker_add() {
         idle_timeout: None,
         time_limit: None,
         on_server_lost: ServerLostPolicy::Stop,
+        min_utilization: 0.0,
         extra: Default::default(),
     };
 

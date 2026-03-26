@@ -48,6 +48,7 @@ pub struct WorkerConfiguration {
     pub idle_timeout: Option<Duration>,
     pub time_limit: Option<Duration>,
     pub on_server_lost: ServerLostPolicy,
+    pub min_utilization: f32,
     pub extra: Map<String, String>,
 }
 

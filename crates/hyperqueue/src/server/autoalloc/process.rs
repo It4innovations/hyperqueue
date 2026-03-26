@@ -435,7 +435,7 @@ fn create_queue_worker_query(queue: &AllocationQueue) -> WorkerTypeQuery {
         // How many workers can we provide at the moment
         max_sn_workers: info.backlog() * info.max_workers_per_alloc(),
         max_workers_per_allocation: info.max_workers_per_alloc(),
-        min_utilization: info.min_utilization().unwrap_or(0.0),
+        min_utilization: info.min_utilization(),
     }
 }
 
@@ -2647,7 +2647,7 @@ mod tests {
         #[builder(default = "vec![Duration::ZERO]")]
         limiter_delays: Vec<Duration>,
         #[builder(default)]
-        min_utilization: Option<f32>,
+        min_utilization: f32,
         #[builder(default)]
         cli_resources: Option<ResourceDescriptor>,
     }
