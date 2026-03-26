@@ -9,11 +9,12 @@ from typing import Iterable, List, Optional, Tuple
 
 import pytest
 
-pytest.register_assert_rewrite("tests.utils.table")
-
-from .utils import parse_tables
 from .utils.mock import ProgramMock
 from .utils.wait import wait_until
+
+pytest.register_assert_rewrite("tests.utils.table")
+
+from .utils import parse_tables  # noqa: E402
 
 PYTEST_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(PYTEST_DIR)
