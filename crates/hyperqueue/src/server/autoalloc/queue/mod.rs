@@ -21,7 +21,7 @@ pub struct QueueParameters {
     pub timelimit: Duration,
     pub name: Option<String>,
     pub max_worker_count: Option<u32>,
-    pub min_utilization: Option<f32>,
+    pub min_utilization: f32,
     pub additional_args: Vec<String>,
 
     pub worker_start_cmd: Option<String>,
@@ -78,7 +78,7 @@ impl QueueInfo {
         &self.0.worker_args
     }
 
-    pub fn min_utilization(&self) -> Option<f32> {
+    pub fn min_utilization(&self) -> f32 {
         self.0.min_utilization
     }
 

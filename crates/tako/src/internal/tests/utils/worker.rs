@@ -9,6 +9,7 @@ pub struct WorkerBuilder {
     descriptor: ResourceDescriptor,
     time_limit: Option<Duration>,
     group: Option<String>,
+    min_utilization: f32,
 }
 
 impl WorkerBuilder {
@@ -17,6 +18,7 @@ impl WorkerBuilder {
             descriptor: ResourceDescriptor::new(Default::default(), Default::default()),
             time_limit: None,
             group: None,
+            min_utilization: 0.0,
         }
     }
 
@@ -25,7 +27,13 @@ impl WorkerBuilder {
             descriptor: ResourceDescriptor::simple_cpus(cpus),
             time_limit: None,
             group: None,
+            min_utilization: 0.0,
         }
+    }
+
+    pub fn min_utilization(mut self, value: f32) -> Self {
+        self.min_utilization = value;
+        self
     }
 
     pub fn time_limit(mut self, duration: Duration) -> Self {
@@ -71,6 +79,7 @@ impl WorkerBuilder {
             idle_timeout: None,
             time_limit: self.time_limit,
             on_server_lost: ServerLostPolicy::Stop,
+            min_utilization: self.min_utilization,
             extra: Default::default(),
         }
     }

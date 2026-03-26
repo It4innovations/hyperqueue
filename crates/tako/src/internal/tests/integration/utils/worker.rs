@@ -80,6 +80,7 @@ pub fn create_worker_configuration(
             on_server_lost: ServerLostPolicy::Stop,
             time_limit: None,
             extra,
+            min_utilization: 0.0,
         },
         secret_key,
     )

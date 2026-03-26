@@ -556,6 +556,7 @@ fn format_worker_info(worker_info: WorkerInfo) -> serde_json::Value {
                 time_limit,
                 on_server_lost,
                 group,
+                min_utilization,
                 extra: _,
             },
         started,
@@ -576,6 +577,7 @@ fn format_worker_info(worker_info: WorkerInfo) -> serde_json::Value {
             "listen_address": listen_address,
             "resources": format_resource_descriptor(&resources),
             "on_server_lost": crate::common::format::server_lost_policy_to_str(&on_server_lost),
+            "min_utilization": min_utilization,
         }),
         "allocation": manager_info.map(|info| json!({
             "manager": FormattedManagerType(info.manager),

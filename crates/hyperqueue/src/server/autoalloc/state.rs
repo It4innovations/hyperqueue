@@ -597,7 +597,7 @@ mod tests {
                     timelimit: Duration::from_secs(1),
                     name: None,
                     max_worker_count: None,
-                    min_utilization: None,
+                    min_utilization: 0.0,
                     additional_args: vec![],
                     worker_start_cmd: None,
                     worker_stop_cmd: None,
