@@ -15,10 +15,7 @@ use crate::internal::tests::utils::shared::{res_kind_groups, res_kind_sum};
 use crate::internal::tests::utils::sorted_vec;
 use crate::internal::tests::utils::task::{TaskBuilder, task_running_msg};
 use crate::internal::tests::utils::workflows::{submit_example_1, submit_example_3};
-use crate::internal::worker::configuration::{
-    DEFAULT_MAX_DOWNLOAD_TRIES, DEFAULT_MAX_PARALLEL_DOWNLOADS,
-    DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES, OverviewConfiguration,
-};
+use crate::internal::worker::configuration::OverviewConfiguration;
 use crate::resources::{ResourceAmount, ResourceDescriptorItem, ResourceIdMap};
 use crate::tests::utils::env::{TestComm, TestEnv};
 use crate::tests::utils::worker::WorkerBuilder;
@@ -48,9 +45,6 @@ fn test_worker_add() {
         idle_timeout: None,
         time_limit: None,
         on_server_lost: ServerLostPolicy::Stop,
-        max_parallel_downloads: DEFAULT_MAX_PARALLEL_DOWNLOADS,
-        max_download_tries: DEFAULT_MAX_DOWNLOAD_TRIES,
-        wait_between_download_tries: DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES,
         extra: Default::default(),
         group: "default".to_string(),
     };
@@ -108,9 +102,6 @@ fn test_worker_add() {
         idle_timeout: None,
         time_limit: None,
         on_server_lost: ServerLostPolicy::Stop,
-        max_parallel_downloads: DEFAULT_MAX_PARALLEL_DOWNLOADS,
-        max_download_tries: DEFAULT_MAX_DOWNLOAD_TRIES,
-        wait_between_download_tries: DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES,
         extra: Default::default(),
     };
 

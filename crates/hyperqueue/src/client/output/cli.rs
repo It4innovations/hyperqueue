@@ -335,16 +335,6 @@ impl Output for CliOutput {
                 ],
                 vec!["Group".cell().bold(true), configuration.group.cell()],
                 vec![
-                    "Downloads".cell().bold(true),
-                    format!(
-                        "{} parallel; max {} fails + {} delay",
-                        configuration.max_parallel_downloads,
-                        configuration.max_download_tries,
-                        format_duration(configuration.wait_between_download_tries)
-                    )
-                    .cell(),
-                ],
-                vec![
                     "Manager".cell().bold(true),
                     manager_info
                         .as_ref()

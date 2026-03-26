@@ -58,9 +58,6 @@ pub(crate) fn compute_new_worker_query(
                 overview_configuration: Default::default(),
                 idle_timeout: None,
                 on_server_lost: ServerLostPolicy::Stop,
-                max_parallel_downloads: 0,
-                max_download_tries: 0,
-                wait_between_download_tries: Default::default(),
                 extra: Default::default(),
             };
             let worker = Worker::new(worker_id, configuration, &resource_map, now);
