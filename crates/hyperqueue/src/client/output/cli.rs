@@ -13,9 +13,9 @@ use crate::server::autoalloc::{Allocation, AllocationState};
 use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState};
 use crate::stream::reader::outputlog::Summary;
 use crate::transfer::messages::{
-    AutoAllocListQueuesResponse, JobDetail, JobInfo, JobTaskDescription, QueueData,
-    QueueState, ServerInfo, TaskDescription, TaskKind, TaskKindProgram, WaitForJobsResponse,
-    WorkerExitInfo, WorkerInfo,
+    AutoAllocListQueuesResponse, JobDetail, JobInfo, JobTaskDescription, QueueData, QueueState,
+    ServerInfo, TaskDescription, TaskKind, TaskKindProgram, WaitForJobsResponse, WorkerExitInfo,
+    WorkerInfo,
 };
 use tako::{JobId, JobTaskCount, JobTaskId, TaskId, WorkerId};
 

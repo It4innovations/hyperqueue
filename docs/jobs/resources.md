@@ -367,12 +367,12 @@ They are used to adjust priority between different tasks or between multiple res
 task.
 
 The default resource weight is **1.0**. You can modify this using the --weight=<number>` option.
-Weights function as a multiplier for resource "value". For example, a task equesting 6 CPUs with a weight of 1.0
+Weights function as a multiplier for resource "value". For example, a task requesting 6 CPUs with a weight of 1.0
 carries the same weight in the scheduler as a task requesting 2 CPUs with a eight of 3.0.
 
 ### Weights vs. Priorities
 
-While both systems influence scheduling order, they function on different logic. he table below outlines the primary
+While both systems influence scheduling order, they function on different logic. The table below outlines the primary
 distinctions:
 
 | Feature         | Priorities                                                                                                      | Weights                                                                                                                   |

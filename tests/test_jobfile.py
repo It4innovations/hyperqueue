@@ -462,3 +462,26 @@ def test_job_file_multinode(hq_env: HqEnv, tmp_path):
     with open(default_task_output(1)) as f:
         lines = sorted(f.read().rstrip().split("\n"))
         assert lines == ["2", "worker1", "worker2"]
+
+
+def test_job_variant_weights(hq_env: HqEnv, tmp_path):
+    hq_env.start_server()
+    tmp_path.joinpath("job.toml").write_text(
+        """
+    [[task]]
+    id = 0
+    command = ["bash", "-c", "echo ${HQ_NUM_NODES}; cat ${HQ_NODE_FILE}"]
+    [[task.request]]
+    resources = {"cpus" = 2}
+    weight = 2
+    [[task.request]]
+    resources = {"cpus" = 1, "gpus" = 2}
+    weight = 0.5
+    """
+    )
+    hq_env.command(["job", "submit-file", "job.toml"])
+    table = hq_env.command(["task", "info", "1", "0"], as_table=True)
+    table.check_row_value(
+        "Resources",
+        "# Variant 1\ncpus: 2 compact\n[weight: 2]\n# Variant 2\ncpus: 1 compact\ngpus: 2 compact\n[weight: 0.5]",
+    )
