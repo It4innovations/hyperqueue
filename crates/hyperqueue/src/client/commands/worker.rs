@@ -281,24 +281,6 @@ pub struct WorkerStartOpts {
     /// It should *NOT* be placed on a network filesystem.
     #[arg(long)]
     pub work_dir: Option<PathBuf>,
-
-    /// The maximal parallel downloads for data objects
-    #[arg(long, default_value = "4")]
-    pub max_parallel_downloads: u32,
-
-    /// The maximal data object download tries
-    ///
-    /// Specifies how many times the worker tries to download a data object
-    /// from the remote side before download is considered as failed.
-    #[arg(long, default_value = "8")]
-    pub max_download_tries: u32,
-
-    #[arg(long,
-          default_value = "1s", value_parser = parse_hms_or_human_time,
-          help = duration_doc!("The delay between download attempts\n\nSets how long to wait between failed downloads of data object. This time is multiplied by the number of previous retries. Therefore between 4th and 5th retry it waits 4 * the given duration"),
-          value_name = "TIME")
-    ]
-    pub wait_between_download_tries: Duration,
 }
 
 pub async fn start_hq_worker(
@@ -344,23 +326,12 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
         hostname,
         on_server_lost,
         work_dir,
-        max_parallel_downloads,
-        max_download_tries,
-        wait_between_download_tries,
     } = opts;
 
     let detect_resources = detect_resources_cli
         .clone()
         .map(|p| p.into_parsed_arg())
         .unwrap_or_default();
-
-    if max_download_tries == 0 {
-        bail!("--max-download-tries cannot be zero");
-    }
-
-    if max_parallel_downloads == 0 {
-        bail!("--max-parallel-downloads cannot be zero");
-    }
 
     let hostname = get_hostname(hostname);
     let mut resources: Vec<_> = resource.into_iter().map(|x| x.into_parsed_arg()).collect();
@@ -480,9 +451,6 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
         idle_timeout,
         overview_configuration,
         extra,
-        max_parallel_downloads,
-        max_download_tries,
-        wait_between_download_tries,
     })
 }
 

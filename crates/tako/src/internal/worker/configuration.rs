@@ -35,10 +35,6 @@ impl OverviewConfiguration {
     }
 }
 
-pub const DEFAULT_MAX_PARALLEL_DOWNLOADS: u32 = 4;
-pub const DEFAULT_MAX_DOWNLOAD_TRIES: u32 = 8;
-pub const DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES: Duration = Duration::from_secs(1);
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WorkerConfiguration {
     pub resources: ResourceDescriptor,
@@ -52,10 +48,6 @@ pub struct WorkerConfiguration {
     pub idle_timeout: Option<Duration>,
     pub time_limit: Option<Duration>,
     pub on_server_lost: ServerLostPolicy,
-    pub max_parallel_downloads: u32,
-    pub max_download_tries: u32,
-    pub wait_between_download_tries: Duration,
-
     pub extra: Map<String, String>,
 }
 

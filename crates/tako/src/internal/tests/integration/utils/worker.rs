@@ -7,10 +7,7 @@ use std::time::Duration;
 
 use crate::internal::common::error::DsError;
 use crate::internal::common::resources::ResourceDescriptor;
-use crate::internal::worker::configuration::{
-    DEFAULT_MAX_DOWNLOAD_TRIES, DEFAULT_MAX_PARALLEL_DOWNLOADS,
-    DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES, OverviewConfiguration,
-};
+use crate::internal::worker::configuration::OverviewConfiguration;
 use crate::launcher::{StopReason, TaskBuildContext, TaskResult};
 use crate::program::ProgramDefinition;
 use crate::worker::WorkerConfiguration;
@@ -81,9 +78,6 @@ pub fn create_worker_configuration(
             },
             idle_timeout,
             on_server_lost: ServerLostPolicy::Stop,
-            max_parallel_downloads: DEFAULT_MAX_PARALLEL_DOWNLOADS,
-            max_download_tries: DEFAULT_MAX_DOWNLOAD_TRIES,
-            wait_between_download_tries: DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES,
             time_limit: None,
             extra,
         },

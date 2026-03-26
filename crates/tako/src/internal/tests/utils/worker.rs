@@ -1,9 +1,6 @@
 use crate::WorkerId;
 use crate::internal::server::worker::Worker;
-use crate::internal::worker::configuration::{
-    DEFAULT_MAX_DOWNLOAD_TRIES, DEFAULT_MAX_PARALLEL_DOWNLOADS,
-    DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES, OverviewConfiguration,
-};
+use crate::internal::worker::configuration::OverviewConfiguration;
 use crate::resources::{ResourceDescriptor, ResourceDescriptorItem, ResourceIdMap};
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
 use std::time::{Duration, Instant};
@@ -74,9 +71,6 @@ impl WorkerBuilder {
             idle_timeout: None,
             time_limit: self.time_limit,
             on_server_lost: ServerLostPolicy::Stop,
-            max_parallel_downloads: DEFAULT_MAX_PARALLEL_DOWNLOADS,
-            max_download_tries: DEFAULT_MAX_DOWNLOAD_TRIES,
-            wait_between_download_tries: DEFAULT_WAIT_BETWEEN_DOWNLOAD_TRIES,
             extra: Default::default(),
         }
     }
