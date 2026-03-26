@@ -462,3 +462,35 @@ def test_worker_idle_timeout_vs_time_request(hq_env: HqEnv):
     worker = hq_env.start_worker(cpus=1, args=["--heartbeat=500ms", "--idle-timeout=1s500ms", "--time-limit=20s"])
     time.sleep(6)
     hq_env.check_process_exited(worker, expected_code=0)
+
+
+def test_worker_mu_case1(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["submit", "--array=1-3", "--weight=2", "--cpus=3", "--", "sleep", "100"])
+    hq_env.command(["submit", "--cpus=all", "--", "sleep", "100"])
+    hq_env.start_worker(cpus=12, args=["--min-utilization=1.0"])
+    wait_for_job_state(hq_env, 2, "RUNNING")
+    wait_for_job_state(hq_env, 1, "WAITING")
+
+
+def test_worker_mu_case2(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["submit", "--array=1-4", "--weight=2", "--cpus=3", "--", "sleep", "100"])
+    hq_env.command(["submit", "--cpus=all", "--", "sleep", "100"])
+    hq_env.start_worker(cpus=12, args=["--min-utilization=1"])
+    wait_for_job_state(hq_env, 1, "RUNNING")
+    wait_for_job_state(hq_env, 2, "WAITING")
+    table = hq_env.command(["job", "info", "1"], as_table=True)
+    assert "RUNNING (4)" in table.get_row_value("State")
+
+
+def test_worker_mu_case3(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["submit", "--array=1-3", "--weight=2", "--cpus=3", "--", "sleep", "100"])
+    hq_env.command(["submit", "--array=1-3", "--cpus=6", "--", "sleep", "100"])
+    hq_env.start_worker(cpus=12, args=["--min-utilization=1"])
+    wait_for_job_state(hq_env, [1, 2], "RUNNING")
+    table = hq_env.command(["job", "info", "2"], as_table=True)
+    assert "RUNNING (1)" in table.get_row_value("State")
+    table = hq_env.command(["job", "info", "1"], as_table=True)
+    assert "RUNNING (2)" in table.get_row_value("State")

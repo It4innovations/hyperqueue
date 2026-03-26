@@ -149,13 +149,12 @@ pub struct SharedWorkerStartOpts {
     #[arg(long, value_parser = passthrough_parser(parse_human_time))]
     pub overview_interval: Option<PassThroughArgument<Duration>>,
 
-    #[arg(long, default_value_t = 0.0f32)]
     /// Sets the minimal utilization of the worker.
     ///
     /// Floating point value in range 0.0-1.0.
     /// The scheduler will not plan tasks to the worker if at least
     /// min_utilization * number of worker's cpus is not utilized
-    #[arg(long, value_parser = passthrough_parser(min_utilization_parser))]
+    #[arg(long, default_value_t = 0.0f32, value_parser = min_utilization_parser)]
     pub min_utilization: f32,
 }
 

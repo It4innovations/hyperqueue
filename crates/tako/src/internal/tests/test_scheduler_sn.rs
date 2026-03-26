@@ -1341,3 +1341,77 @@ pub fn test_schedule_resource_weights2() {
     assert_eq!(ts.iter().filter(|t| rt.task(**t).is_assigned()).count(), 0);
     assert!(rt.task(t1).is_assigned());
 }
+
+#[test]
+pub fn test_schedule_min_utilization1() {
+    let mut rt = TestEnv::new();
+    let ts = rt.new_tasks(2, &TaskBuilder::new().cpus(3));
+    rt.new_worker(&WorkerBuilder::new(9).min_utilization(1.0));
+    rt.schedule();
+    assert_eq!(ts.iter().filter(|t| rt.task(**t).is_assigned()).count(), 0);
+
+    let mut rt = TestEnv::new();
+    let ts = rt.new_tasks(3, &TaskBuilder::new().cpus(3));
+    rt.new_worker(&WorkerBuilder::new(9).min_utilization(1.0));
+    rt.schedule();
+    assert_eq!(ts.iter().filter(|t| rt.task(**t).is_assigned()).count(), 3);
+
+    let mut rt = TestEnv::new();
+    let ts = rt.new_tasks(2, &TaskBuilder::new().cpus(3));
+    let w = rt.new_worker(&WorkerBuilder::new(9).min_utilization(1.0));
+    rt.new_task_running(&TaskBuilder::new().cpus(3), w);
+    rt.schedule();
+    assert_eq!(ts.iter().filter(|t| rt.task(**t).is_assigned()).count(), 2);
+}
+
+#[test]
+pub fn test_schedule_min_utilization2() {
+    let mut rt = TestEnv::new();
+    let ts = rt.new_tasks(2, &TaskBuilder::new().cpus(3));
+    rt.new_worker(&WorkerBuilder::new(12).min_utilization(0.5));
+    rt.schedule();
+    assert_eq!(ts.iter().filter(|t| rt.task(**t).is_assigned()).count(), 2);
+
+    let mut rt = TestEnv::new();
+    let ts = rt.new_tasks(2, &TaskBuilder::new().cpus(3));
+    rt.new_worker(&WorkerBuilder::new(12).min_utilization(0.51));
+    rt.schedule();
+    assert_eq!(ts.iter().filter(|t| rt.task(**t).is_assigned()).count(), 0);
+
+    let mut rt = TestEnv::new();
+    let ts = rt.new_tasks(3, &TaskBuilder::new().cpus(3));
+    rt.new_worker(&WorkerBuilder::new(12).min_utilization(0.51));
+    rt.schedule();
+    assert_eq!(ts.iter().filter(|t| rt.task(**t).is_assigned()).count(), 3);
+
+    let mut rt = TestEnv::new();
+    let ts = rt.new_tasks(3, &TaskBuilder::new().cpus(3));
+    rt.new_worker(&WorkerBuilder::new(12).min_utilization(0.75));
+    rt.schedule();
+    assert_eq!(ts.iter().filter(|t| rt.task(**t).is_assigned()).count(), 3);
+
+    let mut rt = TestEnv::new();
+    let ts = rt.new_tasks(3, &TaskBuilder::new().cpus(3));
+    rt.new_worker(&WorkerBuilder::new(12).min_utilization(0.76));
+    rt.schedule();
+    assert_eq!(ts.iter().filter(|t| rt.task(**t).is_assigned()).count(), 0);
+}
+
+#[test]
+pub fn test_schedule_min_utilization3() {
+    let mut rt = TestEnv::new();
+    let ts = rt.new_tasks(3, &TaskBuilder::new().cpus(3).weight(2.0));
+    let t2 = rt.new_task(&TaskBuilder::new().cpus_all());
+    rt.new_worker(&WorkerBuilder::new(12).min_utilization(1.0));
+    rt.schedule();
+    assert_eq!(ts.iter().filter(|t| rt.task(**t).is_assigned()).count(), 0);
+    assert!(rt.task(t2).is_assigned());
+
+    let mut rt = TestEnv::new();
+    let ts = rt.new_tasks(4, &TaskBuilder::new().cpus(3).weight(2.0));
+    let t2 = rt.new_task(&TaskBuilder::new().cpus_all());
+    rt.new_worker(&WorkerBuilder::new(12).min_utilization(1.0));
+    rt.schedule();
+    assert_eq!(ts.iter().filter(|t| rt.task(**t).is_assigned()).count(), 4);
+    assert!(!rt.task(t2).is_assigned());
+}

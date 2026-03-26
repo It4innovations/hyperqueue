@@ -3,7 +3,7 @@ use crate::internal::scheduler::TaskBatch;
 use crate::internal::server::core::{Core, CoreSplit};
 use crate::internal::server::worker::Worker;
 use crate::internal::solver::{ConstraintType, LpSolution, LpSolver, Variable};
-use crate::resources::ResourceRqId;
+use crate::resources::{CPU_RESOURCE_ID, ResourceRqId};
 use crate::{Map, ResourceVariantId, Set, WorkerId};
 use thin_vec::ThinVec;
 
@@ -63,17 +63,19 @@ pub(crate) fn run_scheduling_solver(
 
     let n_workers = workers.len();
 
-    let mut solver = LpSolver::new(true);
+    let mut solver = LpSolver::new(false);
 
     let mut placements: Map<(WorkerId, ResourceRqId, ResourceVariantId), (_, u32)> = Map::new();
     let mut tasks_count_vars: Map<ResourceRqId, Vec<_>> = Map::new();
 
     let mut worker_res_constraint = vec![Vec::new(); n_resources];
-
+    let mut worker_cpu_constraint_no_reserves: Vec<(Variable, f64)> =
+        Vec::with_capacity(task_batches.len());
     let mut var_idx = 0u32;
 
     // Create worker-task placements
     for (w_idx, worker) in workers.iter().enumerate() {
+        worker_cpu_constraint_no_reserves.clear();
         for batch in task_batches.iter() {
             let rqv = request_map.get(batch.resource_rq_id);
             let mut has_variant = false;
@@ -112,6 +114,7 @@ pub(crate) fn run_scheduling_solver(
                         create_sn_var(&mut solver, rq, n_workers, w_idx, worker, &resource_sums);
                     placements.insert((worker.id, batch.resource_rq_id, v_idx), (v, var_idx));
                     var_idx += 1;
+
                     tasks_count_vars
                         .entry(batch.resource_rq_id)
                         .or_default()
@@ -120,17 +123,18 @@ pub(crate) fn run_scheduling_solver(
                     // Insert into worker resource constraints
                     for e in rq.entries() {
                         let r = e.resource_id;
-                        worker_res_constraint[r.as_usize()].push((
-                            v,
-                            e.request
-                                .amount_or_none_if_all()
-                                .unwrap_or_else(|| worker.resources.get(r))
-                                .as_f64(),
-                        ));
+                        let amount = e
+                            .request
+                            .amount_or_none_if_all()
+                            .unwrap_or_else(|| worker.resources.get(r))
+                            .as_f64();
+                        worker_res_constraint[r.as_usize()].push((v, amount));
+                        worker_cpu_constraint_no_reserves.push((v, amount));
                     }
                 }
             }
 
+            // If possible, create a reservation variable
             if !has_variant
                 && !rqv.is_multi_node()
                 && !batch.limit_reached
@@ -151,6 +155,11 @@ pub(crate) fn run_scheduling_solver(
                 }
             }
         }
+
+        if worker.configuration.min_utilization > 0.001 {
+            add_min_utilization(&mut solver, worker, &mut worker_cpu_constraint_no_reserves);
+        }
+
         // Create worker constraints
         for (r, c) in worker_res_constraint.iter_mut().enumerate() {
             let free = worker
@@ -412,6 +421,41 @@ fn set_placement_name(
     });
 }
 
+fn add_min_utilization(
+    solver: &mut LpSolver,
+    worker: &Worker,
+    worker_res_constraint: &mut Vec<(Variable, f64)>,
+) {
+    let Some(sn) = worker.sn_assignment() else {
+        return;
+    };
+    let free_cpus = sn.free_resources.get(CPU_RESOURCE_ID).as_f64();
+    let all_cpus = worker.resources.get(CPU_RESOURCE_ID).as_f64();
+    // Explanation: min_cpus = mu * all - used = mu * all - (all - free) = (mu - 1) * all + free
+    let min_cpus = all_cpus * (worker.configuration.min_utilization as f64 - 1.0) + free_cpus;
+    if min_cpus < 0.0001 {
+        return;
+    }
+    solver.set_name(|| format!("mu_{}", worker.id));
+    let v = solver.add_bool_variable(0.0);
+    worker_res_constraint.push((v, -min_cpus));
+    solver.set_name(|| format!("w{} min utilization (lower bound)", worker.id));
+    solver.add_constraint(
+        ConstraintType::Min,
+        0.0,
+        worker_res_constraint.iter().copied(),
+    );
+    worker_res_constraint.pop();
+    solver.set_name(|| format!("w{} min utilization (upper bound)", worker.id));
+    worker_res_constraint.push((v, -all_cpus));
+    solver.add_constraint(
+        ConstraintType::Max,
+        0.0,
+        worker_res_constraint.iter().copied(),
+    );
+    worker_res_constraint.pop();
+}
+
 fn create_sn_var(
     solver: &mut LpSolver,
     rq: &ResourceRequest,
@@ -472,14 +516,14 @@ fn create_mn_var(
 fn constraint_extra_var(
     solver: &mut LpSolver,
     constraint_type: ConstraintType,
-    min_value: f64,
+    limit_value: f64,
     vars: &[Variable],
     var: Variable,
     coef: f64,
 ) {
     solver.add_constraint(
         constraint_type,
-        min_value,
+        limit_value,
         vars.iter()
             .map(|v| (*v, 1.0))
             .chain(std::iter::once((var, coef))),
