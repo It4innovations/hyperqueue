@@ -476,6 +476,7 @@ def test_pass_cpu_and_resources_to_worker(hq_env: HqEnv, flavor: ManagerFlavor):
                 "z=[1,2,4]",
                 "--no-hyper-threading",
                 "--detect-resources=cpus,mem",
+                "--min-utilization=0.2",
             ],
         )
 
@@ -484,7 +485,7 @@ def test_pass_cpu_and_resources_to_worker(hq_env: HqEnv, flavor: ManagerFlavor):
         assert normalize_output(hq_env, flavor.manager_type(), line.cmd) == snapshot(
             '<hq-binary> worker start --idle-timeout "5m" --manager "<manager>" --server-dir "<server-dir>/001" --cpus'
             ' "2x8" --resource "x=sum(100)" --resource "y=range(1-4)" --resource "z=[1,2,4]" --no-hyper-threading'
-            ' --detect-resources cpus,mem --on-server-lost "finish-running" --time-limit "1h"'
+            ' --detect-resources cpus,mem --min-utilization 0.2 --on-server-lost "finish-running" --time-limit "1h"'
         )
 
 

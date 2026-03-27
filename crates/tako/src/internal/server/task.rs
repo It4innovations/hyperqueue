@@ -174,7 +174,6 @@ impl Task {
     #[inline]
     pub(crate) fn priority(&self) -> Priority {
         Priority::from_user_priority(self.configuration.user_priority)
-            .add_inverted_priority_u32(self.id.job_id().as_num())
     }
 
     #[inline]

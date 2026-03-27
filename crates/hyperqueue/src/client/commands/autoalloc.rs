@@ -175,15 +175,6 @@ The limit must not be larger than the allocation time limit."#)
     )]
     worker_time_limit: Option<Duration>,
 
-    /// Minimal expected utilization required to submit an allocation into this queue
-    ///
-    /// Autoalloc will not spawn an allocation unless the scheduler thinks it could use at least
-    /// `min_utilization`% of the resources of workers in the allocation.
-    ///
-    /// The default is 0.0.
-    #[arg(long)]
-    min_utilization: Option<f32>,
-
     /// Additional arguments passed to the submit command
     #[arg(trailing_var_arg(true))]
     additional_args: Vec<String>,
@@ -303,19 +294,10 @@ fn args_to_params(manager: ManagerType, args: SharedQueueOpts) -> anyhow::Result
         worker_stop_cmd,
         worker_wrap_cmd,
         worker_time_limit,
-        min_utilization,
         additional_args,
         on_server_lost,
         no_dry_run: _,
     } = args;
-
-    if let Some(min_utilization) = min_utilization
-        && !(0.0..=1.0).contains(&min_utilization)
-    {
-        return Err(anyhow::anyhow!(
-            "Minimal utilization has to be in the interval [0.0, 1.0]."
-        ));
-    }
 
     if let Some(ref idle_timeout) = worker_args.idle_timeout
         && *idle_timeout > Duration::from_secs(60 * 10)
@@ -346,6 +328,7 @@ wasted allocation duration."
         no_hyper_threading,
         idle_timeout,
         overview_interval,
+        min_utilization,
     } = worker_args;
 
     if cpus.is_none() && resource.is_empty() {
@@ -389,6 +372,14 @@ wasted allocation duration."
             format!("\"{}\"", overview_interval.into_original_input()),
         ]);
     }
+
+    if min_utilization > 0.0 {
+        worker_args.extend([
+            "--min-utilization".to_string(),
+            format!("{}", min_utilization),
+        ]);
+    }
+
     worker_args.extend([
         "--on-server-lost".to_string(),
         format!("\"{}\"", server_lost_policy_to_str(&on_server_lost.into())),

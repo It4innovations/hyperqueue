@@ -58,6 +58,7 @@ pub(crate) fn compute_new_worker_query(
                 overview_configuration: Default::default(),
                 idle_timeout: None,
                 on_server_lost: ServerLostPolicy::Stop,
+                min_utilization: query.min_utilization,
                 extra: Default::default(),
             };
             let worker = Worker::new(worker_id, configuration, &resource_map, now);

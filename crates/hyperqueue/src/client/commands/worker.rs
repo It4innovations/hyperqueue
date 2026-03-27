@@ -148,6 +148,14 @@ pub struct SharedWorkerStartOpts {
     /// size.
     #[arg(long, value_parser = passthrough_parser(parse_human_time))]
     pub overview_interval: Option<PassThroughArgument<Duration>>,
+
+    /// Sets the minimal utilization of the worker.
+    ///
+    /// Floating point value in range 0.0-1.0.
+    /// The scheduler will not plan tasks to the worker if at least
+    /// min_utilization * number of worker's cpus is not utilized
+    #[arg(long, default_value_t = 0.0f32, value_parser = min_utilization_parser)]
+    pub min_utilization: f32,
 }
 
 /// Parses resource detection options (all, none or a comma-separated list of
@@ -319,6 +327,7 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
                 no_hyper_threading,
                 idle_timeout,
                 overview_interval,
+                min_utilization,
             },
         heartbeat,
         time_limit,
@@ -451,6 +460,7 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
         idle_timeout,
         overview_configuration,
         extra,
+        min_utilization,
     })
 }
 
@@ -491,6 +501,16 @@ pub async fn get_worker_list(
 
     workers.sort_unstable_by_key(|w| w.id);
     Ok(workers)
+}
+
+fn min_utilization_parser(str: &str) -> anyhow::Result<f32> {
+    let f: f32 = str.parse()?;
+    if !(0.0..=1.0).contains(&f) {
+        return Err(anyhow::anyhow!(
+            "Minimal utilization has to be in the interval [0.0, 1.0]."
+        ));
+    }
+    Ok(f)
 }
 
 pub async fn get_worker_info(

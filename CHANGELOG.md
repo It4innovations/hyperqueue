@@ -16,6 +16,7 @@
   * Non-delayed reaction when a pre-assigned tasks cannot be run because of time request
 * Resource weights (configured via `--weight`). They are used to adjust priority between different tasks or between
   multiple resource request variants within the same task.
+* Min-utilization is also utilized in main scheduler (not only autoalloc scheduler)
 
 
 ## v0.25.1
