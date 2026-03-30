@@ -1,7 +1,9 @@
 use crate::common::format::human_size;
 use crate::dashboard::data::DashboardData;
 use itertools::Itertools;
-use ratatui::layout::{Constraint, Rect};
+use ratatui::layout::{Alignment, Constraint, Rect};
+use ratatui::style::Color;
+use ratatui::text::{Line, Span};
 use ratatui::widgets::{Cell, Row, Table};
 use std::cmp;
 use tako::hwstats::MemoryStats;
@@ -11,7 +13,7 @@ use tako::resources::{
 use tako::worker::WorkerConfiguration;
 use tako::{Set, WorkerId};
 
-use crate::dashboard::ui::styles::{self, table_style_deselected};
+use crate::dashboard::ui::styles::{self, style_table_title, table_style_deselected};
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::progressbar::{
     ProgressPrintStyle, get_cpu_progress_bar_color, render_progress_bar_at,
@@ -112,6 +114,28 @@ struct WorkerCpuState {
     assigned_cpus: Set<ResourceIndex>,
 }
 
+impl WorkerCpuState {
+    fn get_cpu_status(&self, resource_idx: &ResourceIndex) -> CpuStatus {
+        if self.assigned_cpus.contains(resource_idx) {
+            CpuStatus::Assigned
+        } else if self.managed_cpus.contains(resource_idx) {
+            CpuStatus::Managed
+        } else {
+            CpuStatus::Other
+        }
+    }
+}
+
+#[derive(PartialEq, PartialOrd, Eq, Ord, Clone, Copy)]
+pub enum CpuStatus {
+    // Cpu is managed by this worker, and is assigned to atleast one task
+    Assigned,
+    // Cpu is managed by this worker
+    Managed,
+    // Cpu is seen by HQ but not managed by this worker
+    Other,
+}
+
 impl CpuUtilTable {
     pub fn update(
         &mut self,
@@ -136,27 +160,24 @@ impl CpuUtilTable {
                 .workers()
                 .query_worker_overview_at(worker_id, data.current_time())
             {
-                let assigned_cpus: Set<ResourceIndex> = match self.cpu_view_mode {
-                    CpuViewMode::WorkerManaged | CpuViewMode::WorkerAssigned => overview
-                        .item
-                        .running_tasks
-                        .iter()
-                        .flat_map(|(_id, task_resource_alloc)| {
-                            task_resource_alloc
-                                .resources
-                                .iter()
-                                .filter_map(|resource_alloc| {
-                                    if resource_alloc.resource == CPU_RESOURCE_NAME {
-                                        Some(resource_alloc.indices.iter().map(|(index, _)| *index))
-                                    } else {
-                                        None
-                                    }
-                                })
-                        })
-                        .flatten()
-                        .collect(),
-                    CpuViewMode::Global => Set::default(),
-                };
+                let assigned_cpus: Set<ResourceIndex> = overview
+                    .item
+                    .running_tasks
+                    .iter()
+                    .flat_map(|(_id, task_resource_alloc)| {
+                        task_resource_alloc
+                            .resources
+                            .iter()
+                            .filter_map(|resource_alloc| {
+                                if resource_alloc.resource == CPU_RESOURCE_NAME {
+                                    Some(resource_alloc.indices.iter().map(|(index, _)| *index))
+                                } else {
+                                    None
+                                }
+                            })
+                    })
+                    .flatten()
+                    .collect();
 
                 self.cpu_state = Some(WorkerCpuState {
                     managed_cpus,
@@ -193,7 +214,7 @@ impl CpuUtilTable {
                 .cpu_view_mode
                 .get_visible_indices(util.cpu.len(), cpu_state);
 
-            let cell_data: Vec<(u32, f64, bool)> = visible_indices
+            let cell_data: Vec<(u32, f64, CpuStatus)> = visible_indices
                 .into_iter()
                 .map(|idx| {
                     let val = util
@@ -201,10 +222,10 @@ impl CpuUtilTable {
                         .get(idx.as_num() as usize)
                         .copied()
                         .unwrap_or_default();
-                    let is_used = cpu_state.assigned_cpus.contains(&idx);
-                    (idx.as_num(), val, is_used)
+                    let status = cpu_state.get_cpu_status(&idx);
+                    (idx.as_num(), val, status)
                 })
-                .sorted_by_key(|&(idx, _, used)| (std::cmp::Reverse(used), idx))
+                .sorted_by_key(|&(idx, _, status)| (status, idx))
                 .collect();
 
             let constraints = get_column_constraints(rect, cell_data.len());
@@ -221,13 +242,9 @@ impl CpuUtilTable {
                             .iter()
                             .skip(row_start_idx)
                             .step_by(num_rows)
-                            .map(|(id, cpu_util, used)| {
+                            .map(|(id, cpu_util, status)| {
                                 let progress = cpu_util / 100.0;
-                                let style = get_cpu_progress_bar_color(
-                                    progress,
-                                    *used,
-                                    &self.cpu_view_mode,
-                                );
+                                let style = get_cpu_progress_bar_color(progress, status);
 
                                 Cell::from(render_progress_bar_at(
                                     Some(format!("{id:>3} ")),
@@ -259,7 +276,9 @@ impl CpuUtilTable {
                 human_size(mem_used),
                 human_size(util.memory.total)
             ));
-            let body_block = styles::table_block_with_title(title);
+
+            let legend = create_legend(&self.cpu_view_mode);
+            let body_block = styles::table_block_with_title(title).title_bottom(legend);
 
             let table = Table::new(rows, constraints)
                 .block(body_block)
@@ -324,7 +343,7 @@ fn get_column_constraints(rect: Rect, num_cpus: usize) -> Vec<Constraint> {
 
 fn create_title_info(
     util_render_mode: &CpuViewMode,
-    cpu_table_data: &[(u32, f64, bool)],
+    cpu_table_data: &[(u32, f64, CpuStatus)],
 ) -> (String, usize, f64) {
     let which_util = match util_render_mode {
         CpuViewMode::Global => "Node",
@@ -367,4 +386,33 @@ fn cpu_resource_desc_to_idx(resource: &ResourceDescriptorItem) -> Option<Set<Res
         // Based on Resource kind `sum` cannot be used with CPUs. CPUs must have identity
         ResourceDescriptorKind::Sum { .. } => unreachable!(),
     }
+}
+
+fn create_legend<'a>(view_mode: &'a CpuViewMode) -> Line<'a> {
+    let title_style = style_table_title();
+
+    let mut legend_info = vec![
+        Span::styled("[", title_style),
+        Span::styled("■", title_style.fg(Color::Green)),
+        Span::styled("/", title_style),
+        Span::styled("■", title_style.fg(Color::Yellow)),
+        Span::styled("/", title_style),
+        Span::styled("■", title_style.fg(Color::Red)),
+        Span::styled(" Assigned", title_style),
+    ];
+
+    if *view_mode == CpuViewMode::WorkerManaged || *view_mode == CpuViewMode::Global {
+        legend_info.push(Span::styled(" | ", title_style));
+        legend_info.push(Span::styled("■ ", title_style.fg(Color::LightBlue)));
+        legend_info.push(Span::styled("Managed", style_table_title()));
+    }
+    if *view_mode == CpuViewMode::Global {
+        legend_info.push(Span::styled(" | ", title_style));
+        legend_info.push(Span::styled("■ ", title_style.fg(Color::Magenta)));
+        legend_info.push(Span::styled("Other", title_style));
+    }
+
+    legend_info.push(Span::styled("]", title_style));
+
+    Line::from(legend_info).alignment(Alignment::Right)
 }
