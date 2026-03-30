@@ -19,12 +19,6 @@ pub struct WorkerResources {
 }
 
 impl WorkerResources {
-    pub(crate) fn empty(resource_count: usize) -> WorkerResources {
-        WorkerResources {
-            n_resources: ResourceVec::filled(ResourceAmount::ZERO, resource_count),
-        }
-    }
-
     pub(crate) fn get(&self, resource_id: ResourceId) -> ResourceAmount {
         self.n_resources
             .get(resource_id)

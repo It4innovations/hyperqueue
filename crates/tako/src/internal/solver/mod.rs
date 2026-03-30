@@ -41,6 +41,7 @@ pub(crate) trait LpSolution {
 
 pub(crate) struct LpSolver {
     solver: LpInnerSolverImpl,
+    n_vars: u32,
 
     #[cfg(debug_assertions)]
     verbose: bool,
@@ -81,6 +82,7 @@ impl LpSolver {
         }
         LpSolver {
             verbose,
+            n_vars: 0,
             solver: LpInnerSolverImpl::new(),
             var_name_map: Default::default(),
             variables: Default::default(),
@@ -157,17 +159,21 @@ impl LpSolver {
 
     #[inline]
     pub fn solve(self) -> Option<(Solution, f64)> {
+        if self.verbose {
+            println!("Weights:");
+            for (name, weight) in self.variables.iter() {
+                if *weight != 0.0 {
+                    print!("{} -> {}\n", name, weight);
+                }
+            }
+        }
         let s = self.solver.solve();
         if let Some((s, _)) = &s
             && self.verbose
         {
             println!("==== Solution: ====");
-            for ((name, weight), value) in self.variables.iter().zip(s.get_values()) {
-                if *weight == 0.0 {
-                    println!("{} = {}", name, value);
-                } else {
-                    println!("{} = {} ({})", name, value, weight);
-                }
+            for ((name, _weight), value) in self.variables.iter().zip(s.get_values()) {
+                println!("{} = {}", name, value);
             }
         }
         s
@@ -214,20 +220,28 @@ impl LpSolver {
 
 impl LpSolver {
     #[inline]
+    pub fn last_var_idx(&self) -> u32 {
+        self.n_vars - 1
+    }
+
+    #[inline]
     pub fn add_variable(&mut self, weight: f64, min: f64, max: f64) -> Variable {
         let v = self.solver.add_variable(weight, min, max);
+        self.n_vars += 1;
         self.new_var(v, weight)
     }
 
     #[inline]
     pub fn add_bool_variable(&mut self, weight: f64) -> Variable {
         let v = self.solver.add_bool_variable(weight);
+        self.n_vars += 1;
         self.new_var(v, weight)
     }
 
     #[inline]
     pub fn add_nat_variable(&mut self, weight: f64) -> Variable {
         let v = self.solver.add_nat_variable(weight);
+        self.n_vars += 1;
         self.new_var(v, weight)
     }
 }

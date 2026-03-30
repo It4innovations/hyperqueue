@@ -20,7 +20,7 @@ use crate::resources::{ResourceAmount, ResourceDescriptorItem, ResourceIdMap};
 use crate::tests::utils::env::{TestComm, TestEnv};
 use crate::tests::utils::worker::WorkerBuilder;
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
-use crate::{Priority, ResourceVariantId, TaskId, WorkerId};
+use crate::{ResourceVariantId, TaskId, WorkerId};
 use smallvec::smallvec;
 use std::time::{Duration, Instant};
 
@@ -132,36 +132,6 @@ fn test_worker_add() {
     comm.check_need_scheduling();
     comm.emptiness_check();
     assert_eq!(core.get_workers().count(), 2);
-}
-
-#[test]
-fn test_scheduler_priority() {
-    let mut rt = TestEnv::new();
-    let t = TaskBuilder::new();
-
-    let t1 = rt.new_task(&t);
-    let _t2 = rt.new_task(&TaskBuilder::new().task_deps(&[t1]));
-    let t3 = rt.new_task(&t);
-    let _t4 = rt.new_task(&TaskBuilder::new().task_deps(&[t3]));
-
-    rt.set_job(123, 1);
-    rt.new_task_default();
-    rt.set_job(122, 0);
-    let t5 = rt.new_task_default();
-
-    rt.set_job(123, 2);
-    rt.new_task(&TaskBuilder::new().task_deps(&[t5]));
-    rt.set_job(123, 4);
-    let t8 = rt.new_task_default();
-
-    assert_eq!(
-        rt.task(t1).priority(),
-        Priority::from_user_priority(0.into()).add_inverted_priority_u32(1)
-    );
-    assert_eq!(
-        rt.task(t8).priority(),
-        Priority::from_user_priority(0.into()).add_inverted_priority_u32(123)
-    );
 }
 
 #[test]

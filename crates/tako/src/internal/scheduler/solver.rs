@@ -71,8 +71,6 @@ pub(crate) fn run_scheduling_solver(
     let mut worker_res_constraint = vec![Vec::new(); n_resources];
     let mut worker_cpu_constraint_no_reserves: Vec<(Variable, f64)> =
         Vec::with_capacity(task_batches.len());
-    let mut var_idx = 0u32;
-
     // Create worker-task placements
     for (w_idx, worker) in workers.iter().enumerate() {
         worker_cpu_constraint_no_reserves.clear();
@@ -96,9 +94,10 @@ pub(crate) fn run_scheduling_solver(
                             worker,
                             &resource_sums,
                         );
-                        placements.insert((worker.id, batch.resource_rq_id, v_idx), (v, var_idx));
-                        var_idx += 1;
-
+                        placements.insert(
+                            (worker.id, batch.resource_rq_id, v_idx),
+                            (v, solver.last_var_idx()),
+                        );
                         // Insert into worker resource constraints
                         for (r, amount) in worker.resources.iter_pairs() {
                             worker_res_constraint[r.as_usize()].push((v, amount.as_f64()));
@@ -112,9 +111,10 @@ pub(crate) fn run_scheduling_solver(
                     set_placement_name(&mut solver, worker.id, batch.resource_rq_id, v_idx);
                     let v =
                         create_sn_var(&mut solver, rq, n_workers, w_idx, worker, &resource_sums);
-                    placements.insert((worker.id, batch.resource_rq_id, v_idx), (v, var_idx));
-                    var_idx += 1;
-
+                    placements.insert(
+                        (worker.id, batch.resource_rq_id, v_idx),
+                        (v, solver.last_var_idx()),
+                    );
                     tasks_count_vars
                         .entry(batch.resource_rq_id)
                         .or_default()
@@ -129,7 +129,9 @@ pub(crate) fn run_scheduling_solver(
                             .unwrap_or_else(|| worker.resources.get(r))
                             .as_f64();
                         worker_res_constraint[r.as_usize()].push((v, amount));
-                        worker_cpu_constraint_no_reserves.push((v, amount));
+                        if r == CPU_RESOURCE_ID {
+                            worker_cpu_constraint_no_reserves.push((v, amount));
+                        }
                     }
                 }
             }
@@ -145,7 +147,6 @@ pub(crate) fn run_scheduling_solver(
                 let weight = w_idx as f64 / (n_workers * 100) as f64;
                 solver.set_name(|| format!("R{}:{}", worker.id, batch.resource_rq_id));
                 let v = solver.add_bool_variable(weight);
-                var_idx += 1;
                 tasks_count_vars
                     .entry(batch.resource_rq_id)
                     .or_default()
@@ -352,7 +353,6 @@ pub(crate) fn run_scheduling_solver(
     };
 
     let values = solution.get_values();
-
     for batch in task_batches {
         let resource_rq_id = batch.resource_rq_id;
         let rqv = request_map.get(resource_rq_id);

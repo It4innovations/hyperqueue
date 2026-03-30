@@ -57,11 +57,6 @@ impl TestEnv {
         self.core.split_mut().scheduler_state.config = config;
     }
 
-    pub fn set_job<J: Into<JobId>>(&mut self, job_id: J, task_id_counter: u32) {
-        self.job_id = job_id.into();
-        self.task_id_counter = task_id_counter;
-    }
-
     pub fn core(&mut self) -> &mut Core {
         &mut self.core
     }
