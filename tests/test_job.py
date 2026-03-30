@@ -1424,6 +1424,6 @@ def test_resource_weight(hq_env: HqEnv):
     table = hq_env.command(["job", "info", "1"], as_table=True)
     table.check_row_value("Resources", "cpus: 2 compact\ngpus: 1 compact\n[weight: 2.5]")
     hq_env.command(["submit", "--cpus=2", "--resource", "gpus=2", "--", "sleep", "100"])
-    hq_env.start_worker(cpus=2)
+    hq_env.start_worker(cpus=2, args=["--resource", "gpus=sum(2)"])
     wait_for_job_state(hq_env, 1, "RUNNING")
     wait_for_job_state(hq_env, 2, "WAITING")
