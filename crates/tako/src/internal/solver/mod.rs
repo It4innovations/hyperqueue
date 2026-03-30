@@ -163,7 +163,7 @@ impl LpSolver {
             println!("Weights:");
             for (name, weight) in self.variables.iter() {
                 if *weight != 0.0 {
-                    print!("{} -> {}\n", name, weight);
+                    println!("{} -> {}", name, weight);
                 }
             }
         }
