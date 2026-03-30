@@ -219,7 +219,12 @@ fn process_proactive_filling(core: &mut Core, mapping: &mut WorkerTaskMapping) {
                 };
                 worker.insert_prefill_task(*task_id);
             }
-            mapping.workers.entry(worker.id).or_default().prefills = tasks;
+            mapping
+                .workers
+                .entry(worker.id)
+                .or_default()
+                .prefills
+                .extend(tasks);
         }
     }
 }
