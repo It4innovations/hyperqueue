@@ -3,10 +3,9 @@ use crate::gateway::MultiNodeAllocationResponse;
 use crate::internal::scheduler::{create_task_batches, run_scheduling_solver};
 use crate::internal::server::core::{Core, CoreSplit};
 use crate::internal::server::worker::Worker;
-use crate::internal::server::workerload::WorkerResources;
 use crate::resources::{ResourceAmount, ResourceDescriptorItem, ResourceDescriptorKind};
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
-use crate::{Map, WorkerId};
+use crate::{Set, WorkerId};
 
 /// Read the documentation of `new_worker_query`` in control.rs
 pub(crate) fn compute_new_worker_query(
@@ -69,24 +68,13 @@ pub(crate) fn compute_new_worker_query(
     let batches = create_task_batches(core, now, Some(fake_workers.as_slice()));
     let scheduling = run_scheduling_solver(core, now, &batches, Some(fake_workers.as_slice()));
 
-    let mut loads: Map<WorkerId, WorkerResources> = Map::new();
+    let mut is_loaded: Set<WorkerId> = Set::new();
 
-    let CoreSplit {
-        request_map,
-        task_queues,
-        ..
-    } = core.split();
-    for ((resource_rq_id, rv_id), workers) in scheduling.sn_counts {
-        let rq = request_map.get(resource_rq_id).get(rv_id);
+    for workers in scheduling.sn_counts.values() {
         for (worker_id, count) in workers {
-            if worker_id.as_num() < fake_worker_id_base {
-                continue;
+            if *count > 0 {
+                is_loaded.insert(*worker_id);
             }
-            let idx = worker_id.as_num() - fake_worker_id_base;
-            let load = loads
-                .entry(worker_id)
-                .or_insert_with(|| WorkerResources::empty(resource_map.size()));
-            load.add_multiple(rq, &fake_workers[idx as usize].resources, count);
         }
     }
 
@@ -97,15 +85,14 @@ pub(crate) fn compute_new_worker_query(
         for _ in 0..query.max_sn_workers {
             let worker = &fake_workers[worker_idx];
             worker_idx += 1;
-            if let Some(load) = loads.get(&worker.id)
-                && load.utilization(&worker.resources) >= query.min_utilization
-            {
+            if is_loaded.contains(&worker.id) {
                 count += 1;
             }
         }
         single_node_workers_per_query.push(count);
     }
 
+    let CoreSplit { task_queues, .. } = core.split();
     let mut multi_node_allocations: Vec<_> = task_queues
         .iter()
         .filter_map(|queue| {
