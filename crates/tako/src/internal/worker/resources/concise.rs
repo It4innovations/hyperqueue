@@ -195,6 +195,7 @@ impl ConciseFreeResources {
         &self.resources[resource_id]
     }
 
+    #[cfg(debug_assertions)]
     pub fn all_states(&self) -> &[ConciseResourceState] {
         &self.resources
     }

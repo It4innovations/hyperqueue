@@ -183,7 +183,7 @@ impl LpSolver {
 #[cfg(not(debug_assertions))]
 impl LpSolver {
     #[inline]
-    pub fn set_name<F>(&mut self, create_name: F)
+    pub fn set_name<F>(&mut self, _create_name: F)
     where
         F: FnOnce() -> String,
     {
@@ -191,13 +191,14 @@ impl LpSolver {
     }
 
     #[inline]
-    fn new_var(&mut self, variable: Variable, weight: f64) -> Variable {
+    fn new_var(&mut self, variable: Variable, _weight: f64) -> Variable {
         variable
     }
 
     pub fn new(_verbose: bool) -> Self {
         LpSolver {
             solver: LpInnerSolverImpl::new(),
+            n_vars: 0,
         }
     }
 

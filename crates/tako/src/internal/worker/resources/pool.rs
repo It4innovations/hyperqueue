@@ -1,3 +1,4 @@
+use crate::Map;
 use crate::internal::common::resources::allocation::AllocationIndex;
 use crate::internal::common::resources::amount::FRACTIONS_PER_UNIT;
 use crate::internal::common::resources::descriptor::ResourceDescriptorKind;
@@ -5,7 +6,6 @@ use crate::internal::common::resources::{ResourceAmount, ResourceId, ResourceInd
 use crate::internal::worker::resources::concise::{ConciseResourceGroup, ConciseResourceState};
 use crate::internal::worker::resources::map::ResourceLabelMap;
 use crate::resources::{AllocationRequest, ResourceAllocation, ResourceFractions, ResourceUnits};
-use crate::{Map, Set};
 
 use smallvec::{SmallVec, smallvec};
 
@@ -506,6 +506,7 @@ impl ResourcePool {
 
     #[cfg(debug_assertions)]
     pub fn validate(&self) {
+        use crate::Set;
         match self {
             ResourcePool::Empty => {}
             ResourcePool::Indices(pool) => {
