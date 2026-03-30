@@ -429,8 +429,14 @@ fn add_min_utilization(
     let Some(sn) = worker.sn_assignment() else {
         return;
     };
+    let all_cpus_amount = worker.resources.get(CPU_RESOURCE_ID);
+    if all_cpus_amount.is_max() {
+        // Partial worker with unknown CPU capacity
+        // so they always satisfy any min_utilization threshold; no LP constraint needed.
+        return;
+    }
+    let all_cpus = all_cpus_amount.as_f64();
     let free_cpus = sn.free_resources.get(CPU_RESOURCE_ID).as_f64();
-    let all_cpus = worker.resources.get(CPU_RESOURCE_ID).as_f64();
     // Explanation: min_cpus = mu * all - used = mu * all - (all - free) = (mu - 1) * all + free
     let min_cpus = all_cpus * (worker.configuration.min_utilization as f64 - 1.0) + free_cpus;
     if min_cpus < 0.0001 {
