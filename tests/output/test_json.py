@@ -51,6 +51,7 @@ def test_print_worker_info(hq_env: HqEnv):
                     "work_dir": str,
                     "group": str,
                     "on_server_lost": "stop",
+                    "min_utilization": float,
                 },
                 "allocation": None,
                 "started": str,
