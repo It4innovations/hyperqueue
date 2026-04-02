@@ -357,7 +357,7 @@ fn task_reject(
     comm: &mut impl Comm,
     worker_id: WorkerId,
     task_id: TaskId,
-    resource_rq_variant: ResourceVariantId,
+    resource_rq_variant: Option<ResourceVariantId>,
 ) -> bool {
     let CoreSplitMut {
         task_map,
@@ -371,10 +371,14 @@ fn task_reject(
         log::debug!("Unknown task rejected id={task_id}");
         return false;
     };
-    log::debug!("Task id={task_id} (variant={resource_rq_variant}) rejected on worker={worker_id}");
+    log::debug!(
+        "Task id={task_id} (variant={resource_rq_variant:?}) rejected on worker={worker_id}"
+    );
     let worker = worker_map.get_worker_mut(worker_id);
     let resource_rq_id = task.resource_rq_id;
-    worker.block_request(resource_rq_id, resource_rq_variant);
+    if let Some(rv_id) = resource_rq_variant {
+        worker.block_request(resource_rq_id, rv_id);
+    }
     match &task.state {
         TaskRuntimeState::Assigned {
             worker_id: w_id,
@@ -382,12 +386,12 @@ fn task_reject(
         } => {
             if worker_id != *w_id {
                 log::debug!("Rejection from invalid worker");
+            } else if resource_rq_variant != Some(*rv_id) {
+                log::debug!("Rejection invalid variant");
+            } else {
+                let rq = request_map.get(resource_rq_id).get(*rv_id);
+                worker.remove_sn_task(task_id, rq);
             }
-            if resource_rq_variant != *rv_id {
-                log::debug!("Rejection from invalid worker");
-            }
-            let rq = request_map.get(resource_rq_id).get(resource_rq_variant);
-            worker.remove_sn_task(task_id, rq);
         }
         TaskRuntimeState::Prefilled { worker_id: w_id } => {
             if worker_id != *w_id {

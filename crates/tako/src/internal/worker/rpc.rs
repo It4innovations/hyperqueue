@@ -19,8 +19,8 @@ use crate::internal::common::WrappedRcRefCell;
 use crate::internal::common::resources::Allocation;
 use crate::internal::common::resources::map::ResourceIdMap;
 use crate::internal::messages::worker::{
-    FromWorkerMessage, RetractResponseMsg, TaskResourceAllocation, ToWorkerMessage, WorkerOverview,
-    WorkerRegistrationResponse, WorkerStopReason,
+    FromWorkerMessage, RetractResponseMsg, TaskResourceAllocation, TaskUpdates, ToWorkerMessage,
+    WorkerOverview, WorkerRegistrationResponse, WorkerStopReason, WorkerTaskUpdate,
 };
 use crate::internal::server::rpc::ConnectionDescriptor;
 use crate::internal::transfer::auth::{
@@ -305,10 +305,39 @@ async fn heartbeat_process(heartbeat_interval: Duration, state_ref: WrappedRcRef
     let mut interval = tokio::time::interval(heartbeat_interval);
     loop {
         interval.tick().await;
-        state_ref
-            .get_mut()
-            .comm()
-            .send_message_to_server(FromWorkerMessage::Heartbeat);
+        {
+            let mut state = state_ref.get_mut();
+            state
+                .comm()
+                .send_message_to_server(FromWorkerMessage::Heartbeat);
+            if !state.prefilled_tasks.is_empty()
+                && let Some(remaining_time) = state.remaining_time()
+            {
+                let mut to_remove = Vec::new();
+                let mut updates = TaskUpdates::new();
+                for (rq_id, tasks) in &state.prefilled_tasks {
+                    let rqv = state.resource_rq_map.get(*rq_id);
+                    if remaining_time < rqv.min_time() {
+                        to_remove.push(*rq_id);
+                        for task in tasks {
+                            // Hard reject, we never unblock this rejection so we do not need to update blocked requests
+                            updates.push(WorkerTaskUpdate::RejectRequest {
+                                task_id: task.id,
+                                rv_id: None,
+                            });
+                        }
+                    }
+                }
+                if !updates.is_empty() {
+                    state
+                        .comm()
+                        .send_message_to_server(FromWorkerMessage::TaskUpdate(updates));
+                    for rq_id in to_remove {
+                        state.prefilled_tasks.remove(&rq_id);
+                    }
+                }
+            }
+        }
         log::debug!("Heartbeat sent");
     }
 }
