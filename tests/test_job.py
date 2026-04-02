@@ -1427,3 +1427,17 @@ def test_resource_weight(hq_env: HqEnv):
     hq_env.start_worker(cpus=2, args=["--resource", "gpus=sum(2)"])
     wait_for_job_state(hq_env, 1, "RUNNING")
     wait_for_job_state(hq_env, 2, "WAITING")
+
+
+def test_fast_retracting(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["submit", "--array=1-350", "--time-request=78s", "--", "sleep", "200"])
+    hq_env.start_worker(cpus=4, args=["--time-limit=80s", "--heartbeat=500ms"])
+    wait_for_job_state(hq_env, 1, "RUNNING")
+    out = hq_env.command(["--output-mode=json", "job", "info", "1"], as_json=True)
+    assert sorted(t["id"] for t in out[0]["tasks"] if t["state"] == "running") == list(range(1, 5))
+    time.sleep(6)
+    hq_env.start_worker(cpus=4)
+    time.sleep(3)
+    out = hq_env.command(["--output-mode=json", "job", "info", "1"], as_json=True)
+    assert sorted(t["id"] for t in out[0]["tasks"] if t["state"] == "running") == list(range(1, 9))
