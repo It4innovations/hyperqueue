@@ -672,7 +672,7 @@ fn test_task_reject1() {
         w,
         smallvec![WorkerTaskUpdate::RejectRequest {
             task_id: t,
-            rv_id: ResourceVariantId::new(0)
+            rv_id: Some(ResourceVariantId::new(0))
         }],
     );
     comm.check_need_scheduling();
@@ -717,7 +717,7 @@ fn test_task_reject2() {
         w,
         smallvec![WorkerTaskUpdate::RejectRequest {
             task_id: t,
-            rv_id: ResourceVariantId::new(0)
+            rv_id: Some(ResourceVariantId::new(0))
         }],
     );
     comm.check_need_scheduling();
@@ -746,7 +746,7 @@ fn test_task_reject3() {
         w,
         smallvec![WorkerTaskUpdate::RejectRequest {
             task_id: t1,
-            rv_id: ResourceVariantId::new(0)
+            rv_id: Some(ResourceVariantId::new(0))
         }],
     );
     comm.check_need_scheduling();
@@ -760,7 +760,7 @@ fn test_task_reject3() {
         w,
         smallvec![WorkerTaskUpdate::RejectRequest {
             task_id: t2,
-            rv_id: ResourceVariantId::new(0)
+            rv_id: Some(ResourceVariantId::new(0))
         }],
     );
     comm.check_need_scheduling();
@@ -894,7 +894,7 @@ fn test_prefill_rejected() {
     let (w1, _t1, t2) = setup_prefill(&mut rt);
     let up = WorkerTaskUpdate::RejectRequest {
         task_id: t2,
-        rv_id: 0.into(),
+        rv_id: Some(0.into()),
     };
     let mut comm = TestComm::new();
     on_task_update(rt.core(), &mut comm, w1, smallvec![up]);
@@ -1080,7 +1080,7 @@ fn test_steal_rejected() {
     let (w1, w2, t) = setup_retracting(&mut rt);
     let up = WorkerTaskUpdate::RejectRequest {
         task_id: t,
-        rv_id: 0.into(),
+        rv_id: Some(0.into()),
     };
     let mut comm = TestComm::new();
     on_task_update(rt.core(), &mut comm, w1, smallvec![up]);

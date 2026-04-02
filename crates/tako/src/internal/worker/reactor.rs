@@ -62,7 +62,7 @@ fn try_alloc_and_start_task(
         state.blocked_requests.insert((task.resource_rq_id, rv_id));
         task_updates.push(WorkerTaskUpdate::RejectRequest {
             task_id: task.id,
-            rv_id,
+            rv_id: Some(rv_id),
         });
         return;
     };
@@ -111,7 +111,7 @@ fn try_start_task(
         // Hard reject, we never unblock this rejection so we do not need to update blocked requests
         task_updates.push(WorkerTaskUpdate::RejectRequest {
             task_id: task.id,
-            rv_id,
+            rv_id: Some(rv_id),
         });
         return Some(allocation);
     }
