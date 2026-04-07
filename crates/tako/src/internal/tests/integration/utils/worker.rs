@@ -81,6 +81,7 @@ pub fn create_worker_configuration(
             time_limit: None,
             extra,
             min_utilization: 0.0,
+            retract_check_interval: Duration::from_secs(30),
         },
         secret_key,
     )

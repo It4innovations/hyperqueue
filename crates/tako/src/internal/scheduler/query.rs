@@ -6,6 +6,7 @@ use crate::internal::server::worker::Worker;
 use crate::resources::{ResourceAmount, ResourceDescriptorItem, ResourceDescriptorKind};
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
 use crate::{Set, WorkerId};
+use std::time::Duration;
 
 /// Read the documentation of `new_worker_query`` in control.rs
 pub(crate) fn compute_new_worker_query(
@@ -59,6 +60,7 @@ pub(crate) fn compute_new_worker_query(
                 on_server_lost: ServerLostPolicy::Stop,
                 min_utilization: query.min_utilization,
                 extra: Default::default(),
+                retract_check_interval: Duration::from_secs(30),
             };
             let worker = Worker::new(worker_id, configuration, &resource_map, now);
             fake_workers.push(worker);

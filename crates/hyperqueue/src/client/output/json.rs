@@ -554,6 +554,7 @@ fn format_worker_info(worker_info: WorkerInfo) -> serde_json::Value {
                 overview_configuration: _,
                 idle_timeout,
                 time_limit,
+                retract_check_interval: _,
                 on_server_lost,
                 group,
                 min_utilization,
