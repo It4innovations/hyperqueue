@@ -51,6 +51,7 @@ impl RunningWorker {
                 overview_configuration: OverviewConfiguration::disabled(),
                 idle_timeout: None,
                 time_limit: None,
+                retract_check_interval: Duration::from_secs(30),
                 on_server_lost: ServerLostPolicy::Stop,
                 extra: Default::default(),
                 min_utilization: 0.0,

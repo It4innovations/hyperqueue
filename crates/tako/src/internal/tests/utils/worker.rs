@@ -78,6 +78,7 @@ impl WorkerBuilder {
             },
             idle_timeout: None,
             time_limit: self.time_limit,
+            retract_check_interval: Duration::from_secs(30),
             on_server_lost: ServerLostPolicy::Stop,
             min_utilization: self.min_utilization,
             extra: Default::default(),

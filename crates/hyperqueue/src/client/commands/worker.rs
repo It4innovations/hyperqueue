@@ -289,6 +289,14 @@ pub struct WorkerStartOpts {
     /// It should *NOT* be placed on a network filesystem.
     #[arg(long)]
     pub work_dir: Option<PathBuf>,
+
+    #[arg(
+        long,
+        default_value = "30s",
+        value_parser = parse_hms_or_human_time,
+        help = duration_doc!("Defines the interval at which the worker checks for overdue tasks, based on the min_time setting")
+    )]
+    pub retract_check_interval: Duration,
 }
 
 pub async fn start_hq_worker(
@@ -335,6 +343,7 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
         hostname,
         on_server_lost,
         work_dir,
+        retract_check_interval,
     } = opts;
 
     let detect_resources = detect_resources_cli
@@ -461,6 +470,7 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
         overview_configuration,
         extra,
         min_utilization,
+        retract_check_interval,
     })
 }
 

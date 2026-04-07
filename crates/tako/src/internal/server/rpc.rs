@@ -120,7 +120,9 @@ async fn worker_rpc_loop(
     );
 
     let heartbeat_interval = msg.configuration.heartbeat_interval;
+
     log::debug!("Worker heartbeat interval: {heartbeat_interval:?}");
+
     // Sanity that interval is not too small
     assert!(heartbeat_interval.as_millis() > 150);
 

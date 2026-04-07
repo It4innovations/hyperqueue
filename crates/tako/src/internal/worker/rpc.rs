@@ -123,6 +123,7 @@ pub async fn run_worker(
 
     let (queue_sender, queue_receiver) = tokio::sync::mpsc::unbounded_channel::<Bytes>();
     let heartbeat_interval = configuration.heartbeat_interval;
+    let retract_check_interval = configuration.retract_check_interval;
     let time_limit = configuration.time_limit;
 
     let (worker_id, state_ref) = {
@@ -171,6 +172,7 @@ pub async fn run_worker(
     let local_comm_fut = handle_local_comm(local_conn_listener, state_ref.clone());
 
     let heartbeat_fut = heartbeat_process(heartbeat_interval, state_ref.clone());
+    let retract_check_fut = retract_check_process(retract_check_interval, state_ref.clone());
     let overview_fut = send_overview_loop(state_ref.clone());
 
     let time_limit_fut = match time_limit {
@@ -201,6 +203,7 @@ pub async fn run_worker(
                 Ok(Some(FromWorkerMessage::Stop(WorkerStopReason::Interrupted)))
             }
             _ = heartbeat_fut => { unreachable!() }
+            _ = retract_check_fut => { unreachable!() }
             _ = overview_fut => { unreachable!() }
             _ = local_comm_fut => { unreachable!() }
         };
@@ -310,9 +313,22 @@ async fn heartbeat_process(heartbeat_interval: Duration, state_ref: WrappedRcRef
             state
                 .comm()
                 .send_message_to_server(FromWorkerMessage::Heartbeat);
+        }
+        log::debug!("Heartbeat sent");
+    }
+}
+
+/// Repeatedly check overdue task
+async fn retract_check_process(check_interval: Duration, state_ref: WrappedRcRefCell<WorkerState>) {
+    let mut interval = tokio::time::interval(check_interval);
+    loop {
+        interval.tick().await;
+        {
+            let mut state = state_ref.get_mut();
             if !state.prefilled_tasks.is_empty()
                 && let Some(remaining_time) = state.remaining_time()
             {
+                log::debug!("Checking tasks for retract");
                 let mut to_remove = Vec::new();
                 let mut updates = TaskUpdates::new();
                 for (rq_id, tasks) in &state.prefilled_tasks {
@@ -338,7 +354,6 @@ async fn heartbeat_process(heartbeat_interval: Duration, state_ref: WrappedRcRef
                 }
             }
         }
-        log::debug!("Heartbeat sent");
     }
 }
 
