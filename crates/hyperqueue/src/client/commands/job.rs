@@ -82,7 +82,7 @@ pub struct JobForgetOpts {
         long,
         value_delimiter(','),
         value_enum,
-        default_value("finished,failed,canceled")
+        default_value("finished,failed,aborted,canceled")
     )]
     pub filter: Vec<CompletedJobStatus>,
 }
@@ -104,6 +104,7 @@ pub struct JobTaskIdsOpts {
 pub enum CompletedJobStatus {
     Finished,
     Failed,
+    Aborted,
     Canceled,
 }
 
@@ -112,6 +113,7 @@ impl CompletedJobStatus {
         match self {
             CompletedJobStatus::Finished => Status::Finished,
             CompletedJobStatus::Failed => Status::Failed,
+            CompletedJobStatus::Aborted => Status::Aborted,
             CompletedJobStatus::Canceled => Status::Canceled,
         }
     }

@@ -150,6 +150,7 @@ struct JournalStats {
 enum TaskStartStop {
     Start,
     Stop { start_time: TimeDelta, fail: bool },
+    Abort,
     Cancel,
 }
 
@@ -234,6 +235,7 @@ impl JournalStats {
                 EventPayload::JobCompleted(_) => {}
                 EventPayload::JobOpen(_, _) => {}
                 EventPayload::JobClose(_) => {}
+                EventPayload::JobCancel { .. } => {}
                 EventPayload::TaskStarted {
                     task_id,
                     worker_ids,
@@ -275,6 +277,19 @@ impl JournalStats {
                                 fail: true,
                             },
                         );
+                    }
+                }
+                EventPayload::TasksAborted { task_ids, .. } => {
+                    for task_id in task_ids {
+                        if let Some((_, workers, rv_id)) = jstats.running_tasks.remove(&task_id) {
+                            jstats.task_start_stop(
+                                time,
+                                task_id,
+                                rv_id,
+                                &workers,
+                                TaskStartStop::Abort,
+                            );
+                        }
                     }
                 }
                 EventPayload::TasksCanceled { task_ids, .. } => {

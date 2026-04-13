@@ -1,3 +1,10 @@
+## v0.26.0
+
+### New features
+* Distinguished cancellation of a task
+  * Aborted state: Task canceled by HQ due to failure of a dependency or reaching fail limit of a job 
+  * Canceled state: Task canceled by user
+
 ## Unreleased
 
 ### Breaking change

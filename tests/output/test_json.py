@@ -125,6 +125,7 @@ def test_print_job_list(hq_env: HqEnv):
                 "name": "echo",
                 "task_count": 1,
                 "task_stats": {
+                    "aborted": 0,
                     "canceled": 0,
                     "failed": 0,
                     "finished": 1,
@@ -280,6 +281,7 @@ def test_print_job_summary(hq_env: HqEnv):
     output = parse_json_output(hq_env, ["--output-mode=json", "job", "summary"])
     schema = Schema(
         {
+            "Aborted": 0,
             "Canceled": 0,
             "Failed": 0,
             "Finished": 0,

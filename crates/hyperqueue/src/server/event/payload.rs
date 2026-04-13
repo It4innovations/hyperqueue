@@ -39,6 +39,11 @@ pub enum EventPayload {
     /// An open job completed all its tasks (but cannot be marked as completed
     /// because it is open) (EPHEMERAL - not stored in the journal)
     JobIdle(JobId),
+    /// Job canceled by user, canceled all tasks in the job
+    JobCancel {
+        job_id: JobId,
+        cancel_reason: String,
+    },
     /// Task has started to execute on some worker
     TaskStarted {
         task_id: TaskId,
@@ -55,8 +60,12 @@ pub enum EventPayload {
         task_id: TaskId,
         error: String,
     },
-    /// Tasks has been canceled; for performance and correctness reason, this even is batched.
+    /// Tasks has been canceled by user; for performance and correctness reason, this even is batched.
     TasksCanceled {
+        task_ids: Vec<TaskId>,
+    },
+    /// Tasks has been aborted by system; for performance and correctness reason, this even is batched.
+    TasksAborted {
         task_ids: Vec<TaskId>,
     },
     /// New allocation queue has been created

@@ -26,7 +26,8 @@ impl RestorerTaskInfo {
             JobTaskState::Waiting | JobTaskState::Running { .. } => false,
             JobTaskState::Finished { .. }
             | JobTaskState::Failed { .. }
-            | JobTaskState::Canceled { .. } => true,
+            | JobTaskState::Canceled { .. }
+            | JobTaskState::Aborted { .. } => true,
         }
     }
 }
@@ -36,6 +37,7 @@ struct RestorerJob {
     submit_descs: Vec<SubmittedJobDescription>,
     tasks: Map<JobTaskId, RestorerTaskInfo>,
     is_open: bool,
+    cancel_reason: String,
 }
 
 pub struct Queue {
@@ -97,6 +99,7 @@ impl RestorerJob {
                         JobTaskState::Finished { .. } => job.counters.n_finished_tasks += 1,
                         JobTaskState::Failed { .. } => job.counters.n_failed_tasks += 1,
                         JobTaskState::Canceled { .. } => job.counters.n_canceled_tasks += 1,
+                        JobTaskState::Aborted { .. } => job.counters.n_aborted_tasks += 1,
                     }
                     job_task.state = task.state.clone();
                 }
@@ -114,6 +117,7 @@ impl RestorerJob {
             submit_descs: Vec::new(),
             tasks: Map::new(),
             is_open,
+            cancel_reason: String::default(),
         }
     }
 
@@ -320,7 +324,7 @@ impl StateRestorer {
                     }
                 }
                 EventPayload::TasksCanceled { task_ids } => {
-                    log::debug!("Replaying: TaskCanceled {task_ids:?}");
+                    log::debug!("Replaying: TasksCanceled {task_ids:?}");
                     for task_id in task_ids {
                         if let Some(job) = self.jobs.get_mut(&task_id.job_id()) {
                             let task = job.tasks.get_mut(&task_id.job_task_id());
@@ -344,6 +348,42 @@ impl StateRestorer {
                                     task_id.job_task_id(),
                                     RestorerTaskInfo {
                                         state: JobTaskState::Canceled {
+                                            started_data: None,
+                                            cancelled_date: event.time,
+                                        },
+                                        instance_id: None,
+                                        crash_counter: 0,
+                                    },
+                                );
+                            }
+                        }
+                    }
+                }
+                EventPayload::TasksAborted { task_ids } => {
+                    log::debug!("Replaying: TasksAborted {task_ids:?}");
+                    for task_id in task_ids {
+                        if let Some(job) = self.jobs.get_mut(&task_id.job_id()) {
+                            let task = job.tasks.get_mut(&task_id.job_task_id());
+                            if let Some(task) = task {
+                                task.state =
+                                    match std::mem::replace(&mut task.state, JobTaskState::Waiting)
+                                    {
+                                        JobTaskState::Running { started_data } => {
+                                            JobTaskState::Aborted {
+                                                started_data: Some(started_data),
+                                                cancelled_date: event.time,
+                                            }
+                                        }
+                                        _ => JobTaskState::Aborted {
+                                            started_data: None,
+                                            cancelled_date: event.time,
+                                        },
+                                    }
+                            } else {
+                                job.tasks.insert(
+                                    task_id.job_task_id(),
+                                    RestorerTaskInfo {
+                                        state: JobTaskState::Aborted {
                                             started_data: None,
                                             cancelled_date: event.time,
                                         },
@@ -379,6 +419,12 @@ impl StateRestorer {
                 }
                 EventPayload::JobClose(job_id) => {
                     self.jobs.get_mut(&job_id).unwrap().is_open = false;
+                }
+                EventPayload::JobCancel {
+                    job_id,
+                    cancel_reason,
+                } => {
+                    self.jobs.get_mut(&job_id).unwrap().cancel_reason = cancel_reason;
                 }
                 EventPayload::TaskNotify(_) | EventPayload::JobIdle(_) => {}
             }

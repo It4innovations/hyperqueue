@@ -231,20 +231,19 @@ $ hq job info <job-id>
 
 ### Task state
 
-Each task starts in the `Waiting` state and can end up in one of the terminal states: `Finished`, `Failed`
-or `Canceled`.
+Each task starts in the `Waiting` state and can end up in one of the terminal states: `Finished`, `Failed`, `Canceled` or `Aborted`.
 
 ```
-Waiting-----------------\
-   | ^                  |
-   | |                  |
-   v |                  |
-Running-----------------|
-   | |                  |
-   | \--------\         |
-   |          |         |
-   v          v         v
-Finished    Failed   Canceled
+Waiting----------------------\
+   | ^                       |
+   | |                       |
+   v |                       |
+Running----------------------|
+   | |                       |
+   | \--------\              |
+   |          |              |
+   v          v              v
+Finished    Failed   Canceled/Aborted
 ```
 
 - **Waiting** The task was submitted and is now waiting to be executed.
@@ -252,9 +251,10 @@ Finished    Failed   Canceled
   crashes.
 - **Finished** The task has successfully finished.
 - **Failed** The task has failed.
-- **Canceled** The task has been [canceled](#cancelling-jobs).
+- **Canceled** The task has been [canceled] (#cancelling-jobs) by user.
+- **Aborted** The task has been aborted by HQ due to failure of a dependency or reaching fail limit of a job
 
-If a task is in the `Finished`, `Failed` or `Canceled` state, it is `completed`.
+If a task is in the `Finished`, `Failed`, `Canceled` or `Aborted` state, it is `completed`.
 
 ### Job state
 
@@ -264,9 +264,14 @@ matches from the following list of rules:
 1. If at least one task is `Running`, then job state is `Running`.
 2. If at least one task has not been `completed` yet, then job state is `Waiting`.
 3. If at least one task is `Failed`, then job state is `Failed`.
-4. If at least one task is `Canceled`, then job state is `Canceled`.
-5. If all tasks are finished and job is open (see [Open Jobs](openjobs.md)), then job state is `Opened`.
-5. Remaining case: all tasks are `Finished` and job is closed, then job state is `Finished`.
+4. If at least one task is `Aborted`, then job state is `Aborted`.
+5. If at least one task is `Canceled`, then job state is `Canceled`.
+6. If all tasks are finished and job is open (see [Open Jobs](openjobs.md)), then job state is `Opened`.
+7. Remaining case: all tasks are `Finished` and job is closed, then job state is `Finished`.
+
+!!! note
+
+    Abortion of a task is closely linked to a failure of a task, this would imply that Aborted Job state should never be reached.
 
 ## Cancelling jobs
 
@@ -299,14 +304,14 @@ the [`hq job forget`](cli:hq.job.forget) command[^1]:
 $ hq job forget <job-selector>
 ```
 
-By default, all completed jobs (finished/failed/canceled) will be forgotten. You can use the `--status` parameter to
+By default, all completed jobs (finished/failed/aborted/canceled) will be forgotten. You can use the `--status` parameter to
 only forget jobs in certain statuses:
 
 ```console
-$ hq job forget all --status finished,canceled
+$ hq job forget all --status finished,aborted,canceled
 ```
 
-However, only jobs that are completed, i.e. that have been finished successfully, failed or have been canceled, can be
+However, only jobs that are completed, i.e. that have been finished successfully, failed, aborted or have been canceled, can be
 forgotten. If you want to forget a waiting or a running job, [cancel](#cancelling-jobs) it first.
 
 Note that if you are using a journal, forgetting only free the memory of the server but the tasks remains
@@ -457,6 +462,7 @@ You can display basic job information using [`hq job list`](cli:hq.job.list).
     - `finished`
     - `failed`
     - `canceled`
+    - `aborted`
 
 ### Display a summary table of all jobs
 

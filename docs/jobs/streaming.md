@@ -63,7 +63,7 @@ streaming file. With the following two exceptions:
   stream file), then the task will fail with an error prefixed with `"Streamer:"` and no streaming guarantees
   will be upheld.
 
-- When a task is `Canceled` or task fails because of [time limit](jobs.md#time-management) is reached, then the part of
+- When a task is `Canceled`, `Aborted` or task fails because of [time limit](jobs.md#time-management) is reached, then the part of
   its stream that was buffered in the worker is dropped to avoid spending additional resources for this task.
 
 ## Inspecting the stream data

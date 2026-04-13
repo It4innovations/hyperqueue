@@ -22,7 +22,7 @@ def test_single_dep(hq_env: HqEnv):
 
 def test_dep_failed(hq_env: HqEnv):
     """
-    Check that consumers of a failed tasks are canceled
+    Check that consumers of a failed tasks are aborted
     """
 
     (job, client) = prepare_job_client(hq_env, with_worker=True)
@@ -39,8 +39,8 @@ def test_dep_failed(hq_env: HqEnv):
 
     table = hq_env.command(["task", "list", "1"], as_table=True)
     assert table.get_row_value("0") == "FAILED"
-    assert table.get_row_value("1") == "CANCELED"
-    assert table.get_row_value("2") == "CANCELED"
+    assert table.get_row_value("1") == "ABORTED"
+    assert table.get_row_value("2") == "ABORTED"
     assert table.get_row_value("3") == "FINISHED"
 
 

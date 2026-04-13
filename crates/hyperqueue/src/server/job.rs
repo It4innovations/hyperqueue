@@ -43,6 +43,10 @@ pub enum JobTaskState {
         started_data: Option<StartedTaskData>,
         cancelled_date: DateTime<Utc>,
     },
+    Aborted {
+        started_data: Option<StartedTaskData>,
+        cancelled_date: DateTime<Utc>,
+    },
 }
 
 impl JobTaskState {
@@ -72,6 +76,7 @@ pub struct JobTaskCounters {
     pub n_finished_tasks: JobTaskCount,
     pub n_failed_tasks: JobTaskCount,
     pub n_canceled_tasks: JobTaskCount,
+    pub n_aborted_tasks: JobTaskCount,
 }
 
 impl std::ops::Add<JobTaskCounters> for JobTaskCounters {
@@ -83,6 +88,7 @@ impl std::ops::Add<JobTaskCounters> for JobTaskCounters {
             n_finished_tasks: self.n_finished_tasks + rhs.n_finished_tasks,
             n_failed_tasks: self.n_failed_tasks + rhs.n_failed_tasks,
             n_canceled_tasks: self.n_canceled_tasks + rhs.n_canceled_tasks,
+            n_aborted_tasks: self.n_aborted_tasks + rhs.n_aborted_tasks,
         }
     }
 }
@@ -94,14 +100,15 @@ impl JobTaskCounters {
             - self.n_finished_tasks
             - self.n_failed_tasks
             - self.n_canceled_tasks
+            - self.n_aborted_tasks
     }
 
     pub fn has_unsuccessful_tasks(&self) -> bool {
-        self.n_failed_tasks > 0 || self.n_canceled_tasks > 0
+        self.n_failed_tasks > 0 || self.n_canceled_tasks > 0 || self.n_aborted_tasks > 0
     }
 
     pub fn completed_tasks(&self) -> JobTaskCount {
-        self.n_finished_tasks + self.n_failed_tasks + self.n_canceled_tasks
+        self.n_finished_tasks + self.n_failed_tasks + self.n_canceled_tasks + self.n_aborted_tasks
     }
 
     pub fn is_terminated(&self, n_tasks: JobTaskCount) -> bool {
@@ -173,10 +180,6 @@ impl Job {
     pub fn close(&mut self, senders: &Senders) {
         self.is_open = false;
         senders.events.on_job_closed(self.job_id);
-    }
-
-    pub fn cancel(&mut self, reason: Option<String>) {
-        self.cancel_reason = reason;
     }
 
     pub fn max_id(&self) -> Option<JobTaskId> {
@@ -295,7 +298,8 @@ impl Job {
                 }
                 JobTaskState::Finished { .. }
                 | JobTaskState::Failed { .. }
-                | JobTaskState::Canceled { .. } => None,
+                | JobTaskState::Canceled { .. }
+                | JobTaskState::Aborted { .. } => None,
             })
             .collect()
     }
@@ -410,10 +414,16 @@ impl Job {
         task_id
     }
 
-    pub fn set_cancel_state(&mut self, task_ids: Vec<TaskId>, senders: &Senders) {
+    pub fn set_cancel_state(
+        &mut self,
+        cancel_reason: Option<String>,
+        task_ids: Vec<TaskId>,
+        senders: &Senders,
+    ) {
         if task_ids.is_empty() {
             return;
         }
+        self.cancel_reason = cancel_reason;
         let now = Utc::now();
         for task_id in &task_ids {
             assert_eq!(task_id.job_id(), self.job_id);
@@ -437,7 +447,43 @@ impl Job {
         }
 
         self.counters.n_canceled_tasks += task_ids.len() as JobTaskCount;
+        senders.events.on_job_cancel(
+            self.job_id,
+            self.cancel_reason.clone().unwrap_or_default(),
+            now,
+        );
         senders.events.on_task_canceled(task_ids, now);
+        self.check_termination(senders, now);
+    }
+
+    pub fn abort_tasks(&mut self, task_ids: Vec<TaskId>, senders: &Senders) {
+        if task_ids.is_empty() {
+            return;
+        }
+        let now = Utc::now();
+        for task_id in &task_ids {
+            assert_eq!(task_id.job_id(), self.job_id);
+            let task = self.tasks.get_mut(&task_id.job_task_id()).unwrap();
+            match &task.state {
+                JobTaskState::Running { started_data, .. } => {
+                    task.state = JobTaskState::Aborted {
+                        started_data: Some(started_data.clone()),
+                        cancelled_date: now,
+                    };
+                    self.counters.n_running_tasks -= 1;
+                }
+                JobTaskState::Waiting => {
+                    task.state = JobTaskState::Aborted {
+                        started_data: None,
+                        cancelled_date: now,
+                    };
+                }
+                state => panic!("Invalid job state that is being aborted: {task_id:?} {state:?}"),
+            }
+        }
+
+        self.counters.n_aborted_tasks += task_ids.len() as JobTaskCount;
+        senders.events.on_task_aborted(task_ids, now);
         self.check_termination(senders, now);
     }
 

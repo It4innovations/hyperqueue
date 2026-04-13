@@ -115,11 +115,12 @@ impl From<VerbosityFlag> for Verbosity {
     }
 }
 
-pub const JOB_SUMMARY_STATUS_ORDER: [Status; 5] = [
+pub const JOB_SUMMARY_STATUS_ORDER: [Status; 6] = [
     Status::Running,
     Status::Waiting,
     Status::Finished,
     Status::Failed,
+    Status::Aborted,
     Status::Canceled,
 ];
 

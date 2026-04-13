@@ -54,22 +54,25 @@ impl JobTaskChart {
                     failed,
                     finished,
                     canceled,
+                    aborted,
                 } = stats.item;
 
                 let title = format!(
-                    "Running: {running}, Finished: {finished}, Failed: {failed}, Canceled: {canceled}",
+                    "Running: {running}, Finished: {finished}, Failed: {failed}, Canceled: {canceled}, Aborted {aborted}",
                 );
 
                 let running = generate_dataset_entries(entries, |stats| stats.running as f64);
                 let finished = generate_dataset_entries(entries, |stats| stats.finished as f64);
                 let failed = generate_dataset_entries(entries, |stats| stats.failed as f64);
                 let canceled = generate_dataset_entries(entries, |stats| stats.canceled as f64);
+                let aborted = generate_dataset_entries(entries, |stats| stats.aborted as f64);
 
                 let datasets = vec![
                     create_dataset(&running, "Running", Color::Yellow),
                     create_dataset(&finished, "Finished", Color::Green),
                     create_dataset(&failed, "Failed", Color::Red),
                     create_dataset(&canceled, "Canceled", Color::Cyan),
+                    create_dataset(&aborted, "Aborted", Color::LightRed),
                 ];
                 let chart = create_count_chart(datasets, &title, self.range);
                 frame.render_widget(chart, rect);
@@ -92,6 +95,7 @@ struct TaskStats {
     failed: u64,
     finished: u64,
     canceled: u64,
+    aborted: u64,
 }
 
 impl TaskStats {
@@ -101,6 +105,7 @@ impl TaskStats {
             mut failed,
             mut finished,
             mut canceled,
+            mut aborted,
         } = self;
         match state {
             DashboardTaskState::Running => {
@@ -115,12 +120,16 @@ impl TaskStats {
             DashboardTaskState::Canceled => {
                 canceled += 1;
             }
+            DashboardTaskState::Aborted => {
+                aborted += 1;
+            }
         }
         Self {
             running,
             failed,
             finished,
             canceled,
+            aborted,
         }
     }
 }

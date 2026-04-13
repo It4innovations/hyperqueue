@@ -408,6 +408,7 @@ fn format_job_info(info: &JobInfo) -> Value {
             "finished": counters.n_finished_tasks,
             "failed": counters.n_failed_tasks,
             "canceled": counters.n_canceled_tasks,
+            "aborted": counters.n_aborted_tasks,
             "waiting": counters.n_waiting_tasks(*n_tasks)
         }),
         "cancel_reason": cancel_reason,
@@ -424,6 +425,7 @@ fn format_tasks(tasks: &[(JobTaskId, JobTaskInfo)], map: TaskToPathsMap) -> Valu
                 JobTaskState::Finished { .. } => "finished",
                 JobTaskState::Failed { .. } => "failed",
                 JobTaskState::Canceled { .. } => "canceled",
+                JobTaskState::Aborted { .. } => "aborted",
             };
             let mut data = json!({
                 "id": *task_id,

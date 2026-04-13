@@ -146,6 +146,7 @@ Time-based items are formatted in the following way:
             },
           "task_count": 1,
           "task_stats": {
+            "aborted": 0,
             "canceled": 0,
             "failed": 0,
             "finished": 1,
@@ -174,6 +175,7 @@ Time-based items are formatted in the following way:
               },
             "task_count": 1,
             "task_stats": {
+              "aborted": 0,
               "canceled": 0,
               "failed": 0,
               "finished": 1,
