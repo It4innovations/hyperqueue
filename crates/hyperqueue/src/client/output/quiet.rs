@@ -93,6 +93,7 @@ impl Output for Quiet {
                 Status::Failed => "FAILED",
                 Status::Canceled => "CANCELED",
                 Status::Opened => "OPENED",
+                Status::Aborted => "ABORTED",
             };
 
             println!("{status} {count}");
@@ -174,5 +175,6 @@ fn format_status(status: &Status) -> &str {
         Status::Failed => "FAILED",
         Status::Canceled => "CANCELED",
         Status::Opened => "OPENED",
+        Status::Aborted => "ABORTED",
     }
 }

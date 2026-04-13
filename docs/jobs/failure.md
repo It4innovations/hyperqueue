@@ -52,11 +52,11 @@ can instead create a separate stdout/stderr file for each task execution using t
 By default, when a single task of a [task array](arrays.md) fails, the computation of the job will continue.
 
 You can change this behavior with the `--max-fails=<X>` option of the `submit` command, where `X` is non-negative integer.
-If specified, once more tasks than `X` tasks fail, the rest of the job's tasks that were not completed yet will be canceled.
+If specified, once more tasks than `X` tasks fail, the rest of the job's tasks that were not completed yet will be aborted.
 
 For example:
 ```bash
 $ hq submit --array 1-1000 --max-fails 5 ...
 ```
 This will create a task array with `1000` tasks. Once `5` or more tasks fail, the remaining uncompleted tasks of the job
-will be canceled.
+will be aborted.

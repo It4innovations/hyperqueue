@@ -4,8 +4,8 @@ use std::os::unix::ffi::OsStrExt;
 use std::process::Command;
 
 use crate::client::output::cli::{
-    TASK_COLOR_CANCELED, TASK_COLOR_FAILED, TASK_COLOR_FINISHED, TASK_COLOR_RUNNING,
-    job_progress_bar,
+    TASK_COLOR_ABORTED, TASK_COLOR_CANCELED, TASK_COLOR_FAILED, TASK_COLOR_FINISHED,
+    TASK_COLOR_RUNNING, job_progress_bar,
 };
 use crate::client::status::is_terminated;
 use crate::common::utils::str::pluralize;
@@ -142,6 +142,7 @@ pub async fn wait_for_jobs_with_progress(
         add_count(counters.n_finished_tasks, "FINISHED", TASK_COLOR_FINISHED);
         add_count(counters.n_failed_tasks, "FAILED", TASK_COLOR_FAILED);
         add_count(counters.n_canceled_tasks, "CANCELED", TASK_COLOR_CANCELED);
+        add_count(counters.n_aborted_tasks, "ABORTED", TASK_COLOR_ABORTED);
 
         // \x1b[2K clears the line
         print!(
@@ -188,7 +189,30 @@ pub async fn wait_for_jobs_with_progress(
                             counters.n_canceled_tasks += 1;
                         }
                     }
-                    _ => {}
+                    EventPayload::TasksAborted { task_ids } => {
+                        for task_id in task_ids {
+                            if running_tasks.remove(task_id) {
+                                counters.n_running_tasks -= 1;
+                            }
+                            counters.n_aborted_tasks += 1;
+                        }
+                    }
+                    EventPayload::WorkerConnected(..)
+                    | EventPayload::WorkerLost(..)
+                    | EventPayload::WorkerOverviewReceived(..)
+                    | EventPayload::Submit { .. }
+                    | EventPayload::JobOpen(..)
+                    | EventPayload::JobClose(..)
+                    | EventPayload::JobIdle(..)
+                    | EventPayload::JobCancel { .. }
+                    | EventPayload::AllocationQueueCreated(..)
+                    | EventPayload::AllocationQueueRemoved(_)
+                    | EventPayload::AllocationQueued { .. }
+                    | EventPayload::AllocationStarted(_, _)
+                    | EventPayload::AllocationFinished(_, _)
+                    | EventPayload::ServerStart { .. }
+                    | EventPayload::ServerStop
+                    | EventPayload::TaskNotify(..) => {}
                 },
                 _ => {
                     log::warn!("Unexpected message from server: {:?}", &msg);

@@ -90,7 +90,8 @@ impl EventFilter {
             | EventPayload::JobCompleted(job_id)
             | EventPayload::JobOpen(job_id, _)
             | EventPayload::JobClose(job_id)
-            | EventPayload::JobIdle(job_id) => {
+            | EventPayload::JobIdle(job_id)
+            | EventPayload::JobCancel { job_id, .. } => {
                 if !self.flags.contains(EventFilterFlags::JOB_EVENTS) {
                     false
                 } else {
@@ -112,7 +113,7 @@ impl EventFilter {
                         .unwrap_or(true)
                 }
             }
-            EventPayload::TasksCanceled { task_ids } => {
+            EventPayload::TasksAborted { task_ids } | EventPayload::TasksCanceled { task_ids } => {
                 if !self.flags.contains(EventFilterFlags::TASK_EVENTS) {
                     false
                 } else {
@@ -241,6 +242,18 @@ impl EventStreamer {
     }
 
     #[inline]
+    pub fn on_job_cancel(&self, job_id: JobId, cancel_reason: String, now: DateTime<Utc>) {
+        self.send_event(
+            EventPayload::JobCancel {
+                job_id,
+                cancel_reason,
+            },
+            Some(now),
+            ForwardMode::StreamAndPersist,
+        );
+    }
+
+    #[inline]
     pub fn on_task_started(
         &self,
         task_id: TaskId,
@@ -273,6 +286,14 @@ impl EventStreamer {
     pub fn on_task_canceled(&self, task_ids: Vec<TaskId>, now: DateTime<Utc>) {
         self.send_event(
             EventPayload::TasksCanceled { task_ids },
+            Some(now),
+            ForwardMode::StreamAndPersist,
+        );
+    }
+
+    pub fn on_task_aborted(&self, task_ids: Vec<TaskId>, now: DateTime<Utc>) {
+        self.send_event(
+            EventPayload::TasksAborted { task_ids },
             Some(now),
             ForwardMode::StreamAndPersist,
         );

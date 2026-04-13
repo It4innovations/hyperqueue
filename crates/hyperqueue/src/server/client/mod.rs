@@ -430,10 +430,15 @@ fn reconstruct_historical_events(
                 | JobTaskState::Canceled {
                     started_data: Some(started_data),
                     ..
+                }
+                | JobTaskState::Aborted {
+                    started_data: Some(started_data),
+                    ..
                 } => Some(started_data.clone()),
                 JobTaskState::Waiting
                 | JobTaskState::Failed { .. }
-                | JobTaskState::Canceled { .. } => None,
+                | JobTaskState::Canceled { .. }
+                | JobTaskState::Aborted { .. } => None,
             };
             if let Some(started_data) = started_data {
                 events.push(Event::at(
@@ -482,6 +487,24 @@ fn reconstruct_historical_events(
                         events.push(Event::at(
                             *cancelled_date,
                             EventPayload::TasksCanceled {
+                                task_ids: vec![TaskId::new(job.job_id, *id)],
+                            },
+                        ));
+                    }
+                }
+                JobTaskState::Aborted { cancelled_date, .. } => {
+                    if let Some(task_ids) = events.last_mut().and_then(|e| {
+                        if let EventPayload::TasksAborted { task_ids, .. } = &mut e.payload {
+                            (e.time == *cancelled_date).then_some(task_ids)
+                        } else {
+                            None
+                        }
+                    }) {
+                        task_ids.push(TaskId::new(job.job_id, *id))
+                    } else {
+                        events.push(Event::at(
+                            *cancelled_date,
+                            EventPayload::TasksAborted {
                                 task_ids: vec![TaskId::new(job.job_id, *id)],
                             },
                         ));
@@ -754,8 +777,7 @@ async fn cancel_job(
             .iter()
             .map(|task_id| task_id.job_task_id())
             .collect();
-        job.set_cancel_state(task_ids, senders);
-        job.cancel(reason.clone());
+        job.set_cancel_state(reason.clone(), task_ids, senders);
         CancelJobResponse::Canceled(job_task_ids, already_finished)
     } else {
         CancelJobResponse::Canceled(vec![], 0)

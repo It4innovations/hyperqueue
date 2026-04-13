@@ -289,7 +289,7 @@ def test_job_list_hidden_jobs(hq_env: HqEnv):
 def test_job_summary(hq_env: HqEnv):
     hq_env.start_server()
 
-    def check(running=0, waiting=0, finished=0, failed=0, canceled=0):
+    def check(running=0, waiting=0, finished=0, failed=0, canceled=0, aborted=0):
         table = hq_env.command(["job", "summary"], as_table=True)
 
         items = (
@@ -297,6 +297,7 @@ def test_job_summary(hq_env: HqEnv):
             ("WAITING", waiting),
             ("FINISHED", finished),
             ("FAILED", failed),
+            ("ABORTED", aborted),
             ("CANCELED", canceled),
         )
         for index, (status, count) in enumerate(items):
@@ -568,7 +569,7 @@ def test_max_fails_0(hq_env: HqEnv):
     table = hq_env.command(["job", "info", "1"], as_table=True)
     states = table[0].get_row_value("State").split("\n")
     assert "FAILED (1)" in states
-    assert any(s.startswith("CANCELED") for s in states)
+    assert any(s.startswith("ABORTED") for s in states)
 
 
 def test_max_fails_1(hq_env: HqEnv):
@@ -627,7 +628,7 @@ def test_max_fails_many(hq_env: HqEnv):
     table = hq_env.command(["job", "info", "1"], as_table=True)
     states = table[0].get_row_value("State").split("\n")
     assert "FAILED (4)" in states
-    assert "CANCELED (6)" in states
+    assert "ABORTED (6)" in states
 
 
 def test_job_last(hq_env: HqEnv):

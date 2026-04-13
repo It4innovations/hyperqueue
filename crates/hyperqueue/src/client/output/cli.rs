@@ -52,6 +52,7 @@ use tako::{Map, format_comma_delimited};
 
 pub const TASK_COLOR_CANCELED: Colorization = Colorization::Magenta;
 pub const TASK_COLOR_FAILED: Colorization = Colorization::Red;
+pub const TASK_COLOR_ABORTED: Colorization = Colorization::BrightRed;
 pub const TASK_COLOR_FINISHED: Colorization = Colorization::Green;
 pub const TASK_COLOR_RUNNING: Colorization = Colorization::Yellow;
 pub const TASK_COLOR_INVALID: Colorization = Colorization::BrightRed;
@@ -1278,31 +1279,37 @@ fn job_status_to_cell(info: &JobInfo) -> String {
         &mut result,
         "RUNNING",
         info.counters.n_running_tasks,
-        colored::Color::Yellow,
+        TASK_COLOR_RUNNING,
     );
     row(
         &mut result,
         "FAILED",
         info.counters.n_failed_tasks,
-        colored::Color::Red,
+        TASK_COLOR_FAILED,
     );
     row(
         &mut result,
         "FINISHED",
         info.counters.n_finished_tasks,
-        colored::Color::Green,
+        TASK_COLOR_FINISHED,
     );
     row(
         &mut result,
         "CANCELED",
         info.counters.n_canceled_tasks,
-        colored::Color::Magenta,
+        TASK_COLOR_CANCELED,
     );
     row(
         &mut result,
         "WAITING",
         info.counters.n_waiting_tasks(info.n_tasks),
         colored::Color::Cyan,
+    );
+    row(
+        &mut result,
+        "ABORTED",
+        info.counters.n_aborted_tasks,
+        TASK_COLOR_ABORTED,
     );
     result
 }
@@ -1343,6 +1350,7 @@ pub fn job_progress_bar(counters: JobTaskCounters, n_tasks: JobTaskCount, width:
         (counters.n_failed_tasks, TASK_COLOR_FAILED),
         (counters.n_finished_tasks, TASK_COLOR_FINISHED),
         (counters.n_running_tasks, TASK_COLOR_RUNNING),
+        (counters.n_aborted_tasks, TASK_COLOR_ABORTED),
     ];
 
     let chars = |count: JobTaskCount| {
@@ -1432,6 +1440,7 @@ fn status_to_cell(status: &Status) -> CellStruct {
         Status::Failed => "FAILED".cell().foreground_color(Some(Color::Red)),
         Status::Running => "RUNNING".cell().foreground_color(Some(Color::Yellow)),
         Status::Canceled => "CANCELED".cell().foreground_color(Some(Color::Magenta)),
+        Status::Aborted => "ABORTED".cell().foreground_color(Some(Color::Blue)),
     }
 }
 
@@ -1537,6 +1546,10 @@ fn get_task_time(state: &JobTaskState) -> (Option<DateTime<Utc>>, Option<DateTim
         JobTaskState::Canceled {
             started_data: Some(started_data),
             cancelled_date,
+        }
+        | JobTaskState::Aborted {
+            started_data: Some(started_data),
+            cancelled_date,
         } => (Some(started_data.start_date), Some(*cancelled_date)),
         JobTaskState::Running { started_data, .. } => (Some(started_data.start_date), None),
         JobTaskState::Finished {
@@ -1550,6 +1563,10 @@ fn get_task_time(state: &JobTaskState) -> (Option<DateTime<Utc>>, Option<DateTim
             ..
         } => (Some(started_data.start_date), Some(*end_date)),
         JobTaskState::Canceled {
+            started_data: None,
+            cancelled_date: _,
+        }
+        | JobTaskState::Aborted {
             started_data: None,
             cancelled_date: _,
         }

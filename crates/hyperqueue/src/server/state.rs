@@ -114,21 +114,21 @@ impl State {
         &mut self,
         senders: &Senders,
         task_id: TaskId,
-        cancelled_tasks: Vec<TaskId>,
+        aborted_tasks: Vec<TaskId>,
         info: TaskFailInfo,
     ) -> Vec<TaskId> {
         log::debug!("Task id={task_id} failed: {info:?}");
 
         let job_id = task_id.job_id();
         let job = self.get_job_mut(job_id).unwrap();
-        if !cancelled_tasks.is_empty() {
+        if !aborted_tasks.is_empty() {
             log::debug!(
-                "Tasks {:?} canceled because of task dependency fails",
-                &cancelled_tasks
+                "Tasks {:?} aborted because of task dependency fails",
+                &aborted_tasks
             );
         }
 
-        job.set_cancel_state(cancelled_tasks, senders);
+        job.abort_tasks(aborted_tasks, senders);
         job.set_failed_state(task_id.job_task_id(), info.message, senders);
 
         if let Some(max_fails) = &job.job_desc.max_fails
@@ -136,7 +136,7 @@ impl State {
         {
             log::debug!("Max task fails reached for job {}", job.job_id);
             let task_ids = job.non_finished_task_ids();
-            job.set_cancel_state(task_ids.clone(), senders);
+            job.abort_tasks(task_ids.clone(), senders);
             return task_ids;
         }
         Vec::new()

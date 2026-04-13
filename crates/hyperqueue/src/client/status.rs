@@ -11,6 +11,7 @@ pub enum Status {
     Finished,
     Failed,
     Canceled,
+    Aborted,
     Opened,
 }
 
@@ -23,6 +24,8 @@ pub fn job_status(info: &JobInfo) -> Status {
         Status::Waiting
     } else if info.counters.n_failed_tasks > 0 {
         Status::Failed
+    } else if info.counters.n_aborted_tasks > 0 {
+        Status::Aborted
     } else if info.counters.n_canceled_tasks > 0 {
         Status::Canceled
     } else {
@@ -47,5 +50,6 @@ pub fn get_task_status(status: &JobTaskState) -> Status {
         JobTaskState::Finished { .. } => Status::Finished,
         JobTaskState::Failed { .. } => Status::Failed,
         JobTaskState::Canceled { .. } => Status::Canceled,
+        JobTaskState::Aborted { .. } => Status::Aborted,
     }
 }

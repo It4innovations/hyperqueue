@@ -70,23 +70,25 @@ impl WorkerTimeline {
                             .push(event.time.into(), *overview.clone());
                     }
                 }
-                EventPayload::Submit { .. } => {}
-                EventPayload::JobCompleted(_) => {}
-                EventPayload::JobOpen(_, _) => {}
-                EventPayload::JobClose(_) => {}
-                EventPayload::JobIdle(_) => {}
-                EventPayload::TaskStarted { .. } => {}
-                EventPayload::TaskFinished { .. } => {}
-                EventPayload::TaskFailed { .. } => {}
-                EventPayload::TasksCanceled { .. } => {}
-                EventPayload::AllocationQueueCreated(_, _) => {}
-                EventPayload::AllocationQueueRemoved(_) => {}
-                EventPayload::AllocationQueued { .. } => {}
-                EventPayload::AllocationStarted(_, _) => {}
-                EventPayload::AllocationFinished(_, _) => {}
-                EventPayload::ServerStart { .. } => {}
-                EventPayload::ServerStop => {}
-                EventPayload::TaskNotify(_) => {}
+                EventPayload::Submit { .. }
+                | EventPayload::JobCompleted(_)
+                | EventPayload::JobOpen(_, _)
+                | EventPayload::JobClose(_)
+                | EventPayload::JobIdle(_)
+                | EventPayload::JobCancel { .. }
+                | EventPayload::TaskStarted { .. }
+                | EventPayload::TaskFinished { .. }
+                | EventPayload::TaskFailed { .. }
+                | EventPayload::TasksAborted { .. }
+                | EventPayload::TasksCanceled { .. }
+                | EventPayload::AllocationQueueCreated(_, _)
+                | EventPayload::AllocationQueueRemoved(_)
+                | EventPayload::AllocationQueued { .. }
+                | EventPayload::AllocationStarted(_, _)
+                | EventPayload::AllocationFinished(_, _)
+                | EventPayload::ServerStart { .. }
+                | EventPayload::ServerStop
+                | EventPayload::TaskNotify(_) => {}
             }
         }
     }

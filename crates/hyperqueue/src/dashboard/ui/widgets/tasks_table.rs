@@ -16,6 +16,7 @@ const RUNNING: &str = "RUNNING";
 const FINISHED: &str = "FINISHED";
 const FAILED: &str = "FAILED";
 const CANCELED: &str = "CANCELED";
+const ABORTED: &str = "ABORTED";
 
 pub struct TasksTable {
     table: StatefulTable<TaskRow>,
@@ -102,6 +103,7 @@ impl TasksTable {
                     DashboardTaskState::Finished => FINISHED.to_string(),
                     DashboardTaskState::Failed => FAILED.to_string(),
                     DashboardTaskState::Canceled => CANCELED.to_string(),
+                    DashboardTaskState::Aborted => ABORTED.to_string(),
                 };
                 cols.extend([
                     Cell::from(task_state).style(get_task_state_color(task_row.task_state)),
@@ -132,6 +134,7 @@ fn create_rows(mut rows: Vec<(JobTaskId, &TaskInfo)>, current_time: SystemTime) 
             DashboardTaskState::Finished => 1,
             DashboardTaskState::Failed => 2,
             DashboardTaskState::Canceled => 3,
+            DashboardTaskState::Aborted => 4,
         };
         match task_info.end_time {
             None => (status_index, task_info.start_time),
@@ -175,6 +178,7 @@ pub fn get_task_state_color(state: DashboardTaskState) -> Style {
         DashboardTaskState::Finished => Color::Green,
         DashboardTaskState::Failed => Color::Red,
         DashboardTaskState::Canceled => Color::Cyan,
+        DashboardTaskState::Aborted => Color::LightRed,
     };
 
     Style {

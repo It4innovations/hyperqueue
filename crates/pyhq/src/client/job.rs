@@ -128,7 +128,12 @@ pub fn forget_job_impl(py: Python, ctx: ClientContextPtr, job_id: PyJobId) -> Py
     run_future(async move {
         let message = FromClientMessage::ForgetJob(ForgetJobRequest {
             selector: IdSelector::Specific(IntArray::from_id(job_id)),
-            filter: vec![Status::Canceled, Status::Failed, Status::Finished],
+            filter: vec![
+                Status::Canceled,
+                Status::Failed,
+                Status::Aborted,
+                Status::Finished,
+            ],
         });
 
         let mut ctx = borrow_mut!(py, ctx);

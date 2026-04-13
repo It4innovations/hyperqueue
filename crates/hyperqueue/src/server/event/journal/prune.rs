@@ -22,13 +22,16 @@ pub(crate) fn prune_journal(
             EventPayload::Submit { job_id, .. }
             | EventPayload::JobCompleted(job_id)
             | EventPayload::JobOpen(job_id, _)
-            | EventPayload::JobClose(job_id) => live_job_ids.contains(job_id).then_some(event),
+            | EventPayload::JobClose(job_id)
+            | EventPayload::JobCancel { job_id, .. } => {
+                live_job_ids.contains(job_id).then_some(event)
+            }
             EventPayload::TaskStarted { task_id, .. }
             | EventPayload::TaskFinished { task_id, .. }
             | EventPayload::TaskFailed { task_id, .. } => {
                 live_job_ids.contains(&task_id.job_id()).then_some(event)
             }
-            EventPayload::TasksCanceled { task_ids, .. } => {
+            EventPayload::TasksAborted { task_ids } | EventPayload::TasksCanceled { task_ids } => {
                 task_ids.retain(|id| live_job_ids.contains(&id.job_id()));
                 (!task_ids.is_empty()).then_some(event)
             }
