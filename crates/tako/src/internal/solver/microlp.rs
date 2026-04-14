@@ -1,5 +1,4 @@
-use crate::internal::solver::ConstraintType;
-use crate::internal::worker::resources::solver::{LpSolution, LpSolver};
+use crate::internal::solver::{ConstraintType, LpInnerSolver, LpSolution};
 use microlp::ComparisonOp;
 
 pub(crate) struct MicrolpSolver(microlp::Problem);
@@ -12,7 +11,7 @@ impl MicrolpSolver {
     }
 }
 
-impl LpSolver for MicrolpSolver {
+impl LpInnerSolver for MicrolpSolver {
     type Variable = microlp::Variable;
     type Solution = MicrolpSolution;
 
@@ -28,14 +27,20 @@ impl LpSolver for MicrolpSolver {
 
     #[inline]
     fn add_nat_variable(&mut self, weight: f64) -> Self::Variable {
-        self.0.add_integer_var(weight, 0, i32::MAX)
+        // There is a known bug in micro-lp that large variable bounds produce incorrect results.
+        // So we are setting some small but a reasonably large number.
+        // Some of our tests fails even for a number like 40_000.
+        // Btw: This (artificially) bounds a number of scheduled tasks of a single request on a single worker
+        // If a user wants to schedule on a single worker more than 10_000 tasks, probably they should
+        // not use microlp in the first place.
+        self.0.add_integer_var(weight, (0, 10_000))
     }
 
     #[inline]
     fn add_constraint(
         &mut self,
         constraint_type: ConstraintType,
-        min: f64,
+        value: f64,
         variables: impl Iterator<Item = (Self::Variable, f64)>,
     ) {
         self.0.add_constraint(
@@ -43,9 +48,9 @@ impl LpSolver for MicrolpSolver {
             match constraint_type {
                 ConstraintType::Min => ComparisonOp::Ge,
                 ConstraintType::Max => ComparisonOp::Le,
-                ConstraintType::Rq => ComparisonOp::Eq,
+                ConstraintType::Eq => ComparisonOp::Eq,
             },
-            min,
+            value,
         )
     }
 
