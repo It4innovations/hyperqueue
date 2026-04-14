@@ -1111,6 +1111,7 @@ fn test_scheduler_two_running_three_waiting() {
     assert!(rt.task(ts[3]).is_waiting());
 }
 
+#[cfg(not(feature = "microlp"))] // To big tests for microlp
 #[test]
 fn test_many_cuts() {
     let mut rt = TestEnv::new();
@@ -1124,7 +1125,6 @@ fn test_many_cuts() {
     rt.schedule();
     let c1 = ts1.iter().filter(|t| rt.task(**t).is_assigned()).count();
     let c2 = ts2.iter().filter(|t| rt.task(**t).is_assigned()).count();
-    dbg!(c1, c2);
     assert!(c1.abs_diff(c2) < 10);
     assert!(c1.abs_diff(800) < 10);
     assert!(c2.abs_diff(800) < 10);
