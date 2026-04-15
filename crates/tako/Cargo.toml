@@ -11,6 +11,7 @@ rust-version.workspace = true
 default = ["highs"]
 highs = ["dep:highs"]
 microlp = ["dep:microlp"]
+coin_cbc = ["dep:coin_cbc"]
 
 [dependencies]
 anyhow = { workspace = true }
@@ -39,6 +40,7 @@ itertools = { workspace = true }
 
 highs = { version = "1.12", optional = true }
 microlp = { version = "0.2", optional = true }
+coin_cbc = { version = "0.1", optional = true }
 
 hashbrown = { version = "0.16", features = ["serde", "inline-more"], default-features = false }
 priority-queue = "2"

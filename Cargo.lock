@@ -397,6 +397,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "coin_cbc"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d602045cd2e7ad02608a71492af94357f493a6f3c934ce854c03bf10fddc5780"
+dependencies = [
+ "coin_cbc_sys",
+ "lazy_static",
+]
+
+[[package]]
+name = "coin_cbc_sys"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "085619f8bdc38e24e25c6336ecc3f2e6c0543d67566dff6daef0e32f7ac20f76"
+dependencies = [
+ "pkg-config",
+]
+
+[[package]]
 name = "colorchoice"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1371,6 +1390,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "lazy_static"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
+
+[[package]]
 name = "leb128fmt"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1709,6 +1734,12 @@ name = "pin-project-lite"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
+
+[[package]]
+name = "pkg-config"
+version = "0.3.33"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "19f132c84eca552bf34cab8ec81f1c1dcc229b811638f9d283dceabe58c5569e"
 
 [[package]]
 name = "platforms"
@@ -2355,6 +2386,7 @@ dependencies = [
  "bitflags 2.11.0",
  "bstr",
  "bytes",
+ "coin_cbc",
  "criterion",
  "derive_builder",
  "derive_more 2.1.1",
