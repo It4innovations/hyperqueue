@@ -2,12 +2,17 @@
 pub(crate) mod highs;
 #[cfg(all(feature = "microlp", not(feature = "highs")))]
 pub(crate) mod microlp;
+#[cfg(all(feature = "coin_cbc", not(feature = "microlp"), not(feature = "highs")))]
+pub(crate) mod coin_cbc;
 
 #[cfg(feature = "highs")]
 pub(crate) type LpInnerSolverImpl = highs::HighsSolver;
 
 #[cfg(all(feature = "microlp", not(feature = "highs")))]
 pub(crate) type LpInnerSolverImpl = microlp::MicrolpSolver;
+
+#[cfg(all(feature = "coin_cbc", not(feature = "microlp"), not(feature = "highs")))]
+pub(crate) type LpInnerSolverImpl = coin_cbc::CoinCbcSolver;
 
 pub(crate) type Variable = <LpInnerSolverImpl as LpInnerSolver>::Variable;
 pub(crate) type Solution = <LpInnerSolverImpl as LpInnerSolver>::Solution;
@@ -74,10 +79,10 @@ impl LpSolver {
     }
 
     pub fn new(verbose: bool) -> Self {
-        #[cfg(not(any(feature = "highs", feature = "microlp")))]
+        #[cfg(not(any(feature = "highs", feature = "microlp", feature = "coin_cbc")))]
         {
             compile_error!(
-                "You have to enable either the `highs` or the `microlp` feature using `cargo build ... --features <highs/microlp>`"
+                "You have to enable either the `highs`, `microlp`, or `coin_cbc` feature using `cargo build ... --features <highs/microlp/coin_cbc>`"
             )
         }
         LpSolver {
