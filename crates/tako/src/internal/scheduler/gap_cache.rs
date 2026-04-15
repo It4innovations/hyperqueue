@@ -138,15 +138,14 @@ fn compute_gap(
                         c.into_iter(),
                     );
                 }
-                let Some(solution) = solver.solve() else {
+                let Some((solution, _)) = solver.solve() else {
                     return 0;
                 };
-                let counts = solution.0.get_values();
                 let mut resources = resources.clone();
-                for (idx, rq) in high_priority_rqv.requests().iter().enumerate() {
+                for (var, rq) in vars.iter().zip(high_priority_rqv.requests().iter()) {
                     resources.remove_multiple_masked(
                         rq,
-                        counts[idx].round() as u32,
+                        solution.get_value(*var).round() as u32,
                         entry.resource_id,
                     );
                 }

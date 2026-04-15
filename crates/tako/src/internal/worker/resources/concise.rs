@@ -118,6 +118,7 @@ impl ConciseResourceState {
         }
     }
 
+    #[cfg(test)]
     pub fn n_groups(&self) -> usize {
         self.free.len()
     }

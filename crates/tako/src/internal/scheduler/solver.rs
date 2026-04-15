@@ -65,7 +65,7 @@ pub(crate) fn run_scheduling_solver(
 
     let mut solver = LpSolver::new(false);
 
-    let mut placements: Map<(WorkerId, ResourceRqId, ResourceVariantId), (_, u32)> = Map::new();
+    let mut placements: Map<(WorkerId, ResourceRqId, ResourceVariantId), Variable> = Map::new();
     let mut tasks_count_vars: Map<ResourceRqId, Vec<_>> = Map::new();
 
     let mut worker_res_constraint = vec![Vec::new(); n_resources];
@@ -94,10 +94,7 @@ pub(crate) fn run_scheduling_solver(
                             worker,
                             &resource_sums,
                         );
-                        placements.insert(
-                            (worker.id, batch.resource_rq_id, v_idx),
-                            (v, solver.last_var_idx()),
-                        );
+                        placements.insert((worker.id, batch.resource_rq_id, v_idx), v);
                         // Insert into worker resource constraints
                         for (r, amount) in worker.resources.iter_pairs() {
                             worker_res_constraint[r.as_usize()].push((v, amount.as_f64()));
@@ -111,10 +108,7 @@ pub(crate) fn run_scheduling_solver(
                     set_placement_name(&mut solver, worker.id, batch.resource_rq_id, v_idx);
                     let v =
                         create_sn_var(&mut solver, rq, n_workers, w_idx, worker, &resource_sums);
-                    placements.insert(
-                        (worker.id, batch.resource_rq_id, v_idx),
-                        (v, solver.last_var_idx()),
-                    );
+                    placements.insert((worker.id, batch.resource_rq_id, v_idx), v);
                     tasks_count_vars
                         .entry(batch.resource_rq_id)
                         .or_default()
@@ -188,7 +182,7 @@ pub(crate) fn run_scheduling_solver(
             for (group_name, group) in worker_groups.iter() {
                 temp.clear();
                 for w_id in group.worker_ids() {
-                    if let Some((v, _)) = placements.get(&(w_id, batch.resource_rq_id, rv_id)) {
+                    if let Some(v) = placements.get(&(w_id, batch.resource_rq_id, rv_id)) {
                         temp.push(*v)
                     }
                 }
@@ -264,9 +258,7 @@ pub(crate) fn run_scheduling_solver(
                             continue;
                         }
                         for v_id in batch_rqv.variant_ids() {
-                            if let Some((var, _)) =
-                                placements.get(&(w.id, batch.resource_rq_id, v_id))
-                            {
+                            if let Some(var) = placements.get(&(w.id, batch.resource_rq_id, v_id)) {
                                 let gap = scheduler_cache.gap_cache.get_gap(
                                     *blocker_rq_id,
                                     batch.resource_rq_id,
@@ -352,7 +344,6 @@ pub(crate) fn run_scheduling_solver(
         return result;
     };
 
-    let values = solution.get_values();
     for batch in task_batches {
         let resource_rq_id = batch.resource_rq_id;
         let rqv = request_map.get(resource_rq_id);
@@ -361,8 +352,8 @@ pub(crate) fn run_scheduling_solver(
             let n_nodes = rqv.get(v_id).n_nodes() as usize;
             let mut ws: Vec<ThinVec<WorkerId>> = Vec::new();
             for worker in &workers {
-                if let Some((_, var_idx)) = placements.get(&(worker.id, resource_rq_id, v_id)) {
-                    let count = values[*var_idx as usize].round() as u32;
+                if let Some(v) = placements.get(&(worker.id, resource_rq_id, v_id)) {
+                    let count = solution.get_value(*v).round() as u32;
                     if count > 0 {
                         if let Some(last) = ws.last_mut()
                             && last.len() < n_nodes
@@ -384,16 +375,10 @@ pub(crate) fn run_scheduling_solver(
                 let counts: Map<_, _> = workers
                     .iter()
                     .filter_map(|w| {
-                        placements
-                            .get(&(w.id, resource_rq_id, v_id))
-                            .and_then(|(_, var_idx)| {
-                                let count = values[*var_idx as usize].round() as u32;
-                                if count > 0 {
-                                    Some((w.id, values[*var_idx as usize].round() as u32))
-                                } else {
-                                    None
-                                }
-                            })
+                        placements.get(&(w.id, resource_rq_id, v_id)).and_then(|v| {
+                            let count = solution.get_value(*v).round() as u32;
+                            if count > 0 { Some((w.id, count)) } else { None }
+                        })
                     })
                     .collect();
                 if !counts.is_empty() {

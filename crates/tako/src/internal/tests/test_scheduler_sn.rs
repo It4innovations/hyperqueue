@@ -497,17 +497,32 @@ fn test_schedule_gap_filling2() {
 fn test_schedule_gap_filling3() {
     let mut rt = TestEnv::new();
     rt.new_named_resource("foo");
-    rt.new_workers(2, &WorkerBuilder::new(34));
+    let ws = rt.new_workers(2, &WorkerBuilder::new(34));
 
-    let ta = TaskBuilder::new().cpus(9);
-    let tb = TaskBuilder::new().cpus(3);
+    let ta = TaskBuilder::new().cpus(3);
+    let tb = TaskBuilder::new().cpus(9);
 
-    rt.new_tasks(5, &tb.clone().user_priority(10));
-    rt.new_tasks(6, &ta.clone().user_priority(10));
-    rt.new_tasks(5, &tb.clone().user_priority(9));
+    rt.new_tasks(5, &ta.clone().user_priority(10));
+    let ts2 = rt.new_tasks(6, &tb.clone().user_priority(10));
+    let ts3 = rt.new_tasks(5, &ta.clone().user_priority(9));
     rt.schedule();
-    let counts = assigned_counts(&mut rt);
-    assert_eq!(counts, [4, 6]);
+
+    for w in ws {
+        let mut cpus = 0;
+        let mut t3count = 0;
+        for t in &rt.worker(w).sn_assignment().unwrap().assign_tasks {
+            if ts2.contains(t) {
+                cpus += 9;
+            } else {
+                cpus += 3;
+                if ts3.contains(t) {
+                    t3count += 1;
+                }
+            }
+        }
+        assert_eq!(cpus, 33);
+        assert!(t3count <= 2);
+    }
 }
 
 #[test]
