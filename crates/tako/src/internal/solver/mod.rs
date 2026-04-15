@@ -26,7 +26,7 @@ pub(crate) enum ConstraintType {
 
 pub(crate) trait LpInnerSolver {
     type Variable: Copy;
-    type Solution: LpSolution;
+    type Solution: LpSolution<Variable = Self::Variable>;
 
     fn add_variable(&mut self, weight: f64, min: f64, max: f64) -> Self::Variable;
     fn add_bool_variable(&mut self, weight: f64) -> Self::Variable;
@@ -41,12 +41,12 @@ pub(crate) trait LpInnerSolver {
 }
 
 pub(crate) trait LpSolution {
-    fn get_values(&self) -> &[f64];
+    type Variable: Copy;
+    fn get_value(&self, v: Self::Variable) -> f64;
 }
 
 pub(crate) struct LpSolver {
     solver: LpInnerSolverImpl,
-    n_vars: u32,
 
     #[cfg(debug_assertions)]
     verbose: bool,
@@ -55,7 +55,7 @@ pub(crate) struct LpSolver {
     #[cfg(debug_assertions)]
     name_config: Option<String>,
     #[cfg(debug_assertions)]
-    variables: Vec<(String, f64)>,
+    variables: Vec<(String, f64, Variable)>,
 }
 
 #[cfg(debug_assertions)]
@@ -73,7 +73,7 @@ impl LpSolver {
         let name = self.name_config.take();
         if let Some(name) = name {
             self.var_name_map.insert(variable, self.variables.len());
-            self.variables.push((name, weight));
+            self.variables.push((name, weight, variable));
         }
         variable
     }
@@ -87,7 +87,6 @@ impl LpSolver {
         }
         LpSolver {
             verbose,
-            n_vars: 0,
             solver: LpInnerSolverImpl::new(),
             var_name_map: Default::default(),
             variables: Default::default(),
@@ -166,7 +165,7 @@ impl LpSolver {
     pub fn solve(self) -> Option<(Solution, f64)> {
         if self.verbose {
             println!("Weights:");
-            for (name, weight) in self.variables.iter() {
+            for (name, weight, _var) in self.variables.iter() {
                 if *weight != 0.0 {
                     println!("{} -> {}", name, weight);
                 }
@@ -177,8 +176,8 @@ impl LpSolver {
             && self.verbose
         {
             println!("==== Solution: ====");
-            for ((name, _weight), value) in self.variables.iter().zip(s.get_values()) {
-                println!("{} = {}", name, value);
+            for (name, _weight, var) in self.variables.iter() {
+                println!("{} = {}", name, s.get_value(*var));
             }
         }
         s
@@ -203,7 +202,6 @@ impl LpSolver {
     pub fn new(_verbose: bool) -> Self {
         LpSolver {
             solver: LpInnerSolverImpl::new(),
-            n_vars: 0,
         }
     }
 
@@ -226,28 +224,20 @@ impl LpSolver {
 
 impl LpSolver {
     #[inline]
-    pub fn last_var_idx(&self) -> u32 {
-        self.n_vars - 1
-    }
-
-    #[inline]
     pub fn add_variable(&mut self, weight: f64, min: f64, max: f64) -> Variable {
         let v = self.solver.add_variable(weight, min, max);
-        self.n_vars += 1;
         self.new_var(v, weight)
     }
 
     #[inline]
     pub fn add_bool_variable(&mut self, weight: f64) -> Variable {
         let v = self.solver.add_bool_variable(weight);
-        self.n_vars += 1;
         self.new_var(v, weight)
     }
 
     #[inline]
     pub fn add_nat_variable(&mut self, weight: f64) -> Variable {
         let v = self.solver.add_nat_variable(weight);
-        self.n_vars += 1;
         self.new_var(v, weight)
     }
 }

@@ -1,5 +1,5 @@
 use crate::internal::solver::{ConstraintType, LpInnerSolver, LpSolution};
-use microlp::ComparisonOp;
+use microlp::{ComparisonOp, Solution};
 
 pub(crate) struct MicrolpSolver(microlp::Problem);
 
@@ -13,7 +13,7 @@ impl MicrolpSolver {
 
 impl LpInnerSolver for MicrolpSolver {
     type Variable = microlp::Variable;
-    type Solution = MicrolpSolution;
+    type Solution = Solution;
 
     #[inline]
     fn add_variable(&mut self, weight: f64, min: f64, max: f64) -> Self::Variable {
@@ -58,17 +58,16 @@ impl LpInnerSolver for MicrolpSolver {
         let Ok(solution) = self.0.solve() else {
             return None;
         };
-        Some((
-            MicrolpSolution(solution.iter().map(|x| *x.1).collect()),
-            solution.objective(),
-        ))
+        let objective = solution.objective();
+        Some((solution, objective))
     }
 }
 
-pub(crate) struct MicrolpSolution(Vec<f64>);
+impl LpSolution for microlp::Solution {
+    type Variable = microlp::Variable;
 
-impl LpSolution for MicrolpSolution {
-    fn get_values(&self) -> &[f64] {
-        self.0.as_slice()
+    #[inline]
+    fn get_value(&self, v: microlp::Variable) -> f64 {
+        *self.var_value(v)
     }
 }

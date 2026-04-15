@@ -140,21 +140,14 @@ pub fn group_solver(
         );
     }
     let (solution, objective_value): (_, _) = solver.solve()?;
-    let values = solution.get_values();
-    let mut index = 0;
     Some((
-        entries
-            .iter()
-            .map(|entry| {
-                let r = free.get(entry.resource_id);
-                let n = r.n_groups();
-                let g = values[index..index + n]
+        vars.iter()
+            .map(|var_group| {
+                var_group
                     .iter()
                     .enumerate()
-                    .filter_map(|(i, v)| (*v > 0.5).then_some(i))
-                    .collect();
-                index += n;
-                g
+                    .filter_map(|(i, v)| (solution.get_value(*v) > 0.5).then_some(i))
+                    .collect()
             })
             .collect(),
         objective_value,

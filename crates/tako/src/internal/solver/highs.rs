@@ -54,8 +54,10 @@ impl LpInnerSolver for HighsSolver {
 }
 
 impl LpSolution for highs::Solution {
+    type Variable = highs::Col;
+
     #[inline]
-    fn get_values(&self) -> &[f64] {
-        self.columns()
+    fn get_value(&self, v: highs::Col) -> f64 {
+        self[v]
     }
 }
