@@ -1,10 +1,3 @@
-## v0.26.0
-
-### New features
-* Distinguished cancellation of a task
-  * Aborted state: Task canceled by HQ due to failure of a dependency or reaching fail limit of a job 
-  * Canceled state: Task canceled by user
-
 ## Unreleased
 
 ### Breaking change
@@ -25,6 +18,9 @@
   multiple resource request variants within the same task.
 * Worker can be started with `--min-utilization` (so not only through autoalloc).
   Min-utilization is now respected also in main scheduler (no only autoalloc scheduler)
+* New "aborted" task state introduced; it is derived from "cancel" state.
+  When HQ cancels a task (e.g. because dependency fails), it is now marked as "aborted";
+  Task state "canceled" is now reserved for tasks that are canceled by the user.
 
 
 ## v0.25.1
