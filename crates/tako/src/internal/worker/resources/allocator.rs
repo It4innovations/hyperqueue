@@ -190,7 +190,7 @@ impl ResourceAllocator {
             &self.static_info.coupling_weights,
         )
         .unwrap();
-        for (entry, group_set) in coupling.into_iter().zip(groups.into_iter()) {
+        for (entry, group_set) in coupling.into_iter().zip(groups) {
             allocation.add_resource_allocation(
                 self.pools[entry.resource_id].claim_resources_with_group_mask(
                     entry.resource_id,

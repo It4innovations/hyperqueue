@@ -962,7 +962,7 @@ impl Output for CliOutput {
 
     fn print_autoalloc_queues(&self, info: AutoAllocListQueuesResponse) {
         let mut queues: Vec<_> = info.queues.into_iter().collect();
-        queues.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+        queues.sort_unstable_by_key(|a| a.0);
 
         let rows: Vec<_> = queues
             .into_iter()
