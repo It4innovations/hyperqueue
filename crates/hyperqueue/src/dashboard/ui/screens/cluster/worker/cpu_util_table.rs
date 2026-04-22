@@ -330,12 +330,8 @@ fn get_column_constraints(rect: Rect, num_cpus: usize) -> Vec<Constraint> {
     let max_columns = (rect.width / CPU_METER_WIDTH as u16) as usize;
     let num_columns = cmp::min(max_columns, num_cpus);
 
-    if num_columns > 0 {
-        std::iter::repeat_n(
-            Constraint::Percentage((100 / num_columns) as u16),
-            num_columns,
-        )
-        .collect()
+    if let Some(p) = 100usize.checked_div(num_columns) {
+        std::iter::repeat_n(Constraint::Percentage(p as u16), num_columns).collect()
     } else {
         vec![]
     }
