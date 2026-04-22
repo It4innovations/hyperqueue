@@ -32,7 +32,7 @@ fn test_schedule_mapping_do_not_change() {
     rt.worker(w1)
         .sn_assignment()
         .unwrap()
-        .assign_tasks
+        .assigned_tasks
         .contains(&t1);
 
     let m = rt.schedule_mapping();

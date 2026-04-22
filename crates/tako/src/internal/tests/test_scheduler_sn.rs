@@ -510,7 +510,7 @@ fn test_schedule_gap_filling3() {
     for w in ws {
         let mut cpus = 0;
         let mut t3count = 0;
-        for t in &rt.worker(w).sn_assignment().unwrap().assign_tasks {
+        for t in &rt.worker(w).sn_assignment().unwrap().assigned_tasks {
             if ts2.contains(t) {
                 cpus += 9;
             } else {
@@ -824,7 +824,7 @@ fn test_no_deps_scattering_2() {
         let mut counts: Vec<_> = rt
             .core()
             .get_workers()
-            .map(|w| w.sn_assignment().unwrap().assign_tasks.len())
+            .map(|w| w.sn_assignment().unwrap().assigned_tasks.len())
             .collect();
         counts.sort();
         assert_eq!(counts, expected);
@@ -1015,9 +1015,9 @@ fn test_generic_resource_balancing3() {
 
     let w = rt.worker(w1);
     let a = w.sn_assignment().unwrap();
-    assert_eq!(a.assign_tasks.len(), 2);
+    assert_eq!(a.assigned_tasks.len(), 2);
     assert!(
-        a.assign_tasks
+        a.assigned_tasks
             .iter()
             .all(|t| rt.task(*t).resource_rq_id == rq1)
     );
@@ -1032,7 +1032,7 @@ fn test_generic_resource_balancing3() {
 
     let w = rt.worker(w2);
     let a = w.sn_assignment().unwrap();
-    assert_eq!(a.assign_tasks.len(), 2);
+    assert_eq!(a.assigned_tasks.len(), 2);
     assert_eq!(a.prefilled_tasks.len(), 57);
     assert_eq!(
         a.prefilled_tasks
@@ -1265,8 +1265,14 @@ fn test_prefill_steal() {
     assert_eq!(r, vec![(w2, rv), (w2, rv)]);
     assert_eq!(prefill_count(&mut rt, w1), 3);
     assert_eq!(prefill_count(&mut rt, w2), 0);
-    assert_eq!(rt.worker(w1).sn_assignment().unwrap().assign_tasks.len(), 1);
-    assert_eq!(rt.worker(w2).sn_assignment().unwrap().assign_tasks.len(), 5);
+    assert_eq!(
+        rt.worker(w1).sn_assignment().unwrap().assigned_tasks.len(),
+        1
+    );
+    assert_eq!(
+        rt.worker(w2).sn_assignment().unwrap().assigned_tasks.len(),
+        5
+    );
     assert_eq!(rt.core().split_mut().scheduler_state.redirects.len(), 2);
     let (t, _) = rt
         .core()
@@ -1300,23 +1306,48 @@ fn test_prefill_steal() {
 }
 
 #[test]
-pub fn test_schedule_variant_gap() {
+pub fn test_schedule_running() {
     let mut rt = TestEnv::new();
-    rt.new_named_resource("gpus");
-    // 8 cpus OR 1 cpus + 2 gpus
-    rt.new_tasks(
-        10,
-        &TaskBuilder::new()
-            .user_priority(10)
-            .cpus(8)
-            .next_variant()
-            .cpus(4)
-            .add_resource(1, 2),
-    );
+    let w = rt.new_worker(&WorkerBuilder::new(14));
+    for _ in 0..8 {
+        rt.new_task_running(&TaskBuilder::new(), w);
+    }
     let ts = rt.new_tasks(10, &TaskBuilder::new());
-    rt.new_worker(&WorkerBuilder::new(14).res_sum("gpus", 4));
     rt.schedule();
-    assert_eq!(ts.iter().filter(|t| rt.task(**t).is_assigned()).count(), 2);
+    assert_eq!(
+        rt.worker(w).sn_assignment().unwrap().assigned_tasks.len(),
+        14
+    );
+    assert_eq!(ts.iter().filter(|t| rt.task(**t).is_assigned()).count(), 6);
+}
+
+#[test]
+pub fn test_schedule_variant_gap1() {
+    for running in [0, 1, 2] {
+        let mut rt = TestEnv::new();
+        rt.new_named_resource("gpus");
+        let w = rt.new_worker(&WorkerBuilder::new(14).res_sum("gpus", 4));
+        for _ in 0..running {
+            rt.new_task_running(&TaskBuilder::new(), w);
+        }
+
+        // 8 cpus OR 1 cpus + 2 gpus
+        rt.new_tasks(
+            10,
+            &TaskBuilder::new()
+                .user_priority(10)
+                .cpus(8)
+                .next_variant()
+                .cpus(4)
+                .add_resource(1, 2),
+        );
+        let ts = rt.new_tasks(10, &TaskBuilder::new());
+        rt.schedule();
+        assert_eq!(
+            ts.iter().filter(|t| rt.task(**t).is_assigned()).count(),
+            2 - running
+        );
+    }
 }
 
 #[test]

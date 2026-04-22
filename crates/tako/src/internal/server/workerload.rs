@@ -19,6 +19,10 @@ pub struct WorkerResources {
 }
 
 impl WorkerResources {
+    pub(crate) fn new(n_resources: ResourceVec<ResourceAmount>) -> Self {
+        Self { n_resources }
+    }
+
     pub(crate) fn get(&self, resource_id: ResourceId) -> ResourceAmount {
         self.n_resources
             .get(resource_id)
@@ -152,8 +156,8 @@ impl WorkerResources {
     pub fn remove(&mut self, rq: &ResourceRequest) {
         for entry in rq.entries() {
             if let Some(amount) = entry.request.amount_or_none_if_all() {
-                assert!(self.n_resources[entry.resource_id] >= amount);
-                self.n_resources[entry.resource_id] -= amount;
+                self.n_resources[entry.resource_id] =
+                    self.n_resources[entry.resource_id].saturating_sub(amount);
             } else {
                 self.n_resources[entry.resource_id] = ResourceAmount::ZERO;
             }
@@ -164,8 +168,8 @@ impl WorkerResources {
         for entry in rq.entries() {
             if let Some(amount) = entry.request.amount_or_none_if_all() {
                 let a = amount.times(n);
-                assert!(self.n_resources[entry.resource_id] >= a);
-                self.n_resources[entry.resource_id] -= a;
+                self.n_resources[entry.resource_id] =
+                    self.n_resources[entry.resource_id].saturating_sub(a);
             } else {
                 self.n_resources[entry.resource_id] = ResourceAmount::ZERO;
             }
@@ -177,8 +181,8 @@ impl WorkerResources {
             if entry.resource_id == r_id {
                 if let Some(amount) = entry.request.amount_or_none_if_all() {
                     let a = amount.times(n);
-                    assert!(self.n_resources[entry.resource_id] >= a);
-                    self.n_resources[entry.resource_id] -= a;
+                    self.n_resources[entry.resource_id] =
+                        self.n_resources[entry.resource_id].saturating_sub(a);
                 } else {
                     self.n_resources[entry.resource_id] = ResourceAmount::ZERO;
                 }
