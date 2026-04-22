@@ -131,7 +131,11 @@ impl TestEnv {
     }
 
     pub fn worker_tasks(&self, worker_id: WorkerId) -> &Set<TaskId> {
-        &self.worker(worker_id).sn_assignment().unwrap().assign_tasks
+        &self
+            .worker(worker_id)
+            .sn_assignment()
+            .unwrap()
+            .assigned_tasks
     }
 
     pub fn new_worker(&mut self, builder: &WorkerBuilder) -> WorkerId {

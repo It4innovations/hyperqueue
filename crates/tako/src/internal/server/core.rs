@@ -290,9 +290,9 @@ impl Core {
                 match worker.assignment() {
                     WorkerAssignment::Sn(s) => {
                         if assigned == Some(*worker_id) {
-                            assert!(s.assign_tasks.contains(&task_id));
+                            assert!(s.assigned_tasks.contains(&task_id));
                         } else {
-                            assert!(!s.assign_tasks.contains(&task_id));
+                            assert!(!s.assigned_tasks.contains(&task_id));
                         }
                         if prefilled == Some(*worker_id) {
                             assert!(s.prefilled_tasks.contains(&task_id));
@@ -325,7 +325,7 @@ impl Core {
                         worker
                             .sn_assignment()
                             .unwrap()
-                            .assign_tasks
+                            .assigned_tasks
                             .contains(task_id)
                     );
                     assert!(
@@ -414,7 +414,7 @@ impl Core {
                         } else {
                             match worker.assignment() {
                                 WorkerAssignment::Sn(sn) => {
-                                    assert!(!sn.assign_tasks.contains(&task_id));
+                                    assert!(!sn.assigned_tasks.contains(&task_id));
                                 }
                                 WorkerAssignment::Mn(mn) => {
                                     assert_ne!(mn.task_id, task_id);

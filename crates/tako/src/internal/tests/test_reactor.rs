@@ -607,9 +607,9 @@ fn lost_worker_with_running_and_assign_tasks() {
 fn check_worker_tasks_exact(core: &Core, worker_id: WorkerId, tasks: &[TaskId]) {
     let worker = core.get_worker(worker_id.into());
     let sn = worker.sn_assignment().unwrap();
-    assert_eq!(sn.assign_tasks.len(), tasks.len());
+    assert_eq!(sn.assigned_tasks.len(), tasks.len());
     for task in tasks {
-        assert!(sn.assign_tasks.contains(task));
+        assert!(sn.assigned_tasks.contains(task));
     }
 }
 
@@ -617,7 +617,7 @@ fn worker_has_task(core: &Core, worker_id: WorkerId, task_id: TaskId) -> bool {
     core.get_worker(worker_id.into())
         .sn_assignment()
         .unwrap()
-        .assign_tasks
+        .assigned_tasks
         .contains(&task_id)
 }
 
@@ -814,7 +814,6 @@ fn test_prefill_submit_high_priority() {
             _ => panic!("Invalid worker msg"),
         }
         comm.emptiness_check();
-        dbg!(&rt.task(t2).state);
         match rt.task(t2).state {
             TaskRuntimeState::Retracting { worker_id } => {
                 assert_eq!(worker_id, w1);
@@ -988,7 +987,7 @@ fn test_steal_running() {
         *rt.worker(w1)
             .sn_assignment()
             .unwrap()
-            .assign_tasks
+            .assigned_tasks
             .iter()
             .next()
             .unwrap(),
@@ -1017,7 +1016,7 @@ fn test_steal_failed() {
         *rt.worker(w1)
             .sn_assignment()
             .unwrap()
-            .assign_tasks
+            .assigned_tasks
             .iter()
             .next()
             .unwrap(),

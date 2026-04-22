@@ -1,4 +1,4 @@
-use crate::internal::scheduler::gap_cache::GapCache;
+use crate::internal::scheduler::gap::GapCache;
 use crate::{Map, ResourceVariantId, TaskId, WorkerId};
 
 pub struct SchedulerConfig {

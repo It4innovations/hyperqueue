@@ -247,6 +247,15 @@ impl Task {
         }
     }
 
+    pub(crate) fn rv_id(&self) -> Option<ResourceVariantId> {
+        match self.state {
+            TaskRuntimeState::Running { rv_id, .. } | TaskRuntimeState::Assigned { rv_id, .. } => {
+                Some(rv_id)
+            }
+            _ => None,
+        }
+    }
+
     pub(crate) fn increment_instance_id(&mut self) {
         self.instance_id = InstanceId::new(self.instance_id.as_num() + 1);
     }

@@ -82,7 +82,7 @@ pub(crate) fn on_remove_worker(
     let mut retracted = Vec::new();
     match worker.assignment() {
         WorkerAssignment::Sn(sn) => {
-            for task_id in &sn.assign_tasks {
+            for task_id in &sn.assigned_tasks {
                 let task = task_map.get_task_mut(*task_id);
                 if task.is_sn_running() {
                     running_tasks.push(*task_id);

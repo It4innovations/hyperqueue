@@ -1,5 +1,5 @@
 mod batches;
-mod gap_cache;
+mod gap;
 mod main;
 mod mapping;
 pub(crate) mod query;

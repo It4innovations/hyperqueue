@@ -22,7 +22,7 @@ pub(crate) fn run_scheduling_solver(
     let n_resources = core.resource_map().n_resources();
 
     let CoreSplit {
-        task_map: _,
+        task_map,
         worker_map,
         task_queues: _,
         request_map,
@@ -190,7 +190,14 @@ pub(crate) fn run_scheduling_solver(
                     solver.set_name(|| format!("mn_{}_{}", batch.resource_rq_id, group_name));
                     let v = solver.add_nat_variable(0.0);
                     solver.set_name(|| format!("MN size for rq{}", batch.resource_rq_id));
-                    constraint_extra_var(&mut solver, ConstraintType::Eq, 0.0, &temp, v, -n_nodes);
+                    constraint_extra_var(
+                        &mut solver,
+                        ConstraintType::Eq,
+                        0.0,
+                        temp.iter().copied(),
+                        v,
+                        -n_nodes,
+                    );
                     tasks_count_vars
                         .entry(batch.resource_rq_id)
                         .or_default()
@@ -215,7 +222,14 @@ pub(crate) fn run_scheduling_solver(
                 let vars = tasks_count_vars.get(&blocker_rq_id).unwrap();
                 solver.set_name(|| format!("blocker rq{blocker_rq_id} at size {size}"));
                 let bound = size as f64;
-                constraint_extra_var(solver, ConstraintType::Min, bound, vars, new_v, bound);
+                constraint_extra_var(
+                    solver,
+                    ConstraintType::Min,
+                    bound,
+                    vars.iter().copied(),
+                    new_v,
+                    bound,
+                );
                 new_v
             })
     };
@@ -254,10 +268,66 @@ pub(crate) fn run_scheduling_solver(
                     }
                 } else {
                     for w in &workers {
+                        let Some(sn_assignment) = w.sn_assignment() else {
+                            continue;
+                        };
                         if !w.is_capable_to_run_rqv(blocker_rqv, now) {
                             continue;
                         }
-                        for v_id in batch_rqv.variant_ids() {
+                        let gap = scheduler_cache.gap_cache.get_gap(
+                            *blocker_rq_id,
+                            batch.resource_rq_id,
+                            &w.resources,
+                            sn_assignment.assigned_tasks.iter().map(|task_id| {
+                                let t = task_map.get_task(*task_id);
+                                (t.resource_rq_id, t.rv_id().unwrap())
+                            }),
+                            request_map,
+                        );
+                        if gap > 0 {
+                            let vars = batch_rqv.variant_ids().filter_map(|v_id| {
+                                placements.get(&(w.id, batch.resource_rq_id, v_id)).copied()
+                            });
+                            let cut_size = cut.size as f64;
+                            if let Some(s) = blocking_size {
+                                let blocking_v = get_bvar(&mut solver, *blocker_rq_id, *s);
+                                solver.set_name(|| {
+                                    format!(
+                                        "w{}: if #rq{blocker_rq_id} < {s} then limit #rq{} to {} + {} (gap) where both rqs may run",
+                                        w.id, batch.resource_rq_id, cut.size, gap
+                                    )
+                                });
+                                constraint_extra_var(
+                                    &mut solver,
+                                    ConstraintType::Max,
+                                    cut_size + batch_size + gap as f64,
+                                    vars,
+                                    blocking_v,
+                                    batch_size,
+                                );
+                            } else {
+                                solver.set_name(|| {
+                                    format!(
+                                        "w{}: limit #rq{} to {} + {} (gap) where it can run with rq{blocker_rq_id}",
+                                        w.id, batch.resource_rq_id, gap, cut.size,
+                                    )
+                                });
+                                solver.add_constraint(
+                                    ConstraintType::Max,
+                                    cut_size + gap as f64,
+                                    vars.into_iter().map(|v| (v, 1.0)),
+                                );
+                            }
+                        } else {
+                            for v_id in batch_rqv.variant_ids() {
+                                if let Some(var) =
+                                    placements.get(&(w.id, batch.resource_rq_id, v_id))
+                                {
+                                    zero_cond.push(*var);
+                                }
+                            }
+                        }
+                        /*for v_id in batch_rqv.variant_ids() {
                             if let Some(var) = placements.get(&(w.id, batch.resource_rq_id, v_id)) {
                                 let gap = scheduler_cache.gap_cache.get_gap(
                                     *blocker_rq_id,
@@ -298,7 +368,7 @@ pub(crate) fn run_scheduling_solver(
                                     zero_cond.push(*var);
                                 }
                             }
-                        }
+                        }*/
                     }
                 }
                 if zero_cond.is_empty() {
@@ -317,7 +387,7 @@ pub(crate) fn run_scheduling_solver(
                         &mut solver,
                         ConstraintType::Max,
                         batch_size + cut_size,
-                        &zero_cond,
+                        zero_cond.iter().copied(),
                         blocking_v,
                         batch_size,
                     );
@@ -508,15 +578,13 @@ fn constraint_extra_var(
     solver: &mut LpSolver,
     constraint_type: ConstraintType,
     limit_value: f64,
-    vars: &[Variable],
+    vars: impl Iterator<Item = Variable>,
     var: Variable,
     coef: f64,
 ) {
     solver.add_constraint(
         constraint_type,
         limit_value,
-        vars.iter()
-            .map(|v| (*v, 1.0))
-            .chain(std::iter::once((var, coef))),
+        vars.map(|v| (v, 1.0)).chain(std::iter::once((var, coef))),
     );
 }

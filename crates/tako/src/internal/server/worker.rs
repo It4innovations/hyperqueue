@@ -39,8 +39,8 @@ pub struct MultiNodeTaskAssignment {
 
 #[derive(Debug)]
 pub struct SingleNodeTaskAssignment {
-    // This is list of single node assigned tasks
-    pub assign_tasks: Set<TaskId>,
+    // The set of single node assigned tasks
+    pub assigned_tasks: Set<TaskId>,
     pub free_resources: WorkerResources,
     pub prefilled_tasks: Set<TaskId>,
 }
@@ -53,7 +53,7 @@ pub enum WorkerAssignment {
 impl WorkerAssignment {
     fn empty_sn(wr: &WorkerResources) -> Self {
         Self::Sn(SingleNodeTaskAssignment {
-            assign_tasks: Default::default(),
+            assigned_tasks: Default::default(),
             free_resources: wr.clone(),
             prefilled_tasks: Default::default(),
         })
@@ -114,6 +114,16 @@ impl Worker {
     }
 
     #[inline]
+    pub fn sn_assignment_and_resources(
+        &self,
+    ) -> Option<(&SingleNodeTaskAssignment, &WorkerResources)> {
+        match &self.assignment {
+            WorkerAssignment::Sn(a) => Some((a, &self.resources)),
+            WorkerAssignment::Mn(_) => None,
+        }
+    }
+
+    #[inline]
     pub fn mn_assignment(&self) -> Option<&MultiNodeTaskAssignment> {
         match &self.assignment {
             WorkerAssignment::Sn(_) => None,
@@ -141,12 +151,12 @@ impl Worker {
         match &self.assignment {
             WorkerAssignment::Sn(a) => {
                 let mut running_tasks = 0;
-                a.assign_tasks.iter().for_each(|task_id| {
+                a.assigned_tasks.iter().for_each(|task_id| {
                     if task_map.get_task(*task_id).is_sn_running() {
                         running_tasks += 1;
                     }
                 });
-                let assigned_tasks = a.assign_tasks.len() as u32;
+                let assigned_tasks = a.assigned_tasks.len() as u32;
                 WorkerRuntimeInfo::SingleNodeTasks {
                     assigned_tasks,
                     running_tasks,
@@ -170,7 +180,7 @@ impl Worker {
 
     pub fn is_free(&self) -> bool {
         (match &self.assignment {
-            WorkerAssignment::Sn(a) => a.assign_tasks.is_empty(),
+            WorkerAssignment::Sn(a) => a.assigned_tasks.is_empty(),
             WorkerAssignment::Mn(_a) => false,
         }) && !self.is_stopping()
     }
@@ -179,7 +189,7 @@ impl Worker {
         match &mut self.assignment {
             WorkerAssignment::Sn(a) => {
                 a.free_resources.remove(rq);
-                assert!(a.assign_tasks.insert(task_id));
+                assert!(a.assigned_tasks.insert(task_id));
             }
             WorkerAssignment::Mn(_) => unreachable!(),
         }
@@ -203,7 +213,7 @@ impl Worker {
         match &mut self.assignment {
             WorkerAssignment::Sn(a) => {
                 assert!(a.prefilled_tasks.remove(&task_id));
-                assert!(a.assign_tasks.insert(task_id));
+                assert!(a.assigned_tasks.insert(task_id));
                 a.free_resources.remove(rq);
             }
             WorkerAssignment::Mn(_) => unreachable!(),
@@ -213,8 +223,8 @@ impl Worker {
     pub fn remove_sn_task(&mut self, task_id: TaskId, rq: &ResourceRequest) {
         match &mut self.assignment {
             WorkerAssignment::Sn(a) => {
-                assert!(a.assign_tasks.remove(&task_id));
-                if a.assign_tasks.is_empty() {
+                assert!(a.assigned_tasks.remove(&task_id));
+                if a.assigned_tasks.is_empty() {
                     self.idle_timestamp = Instant::now();
                 }
                 a.free_resources.add(rq, &self.resources);
@@ -231,7 +241,7 @@ impl Worker {
     ) {
         if let Some(a) = self.sn_assignment() {
             let mut resources = self.resources.clone();
-            for task_id in a.assign_tasks.iter() {
+            for task_id in a.assigned_tasks.iter() {
                 let task = task_map.get_task(*task_id);
                 let (worker_id, rv_id) = match &task.state {
                     TaskRuntimeState::Assigned { worker_id, rv_id }
@@ -244,6 +254,7 @@ impl Worker {
                 };
                 assert_eq!(self.id, worker_id);
                 let rq = request_map.get(task.resource_rq_id).get(rv_id);
+                assert!(resources.is_capable_to_run_request(rq));
                 resources.remove(rq);
             }
             assert_eq!(a.free_resources, resources);
@@ -360,7 +371,7 @@ impl Worker {
             "id": self.id,
             "assignment": match &self.assignment {
                 WorkerAssignment::Sn(a) => json! ({
-                    "assigned_tasks": &a.assign_tasks
+                    "assigned_tasks": &a.assigned_tasks
                 }),
                 WorkerAssignment::Mn(a) => json! ({
                     "task_id": a.task_id,
