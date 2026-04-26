@@ -1,5 +1,5 @@
 typer==0.9.0
-gitpython==3.1.41
+gitpython==3.1.47
 git+https://code.it4i.cz/def/cluster.git@3e2bcf58c0224bd0e0889c8a0f95957e4d969ca6
 pandas==2.2.0
 tqdm==4.66.3
