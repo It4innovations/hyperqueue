@@ -1,4 +1,6 @@
-## Unreleased
+# Changelog
+
+## v0.26.0
 
 ### Breaking change
 
