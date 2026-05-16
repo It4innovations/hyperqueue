@@ -1,10 +1,11 @@
 use crate::common::format::human_size;
 use crate::dashboard::data::DashboardData;
+use crossterm::event::{KeyCode, KeyEvent};
 use itertools::Itertools;
 use ratatui::layout::{Alignment, Constraint, Rect};
 use ratatui::style::Color;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Cell, Row, Table};
+use ratatui::widgets::{Cell, Row, Table, TableState};
 use std::cmp;
 use tako::hwstats::MemoryStats;
 use tako::resources::{
@@ -29,6 +30,7 @@ pub struct CpuUtilTable {
     utilization: Option<Utilization>,
     cpu_view_mode: CpuViewMode,
     cpu_state: Option<WorkerCpuState>,
+    table_state: TableState,
 }
 
 #[derive(Default, PartialEq)]
@@ -285,13 +287,23 @@ impl CpuUtilTable {
                 .row_highlight_style(styles::style_table_highlight())
                 .style(table_style_deselected());
 
-            frame.render_widget(table, rect);
+            frame.render_stateful_widget(table, rect, &mut self.table_state);
+        }
+    }
+
+    pub fn handle_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Char('c') => self.next_view(),
+            KeyCode::Down => self.scroll_down(),
+            KeyCode::Up => self.scroll_up(),
+            _ => {}
         }
     }
 
     pub fn next_view(&mut self) {
         let scope = self.get_current_scope();
         self.cpu_view_mode.next(scope);
+        self.table_state = TableState::default();
     }
 
     pub fn next_text(&mut self) -> &str {
@@ -302,6 +314,27 @@ impl CpuUtilTable {
     pub fn clear_table(&mut self) {
         self.clear_util();
         self.set_default_view();
+        self.table_state = TableState::default();
+    }
+
+    fn scroll_up(&mut self) {
+        if let Some(selected) = self.table_state.selected() {
+            if selected > 0 {
+                self.table_state.select(Some(selected - 1));
+            } else {
+                self.table_state.select(None);
+            }
+        } else {
+            self.table_state.select_last();
+        }
+    }
+
+    fn scroll_down(&mut self) {
+        if let Some(selected) = self.table_state.selected() {
+            self.table_state.select(Some(selected + 1));
+        } else {
+            self.table_state.select(Some(0));
+        }
     }
 
     fn clear_util(&mut self) {
