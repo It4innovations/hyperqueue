@@ -60,7 +60,7 @@ impl WorkerDetail {
 
         draw_text(
             format!(
-                "<backspace>: Back, <c>: {}",
+                "<\u{21F5}> cpu scroll, <backspace>: Back, <c>: {}",
                 self.cpu_util_table.next_text()
             )
             .as_str(),
@@ -107,8 +107,10 @@ impl WorkerDetail {
     pub fn handle_key(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Backspace => self.worker_tasks_table.clear_selection(),
-            KeyCode::Char('c') => self.cpu_util_table.next_view(),
-            _ => self.worker_tasks_table.handle_key(key),
+            _ => {
+                self.worker_tasks_table.handle_key(key);
+                self.cpu_util_table.handle_key(key);
+            }
         }
     }
 }
