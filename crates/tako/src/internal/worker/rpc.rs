@@ -440,9 +440,9 @@ async fn send_overview_loop(state_ref: WorkerStateRef) -> crate::Result<()> {
 
     // Fetching the HW state performs blocking I/O, therefore we should do it in a separate thread.
     std::thread::spawn(move || -> crate::Result<()> {
-        let mut sampler = HwSampler::init(initial_overview.gpu_families)?;
+        let mut sampler = HwSampler::init(initial_overview.gpu_families);
         while let Some(_trigger) = trigger_rx.blocking_recv() {
-            let hw_state = sampler.fetch_hw_state()?;
+            let hw_state = sampler.fetch_hw_state();
             log::info!("Gathering HW stats");
             if let Err(error) = overview_tx.blocking_send(hw_state) {
                 log::error!("Cannot send HW state to overview loop: {error:?}");

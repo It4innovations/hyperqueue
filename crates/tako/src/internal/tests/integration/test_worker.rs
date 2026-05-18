@@ -29,7 +29,7 @@ async fn test_hw_monitoring() {
             .cpu_per_core_percent_usage
             .clone();
 
-        assert_eq!(psutil::cpu::cpu_count(), usage.len() as u64);
+        assert_eq!(sysinfo::System::new_all().cpus().len(), usage.len());
 
         for pct in usage {
             assert!(pct >= 0.0);

@@ -23,11 +23,6 @@ impl From<bincode::Error> for DsError {
         Self::SerializationError(e.to_string())
     }
 }
-impl From<psutil::Error> for DsError {
-    fn from(e: psutil::Error) -> Self {
-        Self::GenericError(e.to_string())
-    }
-}
 impl From<String> for DsError {
     fn from(e: String) -> Self {
         Self::GenericError(e)
