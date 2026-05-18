@@ -6,7 +6,7 @@ use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};
 use chrono::{DateTime, Local};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Rect};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Color, Style};
 use ratatui::widgets::{Cell, Row};
 use std::time::SystemTime;
 use tako::{JobTaskId, WorkerId};
@@ -181,10 +181,5 @@ pub fn get_task_state_color(state: DashboardTaskState) -> Style {
         DashboardTaskState::Aborted => Color::LightRed,
     };
 
-    Style {
-        fg: Some(color),
-        bg: None,
-        add_modifier: Modifier::empty(),
-        sub_modifier: Modifier::empty(),
-    }
+    Style::default().fg(color)
 }

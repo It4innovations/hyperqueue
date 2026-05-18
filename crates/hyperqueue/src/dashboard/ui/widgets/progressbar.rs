@@ -1,4 +1,4 @@
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Color, Style};
 use unicode_width::UnicodeWidthStr;
 
 use crate::dashboard::ui::screens::cluster::worker::cpu_util_table::CpuStatus;
@@ -24,12 +24,7 @@ pub fn get_progress_bar_color(progress: f64) -> Style {
         Color::Red
     };
 
-    Style {
-        fg: Some(color),
-        bg: None,
-        add_modifier: Modifier::empty(),
-        sub_modifier: Modifier::empty(),
-    }
+    Style::default().fg(color)
 }
 
 pub fn get_cpu_progress_bar_color(progress: f64, cpu_status: &CpuStatus) -> Style {
@@ -47,12 +42,7 @@ pub fn get_cpu_progress_bar_color(progress: f64, cpu_status: &CpuStatus) -> Styl
         CpuStatus::Other => Color::Magenta,
     };
 
-    Style {
-        fg: Some(color),
-        bg: None,
-        add_modifier: Modifier::empty(),
-        sub_modifier: Modifier::empty(),
-    }
+    Style::default().fg(color)
 }
 
 /**
