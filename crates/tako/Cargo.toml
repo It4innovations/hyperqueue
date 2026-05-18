@@ -38,12 +38,11 @@ bitflags = { workspace = true }
 tempfile = { workspace = true }
 itertools = { workspace = true }
 
-highs = { version = "1.12", optional = true }
-microlp = { version = "0.2", optional = true }
+highs = { version = "2.1", optional = true }
+microlp = { version = "0.4", optional = true }
 coin_cbc = { version = "0.1", optional = true }
 
-hashbrown = { version = "0.16", features = ["serde", "inline-more"], default-features = false }
-priority-queue = "2"
+hashbrown = { version = "0.17", features = ["serde", "inline-more"], default-features = false }
 fxhash = "0.2"
 derive_more = { version = "2", features = ["add", "add_assign", "sum"] }
 

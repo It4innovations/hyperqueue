@@ -68,6 +68,6 @@ impl LpSolution for microlp::Solution {
 
     #[inline]
     fn get_value(&self, v: microlp::Variable) -> f64 {
-        *self.var_value(v)
+        self.var_value(v)
     }
 }
