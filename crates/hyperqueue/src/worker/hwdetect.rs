@@ -238,7 +238,9 @@ fn read_nvidia_linux_gpu_count() -> anyhow::Result<usize> {
 
 /// Try to get total memory on the current node.
 fn read_linux_memory() -> anyhow::Result<u64> {
-    Ok(psutil::memory::virtual_memory()?.total())
+    let mut sys = sysinfo::System::new();
+    sys.refresh_memory();
+    Ok(sys.total_memory())
 }
 
 /// Try to find the CPU NUMA configuration.
