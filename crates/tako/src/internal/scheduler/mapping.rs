@@ -46,9 +46,12 @@ pub(crate) fn create_task_mapping(
                         let task_id = tasks[task_idx];
                         worker_map.get_worker_mut(*w_id).insert_sn_task(task_id, rq);
                         let task = task_map.get_task_mut(task_id);
+                        log::debug!(
+                            "Task={task_id} ({:?}) assigned to worker={w_id}",
+                            task.state
+                        );
                         let new_state = match &task.state {
                             TaskRuntimeState::Waiting { .. } => {
-                                log::debug!("Waiting task={} assigned to worker={}", task_id, w_id);
                                 mapping
                                     .workers
                                     .entry(*w_id)
@@ -212,6 +215,7 @@ fn process_proactive_filling(core: &mut Core, mapping: &mut WorkerTaskMapping) {
         for worker in workers {
             let tasks = queue.take_tasks_for_prefill(prefill_size);
             for task_id in &tasks {
+                log::debug!("Prefiling task={task_id} to worker={}", worker.id);
                 let task = task_map.get_task_mut(*task_id);
                 assert!(task.is_waiting());
                 task.state = TaskRuntimeState::Prefilled {

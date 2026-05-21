@@ -226,7 +226,7 @@ impl TaskQueue {
 
     #[inline]
     pub fn is_empty(&self) -> bool {
-        self.queue.is_empty()
+        self.queue.is_empty() && self.prefill.as_ref().is_none_or(|(_, t)| t.is_empty())
     }
 
     #[inline]
