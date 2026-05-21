@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+
+* Fixed a rare server crash when self retracting occurs.
+
 ## v0.26.0
 
 ### Breaking change

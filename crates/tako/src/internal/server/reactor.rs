@@ -225,6 +225,7 @@ pub(crate) fn on_task_update(
     worker_id: WorkerId,
     updates: TaskUpdates,
 ) {
+    log::debug!("Task update for {worker_id}");
     let mut need_scheduling = false;
     // This relies on the fact that when worker switching to prefill, it will send Finish, followed by Start
     // And this cannot happen in any other way
@@ -266,6 +267,7 @@ fn task_running(
     worker_id: WorkerId,
     message: TaskRunningMsg,
 ) -> bool {
+    log::debug!("Set task={:?} to running state", message.task_id);
     let TaskRunningMsg {
         task_id,
         rv_id,
@@ -310,10 +312,14 @@ fn task_running(
             assert_eq!(*w_id, worker_id);
             comm.ask_for_scheduling();
             task.state = TaskRuntimeState::Running { worker_id, rv_id };
-            let rqv = request_map.get(task.resource_rq_id);
-            worker_map
-                .get_worker_mut(worker_id)
-                .insert_sn_task(task_id, rqv.get(rv_id));
+            // We have to call first try_remove_redirection and then insert_sn_task
+            // This cannot be done in reverse order because in rare cases
+            // we may be in a process of a dummy redirection (from a worker to the same worker).
+            // So the task is already assigned to worker_id, and calling insert_sn_task will
+            // fail because we are inserting already inserted task.
+            // By removing redirections first, we unassign the task so we can later assign it back
+            // In theory, we could optimize this special case by doing nothing, but it should be quite rare
+            // So I prefer to keep the code simple.
             try_remove_redirection(
                 worker_map,
                 scheduler_state,
@@ -321,6 +327,10 @@ fn task_running(
                 task_id,
                 task.resource_rq_id,
             );
+            let rqv = request_map.get(task.resource_rq_id);
+            worker_map
+                .get_worker_mut(worker_id)
+                .insert_sn_task(task_id, rqv.get(rv_id));
             (simple_worker_list.as_slice(), false)
         }
         TaskRuntimeState::RunningMultiNode(ws) => {
