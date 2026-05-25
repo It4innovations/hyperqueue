@@ -60,7 +60,7 @@ jobs:
       - name: Compile
         env:
           HQ_BUILD_VERSION: ${{ needs.set-env.outputs.version }}
-        run: cargo build --profile dist
+        run: cargo build --profile dist --locked
 
       - name: Compress debuginfo
         run: objcopy --compress-debug-sections=zlib-gnu target/dist/hq
@@ -111,7 +111,7 @@ jobs:
       - name: Compile
         env:
           HQ_BUILD_VERSION: ${{ needs.set-env.outputs.version }}
-        run: cross build --target ${{ matrix.arch }} --no-default-features --features dashboard,highs --profile dist
+        run: cross build --target ${{ matrix.arch }} --no-default-features --features dashboard,highs --profile dist --locked
 
       - name: Prepare archive
         id: archive
@@ -157,7 +157,7 @@ jobs:
           container: off
           manylinux: 2_28
           command: build
-          args: --manifest-path crates/pyhq/Cargo.toml --profile dist --out wheels
+          args: --manifest-path crates/pyhq/Cargo.toml --profile dist --out wheels --locked
       - name: Install Python wheel
         run: |
           python3 -m venv venv
@@ -178,7 +178,7 @@ jobs:
       - name: Compile
         env:
           HQ_BUILD_VERSION: ${{ needs.set-env.outputs.version }}
-        run: cargo build
+        run: cargo build --locked
       - name: Test Python wheel
         run: |
           source venv/bin/activate

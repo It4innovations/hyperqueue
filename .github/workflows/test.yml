@@ -29,10 +29,10 @@ jobs:
         run: python scripts/check_package_versions.py
 
       - name: Build
-        run: cargo build --workspace --all-targets
+        run: cargo build --workspace --all-targets --locked
 
       - name: Test
-        run: cargo test --workspace
+        run: cargo test --workspace --locked
 
       - name: Setup Python
         uses: actions/setup-python@v2
@@ -46,7 +46,7 @@ jobs:
 
       - name: Build Python binding
         run: |
-          maturin build --manifest-path crates/pyhq/Cargo.toml --out wheels
+          maturin build --manifest-path crates/pyhq/Cargo.toml --out wheels --locked
           WHEEL=`realpath wheels/*.whl`
           python -m pip install $WHEEL[all]
 
@@ -108,7 +108,7 @@ jobs:
           key: ${{ matrix.os }}
 
       - name: Build HyperQueue
-        run: cargo build --no-default-features --features dashboard,highs
+        run: cargo build --no-default-features --features dashboard,highs --locked
       - name: Run HyperQueue
         run: ./target/debug/hq --version
 
@@ -126,7 +126,7 @@ jobs:
 
       - name: Build Python binding
         run: |
-          maturin build --manifest-path crates/pyhq/Cargo.toml --out wheels
+          maturin build --manifest-path crates/pyhq/Cargo.toml --out wheels --locked
           WHEEL=`realpath wheels/*.whl`
           python -m pip install $WHEEL[all]
 
@@ -145,7 +145,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Build HyperQueue with the zero worker mode
-        run: RUSTFLAGS="--cfg zero_worker" cargo build --workspace
+        run: RUSTFLAGS="--cfg zero_worker" cargo build --workspace --locked
 
       - name: Build HyperQueue with all features enabled
-        run: cargo build --all-features --workspace
+        run: cargo build --all-features --workspace --locked
