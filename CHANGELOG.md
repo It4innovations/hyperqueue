@@ -1,10 +1,14 @@
 # Changelog
 
-## Unreleased
+## v0.26.1
 
 ### Fixes
 
 * Fixed a rare server crash when self retracting occurs.
+
+### New features
+
+* Added scrolling to CPU table 
 
 ## v0.26.0
 
