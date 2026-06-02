@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.26.2
+
+### Fixes
+
+* Updated Cargo.lock. No visible change if you are using precompiled binaries.
+
+
 ## v0.26.1
 
 ### Fixes
