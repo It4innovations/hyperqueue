@@ -53,8 +53,13 @@ impl QueueHandler for PbsHandler {
                 name.as_ref(),
                 allocation_num,
             )?;
-            let worker_args =
-                build_worker_args(&hq_path, ManagerType::Pbs, &server_directory, &params);
+            let worker_args = build_worker_args(
+                &hq_path,
+                ManagerType::Pbs,
+                &server_directory,
+                &params,
+                &directory,
+            )?;
             let worker_args = add_start_stop_worker_commands(
                 worker_args,
                 params.worker_start_cmd.as_deref(),

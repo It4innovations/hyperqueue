@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Breaking change
+
+* When `--worker-wrap-cmd` is used in `hq alloc add`, the worker start command is no longer passed inline to the wrap
+  command. Instead, it is written into a `start-worker.sh` script inside the allocation working directory, and the
+  wrap command is invoked with the path of this script as its only argument
+  (`<wrap-cmd> <allocation-dir>/start-worker.sh`). This avoids shell quoting issues with worker arguments that
+  contain spaces or shell metacharacters ([#1097](https://github.com/It4innovations/hyperqueue/issues/1097)).
+
 ## v0.26.2
 
 ### Fixes

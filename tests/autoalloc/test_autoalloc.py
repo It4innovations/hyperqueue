@@ -1,4 +1,5 @@
 import dataclasses
+import os
 import time
 from os.path import dirname, join
 from pathlib import Path
@@ -648,6 +649,16 @@ def test_worker_wrap_cmd(hq_env: HqEnv, flavor: ManagerFlavor):
 
         script = manager.get_script_path()
         assert normalize_output(hq_env, flavor.manager_type(), get_exec_line(script)) == snapshot(
-            'RUST_LOG=tako=trace,hyperqueue=trace podman run myimage <hq-binary> worker start --idle-timeout "5m" --manager'
-            ' "<manager>" --server-dir "<server-dir>/001" --on-server-lost "finish-running" --time-limit "1h"'
+            "podman run myimage <server-dir>/001/autoalloc/1/001/start-worker.sh"
         )
+
+        worker_script = join(dirname(script), "start-worker.sh")
+        assert os.access(worker_script, os.X_OK)
+        with open(worker_script) as f:
+            assert normalize_output(hq_env, flavor.manager_type(), f.read()) == snapshot(
+                """#!/bin/sh
+export RUST_LOG=tako=trace,hyperqueue=trace
+
+exec <hq-binary> worker start --idle-timeout "5m" --manager "<manager>" --server-dir "<server-dir>/001" --on-server-lost "finish-running" --time-limit "1h"
+"""
+            )

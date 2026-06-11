@@ -208,9 +208,18 @@ that node. You can use it e.g. to clean up a previously initialized environment 
 
 - Format: `--worker-wrap-cmd <cmds>`
 
-Specifies a string that will be prepended before the command used to start a worker on a node inside an allocation.
+Specifies a command that wraps the command used to start a worker on a node inside an allocation.
 
-For example, if you specify `--worker-wrap-cmd "podman run"`, each worker will be started using `podman run hq worker start ...`.
+When a wrap command is configured, HyperQueue writes the full worker start command (`hq worker start ...`, including
+the `RUST_LOG` environment variable if it is set on the server) into an executable `start-worker.sh` script inside the
+working directory of the allocation, and starts each worker using `<wrap-cmd> <allocation-dir>/start-worker.sh`.
+
+For example, if you specify `--worker-wrap-cmd "podman run myimage"`, each worker will be started using
+`podman run myimage <allocation-dir>/start-worker.sh`.
+
+Because the wrap command receives a single script path argument, instead of the many arguments of the worker start
+command (which may contain spaces and shell metacharacters), you do not have to deal with shell quoting or escaping
+when writing wrap commands or wrap scripts.
 
 #### Worker time limit
 

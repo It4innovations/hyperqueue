@@ -149,11 +149,14 @@ struct SharedQueueOpts {
     #[arg(long)]
     worker_stop_cmd: Option<String>,
 
-    /// A command that will be prepended before arguments required for starting a worker
+    /// A command that wraps the worker start command
     ///
-    /// Normally, the worker is started with `hq worker start ...`
-    /// If you specify e.g. `--worker-wrap-cmd foo bar --arg=1`, the worker will be started using
-    /// `foo bar --arg=1 hq worker start`.
+    /// Normally, the worker is started with `hq worker start ...`.
+    /// If you specify a wrap command, the full worker start command is written into a
+    /// `start-worker.sh` script inside the allocation working directory, and the worker is
+    /// started using `<wrap-cmd> <allocation-dir>/start-worker.sh`. For example, if you specify
+    /// `--worker-wrap-cmd "podman run myimage"`, the worker will be started using
+    /// `podman run myimage <allocation-dir>/start-worker.sh`.
     ///
     /// Note that if multiple workers are started in an allocation (on multiple nodes), then the
     /// provided wrapping command will be executed on each node.

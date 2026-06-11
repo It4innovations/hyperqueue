@@ -5,6 +5,7 @@ use crate::server::autoalloc::{AutoAllocResult, QueueId, QueueParameters};
 use anyhow::Context;
 use bstr::ByteSlice;
 use std::fmt::Write;
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Output;
 use std::time::Duration;
@@ -130,7 +131,8 @@ fn get_default_worker_idle_time() -> Duration {
     Duration::from_secs(5 * 60)
 }
 
-pub fn build_worker_args(
+/// Builds the `hq worker start ...` command, without any environment or wrap command prefix.
+fn build_worker_start_cmd(
     hq_path: &Path,
     manager: ManagerType,
     server_dir: &Path,
@@ -146,19 +148,8 @@ pub fn build_worker_args(
         .unwrap_or_else(get_default_worker_idle_time);
     let idle_timeout = humantime::format_duration(idle_timeout);
 
-    let mut env = String::new();
-    if let Ok(log_env) = std::env::var("RUST_LOG") {
-        write!(env, "RUST_LOG={log_env} ").unwrap();
-    }
-
-    let wrap_cmd = params
-        .worker_wrap_cmd
-        .as_deref()
-        .map(|cmd| format!("{} ", cmd.trim()))
-        .unwrap_or_default();
-
     let mut args = format!(
-        "{env}{wrap_cmd}{hq} worker start --idle-timeout \"{idle_timeout}\" --manager \"{manager}\" --server-dir \"{server_dir}\"",
+        "{hq} worker start --idle-timeout \"{idle_timeout}\" --manager \"{manager}\" --server-dir \"{server_dir}\"",
         hq = hq_path.display(),
         server_dir = server_dir.display()
     );
@@ -168,6 +159,61 @@ pub fn build_worker_args(
     }
 
     args
+}
+
+/// Renders a standalone POSIX shell script that starts the HQ worker.
+fn render_worker_script(worker_cmd: &str, rust_log: Option<&str>) -> String {
+    let mut script = String::from("#!/bin/sh\n");
+    if let Some(rust_log) = rust_log {
+        writeln!(script, "export RUST_LOG={rust_log}").unwrap();
+    }
+    write!(script, "\nexec {worker_cmd}\n").unwrap();
+    script
+}
+
+/// Builds the command that starts the HQ worker inside the submit script.
+///
+/// If a worker wrap command is configured, the worker start command is written into a script
+/// inside `allocation_dir` and the wrap command is invoked with the script path as its only
+/// argument, so that the worker arguments do not have to pass through additional layers of
+/// shell quoting.
+pub fn build_worker_args(
+    hq_path: &Path,
+    manager: ManagerType,
+    server_dir: &Path,
+    params: &QueueParameters,
+    allocation_dir: &AllocationWorkdir,
+) -> AutoAllocResult<String> {
+    let worker_cmd = build_worker_start_cmd(hq_path, manager, server_dir, params);
+    let rust_log = std::env::var("RUST_LOG").ok();
+
+    match params.worker_wrap_cmd.as_deref() {
+        Some(wrap_cmd) => {
+            let script_path = allocation_dir.worker_script();
+            std::fs::write(
+                &script_path,
+                render_worker_script(&worker_cmd, rust_log.as_deref()),
+            )
+            .with_context(|| {
+                anyhow::anyhow!("Cannot write worker script into {}", script_path.display())
+            })?;
+            std::fs::set_permissions(&script_path, std::fs::Permissions::from_mode(0o755))
+                .with_context(|| {
+                    anyhow::anyhow!(
+                        "Cannot make worker script {} executable",
+                        script_path.display()
+                    )
+                })?;
+            Ok(format!("{} {}", wrap_cmd.trim(), script_path.display()))
+        }
+        None => {
+            let mut env = String::new();
+            if let Some(rust_log) = rust_log {
+                write!(env, "RUST_LOG={rust_log} ").unwrap();
+            }
+            Ok(format!("{env}{worker_cmd}"))
+        }
+    }
 }
 
 pub fn add_start_stop_worker_commands(
@@ -188,7 +234,9 @@ pub fn add_start_stop_worker_commands(
 #[cfg(test)]
 mod tests {
     use crate::common::utils::fs::normalize_exe_path;
-    use crate::server::autoalloc::queue::common::add_start_stop_worker_commands;
+    use crate::server::autoalloc::queue::common::{
+        add_start_stop_worker_commands, render_worker_script,
+    };
     use std::path::PathBuf;
 
     #[test]
@@ -232,6 +280,29 @@ mod tests {
         assert_eq!(
             normalize_exe_path(PathBuf::from("/a/b/c/hq (deleted)"),),
             PathBuf::from("/a/b/c/hq")
+        );
+    }
+
+    #[test]
+    fn worker_script_with_rust_log() {
+        assert_eq!(
+            render_worker_script(
+                "/bin/hq worker start --time-limit \"1h 5m\"",
+                Some("hyperqueue=debug")
+            ),
+            r#"#!/bin/sh
+export RUST_LOG=hyperqueue=debug
+
+exec /bin/hq worker start --time-limit "1h 5m"
+"#
+        );
+    }
+
+    #[test]
+    fn worker_script_without_rust_log() {
+        assert_eq!(
+            render_worker_script("/bin/hq worker start", None),
+            "#!/bin/sh\n\nexec /bin/hq worker start\n"
         );
     }
 }

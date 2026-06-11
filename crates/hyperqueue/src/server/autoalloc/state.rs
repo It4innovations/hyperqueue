@@ -296,6 +296,12 @@ impl AllocationWorkdir {
         self.0.join("hq-submit.sh")
     }
 
+    /// Path to a script that starts the HQ worker.
+    /// Generated only when a worker wrap command (`--worker-wrap-cmd`) is used.
+    pub fn worker_script(&self) -> PathBuf {
+        self.0.join("start-worker.sh")
+    }
+
     /// Path to a file that stores the job id of a submitted allocation.
     pub fn jobid_file(&self) -> PathBuf {
         self.0.join("jobid")
