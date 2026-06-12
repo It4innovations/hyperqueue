@@ -1,4 +1,6 @@
 mod common;
+#[cfg(feature = "firecrest")]
+pub mod firecrest;
 pub mod pbs;
 pub mod slurm;
 
@@ -34,6 +36,39 @@ pub struct QueueParameters {
     // Black-box worker args that will be passed to `worker start`
     pub worker_args: Vec<String>,
     pub idle_timeout: Option<Duration>,
+
+    /// Configuration of the FirecREST backend.
+    /// Has to be filled when `manager` is [`ManagerType::Firecrest`].
+    #[serde(default)]
+    pub firecrest: Option<FirecrestQueueParams>,
+}
+
+/// Parameters for submitting allocations through a (remote) FirecREST API.
+///
+/// Note that the server submitting through FirecREST usually does NOT run on the target
+/// cluster, therefore all paths in this struct are paths *on the target cluster*, and they
+/// are intentionally stored as strings (they must not be interpreted in terms of the
+/// filesystem of the machine where the server runs).
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct FirecrestQueueParams {
+    /// Base URL of the FirecREST API, e.g. `https://api.cscs.ch/hpc/firecrest/v2`
+    pub api_url: String,
+    /// Name of the target system (cluster), e.g. `daint`
+    pub system: String,
+    /// OAuth2 token endpoint used for the client credentials grant
+    pub token_url: String,
+    /// OAuth2 client ID
+    pub client_id: String,
+    /// Name of an environment variable (in the environment of the **server**) that holds
+    /// the OAuth2 client secret. The secret itself is deliberately never stored here,
+    /// because queue parameters are persisted into the journal.
+    pub client_secret_env: String,
+    /// Path to the `hq` binary on the target cluster
+    pub remote_hq_path: String,
+    /// Directory on the target cluster that contains the worker access file (`access.json`)
+    pub remote_server_dir: String,
+    /// Existing directory on the target cluster where allocation stdout/stderr are written
+    pub remote_workdir: String,
 }
 
 // Wrapper that exposes some methods and doesn't allow pub access to the queue parameter

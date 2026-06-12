@@ -6,6 +6,13 @@
 
 * The server scheduler now contains a safety limit for computation, configurable via `--scheduler-time-limit` (default: 5s)
 * Better scheduling policy (prefill) for heterogenous clusters
+* Added a new automatic allocation backend that submits Slurm allocations through a
+  [FirecREST](https://eth-cscs.github.io/firecrest-v2/) API (`hq alloc add firecrest`).
+  Unlike the PBS/Slurm backends, it does not require the server to run on the target
+  cluster: allocations are submitted via HTTPS using OAuth2 client credentials, and the
+  spawned workers connect back to the server over TCP. This enables long-running
+  HyperQueue servers placed outside of clusters with login-node wall-time limits
+  (e.g. CSCS). Enabled with the `firecrest` cargo feature (on by default).
 
 ### Fixes
 

@@ -605,6 +605,7 @@ mod tests {
                     cli_resource_descriptor: None,
                     worker_args: vec![],
                     idle_timeout: None,
+                    firecrest: None,
                 }),
                 None,
                 Box::new(NullHandler),

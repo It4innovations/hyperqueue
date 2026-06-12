@@ -9,6 +9,9 @@ pub const WORKER_EXTRA_MANAGER_KEY: &str = "JobManager";
 pub enum ManagerType {
     Pbs,
     Slurm,
+    /// Slurm allocations submitted through a remote FirecREST API.
+    /// Workers spawned by this manager run inside ordinary Slurm jobs.
+    Firecrest,
 }
 
 impl Display for ManagerType {
@@ -16,6 +19,7 @@ impl Display for ManagerType {
         match self {
             ManagerType::Pbs => f.write_str("PBS"),
             ManagerType::Slurm => f.write_str("SLURM"),
+            ManagerType::Firecrest => f.write_str("FirecREST"),
         }
     }
 }

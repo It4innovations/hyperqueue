@@ -189,7 +189,7 @@ fn parse_slurm_status(items: Map<&str, &str>) -> AutoAllocResult<AllocationExter
 }
 
 #[allow(clippy::too_many_arguments)]
-fn build_slurm_submit_script(
+pub(super) fn build_slurm_submit_script(
     nodes: u64,
     timelimit: Duration,
     name: &str,
