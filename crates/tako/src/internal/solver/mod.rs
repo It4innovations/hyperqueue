@@ -1,5 +1,6 @@
 #[cfg(all(feature = "coin_cbc", not(feature = "microlp"), not(feature = "highs")))]
 pub(crate) mod coin_cbc;
+pub(crate) mod config;
 #[cfg(feature = "highs")]
 pub(crate) mod highs;
 #[cfg(all(feature = "microlp", not(feature = "highs")))]
@@ -38,6 +39,16 @@ pub(crate) trait LpInnerSolver {
         variables: impl Iterator<Item = (Self::Variable, f64)>,
     );
     fn solve(self) -> Option<(Self::Solution, f64)>;
+
+    /// Like `solve`, but allowed to trade exactness for bounded solve time
+    /// (see `highs::HighsSolver::solve_bounded`). Backends without a tuned
+    /// implementation fall back to the exact `solve`.
+    fn solve_bounded(self) -> Option<(Self::Solution, f64)>
+    where
+        Self: Sized,
+    {
+        self.solve()
+    }
 }
 
 pub(crate) trait LpSolution {
@@ -182,6 +193,28 @@ impl LpSolver {
         }
         s
     }
+
+    #[inline]
+    pub fn solve_bounded(self) -> Option<(Solution, f64)> {
+        if self.verbose {
+            println!("Weights:");
+            for (name, weight, _var) in self.variables.iter() {
+                if *weight != 0.0 {
+                    println!("{} -> {}", name, weight);
+                }
+            }
+        }
+        let s = self.solver.solve_bounded();
+        if let Some((s, _)) = &s
+            && self.verbose
+        {
+            println!("==== Solution: ====");
+            for (name, _weight, var) in self.variables.iter() {
+                println!("{} = {}", name, s.get_value(*var));
+            }
+        }
+        s
+    }
 }
 
 #[cfg(not(debug_assertions))]
@@ -219,6 +252,11 @@ impl LpSolver {
     #[inline]
     pub fn solve(self) -> Option<(Solution, f64)> {
         self.solver.solve()
+    }
+
+    #[inline]
+    pub fn solve_bounded(self) -> Option<(Solution, f64)> {
+        self.solver.solve_bounded()
     }
 }
 
