@@ -136,12 +136,17 @@ impl Authenticator {
         message: AuthenticationResponse,
     ) -> crate::Result<(Option<StreamSealer>, Option<StreamOpener>)> {
         if let Some(error) = std::mem::take(&mut self.error) {
-            return Err(format!("Authentication failed: {error}").into());
+            return Err(DsError::AuthenticationRejected(format!(
+                "Authentication failed: {error}"
+            )));
         }
 
         let opener = match (message, &self.secret_key) {
             (AuthenticationResponse::Error(error), _) => {
-                return Err(format!("Received authentication error: {}", error.message).into());
+                return Err(DsError::AuthenticationRejected(format!(
+                    "Received authentication error: {}",
+                    error.message
+                )));
             }
             (AuthenticationResponse::NoAuth, None) => {
                 log::trace!("Empty authentication finished");
@@ -149,26 +154,32 @@ impl Authenticator {
             }
             (AuthenticationResponse::Encryption(response), Some(key)) => {
                 log::trace!("Challenge verification started");
-                let remote_nonce =
-                    &Nonce::from_slice(&response.nonce).map_err(|_| "Invalid nonce")?;
-                let mut opener =
-                    StreamOpener::new(key, remote_nonce).map_err(|_| "Failed to create opener")?;
-                let (opened_challenge, tag) = opener
-                    .open_chunk(&response.response)
-                    .map_err(|_| DsError::GenericError("Cannot verify challenge".to_string()))?;
+                let remote_nonce = &Nonce::from_slice(&response.nonce)
+                    .map_err(|_| DsError::AuthenticationRejected("Invalid nonce".to_string()))?;
+                let mut opener = StreamOpener::new(key, remote_nonce).map_err(|_| {
+                    DsError::AuthenticationRejected("Failed to create opener".to_string())
+                })?;
+                let (opened_challenge, tag) =
+                    opener.open_chunk(&response.response).map_err(|_| {
+                        DsError::AuthenticationRejected("Cannot verify challenge".to_string())
+                    })?;
 
                 let mut expected_response = Vec::new();
                 expected_response.extend_from_slice(self.peer_role.as_bytes());
                 expected_response.extend_from_slice(&self.challenge);
 
                 if tag != StreamTag::Message || opened_challenge != expected_response {
-                    return Err("Received challenge does not match.".into());
+                    return Err(DsError::AuthenticationRejected(
+                        "Received challenge does not match.".to_string(),
+                    ));
                 }
                 log::trace!("Challenge verification finished");
                 Some(opener)
             }
             (_, _) => {
-                return Err("Invalid authentication state".into());
+                return Err(DsError::AuthenticationRejected(
+                    "Invalid authentication state".to_string(),
+                ));
             }
         };
         Ok((self.sealer, opener))
