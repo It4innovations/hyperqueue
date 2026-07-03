@@ -10,12 +10,13 @@
 //! (`hq` binary, worker access file directory, working directory) in
 //! [`FirecrestQueueParams`]; see its documentation for details.
 
-use std::cell::RefCell;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::rc::Rc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+use tokio::sync::Mutex;
 
 use anyhow::Context;
 use serde::Deserialize;
@@ -52,12 +53,16 @@ struct CachedToken {
 /// Shared context for performing authenticated FirecREST requests.
 /// It is cheaply cloneable so that it can be moved into the `'static` futures returned
 /// by the [`QueueHandler`] methods.
+///
+/// The token cache is guarded by an async mutex that is held across the token fetch,
+/// so that concurrent requests do not each fetch their own token; they wait for the
+/// first fetch and then reuse the cached result.
 #[derive(Clone)]
 struct FirecrestContext {
     client: reqwest::Client,
     config: Rc<FirecrestQueueParams>,
     client_secret: Rc<String>,
-    token: Rc<RefCell<Option<CachedToken>>>,
+    token: Rc<Mutex<Option<CachedToken>>>,
 }
 
 #[derive(Deserialize)]
@@ -85,8 +90,24 @@ struct JobTime {
 
 #[derive(Deserialize)]
 struct JobModel {
+    #[serde(rename = "jobId", default)]
+    job_id: Option<serde_json::Value>,
     status: JobStatus,
     time: Option<JobTime>,
+}
+
+impl JobModel {
+    fn job_id_string(&self) -> Option<String> {
+        self.job_id.as_ref().map(json_value_to_string)
+    }
+}
+
+/// The job id is documented as a string, but be lenient if it arrives as a number.
+fn json_value_to_string(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::String(id) => id.clone(),
+        other => other.to_string(),
+    }
 }
 
 #[derive(Deserialize)]
@@ -98,11 +119,11 @@ impl FirecrestContext {
     /// Returns a valid bearer token, fetching a fresh one through the OAuth2
     /// client-credentials grant if the cached one is missing or about to expire.
     async fn bearer_token(&self) -> AutoAllocResult<String> {
-        let cached = self.token.borrow().clone();
-        if let Some(token) = cached
+        let mut cached = self.token.lock().await;
+        if let Some(token) = cached.as_ref()
             && token.expires_at > Instant::now() + TOKEN_EXPIRATION_SLACK
         {
-            return Ok(token.token);
+            return Ok(token.token.clone());
         }
 
         log::debug!(
@@ -128,12 +149,46 @@ impl FirecrestContext {
             .await
             .context("Cannot parse OAuth2 token response")?;
 
-        let cached = CachedToken {
+        let fresh = CachedToken {
             token: token.access_token,
             expires_at: Instant::now() + Duration::from_secs(token.expires_in),
         };
-        *self.token.borrow_mut() = Some(cached.clone());
-        Ok(cached.token)
+        *cached = Some(fresh.clone());
+        Ok(fresh.token)
+    }
+
+    /// Drops the cached token, but only if it is still the one that was just rejected;
+    /// a concurrent request may have already fetched a fresh one.
+    async fn invalidate_token(&self, rejected: &str) {
+        let mut cached = self.token.lock().await;
+        if cached.as_ref().is_some_and(|token| token.token == rejected) {
+            *cached = None;
+        }
+    }
+
+    /// Sends an authenticated request. If the API rejects the token (HTTP 401) even
+    /// though it has not expired yet (e.g. it was revoked, or the API and the token
+    /// endpoint disagree about clocks), the request is retried once with a fresh token.
+    async fn request_with_auth_retry(
+        &self,
+        build: impl Fn(String) -> reqwest::RequestBuilder,
+    ) -> AutoAllocResult<reqwest::Response> {
+        let token = self.bearer_token().await?;
+        let response = build(token.clone())
+            .send()
+            .await
+            .context("Cannot reach the FirecREST API")?;
+        if response.status() != reqwest::StatusCode::UNAUTHORIZED {
+            return Ok(response);
+        }
+
+        log::debug!("FirecREST rejected the auth token, retrying with a fresh one");
+        self.invalidate_token(&token).await;
+        let token = self.bearer_token().await?;
+        build(token)
+            .send()
+            .await
+            .context("Cannot reach the FirecREST API")
     }
 
     fn jobs_url(&self) -> String {
@@ -145,8 +200,8 @@ impl FirecrestContext {
     }
 
     /// Submits the given submit script and returns the created Slurm job id.
-    async fn submit_job(&self, name: &str, script: String) -> AutoAllocResult<String> {
-        let token = self.bearer_token().await?;
+    async fn submit_job(&self, name: &str, script: &str) -> AutoAllocResult<String> {
+        let url = self.jobs_url();
         let body = serde_json::json!({
             "job": {
                 "name": name,
@@ -155,13 +210,8 @@ impl FirecrestContext {
             }
         });
         let response = self
-            .client
-            .post(self.jobs_url())
-            .bearer_auth(token)
-            .json(&body)
-            .send()
-            .await
-            .context("Cannot reach the FirecREST API")?;
+            .request_with_auth_retry(|token| self.client.post(&url).bearer_auth(token).json(&body))
+            .await?;
         let response = check_response(response)
             .await
             .context("FirecREST job submission failed")?;
@@ -173,24 +223,39 @@ impl FirecrestContext {
         let job_id = response
             .job_id
             .ok_or_else(|| anyhow::anyhow!("FirecREST submit response is missing the job id"))?;
-        // The job id is documented as a string, but be lenient if it arrives as a number
-        let job_id = match job_id {
-            serde_json::Value::String(id) => id,
-            other => other.to_string(),
-        };
-        Ok(job_id)
+        Ok(json_value_to_string(&job_id))
+    }
+
+    /// Fetches all jobs currently visible to the user in one request and returns them
+    /// keyed by job id. Used to refresh the status of all allocations at once, which
+    /// keeps the number of API requests (and thus rate-limit pressure) independent of
+    /// the number of active allocations.
+    async fn list_jobs(&self) -> AutoAllocResult<Map<String, JobModel>> {
+        let url = self.jobs_url();
+        let response = self
+            .request_with_auth_retry(|token| self.client.get(&url).bearer_auth(token))
+            .await?;
+        let response = check_response(response)
+            .await
+            .context("FirecREST job list query failed")?;
+        let response: GetJobResponse = response
+            .json()
+            .await
+            .context("Cannot parse FirecREST job list response")?;
+
+        Ok(response
+            .jobs
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|job| job.job_id_string().map(|id| (id, job)))
+            .collect())
     }
 
     async fn job_status(&self, allocation_id: &str) -> AutoAllocResult<AllocationExternalStatus> {
-        let token = self.bearer_token().await?;
         let url = format!("{}/{allocation_id}", self.jobs_url());
         let response = self
-            .client
-            .get(url)
-            .bearer_auth(token)
-            .send()
-            .await
-            .context("Cannot reach the FirecREST API")?;
+            .request_with_auth_retry(|token| self.client.get(&url).bearer_auth(token))
+            .await?;
         let response = check_response(response)
             .await
             .with_context(|| format!("FirecREST status query for job {allocation_id} failed"))?;
@@ -209,15 +274,10 @@ impl FirecrestContext {
     }
 
     async fn cancel_job(&self, allocation_id: &str) -> AutoAllocResult<()> {
-        let token = self.bearer_token().await?;
         let url = format!("{}/{allocation_id}", self.jobs_url());
         let response = self
-            .client
-            .delete(url)
-            .bearer_auth(token)
-            .send()
-            .await
-            .context("Cannot reach the FirecREST API")?;
+            .request_with_auth_retry(|token| self.client.delete(&url).bearer_auth(token))
+            .await?;
         // A job that has already finished or was removed from the scheduler's memory
         // cannot be canceled, which is fine for our purposes.
         if response.status() == reqwest::StatusCode::NOT_FOUND {
@@ -314,7 +374,7 @@ in the environment of the server",
                 client,
                 config: Rc::new(config),
                 client_secret: Rc::new(client_secret),
-                token: Rc::new(RefCell::new(None)),
+                token: Rc::new(Mutex::new(None)),
             },
             server_directory,
             name,
@@ -387,7 +447,7 @@ impl QueueHandler for FirecrestHandler {
             std::fs::write(working_dir.submit_script(), &script)
                 .context("Cannot write a debug copy of the submit script")?;
 
-            let id = ctx.submit_job(&allocation_name, script).await;
+            let id = ctx.submit_job(&allocation_name, &script).await;
             if let Ok(id) = &id {
                 std::fs::write(working_dir.jobid_file(), id)?;
             }
@@ -406,8 +466,19 @@ impl QueueHandler for FirecrestHandler {
 
         Box::pin(async move {
             let mut result = Map::with_capacity(allocation_ids.len());
+            if allocation_ids.is_empty() {
+                return Ok(result);
+            }
+
+            // A single list request covers all allocations; only allocations that have
+            // already dropped out of the list (the API merges squeue and recent sacct
+            // history) are queried individually.
+            let jobs = ctx.list_jobs().await?;
             for allocation_id in allocation_ids {
-                let status = ctx.job_status(&allocation_id).await;
+                let status = match jobs.get(&allocation_id) {
+                    Some(job) => parse_job_status(job),
+                    None => ctx.job_status(&allocation_id).await,
+                };
                 result.insert(allocation_id, status);
             }
             Ok(result)
@@ -431,11 +502,30 @@ mod tests {
 
     fn job(state: &str, start: Option<i64>, end: Option<i64>) -> JobModel {
         JobModel {
+            job_id: None,
             status: JobStatus {
                 state: state.to_string(),
             },
             time: Some(JobTime { start, end }),
         }
+    }
+
+    #[test]
+    fn job_id_accepts_string_and_number() {
+        let parse = |json: &str| -> Option<String> {
+            serde_json::from_str::<JobModel>(json)
+                .unwrap()
+                .job_id_string()
+        };
+        assert_eq!(
+            parse(r#"{"jobId": "123", "status": {"state": "PENDING"}}"#),
+            Some("123".to_string())
+        );
+        assert_eq!(
+            parse(r#"{"jobId": 123, "status": {"state": "PENDING"}}"#),
+            Some("123".to_string())
+        );
+        assert_eq!(parse(r#"{"status": {"state": "PENDING"}}"#), None);
     }
 
     #[test]

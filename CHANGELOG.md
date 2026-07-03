@@ -20,6 +20,10 @@
 * Fixed server crash in a specific situation when an unschedulable high-priority task occurs
 * Fixed server crash caused by invalid handling of prefill
 * Fixed canceling of prefilled tasks
+* When a server is restored from a journal and one of its allocation queues cannot be
+  recreated (for example because its backend is unavailable in the current build or its
+  configuration is no longer valid), the queue is now skipped with an error in the log
+  instead of silently aborting the rest of the state restoration.
 
 ## v0.26.2
 
