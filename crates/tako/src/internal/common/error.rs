@@ -11,6 +11,12 @@ pub enum DsError {
     SchedulerError(String),
     #[error("{0}")]
     GenericError(String),
+    /// The peer deterministically rejected the authentication handshake (wrong
+    /// secret key, incompatible protocol/role). Unlike a timed-out or dropped
+    /// connection, retrying reproduces the exact same rejection every time, so
+    /// callers should treat this as immediately fatal rather than retryable.
+    #[error("{0}")]
+    AuthenticationRejected(String),
 }
 
 impl From<serde_json::error::Error> for DsError {
