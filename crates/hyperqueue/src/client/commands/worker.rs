@@ -49,6 +49,10 @@ use crate::worker::parser::{
 use crate::{DEFAULT_WORKER_GROUP_NAME, rpc_call};
 use tako::WorkerId;
 
+/// Default worker heartbeat interval, applied when `--heartbeat` is not passed
+/// (both for `hq worker start` and for `hq alloc add` pilot workers).
+const DEFAULT_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(8);
+
 #[derive(clap::ValueEnum, Clone)]
 pub enum WorkerFilter {
     Running,
@@ -136,6 +140,13 @@ pub struct SharedWorkerStartOpts {
         help = duration_doc!("Duration after which will an idle worker automatically stop")
     )]
     pub idle_timeout: Option<Duration>,
+
+    #[arg(
+        long,
+        value_parser = parse_hms_or_human_time,
+        help = duration_doc!("How often heartbeats are sent\n\nHeartbeats are used to detect worker's liveness. If the worker does not send a heartbeat for given time, then the worker is considered as lost.\n\nDefaults to 8s.")
+    )]
+    pub heartbeat: Option<Duration>,
 
     /// The period of reporting the overview to the server
     ///
@@ -253,14 +264,6 @@ pub struct WorkerStartOpts {
 
     #[arg(
         long,
-        default_value = "8s",
-        value_parser = parse_hms_or_human_time,
-        help = duration_doc!("How often heartbeats are sent\n\nHeartbeats are used to detect worker's liveness. If the worker does not send a heartbeat for given time, then the worker is considered as lost.")
-    )]
-    pub heartbeat: Duration,
-
-    #[arg(
-        long,
         value_parser = parse_hms_or_human_time,
         help = duration_doc!("Worker time limit\n\nWorker exits after given time.")
     )]
@@ -334,10 +337,10 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
                 detect_resources: detect_resources_cli,
                 no_hyper_threading,
                 idle_timeout,
+                heartbeat,
                 overview_interval,
                 min_utilization,
             },
-        heartbeat,
         time_limit,
         manager,
         hostname,
@@ -465,7 +468,7 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
         group,
         work_dir,
         on_server_lost: on_server_lost.into(),
-        heartbeat_interval: heartbeat,
+        heartbeat_interval: heartbeat.unwrap_or(DEFAULT_HEARTBEAT_INTERVAL),
         idle_timeout,
         overview_configuration,
         extra,
