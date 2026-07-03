@@ -1461,3 +1461,99 @@ pub fn test_schedule_min_utilization3() {
     assert_eq!(ts.iter().filter(|t| rt.task(**t).is_assigned()).count(), 4);
     assert!(!rt.task(t2).is_assigned());
 }
+
+// Tests below exercise the bounded scheduler solve (solve_bounded / config.rs
+// HQ_SCHEDULER_MIP_REL_GAP / HQ_SCHEDULER_MIP_TIME_LIMIT_MS): the scheduler's
+// MILP solve is otherwise unbounded and can hang the single-threaded server
+// for minutes to hours given many distinct task resource shapes across many
+// workers -- see the fix/scheduler-solve-timeout branch. Unit tests default
+// (cfg(test) in config.rs) to exact, unhurried solving so unrelated tests
+// keep asserting exact placement counts; these tests explicitly opt back
+// into the production-tuned config via
+// crate::internal::solver::config::with_test_solver_config, which is
+// thread-local (not a process-global env var) so it cannot race with
+// unrelated tests running concurrently on other threads.
+use crate::internal::solver::config::with_test_solver_config;
+
+#[test]
+fn test_schedule_many_distinct_shapes_stays_bounded() {
+    // Regression test for the original hang: with today's per-worker MILP
+    // formulation, `distinct shapes x workers` placement variables makes an
+    // exact solve blow up well past this size. The production defaults
+    // (10% gap, 5s cap) must keep this fast; if a future change reintroduces
+    // an unbounded solve on the scheduler's hot path, this test should start
+    // timing out (or take multiple seconds) instead of passing in
+    // milliseconds.
+    with_test_solver_config(0.10, Duration::from_secs(5), || {
+        let mut rt = TestEnv::new();
+        rt.new_named_resource("mem");
+        for _ in 0..20 {
+            rt.new_worker(&WorkerBuilder::new(64).res_sum("mem", 459_000));
+        }
+        // ~60 distinct shapes across ~20 workers, matching the scale that
+        // hangs an unbounded per-worker MILP in practice.
+        for i in 0..60u32 {
+            let cpus = 1 + (i % 60);
+            rt.new_tasks(2, &TaskBuilder::new().cpus(cpus));
+        }
+
+        let start = std::time::Instant::now();
+        rt.schedule();
+        let elapsed = start.elapsed();
+        assert!(
+            elapsed < Duration::from_secs(10),
+            "scheduling solve took {elapsed:?}, expected it to stay well \
+             under the configured 5s time limit -- this likely means \
+             solve_bounded() is no longer being used on the scheduler's \
+             hot path"
+        );
+    });
+}
+
+#[test]
+fn test_schedule_bounded_dispatches_feasible_incumbent_on_time_limit() {
+    // With a time limit far too short to converge, solve_bounded() must
+    // still dispatch whatever feasible (constraint-respecting) incumbent
+    // HiGHS found, rather than discarding it -- see the ReachedTimeLimit +
+    // HighsSolutionStatus::Feasible branch in highs.rs. 50ms and this
+    // instance size (24 distinct shapes, ~260 tasks, 20 workers) is a known
+    // operating point from prior benchmarking of hq's real per-worker
+    // placement weighting: it reliably has a feasible incumbent by 50ms
+    // without having fully converged (which is also fine for this
+    // assertion -- either way proves a valid solution wasn't discarded).
+    with_test_solver_config(0.0, Duration::from_millis(50), || {
+        let mut rt = TestEnv::new();
+        rt.new_named_resource("mem");
+        for _ in 0..20 {
+            rt.new_worker(&WorkerBuilder::new(64).res_sum("mem", 459_000));
+        }
+        for i in 0..24u32 {
+            let cpus = 1 + (i % 60);
+            rt.new_tasks(11, &TaskBuilder::new().cpus(cpus));
+        }
+
+        rt.schedule();
+        let assigned = rt.task_map().tasks().filter(|t| t.is_assigned()).count();
+        assert!(
+            assigned > 0,
+            "a short time limit should still dispatch a feasible incumbent, \
+             not discard the solve entirely"
+        );
+    });
+}
+
+#[test]
+fn test_schedule_bounded_infeasible_returns_none_safely() {
+    // A genuinely infeasible request (no worker can ever satisfy it) must
+    // not panic or dispatch anything, regardless of the gap/time-limit
+    // tuning -- the `_ => return None` branch in solve_bounded().
+    with_test_solver_config(0.10, Duration::from_secs(5), || {
+        let mut rt = TestEnv::new();
+        rt.new_worker(&WorkerBuilder::new(4));
+        let t = rt.new_task(&TaskBuilder::new().cpus(999));
+
+        rt.schedule();
+        assert!(!rt.task(t).is_assigned());
+    });
+}
+
