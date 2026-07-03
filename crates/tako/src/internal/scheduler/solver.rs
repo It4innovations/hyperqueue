@@ -410,7 +410,7 @@ pub(crate) fn run_scheduling_solver(
     }
 
     let mut result = SchedulingSolution::default();
-    let Some((solution, _)) = solver.solve() else {
+    let Some((solution, _)) = solver.solve_bounded() else {
         return result;
     };
 
