@@ -65,6 +65,9 @@ create multiple allocation queues, and you can even combine PBS queues with Slur
     have a use-case for such remote PBS/Slurm allocation submission, please [let us know](https://github.com/It4innovations/hyperqueue/issues),
     as we could try to make that easier in HyperQueue if there was enough interest in it.
 
+    If the remote cluster exposes a [FirecREST](https://eth-cscs.github.io/firecrest-v2/) API, you can submit
+    allocations to it through HTTP, without any access to `qsub`/`sbatch`; see [below](#firecrest).
+
 ### Parameters
 
 In addition to arguments that are passed to `qsub`/`sbatch`, you can also use several other command line options when
@@ -247,6 +250,66 @@ created in a suspended mode and it will be then immediately cancelled, so that i
 You can disable this behavior using the `--no-dry-run` flag when running `hq alloc add`.
 
 You can also create a dry-run submission [manually](#dry-run-command).
+
+## FirecREST
+
+In addition to executing `qsub`/`sbatch` locally, HyperQueue can submit Slurm allocations through a
+[FirecREST v2](https://eth-cscs.github.io/firecrest-v2/) REST API (available e.g. at [CSCS](https://docs.cscs.ch)).
+Because the submission happens over HTTPS, **the server does not have to run on the target cluster**: you can keep a
+long-running HyperQueue server on your own machine, a VM or a Kubernetes pod, and spawn workers on the cluster through
+the API. The spawned workers then connect back to the server over TCP, exactly like manually started workers.
+
+```bash
+$ hq alloc add firecrest \
+    --api-url https://api.cscs.ch/hpc/firecrest/v2 \
+    --system daint \
+    --token-url https://auth.cscs.ch/auth/realms/firecrest-clients/protocol/openid-connect/token \
+    --client-id <your-client-id> \
+    --remote-hq-path /users/<user>/hq \
+    --remote-server-dir /users/<user>/hq-worker-dir \
+    --remote-workdir /scratch/<user>/hq-alloc \
+    --time-limit 1h -- --account=<account> --partition=<partition>
+```
+
+The queue behaves like a Slurm allocation queue (the allocations are ordinary Slurm jobs, trailing arguments are
+passed to `sbatch` via `#SBATCH` directives, workers detect the Slurm environment), and all the generic
+[parameters](#parameters) apply. The additional parameters are:
+
+- **`--api-url`**: base URL of the FirecREST API.
+- **`--system`**: name of the target cluster as known to FirecREST.
+- **`--token-url`**: OAuth2 token endpoint. HyperQueue authenticates with the client-credentials grant and manages
+  (caches, refreshes) the short-lived access tokens automatically.
+- **`--client-id`**: OAuth2 client ID.
+- **`--client-secret-env`**: name of an environment variable that holds the OAuth2 client secret
+  (`HQ_FIRECREST_CLIENT_SECRET` by default). The variable has to be set **in the environment of the server**. Only the
+  variable name is stored in the queue configuration and in the journal; the secret itself is never persisted. This
+  also means that when you restore a server from a [journal](server.md#resuming-stoppedcrashed-server), the variable
+  has to be set again, otherwise the queue will not be restored.
+
+Because the server cannot assume anything about the cluster's filesystem, you also have to provide cluster-side paths
+(they are used verbatim on the cluster and are not interpreted by the server):
+
+- **`--remote-hq-path`**: path to the `hq` binary **on the cluster**, used to start the workers. It should be the same
+  version as the server binary.
+- **`--remote-server-dir`**: directory **on the cluster** containing the worker access file (`access.json`), which
+  tells the workers where the server runs and provides authentication keys. Generate it with
+  [`hq server generate-access`](cloud.md#splitting-access-for-client-and-workers) and copy it to the cluster.
+- **`--remote-workdir`**: directory **on the cluster** used as the working directory of the allocations (stdout/stderr
+  of the allocations are placed there). It has to exist before the first allocation starts.
+
+!!! important "Network requirements"
+
+    The server itself only needs outbound HTTPS access to the FirecREST API. The spawned workers, however, initiate a
+    TCP connection **from the compute nodes to the server** (to the worker port advertised in the access file), so the
+    server has to run on an address reachable from the compute nodes. If the cluster firewall does not allow that
+    connection, workers will fail to connect: you can either run the server somewhere reachable (e.g. inside the
+    cluster's network) or tunnel the worker port (e.g. with a reverse SSH tunnel).
+
+!!! tip "Submitting jobs from outside the cluster"
+
+    When the client submitting HyperQueue jobs also runs outside the cluster, the default working directory and
+    stdout/stderr paths of tasks are derived from the client's submission directory, which most likely does not exist
+    on the cluster. Pass explicit cluster-side paths to `hq submit` using `--cwd`, `--stdout` and `--stderr`.
 
 ## Behavior
 
