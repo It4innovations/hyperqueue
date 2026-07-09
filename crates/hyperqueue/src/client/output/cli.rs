@@ -1636,7 +1636,7 @@ fn resources_full_describe(resources: &ResourceDescriptor) -> String {
             result,
             "{}{}: {}",
             if first { "" } else { "\n" },
-            &descriptor.name,
+            descriptor.name,
             format_descriptor_kind(&descriptor.kind),
         )
         .unwrap();
@@ -1721,7 +1721,7 @@ fn resources_summary(resources: &ResourceDescriptor, multiline: bool) -> String 
             } else {
                 "; "
             },
-            &descriptor.name,
+            descriptor.name,
             if multiline { ":" } else { "" },
             special_format(descriptor).unwrap_or_else(|| resource_summary_kind(&descriptor.kind)),
             if coupled.contains(&(i as u8)) {

@@ -215,7 +215,7 @@ pub async fn wait_for_jobs_with_progress(
                     | EventPayload::TaskNotify(..) => {}
                 },
                 _ => {
-                    log::warn!("Unexpected message from server: {:?}", &msg);
+                    log::warn!("Unexpected message from server: {:?}", msg);
                 }
             }
         } else {

@@ -156,7 +156,7 @@ impl Task {
         entry: Option<EntryType>,
         configuration: Rc<TaskConfiguration>,
     ) -> Self {
-        log::debug!("New task rs={} {:?} {:?}", id, resource_rq_id, &task_deps,);
+        log::debug!("New task rs={} {:?} {:?}", id, resource_rq_id, task_deps,);
 
         Self {
             id,

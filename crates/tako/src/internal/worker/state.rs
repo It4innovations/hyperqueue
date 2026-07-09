@@ -179,7 +179,7 @@ impl WorkerState {
         log::debug!(
             "New worker={} announced at {}",
             other_worker.worker_id,
-            &other_worker.address
+            other_worker.address
         );
         assert_ne!(self.worker_id, other_worker.worker_id); // We should not receive message about ourselves
         assert!(

@@ -529,7 +529,7 @@ fn create_report(jstats: &JournalStats) -> String {
                     y: &trace.value,
                     name: format!(
                         "{name} alloc on {wres}",
-                        wres = &wres_str,
+                        wres = wres_str,
                         name = jstats.get_resource_name(*rid)
                     ),
                     r#type: "scatter",

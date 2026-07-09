@@ -124,7 +124,7 @@ impl State {
         if !aborted_tasks.is_empty() {
             log::debug!(
                 "Tasks {:?} aborted because of task dependency fails",
-                &aborted_tasks
+                aborted_tasks
             );
         }
 
