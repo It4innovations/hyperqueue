@@ -208,7 +208,6 @@ async fn worker_rpc_loop(
             let CoreSplitMut {
                 task_map: _,
                 worker_map,
-                request_map: _,
                 ..
             } = core.split_mut();
             let worker = worker_map.get_worker_mut(worker_id);
