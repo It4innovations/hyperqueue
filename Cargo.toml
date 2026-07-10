@@ -44,7 +44,7 @@ bstr = { version = "1", features = ["serde"] }
 sysinfo = "0.39"
 thin-vec = { version = "0.2", features = ["serde"] }
 bitflags = { version = "2", features = ["serde"] }
-itertools = "0.14"
+itertools = "0.15"
 
 [workspace.lints.clippy]
 dbg_macro = "deny"
