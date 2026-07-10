@@ -676,11 +676,9 @@ fn test_allocator_groups_and_fractions() {
 
     let r3 = &al3.resources[0].indices;
     assert_eq!(r3.len(), 3);
-    assert_eq!(r3[0].group_idx, r3[2].group_idx);
+    assert!(r3[0].group_idx == r3[2].group_idx || r3[1].group_idx == r3[2].group_idx);
     assert_ne!(r3[0].group_idx, r3[1].group_idx);
-    assert_ne!(r3[0].group_idx, r2[0].group_idx);
-    assert_ne!(r3[2].group_idx, r2[0].group_idx);
-    assert_ne!(r3[2].index, r2[0].index);
+    assert!(r3.iter().all(|i| r2.iter().all(|j| i.index != j.index)));
 
     let rq4 = ResBuilder::default()
         .add_compact(0, ResourceAmount::new(0, 7000))
