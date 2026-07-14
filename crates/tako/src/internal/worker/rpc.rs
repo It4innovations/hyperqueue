@@ -89,6 +89,87 @@ pub async fn connect_to_server_and_authenticate(
     })
 }
 
+// A busy server (e.g. mid scheduler solve on its single-threaded executor, or
+// handling a burst of other workers registering) may not poll a new worker's
+// connection in time for any single attempt at the auth handshake or the
+// registration round-trip below to complete within their own timeouts. Unlike
+// connect_to_server's raw TCP connect (already retried), neither of those had any
+// retry at all: one slow attempt used to kill the worker process outright, which
+// on an autoalloc-managed SLURM pilot means the whole allocation is wasted, not
+// just a delayed worker. Retried here, not by raising the handshake's own
+// timeouts, since there is no fixed stall duration to size a bigger timeout
+// against.
+const REGISTRATION_MAX_ATTEMPTS: u32 = 8;
+const REGISTRATION_RETRY_DELAY: Duration = Duration::from_secs(10);
+
+async fn connect_and_register(
+    scheduler_addresses: &[SocketAddr],
+    secret_key: Option<Arc<SecretKey>>,
+    configuration: &WorkerConfiguration,
+) -> crate::Result<(ConnectionDescriptor, WorkerRegistrationResponse)> {
+    let ConnectionDescriptor {
+        address,
+        mut sender,
+        mut receiver,
+        mut opener,
+        mut sealer,
+    } = connect_to_server_and_authenticate(scheduler_addresses, secret_key).await?;
+
+    let message = ConnectionRegistration::Worker(RegisterWorker {
+        configuration: configuration.clone(),
+    });
+    let data = serialize(&message)?.into();
+    sender.send(seal_message(&mut sealer, data)).await?;
+
+    let response = timeout(Duration::from_secs(15), receiver.next())
+        .await
+        .map_err(|_| {
+            crate::Error::GenericError("Did not receive worker registration response".into())
+        })?
+        .ok_or_else(|| {
+            crate::Error::GenericError(
+                "Connection closed without receiving registration response".into(),
+            )
+        })??;
+    let response: WorkerRegistrationResponse = open_message(&mut opener, &response)?;
+
+    Ok((
+        ConnectionDescriptor {
+            address,
+            sender,
+            receiver,
+            opener,
+            sealer,
+        },
+        response,
+    ))
+}
+
+async fn connect_and_register_with_retry(
+    scheduler_addresses: &[SocketAddr],
+    secret_key: Option<Arc<SecretKey>>,
+    configuration: &WorkerConfiguration,
+) -> crate::Result<(ConnectionDescriptor, WorkerRegistrationResponse)> {
+    for attempt in 1..=REGISTRATION_MAX_ATTEMPTS {
+        match connect_and_register(scheduler_addresses, secret_key.clone(), configuration).await {
+            Ok(result) => return Ok(result),
+            // A deterministic rejection (wrong secret key, incompatible protocol/role) will
+            // reproduce identically on every attempt; retrying only delays reporting a
+            // misconfiguration that will never fix itself.
+            Err(e @ crate::Error::AuthenticationRejected(_)) => return Err(e),
+            Err(e) if attempt < REGISTRATION_MAX_ATTEMPTS => {
+                log::warn!(
+                    "Worker registration attempt {attempt}/{REGISTRATION_MAX_ATTEMPTS} failed: \
+                     {e}; retrying in {REGISTRATION_RETRY_DELAY:?}"
+                );
+                sleep(REGISTRATION_RETRY_DELAY).await;
+            }
+            Err(e) => return Err(e),
+        }
+    }
+    unreachable!("loop always returns on the last attempt")
+}
+
 // Maximum time to wait for running tasks to be shutdown when worker ends.
 const MAX_WAIT_FOR_RUNNING_TASKS_SHUTDOWN: Duration = Duration::from_secs(5);
 
@@ -106,20 +187,25 @@ pub async fn run_worker(
 )> {
     let (_listener, port) = start_listener().await?;
     configuration.listen_address = format!("{}:{}", configuration.hostname, port);
-    let ConnectionDescriptor {
-        mut sender,
-        mut receiver,
-        mut opener,
-        mut sealer,
-        ..
-    } = connect_to_server_and_authenticate(&scheduler_addresses, secret_key.clone()).await?;
-    {
-        let message = ConnectionRegistration::Worker(RegisterWorker {
-            configuration: configuration.clone(),
-        });
-        let data = serialize(&message)?.into();
-        sender.send(seal_message(&mut sealer, data)).await?;
-    }
+    let (
+        ConnectionDescriptor {
+            sender,
+            receiver,
+            opener,
+            sealer,
+            ..
+        },
+        WorkerRegistrationResponse {
+            worker_id,
+            other_workers,
+            resource_names,
+            resource_rq_map,
+            server_idle_timeout,
+            server_uid,
+            worker_overview_interval_override,
+        },
+    ) = connect_and_register_with_retry(&scheduler_addresses, secret_key.clone(), &configuration)
+        .await?;
 
     let (queue_sender, queue_receiver) = tokio::sync::mpsc::unbounded_channel::<Bytes>();
     let heartbeat_interval = configuration.heartbeat_interval;
@@ -127,45 +213,29 @@ pub async fn run_worker(
     let time_limit = configuration.time_limit;
 
     let (worker_id, state_ref) = {
-        match timeout(Duration::from_secs(15), receiver.next()).await {
-            Ok(Some(data)) => {
-                let WorkerRegistrationResponse {
-                    worker_id,
-                    other_workers,
-                    resource_names,
-                    resource_rq_map,
-                    server_idle_timeout,
-                    server_uid,
-                    worker_overview_interval_override,
-                } = open_message(&mut opener, &data?)?;
+        sync_worker_configuration(&mut configuration, server_idle_timeout);
 
-                sync_worker_configuration(&mut configuration, server_idle_timeout);
+        let comm = WorkerComm::new(queue_sender);
+        let launcher = launcher_setup(&server_uid, worker_id);
+        let state_ref = WorkerStateRef::new(
+            comm,
+            worker_id,
+            configuration.clone(),
+            ResourceIdMap::from_vec(resource_names),
+            resource_rq_map,
+            launcher,
+            server_uid,
+        );
 
-                let comm = WorkerComm::new(queue_sender);
-                let launcher = launcher_setup(&server_uid, worker_id);
-                let state_ref = WorkerStateRef::new(
-                    comm,
-                    worker_id,
-                    configuration.clone(),
-                    ResourceIdMap::from_vec(resource_names),
-                    resource_rq_map,
-                    launcher,
-                    server_uid,
-                );
-
-                {
-                    let mut state = state_ref.get_mut();
-                    state.worker_overview_interval_override = worker_overview_interval_override;
-                    for worker_info in other_workers {
-                        state.new_worker(worker_info);
-                    }
-                }
-
-                (worker_id, state_ref)
+        {
+            let mut state = state_ref.get_mut();
+            state.worker_overview_interval_override = worker_overview_interval_override;
+            for worker_info in other_workers {
+                state.new_worker(worker_info);
             }
-            Ok(None) => panic!("Connection closed without receiving registration response"),
-            Err(_) => panic!("Did not receive worker registration response"),
         }
+
+        (worker_id, state_ref)
     };
 
     let local_conn_listener = state_ref.get().lc_state.borrow().create_listener()?;
