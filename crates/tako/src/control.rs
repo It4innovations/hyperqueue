@@ -16,7 +16,7 @@ use crate::internal::common::error::DsError;
 use crate::internal::common::resources::ResourceRqId;
 use crate::internal::messages::worker::ToWorkerMessage;
 use crate::internal::scheduler::query::compute_new_worker_query;
-use crate::internal::scheduler::{run_scheduling, scheduler_loop};
+use crate::internal::scheduler::{SchedulerConfig, run_scheduling, scheduler_loop};
 use crate::internal::server::client::handle_new_tasks;
 use crate::internal::server::comm::{Comm, CommSenderRef};
 use crate::internal::server::core::{CoreRef, CustomConnectionHandler};
@@ -237,6 +237,7 @@ pub fn server_start(
     custom_conn_handler: Option<CustomConnectionHandler>,
     server_uid: String,
     worker_id_initial_value: WorkerId,
+    scheduler_config: SchedulerConfig,
 ) -> crate::Result<(ServerRef, impl Future<Output = crate::Result<()>>)> {
     let listener_port = listener.local_addr()?.port();
 
@@ -251,6 +252,7 @@ pub fn server_start(
         custom_conn_handler,
         server_uid,
         worker_id_initial_value,
+        scheduler_config,
     );
     let connections = crate::internal::server::rpc::connection_initiator(
         listener,
