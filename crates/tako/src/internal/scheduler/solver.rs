@@ -7,10 +7,23 @@ use crate::resources::{CPU_RESOURCE_ID, ResourceRqId};
 use crate::{Map, ResourceVariantId, Set, WorkerId};
 use thin_vec::ThinVec;
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub(crate) struct SchedulingSolution {
     pub(crate) sn_counts: Map<(ResourceRqId, ResourceVariantId), Map<WorkerId, u32>>,
     pub(crate) mn_workers: Map<(ResourceRqId, ResourceVariantId), Vec<ThinVec<WorkerId>>>,
+    /// `false` if the MILP solve hit its time limit before proving
+    /// optimality (see `SchedulerConfig::mip_time_limit`).
+    pub(crate) is_optimal: bool,
+}
+
+impl Default for SchedulingSolution {
+    fn default() -> Self {
+        SchedulingSolution {
+            sn_counts: Map::new(),
+            mn_workers: Map::new(),
+            is_optimal: true,
+        }
+    }
 }
 
 pub(crate) fn run_scheduling_solver(
@@ -410,9 +423,11 @@ pub(crate) fn run_scheduling_solver(
     }
 
     let mut result = SchedulingSolution::default();
-    let Some((solution, _)) = solver.solve_bounded() else {
+    let Some((solution, is_optimal)) = solver.solve_bounded(scheduler_cache.config.mip_time_limit)
+    else {
         return result;
     };
+    result.is_optimal = is_optimal;
 
     for batch in task_batches {
         let resource_rq_id = batch.resource_rq_id;

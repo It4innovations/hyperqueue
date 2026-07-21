@@ -900,67 +900,6 @@ fn test_coupling3() {
 }
 
 #[test]
-fn test_allocator_stays_exact_regardless_of_scheduler_gap_tuning() {
-    // Guards against the exact regression found while implementing the
-    // scheduler's bounded solve (solve_bounded in internal::solver::highs):
-    // the worker's own NUMA/socket resource allocator below shares the same
-    // underlying LpSolver but must keep calling the exact `solve()`, never
-    // the scheduler's gap/time-limit-tuned `solve_bounded()` -- it needs a
-    // guaranteed-exact feasible allocation, not a good-enough one. Setting a
-    // coarse scheduler gap here must not affect it; this is verbatim the
-    // scenario from test_complex_coupling1 below, which is exactly what
-    // caught the original regression.
-    //
-    // with_test_solver_config is thread-local (not a process-global env
-    // var), so it cannot race with unrelated tests running concurrently on
-    // other threads.
-    crate::internal::solver::config::with_test_solver_config(
-        0.50,
-        std::time::Duration::from_millis(1),
-        || {
-            let mut coupling = ResourceDescriptorCoupling::default();
-            for i in 0..6 {
-                coupling.add(0, i, 1, i / 2, 256);
-                coupling.add(1, i / 2, 2, i, 128);
-            }
-            let descriptor = ResourceDescriptor::new(
-                vec![
-                    ResourceDescriptorItem {
-                        name: "cpus".to_string(),
-                        kind: ResourceDescriptorKind::regular_sockets(6, 2),
-                    },
-                    ResourceDescriptorItem {
-                        name: "gpus".to_string(),
-                        kind: ResourceDescriptorKind::regular_sockets(3, 1),
-                    },
-                    ResourceDescriptorItem {
-                        name: "foo".to_string(),
-                        kind: ResourceDescriptorKind::regular_sockets(6, 3),
-                    },
-                ],
-                coupling,
-            );
-            let mut allocator = test_allocator(&descriptor);
-
-            allocator.force_claim_from_groups(0.into(), &[0], 1.into());
-            allocator.force_claim_from_groups(2.into(), &[5], 2.into());
-
-            let rq = ResBuilder::default()
-                .add_force_compact(0, ResourceAmount::new_units(4))
-                .add_force_compact(1, ResourceAmount::new_units(1))
-                .add_force_compact(2, ResourceAmount::new_units(5))
-                .finish();
-            assert!(
-                allocator.try_allocate(&rq).is_some(),
-                "the exact NUMA/socket allocator must keep finding a \
-                 feasible allocation regardless of the scheduler's \
-                 mip_rel_gap tuning"
-            );
-        },
-    );
-}
-
-#[test]
 fn test_complex_coupling1() {
     let mut coupling = ResourceDescriptorCoupling::default();
 

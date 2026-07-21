@@ -1,10 +1,11 @@
 #[cfg(all(feature = "coin_cbc", not(feature = "microlp"), not(feature = "highs")))]
 pub(crate) mod coin_cbc;
-pub(crate) mod config;
 #[cfg(feature = "highs")]
 pub(crate) mod highs;
 #[cfg(all(feature = "microlp", not(feature = "highs")))]
 pub(crate) mod microlp;
+
+use std::time::Duration;
 
 #[cfg(feature = "highs")]
 pub(crate) type LpInnerSolverImpl = highs::HighsSolver;
@@ -40,14 +41,15 @@ pub(crate) trait LpInnerSolver {
     );
     fn solve(self) -> Option<(Self::Solution, f64)>;
 
-    /// Like `solve`, but allowed to trade exactness for bounded solve time
-    /// (see `highs::HighsSolver::solve_bounded`). Backends without a tuned
-    /// implementation fall back to the exact `solve`.
-    fn solve_bounded(self) -> Option<(Self::Solution, f64)>
+    /// Like `solve`, but allowed to trade exactness for a hard wall-clock
+    /// cap. Returns whether the solution is proven optimal. Backends without
+    /// a tuned implementation fall back to the exact `solve`.
+    fn solve_bounded(self, time_limit: Duration) -> Option<(Self::Solution, bool)>
     where
         Self: Sized,
     {
-        self.solve()
+        let _ = time_limit;
+        self.solve().map(|(solution, _)| (solution, true))
     }
 }
 
@@ -195,7 +197,7 @@ impl LpSolver {
     }
 
     #[inline]
-    pub fn solve_bounded(self) -> Option<(Solution, f64)> {
+    pub fn solve_bounded(self, time_limit: Duration) -> Option<(Solution, bool)> {
         if self.verbose {
             println!("Weights:");
             for (name, weight, _var) in self.variables.iter() {
@@ -204,7 +206,7 @@ impl LpSolver {
                 }
             }
         }
-        let s = self.solver.solve_bounded();
+        let s = self.solver.solve_bounded(time_limit);
         if let Some((s, _)) = &s
             && self.verbose
         {
@@ -255,8 +257,8 @@ impl LpSolver {
     }
 
     #[inline]
-    pub fn solve_bounded(self) -> Option<(Solution, f64)> {
-        self.solver.solve_bounded()
+    pub fn solve_bounded(self, time_limit: Duration) -> Option<(Solution, bool)> {
+        self.solver.solve_bounded(time_limit)
     }
 }
 

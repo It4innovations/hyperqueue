@@ -40,6 +40,7 @@ impl RunningServer {
                 worker_secret_key: None,
                 server_uid: None,
                 journal_flush_period: Duration::from_secs(30),
+                scheduler_mip_time_limit: Duration::from_secs(5),
             };
 
             let main_future = async move {
