@@ -8,8 +8,8 @@ use crate::internal::messages::worker::{
     TaskRunningMsg, ToWorkerMessage, WorkerOverview, WorkerTaskUpdate,
 };
 use crate::internal::scheduler::{
-    SchedulerConfig, WorkerTaskMapping, create_task_batches, create_task_mapping,
-    run_scheduling_inner, run_scheduling_solver,
+    SchedulerConfig, SchedulingSolution, WorkerTaskMapping, create_task_batches,
+    create_task_mapping, run_scheduling_inner, run_scheduling_solver,
 };
 use crate::internal::server::comm::Comm;
 use crate::internal::server::core::{Core, CoreSplitMut};
@@ -258,6 +258,13 @@ impl TestEnv {
         let batches = create_task_batches(&mut self.core, self.now, None);
         let solution = run_scheduling_solver(&mut self.core, self.now, &batches, None);
         create_task_mapping(&mut self.core, solution)
+    }
+
+    /// Runs the scheduler's placement solve without applying its result, so
+    /// tests can inspect `SchedulingSolution::is_optimal` directly.
+    pub fn schedule_solution(&mut self) -> SchedulingSolution {
+        let batches = create_task_batches(&mut self.core, self.now, None);
+        run_scheduling_solver(&mut self.core, self.now, &batches, None)
     }
 }
 

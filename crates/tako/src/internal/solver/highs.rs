@@ -1,6 +1,6 @@
-use crate::internal::solver::config::{mip_rel_gap, mip_time_limit};
 use crate::internal::solver::{ConstraintType, LpInnerSolver, LpSolution};
 use highs::{HighsModelStatus, HighsSolutionStatus, Sense};
+use std::time::Duration;
 
 pub(crate) struct HighsSolver(highs::RowProblem);
 
@@ -58,46 +58,33 @@ impl LpInnerSolver for HighsSolver {
         Some((solution, objective_value))
     }
 
-    /// Bounded solve for the global task scheduler: accepts a solution once
-    /// it is provably within `mip_rel_gap` of optimal, and hard-caps wall
-    /// time at `mip_time_limit`. Task resource requests are themselves
-    /// estimates, and this solve can otherwise blow up (unboundedly, on the
-    /// single-threaded server) with many distinct resource shapes, so a
-    /// bounded solve is the right tradeoff here -- unlike `solve()`, which
-    /// callers that need a guaranteed-exact answer (the resource allocator)
-    /// must keep using instead.
-    fn solve_bounded(self) -> Option<(Self::Solution, f64)> {
+    /// Bounded solve for the global task scheduler: hard-caps wall time at
+    /// `time_limit` instead of always proving exact optimality. Returns
+    /// whether the solution is proven optimal, since `solve_bounded` may
+    /// dispatch a merely feasible incumbent on timeout.
+    fn solve_bounded(self, time_limit: Duration) -> Option<(Self::Solution, bool)> {
         let mut model = self.0.optimise(Sense::Maximise);
-        model.set_option("time_limit", mip_time_limit().as_secs_f64());
-        model.set_option("mip_rel_gap", mip_rel_gap());
+        model.set_option("time_limit", time_limit.as_secs_f64());
         let solved_model = model.solve();
 
-        match solved_model.status() {
-            // Either an exact optimum, or (since mip_rel_gap is set) a
-            // solution HiGHS has proven is within the accepted gap of
-            // optimal.
-            HighsModelStatus::Optimal => {}
-            // The hard wall-clock cap fired before the gap could be proven.
-            // Still dispatch it if it's a real feasible incumbent -- it
-            // never violates a constraint, it's just not proven close to
-            // optimal -- so a slow-converging solve degrades scheduling
-            // quality for one pass instead of blocking the server.
+        let is_optimal = match solved_model.status() {
+            HighsModelStatus::Optimal => true,
+            // Time limit fired before optimality was proven. Dispatch the
+            // incumbent anyway if it's feasible.
             HighsModelStatus::ReachedTimeLimit
                 if solved_model.primal_solution_status() == HighsSolutionStatus::Feasible =>
             {
                 log::warn!(
-                    "Scheduler MILP solve hit the {:?} time limit before proving the {:.0}% \
-                     optimality gap; dispatching the best incumbent found so far.",
-                    mip_time_limit(),
-                    mip_rel_gap() * 100.0
+                    "Scheduler MILP solve hit the {time_limit:?} time limit before proving \
+                     optimality; dispatching the best incumbent found so far."
                 );
+                false
             }
             _ => return None,
-        }
+        };
 
         let solution = solved_model.get_solution();
-        let objective_value = solved_model.objective_value();
-        Some((solution, objective_value))
+        Some((solution, is_optimal))
     }
 }
 

@@ -48,6 +48,8 @@ pub struct ServerConfig {
     pub worker_secret_key: Option<Arc<SecretKey>>,
     pub client_secret_key: Option<Arc<SecretKey>>,
     pub server_uid: Option<String>,
+    /// See `tako::server::SchedulerConfig::mip_time_limit`.
+    pub scheduler_mip_time_limit: Duration,
 }
 
 /// This function initializes the HQ server.
@@ -204,6 +206,10 @@ pub async fn initialize_server(
         None,
         state_ref.get().server_info().server_uid.clone(),
         worker_id_initial_value,
+        tako::server::SchedulerConfig {
+            mip_time_limit: server_cfg.scheduler_mip_time_limit,
+            ..Default::default()
+        },
     )?;
     let (autoalloc_service, autoalloc_process) =
         create_autoalloc_service(server_ref.clone(), queue_id_initial_value, events.clone());
