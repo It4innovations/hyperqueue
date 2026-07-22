@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+
+* Fixed server crash in a specific situation when an unschedulable high-priority task occurs
+
 ## v0.26.2
 
 ### Fixes

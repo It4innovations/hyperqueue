@@ -107,6 +107,19 @@ def test_submit_mn_different_groups(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "FINISHED")
 
 
+def test_scheduler_unschedulable_mn_blocker(hq_env: HqEnv):
+    """
+    Reproducer for #1121
+    """
+    hq_env.start_server()
+    hq_env.start_worker(cpus=1, args=["--group=groupA"])
+    hq_env.start_worker(cpus=1, args=["--group=groupB"])
+
+    hq_env.command(["submit", "--priority=10", "--nodes=2", "--time-request=1h", "--", "sleep", "60"])
+    hq_env.command(["submit", "--priority=0", "--array=1-5", "--cpus=1", "--", "sleep", "1"])
+    wait_for_job_state(hq_env, [2], "FINISHED")
+
+
 def test_submit_mn_time_request(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_workers(2)
