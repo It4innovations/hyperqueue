@@ -130,10 +130,8 @@ pub(crate) fn run_scheduling_solver(
                 }
             }
 
-            // If possible, create a reservation variable
             if !has_variant
                 && !rqv.is_multi_node()
-                && !batch.limit_reached
                 && batch.is_blocker
                 && worker.is_capable_to_run_rqv(rqv, now)
                 && let Some(a) = worker.sn_assignment()
@@ -213,25 +211,25 @@ pub(crate) fn run_scheduling_solver(
     let mut blocked_priority_vars: Map<(ResourceRqId, u32), _> = Map::new();
 
     let mut get_bvar = |solver: &mut LpSolver, blocker_rq_id: ResourceRqId, size: u32| {
-        *blocked_priority_vars
-            .entry((blocker_rq_id, size))
-            .or_insert_with(|| {
-                // Create a new blocking variable
-                solver.set_name(|| format!("B{}~{}", blocker_rq_id, size));
-                let new_v = solver.add_bool_variable(0.0);
-                let vars = tasks_count_vars.get(&blocker_rq_id).unwrap();
-                solver.set_name(|| format!("blocker rq{blocker_rq_id} at size {size}"));
-                let bound = size as f64;
-                constraint_extra_var(
-                    solver,
-                    ConstraintType::Min,
-                    bound,
-                    vars.iter().copied(),
-                    new_v,
-                    bound,
-                );
-                new_v
-            })
+        if let Some(v) = blocked_priority_vars.get(&(blocker_rq_id, size)) {
+            return Some(*v);
+        }
+        let vars = tasks_count_vars.get(&blocker_rq_id)?;
+        // Create a new blocking variable
+        solver.set_name(|| format!("B{}~{}", blocker_rq_id, size));
+        let new_v = solver.add_bool_variable(0.0);
+        solver.set_name(|| format!("blocker rq{blocker_rq_id} at size {size}"));
+        let bound = size as f64;
+        constraint_extra_var(
+            solver,
+            ConstraintType::Min,
+            bound,
+            vars.iter().copied(),
+            new_v,
+            bound,
+        );
+        blocked_priority_vars.insert((blocker_rq_id, size), new_v);
+        Some(new_v)
     };
 
     let mut zero_cond = Vec::new();
@@ -289,8 +287,9 @@ pub(crate) fn run_scheduling_solver(
                                 placements.get(&(w.id, batch.resource_rq_id, v_id)).copied()
                             });
                             let cut_size = cut.size as f64;
-                            if let Some(s) = blocking_size {
-                                let blocking_v = get_bvar(&mut solver, *blocker_rq_id, *s);
+                            if let Some(s) = blocking_size
+                                && let Some(blocking_v) = get_bvar(&mut solver, *blocker_rq_id, *s)
+                            {
                                 solver.set_name(|| {
                                     format!(
                                         "w{}: if #rq{blocker_rq_id} < {s} then limit #rq{} to {} + {} (gap) where both rqs may run",
@@ -305,7 +304,7 @@ pub(crate) fn run_scheduling_solver(
                                     blocking_v,
                                     batch_size,
                                 );
-                            } else {
+                            } else if blocking_size.is_none() {
                                 solver.set_name(|| {
                                     format!(
                                         "w{}: limit #rq{} to {} + {} (gap) where it can run with rq{blocker_rq_id}",
@@ -374,8 +373,9 @@ pub(crate) fn run_scheduling_solver(
                 if zero_cond.is_empty() {
                     continue;
                 }
-                if let Some(s) = blocking_size {
-                    let blocking_v = get_bvar(&mut solver, *blocker_rq_id, *s);
+                if let Some(s) = blocking_size
+                    && let Some(blocking_v) = get_bvar(&mut solver, *blocker_rq_id, *s)
+                {
                     solver.set_name(|| {
                         format!(
                             "if #rq{blocker_rq_id} < {s} then limit #rq{} to {} where both rqs may run",
@@ -391,7 +391,7 @@ pub(crate) fn run_scheduling_solver(
                         blocking_v,
                         batch_size,
                     );
-                } else if !blocked_by_unbounded.contains(blocker_rq_id) {
+                } else if blocking_size.is_none() && !blocked_by_unbounded.contains(blocker_rq_id) {
                     blocked_by_unbounded.insert(*blocker_rq_id);
                     solver.set_name(|| {
                         format!(
