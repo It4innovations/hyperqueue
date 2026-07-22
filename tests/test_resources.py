@@ -615,3 +615,24 @@ def test_strict_compact_blocked(hq_env: HqEnv):
     hq_env.command(["submit", "--array=1-3", "--cpus=2 compact!", "--", "sleep", "1"])
     hq_env.start_worker(cpus="[[1, 2, 3], [11, 12, 13]]")
     wait_for_job_state(hq_env, [1], "FINISHED")
+
+
+def test_scheduler_unschedulable_sn_blocker(hq_env: HqEnv):
+    """
+    Reproducer for #1121
+    """
+    hq_env.start_server()
+    hq_env.start_worker(cpus=4)
+
+    hq_env.command(["submit", "--priority=1000", "--cpus=1", "--", "sleep", "60"])
+    wait_for_job_state(hq_env, 1, "RUNNING")
+    time.sleep(0.2)
+    hq_env.command(["submit", "--priority=100", "--array=1-1", "--cpus=4", "--", "sleep", "20"])
+    hq_env.command(["submit", "--priority=50", "--array=1-5", "--cpus=2", "--", "sleep", "1"])
+    # Blocker job: more tasks at an even lower priority, pushing the
+    # blocker's total size past its limit of 1, flipping it to `limit_reached`.
+    hq_env.command(["submit", "--priority=1", "--array=1-5", "--cpus=4", "--", "sleep", "20"])
+    time.sleep(2)
+    hq_env.check_running_processes()
+    table = hq_env.command(["job", "info", "3"], as_table=True)
+    assert table.get_row_value("State").endswith("WAITING (5)")
