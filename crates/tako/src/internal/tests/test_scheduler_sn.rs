@@ -1461,3 +1461,74 @@ pub fn test_schedule_min_utilization3() {
     assert_eq!(ts.iter().filter(|t| rt.task(**t).is_assigned()).count(), 4);
     assert!(!rt.task(t2).is_assigned());
 }
+
+// Bounded-solve tests: unit tests default to a generous mip_time_limit
+// (SchedulerConfig::default), so these opt into a short one explicitly.
+
+#[test]
+fn test_schedule_many_distinct_shapes_stays_bounded() {
+    let mut rt = TestEnv::new();
+    rt.set_scheduler_config(SchedulerConfig {
+        mip_time_limit: Duration::from_secs(5),
+        ..Default::default()
+    });
+    rt.new_named_resource("mem");
+    for _ in 0..20 {
+        rt.new_worker(&WorkerBuilder::new(64).res_sum("mem", 459_000));
+    }
+    for i in 0..60u32 {
+        rt.new_tasks(2, &TaskBuilder::new().cpus(1 + (i % 60)));
+    }
+
+    let start = std::time::Instant::now();
+    rt.schedule();
+    assert!(start.elapsed() < Duration::from_secs(10));
+}
+
+#[test]
+fn test_schedule_bounded_infeasible_returns_none_safely() {
+    let mut rt = TestEnv::new();
+    rt.set_scheduler_config(SchedulerConfig {
+        mip_time_limit: Duration::from_secs(5),
+        ..Default::default()
+    });
+    rt.new_worker(&WorkerBuilder::new(4));
+    let t = rt.new_task(&TaskBuilder::new().cpus(999));
+
+    rt.schedule();
+    assert!(!rt.task(t).is_assigned());
+}
+
+#[test]
+fn test_schedule_bounded_is_optimal_true_when_solve_converges() {
+    let mut rt = TestEnv::new();
+    rt.set_scheduler_config(SchedulerConfig {
+        mip_time_limit: Duration::from_secs(5),
+        ..Default::default()
+    });
+    rt.new_worker(&WorkerBuilder::new(4));
+    rt.new_tasks(2, &TaskBuilder::new().cpus(1));
+
+    assert!(rt.schedule_solution().is_optimal);
+}
+
+#[test]
+fn test_schedule_bounded_is_optimal_false_on_time_limit() {
+    let mut rt = TestEnv::new();
+    rt.set_scheduler_config(SchedulerConfig {
+        mip_time_limit: Duration::from_millis(50),
+        ..Default::default()
+    });
+    rt.new_named_resource("mem");
+    for _ in 0..20 {
+        rt.new_worker(&WorkerBuilder::new(64).res_sum("mem", 459_000));
+    }
+    for i in 0..24u32 {
+        rt.new_tasks(11, &TaskBuilder::new().cpus(1 + (i % 60)));
+    }
+
+    let solution = rt.schedule_solution();
+    assert!(!solution.sn_counts.is_empty());
+    assert!(!solution.is_optimal);
+}
+

@@ -278,6 +278,7 @@ async fn create_handle(
         None,
         "testuid".to_string(),
         1.into(),
+        Default::default(),
     )
     .expect("Could not start server");
 

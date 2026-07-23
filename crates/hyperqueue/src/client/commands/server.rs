@@ -130,6 +130,14 @@ pub struct ServerStartOpts {
     /// USE AT YOUR OWN RISK.
     #[arg(long)]
     disable_worker_authentication_and_encryption: bool,
+
+    #[arg(
+        long,
+        value_parser = parse_hms_or_human_time,
+        default_value = "5s",
+        help = duration_doc!("Maximum time the scheduler's placement solve may run per round.")
+    )]
+    scheduler_time_limit: Duration,
 }
 
 #[derive(Parser)]
@@ -222,6 +230,7 @@ async fn start_server(gsettings: &GlobalSettings, opts: ServerStartOpts) -> anyh
                 }
             }),
         server_uid: access_file.as_ref().map(|a| a.server_uid().to_string()),
+        scheduler_mip_time_limit: opts.scheduler_time_limit,
     };
 
     init_hq_server(gsettings, server_cfg).await

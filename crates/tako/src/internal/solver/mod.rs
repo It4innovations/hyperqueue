@@ -5,6 +5,8 @@ pub(crate) mod highs;
 #[cfg(all(feature = "microlp", not(feature = "highs")))]
 pub(crate) mod microlp;
 
+use std::time::Duration;
+
 #[cfg(feature = "highs")]
 pub(crate) type LpInnerSolverImpl = highs::HighsSolver;
 
@@ -38,6 +40,17 @@ pub(crate) trait LpInnerSolver {
         variables: impl Iterator<Item = (Self::Variable, f64)>,
     );
     fn solve(self) -> Option<(Self::Solution, f64)>;
+
+    /// Like `solve`, but allowed to trade exactness for a hard wall-clock
+    /// cap. Returns whether the solution is proven optimal. Backends without
+    /// a tuned implementation fall back to the exact `solve`.
+    fn solve_bounded(self, time_limit: Duration) -> Option<(Self::Solution, bool)>
+    where
+        Self: Sized,
+    {
+        let _ = time_limit;
+        self.solve().map(|(solution, _)| (solution, true))
+    }
 }
 
 pub(crate) trait LpSolution {
@@ -182,6 +195,28 @@ impl LpSolver {
         }
         s
     }
+
+    #[inline]
+    pub fn solve_bounded(self, time_limit: Duration) -> Option<(Solution, bool)> {
+        if self.verbose {
+            println!("Weights:");
+            for (name, weight, _var) in self.variables.iter() {
+                if *weight != 0.0 {
+                    println!("{} -> {}", name, weight);
+                }
+            }
+        }
+        let s = self.solver.solve_bounded(time_limit);
+        if let Some((s, _)) = &s
+            && self.verbose
+        {
+            println!("==== Solution: ====");
+            for (name, _weight, var) in self.variables.iter() {
+                println!("{} = {}", name, s.get_value(*var));
+            }
+        }
+        s
+    }
 }
 
 #[cfg(not(debug_assertions))]
@@ -219,6 +254,11 @@ impl LpSolver {
     #[inline]
     pub fn solve(self) -> Option<(Solution, f64)> {
         self.solver.solve()
+    }
+
+    #[inline]
+    pub fn solve_bounded(self, time_limit: Duration) -> Option<(Solution, bool)> {
+        self.solver.solve_bounded(time_limit)
     }
 }
 

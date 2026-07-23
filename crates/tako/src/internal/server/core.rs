@@ -6,7 +6,7 @@ use crate::internal::common::resources::map::{
 };
 use crate::internal::common::resources::{ResourceId, ResourceRequestVariants, ResourceRqId};
 use crate::internal::common::{Set, WrappedRcRefCell};
-use crate::internal::scheduler::{SchedulerState, TaskQueues};
+use crate::internal::scheduler::{SchedulerConfig, SchedulerState, TaskQueues};
 use crate::internal::server::rpc::ConnectionDescriptor;
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::taskmap::TaskMap;
@@ -64,6 +64,7 @@ pub(crate) struct Core {
 pub(crate) type CoreRef = WrappedRcRefCell<Core>;
 
 impl CoreRef {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         worker_listen_port: u16,
         secret_key: Option<Arc<SecretKey>>,
@@ -71,6 +72,7 @@ impl CoreRef {
         custom_conn_handler: Option<CustomConnectionHandler>,
         server_uid: String,
         worker_id_initial_value: WorkerId,
+        scheduler_config: SchedulerConfig,
     ) -> Self {
         CoreRef::wrap(Core {
             worker_listen_port,
@@ -79,6 +81,10 @@ impl CoreRef {
             custom_conn_handler,
             server_uid,
             worker_id_counter: worker_id_initial_value.as_num(),
+            scheduler_state: SchedulerState {
+                config: scheduler_config,
+                ..Default::default()
+            },
             ..Default::default()
         })
     }
