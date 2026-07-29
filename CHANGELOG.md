@@ -2,9 +2,14 @@
 
 ## Unreleased
 
+### New features
+
+* The server scheduler now contains a safety limit for computation, configurable via `--scheduler-time-limit` (default: 5s)
+
 ### Fixes
 
 * Fixed server crash in a specific situation when an unschedulable high-priority task occurs
+
 
 ## v0.26.2
 

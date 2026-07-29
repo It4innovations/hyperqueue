@@ -1531,4 +1531,3 @@ fn test_schedule_bounded_is_optimal_false_on_time_limit() {
     assert!(!solution.sn_counts.is_empty());
     assert!(!solution.is_optimal);
 }
-

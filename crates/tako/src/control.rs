@@ -16,7 +16,9 @@ use crate::internal::common::error::DsError;
 use crate::internal::common::resources::ResourceRqId;
 use crate::internal::messages::worker::ToWorkerMessage;
 use crate::internal::scheduler::query::compute_new_worker_query;
-use crate::internal::scheduler::{SchedulerConfig, run_scheduling, scheduler_loop};
+use crate::internal::scheduler::{
+    SchedulerConfig, SchedulerResult, run_scheduling, scheduler_loop,
+};
 use crate::internal::server::client::handle_new_tasks;
 use crate::internal::server::comm::{Comm, CommSenderRef};
 use crate::internal::server::core::{CoreRef, CustomConnectionHandler};
@@ -130,7 +132,24 @@ impl ServerRef {
         let mut core = self.core_ref.get_mut();
         let mut comm = self.comm_ref.get_mut();
         if comm.get_scheduling_flag() {
-            run_scheduling(&mut core, &mut comm, Instant::now())
+            // Try to finish scheduling, at most 3 times
+            if (0..3)
+                .find_map(
+                    |_| match run_scheduling(&mut core, &mut comm, Instant::now()) {
+                        SchedulerResult::Done => Some(true),
+                        SchedulerResult::NoProgress => Some(false),
+                        SchedulerResult::NeedMoreCompute => None,
+                    },
+                )
+                .unwrap_or(false)
+            {
+                comm.reset_scheduling_flag();
+            } else {
+                return Ok(NewWorkerAllocationResponse {
+                    single_node_workers_per_query: Vec::new(),
+                    multi_node_allocations: Vec::new(),
+                });
+            }
         }
         Ok(compute_new_worker_query(&mut core, queries))
     }
