@@ -26,6 +26,13 @@ impl Default for SchedulingSolution {
     }
 }
 
+impl SchedulingSolution {
+    pub fn is_empty(&self) -> bool {
+        self.sn_counts.values().all(|v| v.is_empty())
+            && self.mn_workers.values().all(|v| v.is_empty())
+    }
+}
+
 pub(crate) fn run_scheduling_solver(
     core: &Core,
     now: std::time::Instant,

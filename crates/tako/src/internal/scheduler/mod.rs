@@ -8,7 +8,7 @@ mod state;
 mod taskqueue;
 
 pub(crate) use batches::{TaskBatch, create_task_batches};
-pub(crate) use main::{run_scheduling, scheduler_loop};
+pub(crate) use main::{SchedulerResult, run_scheduling, scheduler_loop};
 pub(crate) use solver::run_scheduling_solver;
 pub use state::SchedulerConfig;
 pub(crate) use state::SchedulerState;
