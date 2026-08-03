@@ -327,6 +327,7 @@ wasted allocation duration."
         detect_resources,
         no_hyper_threading,
         idle_timeout,
+        heartbeat,
         overview_interval,
         min_utilization,
     } = worker_args;
@@ -370,6 +371,12 @@ wasted allocation duration."
         worker_args.extend([
             "--overview-interval".to_string(),
             format!("\"{}\"", overview_interval.into_original_input()),
+        ]);
+    }
+    if let Some(heartbeat) = heartbeat {
+        worker_args.extend([
+            "--heartbeat".to_string(),
+            format!("\"{}\"", format_duration(heartbeat)),
         ]);
     }
 
