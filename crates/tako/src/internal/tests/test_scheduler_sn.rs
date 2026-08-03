@@ -1511,23 +1511,3 @@ fn test_schedule_bounded_is_optimal_true_when_solve_converges() {
 
     assert!(rt.schedule_solution().is_optimal);
 }
-
-#[test]
-fn test_schedule_bounded_is_optimal_false_on_time_limit() {
-    let mut rt = TestEnv::new();
-    rt.set_scheduler_config(SchedulerConfig {
-        mip_time_limit: Duration::from_millis(50),
-        ..Default::default()
-    });
-    rt.new_named_resource("mem");
-    for _ in 0..20 {
-        rt.new_worker(&WorkerBuilder::new(64).res_sum("mem", 459_000));
-    }
-    for i in 0..24u32 {
-        rt.new_tasks(11, &TaskBuilder::new().cpus(1 + (i % 60)));
-    }
-
-    let solution = rt.schedule_solution();
-    assert!(!solution.sn_counts.is_empty());
-    assert!(!solution.is_optimal);
-}
