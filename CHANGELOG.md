@@ -5,6 +5,7 @@
 ### New features
 
 * The server scheduler now contains a safety limit for computation, configurable via `--scheduler-time-limit` (default: 5s)
+* Better scheduling policy (prefill) for heterogenous clusters
 
 ### Fixes
 

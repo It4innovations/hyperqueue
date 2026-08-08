@@ -1305,6 +1305,64 @@ fn test_prefill_steal() {
     rt.sanity_check();
 }
 
+/// Prefill has to be weighted by worker capacity, otherwise a small worker is handed as many
+/// tasks as a large one and takes proportionally longer to drain them. Prefilled tasks are
+/// removed from the global queue and are not reclaimed while regular tasks of the same priority
+/// remain, so the small worker ends up sitting on an older job's tail long after every large
+/// worker has moved on to newer jobs.
+#[test]
+fn test_prefill_weighted_by_worker_capacity() {
+    let mut rt = TestEnv::new();
+    rt.set_scheduler_config(SchedulerConfig {
+        proactive_filling_reserve: 0,
+        proactive_filling_max: 32,
+        ..Default::default()
+    });
+    let w_big = rt.new_worker(&WorkerBuilder::new(16));
+    let w_small = rt.new_worker(&WorkerBuilder::new(2));
+    rt.new_tasks(300, &TaskBuilder::new());
+    rt.schedule();
+
+    // `proactive_filling_max` applies to the largest worker; everyone else is scaled down by
+    // capacity. An unweighted split would give both workers 32.
+    let big = prefill_count(&mut rt, w_big);
+    let small = prefill_count(&mut rt, w_small);
+    assert_eq!(big, 32);
+    assert_eq!(small, 4);
+
+    // The property that actually matters: both hold the same *duration* of backlog, i.e. the
+    // same number of task generations (two each here).
+    assert_eq!(big / 16, small / 2);
+    rt.sanity_check();
+}
+
+/// The prefill depth must be measured against the largest worker in the *cluster*, not the
+/// largest one eligible for prefill in this round. A worker is skipped while it still holds
+/// prefill of the request, so the eligible set is routinely all-small -- and if the reference
+/// capacity is taken from it, the depth springs back to `proactive_filling_max` for a tiny
+/// worker, which is the whole bug.
+#[test]
+fn test_prefill_depth_when_large_worker_is_ineligible() {
+    let mut rt = TestEnv::new();
+    rt.set_scheduler_config(SchedulerConfig {
+        proactive_filling_reserve: 0,
+        proactive_filling_max: 32,
+        ..Default::default()
+    });
+    let w_big = rt.new_worker(&WorkerBuilder::new(16));
+    rt.new_tasks(400, &TaskBuilder::new());
+    rt.schedule();
+    assert_eq!(prefill_count(&mut rt, w_big), 32);
+
+    // w_big now holds prefill of this request, so it is excluded from further prefill and
+    // only the 2-cpu worker is eligible.
+    let w_small = rt.new_worker(&WorkerBuilder::new(2));
+    rt.schedule();
+    assert_eq!(prefill_count(&mut rt, w_big), 32);
+    assert_eq!(prefill_count(&mut rt, w_small), 4);
+    rt.sanity_check();
+}
+
 #[test]
 pub fn test_schedule_running() {
     let mut rt = TestEnv::new();
