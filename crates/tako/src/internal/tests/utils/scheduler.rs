@@ -81,6 +81,14 @@ impl TestCase {
         self.rt.get_mut().new_tasks_cpus(cpus)
     }
 
+    /// `count` tasks from an explicit builder, for properties `pc_tasks` cannot express
+    /// (resource weight, variants, ...).
+    pub fn n_tasks(&mut self, count: usize, builder: &TaskBuilder) -> Vec<TaskId> {
+        (0..count)
+            .map(|_| self.rt.get_mut().new_task(builder))
+            .collect()
+    }
+
     // priority + cpu tasks
     pub fn pc_tasks(&mut self, priority_cpus: &[(i32, u32)]) -> Vec<TaskId> {
         priority_cpus
