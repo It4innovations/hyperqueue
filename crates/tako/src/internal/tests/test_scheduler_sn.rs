@@ -1336,6 +1336,40 @@ fn test_prefill_weighted_by_worker_capacity() {
     rt.sanity_check();
 }
 
+/// A resource weight (`hq submit --weight`) multiplies a request's placement value in the solver
+/// objective. It is the supported way to make a request that only a few workers can serve win
+/// those workers instead of being crowded out by work that could have run anywhere -- see the
+/// `S5W` scenario in `benchmarks/scheduler-fairness`. It must never outrank user priority, so
+/// here the heavily weighted 4-cpu request is given the *lower* priority.
+#[test]
+fn test_priority_is_not_overridden_by_weight() {
+    let narrow = TaskBuilder::new().cpus(1).user_priority(10);
+    let wide = TaskBuilder::new().cpus(4).user_priority(0).weight(10.0);
+
+    let mut c = TestCase::new();
+    c.n_tasks(10, &narrow);
+    c.n_tasks(4, &wide);
+    // All capacity goes to the high-priority 1-cpu tasks despite the 10x weight on the others.
+    c.w(&WorkerBuilder::new(8)).expect_request(8, &narrow);
+    c.w(&WorkerBuilder::new(2)).expect_request(2, &narrow);
+    c.check();
+}
+
+/// At *equal* priority the weight does steer placement, which is the behaviour that lets a wide
+/// request claim the only workers able to run it. Miniature of `S5W`.
+#[test]
+fn test_weight_prefers_request_at_equal_priority() {
+    let narrow = TaskBuilder::new().cpus(1);
+    let wide = TaskBuilder::new().cpus(4).weight(4.0);
+
+    let mut c = TestCase::new();
+    c.n_tasks(10, &narrow);
+    c.n_tasks(2, &wide);
+    c.w(&WorkerBuilder::new(8)).expect_request(2, &wide);
+    c.w(&WorkerBuilder::new(2)).expect_request(2, &narrow);
+    c.check();
+}
+
 /// The prefill depth must be measured against the largest worker in the *cluster*, not the
 /// largest one eligible for prefill in this round. A worker is skipped while it still holds
 /// prefill of the request, so the eligible set is routinely all-small -- and if the reference
