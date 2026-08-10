@@ -16,7 +16,6 @@ use crate::internal::tests::utils::sorted_vec;
 use crate::internal::tests::utils::task::{TaskBuilder, task_running_msg};
 use crate::internal::tests::utils::workflows::{submit_example_1, submit_example_3};
 use crate::internal::worker::configuration::OverviewConfiguration;
-use crate::internal::worker::task::RunningTask;
 use crate::resources::{ResourceAmount, ResourceDescriptorItem, ResourceIdMap};
 use crate::tests::utils::env::{TestComm, TestEnv};
 use crate::tests::utils::worker::WorkerBuilder;
@@ -772,6 +771,14 @@ fn test_task_reject3() {
     assert!(rt.task(t2).is_waiting());
 }
 
+fn get_prefilled(rt: &mut TestEnv, tasks: &[TaskId]) -> Option<TaskId> {
+    tasks.iter().find(|t| rt.task(**t).is_prefilled()).copied()
+}
+
+fn get_assigned(rt: &mut TestEnv, tasks: &[TaskId]) -> Option<TaskId> {
+    tasks.iter().find(|t| rt.task(**t).is_assigned()).copied()
+}
+
 fn setup_prefill(rt: &mut TestEnv) -> (WorkerId, TaskId, TaskId) {
     rt.set_scheduler_config(SchedulerConfig {
         proactive_filling_reserve: 1,
@@ -781,16 +788,8 @@ fn setup_prefill(rt: &mut TestEnv) -> (WorkerId, TaskId, TaskId) {
     let tasks = rt.new_tasks(3, &TaskBuilder::new());
     let w1 = rt.new_worker(&WorkerBuilder::new(1));
     rt.schedule();
-    let prefilled = tasks
-        .iter()
-        .find(|t| rt.task(**t).is_prefilled())
-        .copied()
-        .unwrap();
-    let assigned = tasks
-        .iter()
-        .find(|t| rt.task(**t).is_assigned())
-        .copied()
-        .unwrap();
+    let prefilled = get_prefilled(rt, &tasks).unwrap();
+    let assigned = get_assigned(rt, &tasks).unwrap();
     (w1, assigned, prefilled)
 }
 
@@ -823,6 +822,30 @@ fn test_prefill_submit_high_priority() {
         }
         rt.sanity_check();
     }
+}
+
+#[test]
+fn test_prefill_retracted_and_prefill_again() {
+    let mut rt = TestEnv::new();
+    rt.set_scheduler_config(SchedulerConfig {
+        proactive_filling_reserve: 0,
+        proactive_filling_max: 1,
+        ..Default::default()
+    });
+    let tasks1 = rt.new_tasks(3, &TaskBuilder::new());
+    let w = rt.new_worker(&WorkerBuilder::new(1));
+    rt.schedule();
+    let p1 = get_prefilled(&mut rt, &tasks1).unwrap();
+    let a1 = get_assigned(&mut rt, &tasks1).unwrap();
+    let new_task = rt.new_task(&TaskBuilder::new().user_priority(1));
+    assert!(matches!(
+        rt.task(p1).state,
+        TaskRuntimeState::Retracting { worker_id } if w == worker_id
+    ));
+    rt.finish_task(a1, w);
+    rt.schedule();
+    assert!(rt.task(new_task).is_assigned());
+    assert!(rt.task(p1).is_retracting());
 }
 
 #[test]
@@ -878,24 +901,12 @@ fn test_prefill_started_on_same_worker() {
     assert!(rt.task(t1).is_assigned());
     let tasks = rt.new_tasks(2, &TaskBuilder::new());
     rt.schedule();
-    let prefilled: TaskId = tasks
-        .iter()
-        .find(|t| rt.task(**t).is_prefilled())
-        .copied()
-        .unwrap();
-    let assigned: TaskId = tasks
-        .iter()
-        .find(|t| rt.task(**t).is_assigned())
-        .copied()
-        .unwrap();
+    let prefilled: TaskId = get_prefilled(&mut rt, &tasks).unwrap();
     let up1 = WorkerTaskUpdate::Finished { task_id: t1 };
     let mut comm = TestComm::new();
     on_task_update(rt.core(), &mut comm, w1, smallvec![up1]);
-
     rt.schedule();
-
     assert!(rt.task(prefilled).is_retracting());
-
     let up2 = WorkerTaskUpdate::Running(task_running_msg(prefilled));
     on_task_update(rt.core(), &mut comm, w1, smallvec![up2]);
     rt.sanity_check();

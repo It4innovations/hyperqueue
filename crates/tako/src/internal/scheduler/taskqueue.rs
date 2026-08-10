@@ -151,6 +151,11 @@ impl TaskQueue {
         }
     }
 
+    #[inline]
+    pub fn return_back(&mut self, task_id: TaskId, priority: Priority) {
+        self.add(task_id, priority);
+    }
+
     fn add(&mut self, task_id: TaskId, priority: Priority) {
         match self.queue.entry(Reverse(priority)) {
             Entry::Vacant(e) => {
@@ -301,20 +306,14 @@ impl TaskQueue {
         }
     }
 
-    pub fn take_tasks_for_prefill(&mut self, mut count: u32) -> Vec<TaskId> {
-        let entry = self.queue.first_entry().unwrap();
-        let mut result = Vec::with_capacity(count as usize);
-        let priority = entry.key().0;
-        take_from_entry(entry, &mut count, &mut result);
+    pub fn insert_prefill(&mut self, task_id: TaskId, priority: Priority, max_prefill: usize) {
         if let Some(prefill) = &mut self.prefill {
-            assert_eq!(prefill.0, priority);
-            for task_id in &result {
-                prefill.1.insert(*task_id);
-            }
+            prefill.1.insert(task_id);
         } else {
-            self.prefill = Some((priority, result.iter().copied().collect()))
+            let mut v = Set::with_capacity(max_prefill);
+            v.insert(task_id);
+            self.prefill = Some((priority, v))
         }
-        result
     }
 
     pub fn take_tasks(&mut self, mut count: u32) -> Vec<TaskId> {

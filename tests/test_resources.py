@@ -636,3 +636,25 @@ def test_scheduler_unschedulable_sn_blocker(hq_env: HqEnv):
     hq_env.check_running_processes()
     table = hq_env.command(["job", "info", "3"], as_table=True)
     assert table.get_row_value("State").endswith("WAITING (5)")
+
+
+def test_scheduler_priority_churn(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_workers(1, cpus=4)
+    hq_env.command(["submit", "--array=0-999", "--stdout=none", "--stderr=none", "--", "sleep", "0.05"])
+    wait_for_job_state(hq_env, 1, "RUNNING")
+
+    for priority in range(1, 6):
+        hq_env.command(
+            [
+                "submit",
+                f"--priority={priority}",
+                "--stdout=none",
+                "--stderr=none",
+                "--",
+                "sleep",
+                "0.05",
+            ]
+        )
+        time.sleep(0.5)
+        hq_env.check_running_processes()
