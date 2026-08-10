@@ -658,3 +658,40 @@ def test_scheduler_priority_churn(hq_env: HqEnv):
         )
         time.sleep(0.5)
         hq_env.check_running_processes()
+        
+def test_scheduler_reservation(hq_env: HqEnv, tmp_path):
+    hq_env.start_server()
+    hq_env.start_workers(4, cpus=6)
+    hq_env.command(["submit", "--array=1-4", "--cpus=4", "--", "sleep", "100"])
+    wait_for_job_state(hq_env, 1, "RUNNING")
+    time.sleep(0.5)
+    content = ["""
+[[task]]
+id = 0
+priority = 10
+command = ["sleep", "100"]    
+
+[[task.request]]
+resources = { "cpus" = 6 }
+    """]
+    for i in range(1, 31):
+        content.append(f"""
+[[task]] 
+id = {i}
+command = ["sleep", "100"]
+[[task.request]]
+resources = {{ "cpus" = 1 }}
+""")
+    tmp_path.joinpath("job.toml").write_text("\n".join(content))
+    hq_env.command(["job", "submit-file", "job.toml"])
+    wait_for_job_state(hq_env, 1, "RUNNING")
+    time.sleep(0.5)
+    print(hq_env.command(["job", "info", "2"]))
+
+    ts = hq_env.command(["task", "--output-mode=json", "info", "2", "0-30"], as_json=True)
+    print(ts)
+    assert ts[0]["state"] == "waiting"
+
+    assert sum(1 if t["state"] == "running" else 0 for t in ts) == 6
+    assert len(set(t["worker"] for t in ts if t["state"] == "running")) == 3
+        
