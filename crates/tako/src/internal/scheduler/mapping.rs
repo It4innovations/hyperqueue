@@ -224,32 +224,40 @@ fn process_proactive_filling(core: &mut Core, mapping: &mut WorkerTaskMapping) {
             .map(|w| w.resources.task_max_count(rqv).max(1) as u64)
             .collect();
         let total_capacity: u64 = capacities.iter().sum();
-
+        let mut return_back = Vec::new();
         for (worker, capacity) in workers.into_iter().zip(capacities) {
             // The shares sum to at most `size`, so the queue entry we are drawing from is
             // never exhausted before the last worker.
             let share = size as u64 * capacity / total_capacity;
             let depth = (max_prefill * capacity / max_capacity).max(1);
-            let prefill_size = share.min(depth) as u32;
+            let prefill_size = share.min(depth);
             if prefill_size == 0 {
                 continue;
             }
-            let tasks = queue.take_tasks_for_prefill(prefill_size);
-            for task_id in &tasks {
+            let prefills = &mut mapping.workers.entry(worker.id).or_default().prefills;
+            for _ in 0..prefill_size {
+                let task_id = queue.take_one().unwrap();
                 log::debug!("Prefiling task={task_id} to worker={}", worker.id);
-                let task = task_map.get_task_mut(*task_id);
-                assert!(task.is_waiting());
-                task.state = TaskRuntimeState::Prefilled {
-                    worker_id: worker.id,
-                };
-                worker.insert_prefill_task(*task_id);
+                let task = task_map.get_task_mut(task_id);
+                if task.is_waiting() {
+                    task.state = TaskRuntimeState::Prefilled {
+                        worker_id: worker.id,
+                    };
+                    worker.insert_prefill_task(task_id);
+                    queue.insert_prefill(task_id, top_priority, prefill_size as usize);
+                    prefills.push(task_id);
+                } else {
+                    // This can happen when task is in retracting, and it should be queite rare
+                    log::debug!(
+                        "Task is not in waiting state ({:?}) back to the queue.",
+                        task.state
+                    );
+                    return_back.push(task_id);
+                }
             }
-            mapping
-                .workers
-                .entry(worker.id)
-                .or_default()
-                .prefills
-                .extend(tasks);
+        }
+        for task_id in return_back {
+            queue.return_back(task_id, top_priority);
         }
     }
 }
