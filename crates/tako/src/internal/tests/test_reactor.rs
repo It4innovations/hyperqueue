@@ -913,6 +913,33 @@ fn test_prefill_started_on_same_worker() {
 }
 
 #[test]
+fn test_prefill_retracted_but_already_started() {
+    let mut rt = TestEnv::new();
+    let (w1, t1, t2) = setup_prefill(&mut rt);
+    let mut comm = TestComm::new();
+
+    let t3 = TaskId::new(100.into(), 501.into());
+    let task3 = TaskBuilder::new().user_priority(10).build(t3, rt.core());
+    on_new_tasks(rt.core(), &mut comm, vec![task3]);
+    comm.check_need_scheduling();
+    match &comm.take_worker_msgs(w1, 1)[0] {
+        ToWorkerMessage::RetractTasks(ts) => assert_eq!(ts.ids, vec![t2]),
+        _ => panic!("Invalid worker msg"),
+    }
+    comm.emptiness_check();
+    assert!(rt.task(t2).is_retracting());
+
+    rt.finish_task(t1, w1);
+    let up = WorkerTaskUpdate::Running(task_running_msg(t2));
+    on_task_update(rt.core(), &mut comm, w1, smallvec![up]);
+    comm.client.take_task_running(1);
+    comm.check_need_scheduling();
+    comm.emptiness_check();
+    rt.finish_task(t2, w1);
+    rt.schedule();
+}
+
+#[test]
 fn test_prefill_started() {
     let mut rt = TestEnv::new();
     let (w1, t1, t2) = setup_prefill(&mut rt);

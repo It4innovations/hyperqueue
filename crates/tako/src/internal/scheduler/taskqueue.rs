@@ -221,6 +221,36 @@ impl TaskQueue {
         }
     }
 
+    /// Removes the task if it is in the queue and returns whether it was removed.
+    /// A retracting task may have been already taken out of the queue by the scheduler.
+    pub fn remove_if_queued(&mut self, task_id: TaskId, priority: Priority) -> bool {
+        if let Some((p, ts)) = &mut self.prefill
+            && priority == *p
+            && ts.remove(&task_id)
+        {
+            return true;
+        }
+        match self.queue.entry(Reverse(priority)) {
+            Entry::Vacant(_) => false,
+            Entry::Occupied(mut e) => match e.get_mut() {
+                OneOrMoreTaskIds::One(v) => {
+                    if *v != task_id {
+                        return false;
+                    }
+                    e.remove();
+                    true
+                }
+                OneOrMoreTaskIds::More(tasks) => {
+                    let found = tasks.remove(&task_id);
+                    if tasks.is_empty() {
+                        e.remove();
+                    }
+                    found
+                }
+            },
+        }
+    }
+
     pub fn shrink_to_fit(&mut self) {
         // Do nothing
     }
