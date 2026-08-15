@@ -7,7 +7,7 @@ use crate::resources::ResourceRqId;
 use crate::tests::utils::env::{TestComm, TestEnv};
 use crate::tests::utils::task::TaskBuilder;
 use crate::tests::utils::worker::WorkerBuilder;
-use crate::{ResourceVariantId, WorkerId};
+use crate::{ResourceVariantId, TaskId, WorkerId};
 use std::time::Duration;
 
 #[test]
@@ -1671,4 +1671,64 @@ fn test_schedule_bounded_is_optimal_true_when_solve_converges() {
     rt.new_tasks(2, &TaskBuilder::new().cpus(1));
 
     assert!(rt.schedule_solution().is_optimal);
+}
+
+#[test]
+fn test_schedule_reservation_priority() {
+    let mut c = TestCase::new();
+    let ht = c.t(&TaskBuilder::new().cpus(6).user_priority(10));
+    c.ts(6, &TaskBuilder::new().cpus(1));
+    c.w(&WorkerBuilder::new(6)).running_c(6);
+    c.w(&WorkerBuilder::new(6)).expect_tasks(&[ht]);
+    c.check();
+}
+
+#[test]
+fn test_schedule_reservation_used_when_worker_frees_up() {
+    let mut rt = TestEnv::new();
+    let ws = rt.new_workers(4, &WorkerBuilder::new(6));
+    let running: Vec<_> = ws
+        .iter()
+        .map(|w| rt.new_task_running(&TaskBuilder::new().cpus(4), *w))
+        .collect();
+    let blocker = rt.new_task(&TaskBuilder::new().cpus(6).user_priority(10));
+    let small = rt.new_tasks(30, &TaskBuilder::new().cpus(1));
+
+    fn on_worker(rt: &TestEnv, task_id: TaskId, worker_id: WorkerId) -> bool {
+        matches!(
+            rt.task(task_id).state,
+            TaskRuntimeState::Assigned { worker_id: w, .. } if w == worker_id
+        )
+    }
+
+    rt.schedule();
+
+    // One worker is held back for the blocker, the three others take two tasks each.
+    let reserved_idx = ws
+        .iter()
+        .position(|w| !small.iter().any(|t| on_worker(&rt, *t, *w)))
+        .expect("no worker was reserved for the blocker");
+    assert_eq!(
+        small.iter().filter(|t| rt.task(**t).is_assigned()).count(),
+        6
+    );
+    assert!(rt.task(blocker).is_waiting());
+
+    // The reserved worker becomes completely free, which is exactly what the blocker waits for.
+    let reserved = ws[reserved_idx];
+    rt.finish_task(running[reserved_idx], reserved);
+    rt.schedule();
+
+    assert!(
+        on_worker(&rt, blocker, reserved),
+        "reserved worker {reserved} was not used for the blocker, state: {:?}",
+        rt.task(blocker).state
+    );
+    assert_eq!(
+        small
+            .iter()
+            .filter(|t| on_worker(&rt, **t, reserved))
+            .count(),
+        0
+    );
 }
