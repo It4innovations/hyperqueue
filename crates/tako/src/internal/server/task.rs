@@ -247,11 +247,25 @@ impl Task {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn rv_id(&self) -> Option<ResourceVariantId> {
         match self.state {
             TaskRuntimeState::Running { rv_id, .. } | TaskRuntimeState::Assigned { rv_id, .. } => {
                 Some(rv_id)
             }
+            _ => None,
+        }
+    }
+
+    #[inline]
+    pub(crate) fn assigned_placement(
+        &self,
+        redirects: &Map<TaskId, (WorkerId, ResourceVariantId)>,
+    ) -> Option<(WorkerId, ResourceVariantId)> {
+        match self.state {
+            TaskRuntimeState::Assigned { worker_id, rv_id }
+            | TaskRuntimeState::Running { worker_id, rv_id } => Some((worker_id, rv_id)),
+            TaskRuntimeState::Retracting { .. } => redirects.get(&self.id).copied(),
             _ => None,
         }
     }

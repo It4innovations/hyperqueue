@@ -1305,6 +1305,75 @@ fn test_prefill_steal() {
     rt.sanity_check();
 }
 
+#[test]
+fn test_gap_over_redirected_retracting_task() {
+    let mut rt = TestEnv::new();
+    rt.set_scheduler_config(SchedulerConfig {
+        proactive_filling_reserve: 3,
+        proactive_filling_max: 6,
+        ..Default::default()
+    });
+
+    // -- Precondition 1: a redirected retracting task in w2's `assigned_tasks`.
+    // Same opening as `test_prefill_steal`: w1 prefills, then the larger w2 steals part of that
+    // prefill, so those tasks become `Retracting` (on w1) while being assigned to w2.
+    let w1 = rt.new_worker(&WorkerBuilder::new(1));
+    let low = rt.new_tasks(9, &TaskBuilder::new());
+    let low_rq_id = rt.task(low[0]).resource_rq_id;
+    rt.schedule();
+    assert_eq!(prefill_count(&mut rt, w1), 5, "w1 did not prefill");
+    let w2 = rt.new_worker(&WorkerBuilder::new(5));
+    rt.schedule();
+
+    // Asserted rather than assumed: if prefill ever stops producing this state, the test must
+    // fail loudly instead of passing while reproducing nothing.
+    assert!(
+        !rt.core().split().scheduler_state.redirects.is_empty(),
+        "no redirect was created, so the state under test does not exist"
+    );
+    let retracting_on_w2 = rt
+        .worker(w2)
+        .sn_assignment()
+        .unwrap()
+        .assigned_tasks
+        .iter()
+        .filter(|task_id| rt.task(**task_id).rv_id().is_none())
+        .count();
+    assert!(
+        retracting_on_w2 > 0,
+        "w2 holds no assigned task without an rv_id; the unwrap cannot be reached"
+    );
+
+    // -- Precondition 2: spare capacity for the low-priority request.
+    // The solver skips a batch that has no placement variables, and after the steal both w1 and
+    // w2 are full -- so without this the low-priority batch, and with it the entire
+    // priority-condition path, is never visited. A worker added now cannot undo the redirect
+    // already recorded above. 2 cpus is deliberately too narrow for the blocker below, so this
+    // worker contributes capacity without becoming a candidate for it.
+    rt.new_worker(&WorkerBuilder::new(2));
+
+    // -- Precondition 3: a blocker, so the solver builds a priority condition at all.
+    // A cut is only emitted when a *second* queue is non-empty at a higher priority, so this
+    // needs a distinct resource request. 5 cpus fits w2's total width -- w2 is therefore
+    // `is_capable_to_run_rqv` and is not skipped by the impossible-filter -- but w2 has no room
+    // for it right now, which is what makes it block.
+    rt.new_tasks(2, &TaskBuilder::new().cpus(5).user_priority(10));
+
+    let batches = create_task_batches(rt.core(), std::time::Instant::now(), None);
+    let low_batch = batches
+        .iter()
+        .find(|b| b.resource_rq_id == low_rq_id)
+        .expect("the low-priority request must still have a batch");
+    assert!(
+        low_batch.cuts.iter().any(|cut| !cut.blockers.is_empty()),
+        "no blocker cut was produced, so the gap path is never entered: {:?}",
+        low_batch.cuts
+    );
+
+    rt.schedule();
+    rt.sanity_check();
+}
+
 /// Prefill has to be weighted by worker capacity, otherwise a small worker is handed as many
 /// tasks as a large one and takes proportionally longer to drain them. Prefilled tasks are
 /// removed from the global queue and are not reclaimed while regular tasks of the same priority
