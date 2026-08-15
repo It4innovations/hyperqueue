@@ -9,7 +9,7 @@
 
 ### Fixes
 
-* Fixed some occasional greedy backfilling in server scheduler
+* Fixed some occasional greedy backfilling in server scheduler + improvemnts in the reservation algorithm
 * Fixed server crash in a specific situation when an unschedulable high-priority task occurs
 * Fixed server crash caused by invalid handling of prefill
 

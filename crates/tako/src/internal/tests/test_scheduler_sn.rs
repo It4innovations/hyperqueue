@@ -1,3 +1,4 @@
+use crate::internal::common::resources::ResourceId;
 use crate::internal::messages::worker::ToWorkerMessage;
 use crate::internal::scheduler::{PriorityCut, SchedulerConfig, create_task_batches};
 use crate::internal::server::reactor::on_retract_response;
@@ -1405,11 +1406,6 @@ fn test_prefill_weighted_by_worker_capacity() {
     rt.sanity_check();
 }
 
-/// A resource weight (`hq submit --weight`) multiplies a request's placement value in the solver
-/// objective. It is the supported way to make a request that only a few workers can serve win
-/// those workers instead of being crowded out by work that could have run anywhere -- see the
-/// `S5W` scenario in `benchmarks/scheduler-fairness`. It must never outrank user priority, so
-/// here the heavily weighted 4-cpu request is given the *lower* priority.
 #[test]
 fn test_priority_is_not_overridden_by_weight() {
     let narrow = TaskBuilder::new().cpus(1).user_priority(10);
@@ -1424,8 +1420,6 @@ fn test_priority_is_not_overridden_by_weight() {
     c.check();
 }
 
-/// At *equal* priority the weight does steer placement, which is the behaviour that lets a wide
-/// request claim the only workers able to run it. Miniature of `S5W`.
 #[test]
 fn test_weight_prefers_request_at_equal_priority() {
     let narrow = TaskBuilder::new().cpus(1);
@@ -1730,5 +1724,274 @@ fn test_schedule_reservation_used_when_worker_frees_up() {
             .filter(|t| on_worker(&rt, **t, reserved))
             .count(),
         0
+    );
+}
+
+#[test]
+fn test_schedule_lone_blocker_holds_freed_capacity() {
+    /// Narrow tasks placed while `n_wide` blockers are queued; must be 0 for every `n_wide`.
+    fn narrow_placed(n_wide: usize) -> usize {
+        let mut rt = TestEnv::new();
+        let ws = rt.new_workers(4, &WorkerBuilder::new(8));
+        for (idx, w) in ws.iter().enumerate() {
+            // The first worker has just freed 2 of its 8 cpus; the rest are saturated.
+            let running = if idx == 0 { 6 } else { 8 };
+            rt.new_task_running(&TaskBuilder::new().cpus(running), *w);
+        }
+        rt.new_tasks(n_wide, &TaskBuilder::new().cpus(8).user_priority(10));
+        let narrow = rt.new_tasks(30, &TaskBuilder::new().cpus(1));
+        rt.schedule();
+        narrow.iter().filter(|t| rt.task(**t).is_assigned()).count()
+    }
+
+    for n_wide in 1..=4 {
+        assert_eq!(
+            narrow_placed(n_wide),
+            0,
+            "low priority work took the freed cpus with {n_wide} wide task(s) queued"
+        );
+    }
+}
+
+#[test]
+fn test_schedule_lone_blocker_accumulates_capacity_over_rounds() {
+    let mut rt = TestEnv::new();
+    let ws = rt.new_workers(4, &WorkerBuilder::new(8));
+    let mut running: Vec<Vec<TaskId>> = ws
+        .iter()
+        .map(|w| {
+            (0..8)
+                .map(|_| rt.new_task_running(&TaskBuilder::new().cpus(1), *w))
+                .collect()
+        })
+        .collect();
+    let blocker = rt.new_task(&TaskBuilder::new().cpus(8).user_priority(10));
+    rt.new_tasks(60, &TaskBuilder::new().cpus(1));
+
+    // Eight rounds of "one task finishes everywhere" is exactly what a held worker needs to reach
+    // 8 free cpus; the extra round gives the scheduler the chance to place the blocker afterwards.
+    for _tick in 0..=8 {
+        rt.schedule();
+        if rt.task(blocker).is_assigned() {
+            return;
+        }
+        for (idx, w) in ws.iter().enumerate() {
+            if let Some(task_id) = running[idx].pop() {
+                rt.finish_task(task_id, *w);
+            }
+        }
+    }
+
+    let free: Vec<String> = ws
+        .iter()
+        .map(|w| {
+            let a = rt.worker(*w).sn_assignment().unwrap();
+            format!("w{w}: {:?}", a.free_resources.get(ResourceId::new(0)))
+        })
+        .collect();
+    panic!(
+        "blocker never started; no worker reassembled 8 free cpus ({})",
+        free.join(", ")
+    );
+}
+
+#[test]
+fn test_schedule_reservation_holds_emptiest_worker() {
+    let mut rt = TestEnv::new();
+    let ws = rt.new_workers(4, &WorkerBuilder::new(8));
+    // w0 has 2 cpus free, w1 has 4, the rest are saturated. w1 is the closest to fitting an
+    // 8-cpu task, even though w0 comes first in worker order.
+    for (idx, w) in ws.iter().enumerate() {
+        let running = match idx {
+            0 => 6,
+            1 => 4,
+            _ => 8,
+        };
+        rt.new_task_running(&TaskBuilder::new().cpus(running), *w);
+    }
+    rt.new_task(&TaskBuilder::new().cpus(8).user_priority(10));
+    let narrow = rt.new_tasks(30, &TaskBuilder::new().cpus(1));
+    rt.schedule();
+
+    let placed_on = |rt: &TestEnv, worker_id: WorkerId| {
+        narrow
+            .iter()
+            .filter(|t| {
+                matches!(rt.task(**t).state,
+                    TaskRuntimeState::Assigned { worker_id: w, .. } if w == worker_id)
+            })
+            .count()
+    };
+    assert_eq!(placed_on(&rt, ws[1]), 0, "the emptiest worker must be held");
+    assert_eq!(
+        placed_on(&rt, ws[0]),
+        2,
+        "the other worker must still be used"
+    );
+}
+
+#[test]
+fn test_schedule_reservation_leaves_other_workers_for_backfill() {
+    let mut rt = TestEnv::new();
+    let ws = rt.new_workers(3, &WorkerBuilder::new(8));
+    for w in &ws {
+        rt.new_task_running(&TaskBuilder::new().cpus(6), *w);
+    }
+    rt.new_task(&TaskBuilder::new().cpus(8).user_priority(10));
+    let narrow = rt.new_tasks(30, &TaskBuilder::new().cpus(1));
+    rt.schedule();
+
+    let held: Vec<_> = ws
+        .iter()
+        .filter(|w| {
+            !narrow.iter().any(|t| {
+                matches!(rt.task(*t).state,
+                    TaskRuntimeState::Assigned { worker_id, .. } if worker_id == **w)
+            })
+        })
+        .collect();
+    assert_eq!(held.len(), 1, "exactly one worker is held for the blocker");
+    assert_eq!(
+        narrow.iter().filter(|t| rt.task(**t).is_assigned()).count(),
+        4,
+        "the two other workers keep their 2 free cpus busy"
+    );
+}
+
+#[test]
+fn test_schedule_blockers_hold_all_needed_workers() {
+    const N_WORKERS: usize = 4;
+
+    /// Narrow tasks placed with `n_partial` workers holding 2 freed cpus and `n_blockers` queued.
+    fn narrow_placed(n_partial: usize, n_blockers: usize) -> usize {
+        let mut rt = TestEnv::new();
+        let ws = rt.new_workers(N_WORKERS, &WorkerBuilder::new(8));
+        for (idx, w) in ws.iter().enumerate() {
+            let running = if idx < n_partial { 6 } else { 8 };
+            rt.new_task_running(&TaskBuilder::new().cpus(running), *w);
+        }
+        rt.new_tasks(n_blockers, &TaskBuilder::new().cpus(8).user_priority(10));
+        let narrow = rt.new_tasks(30, &TaskBuilder::new().cpus(1));
+        rt.schedule();
+        narrow.iter().filter(|t| rt.task(**t).is_assigned()).count()
+    }
+
+    for n_partial in 1..=N_WORKERS {
+        for n_blockers in 1..=N_WORKERS {
+            // The batch limit is one per capable worker, because no worker can host an 8-cpu task
+            // right now. At the limit `blocking_size` becomes `None`, the cut is unconditional on
+            // every capable worker and backfill stops there for pre-existing reasons that have
+            // nothing to do with holding.
+            let expected = if n_blockers >= N_WORKERS {
+                0
+            } else {
+                2 * n_partial.saturating_sub(n_blockers)
+            };
+            assert_eq!(
+                narrow_placed(n_partial, n_blockers),
+                expected,
+                "{n_partial} worker(s) with freed cpus, {n_blockers} blocker(s) queued"
+            );
+        }
+    }
+}
+
+#[test]
+fn test_schedule_blockers_accumulate_in_parallel() {
+    /// Blockers started within one worker's drain; must be all of them.
+    fn started_within_one_drain(n_blockers: usize) -> (usize, Vec<String>) {
+        let mut rt = TestEnv::new();
+        let ws = rt.new_workers(4, &WorkerBuilder::new(8));
+        let mut running: Vec<Vec<TaskId>> = ws
+            .iter()
+            .map(|w| {
+                (0..8)
+                    .map(|_| rt.new_task_running(&TaskBuilder::new().cpus(1), *w))
+                    .collect()
+            })
+            .collect();
+        let blockers = rt.new_tasks(n_blockers, &TaskBuilder::new().cpus(8).user_priority(10));
+        rt.new_tasks(60, &TaskBuilder::new().cpus(1));
+
+        for _tick in 0..=8 {
+            rt.schedule();
+            if blockers.iter().all(|t| rt.task(*t).is_assigned()) {
+                break;
+            }
+            for (idx, w) in ws.iter().enumerate() {
+                if let Some(task_id) = running[idx].pop() {
+                    rt.finish_task(task_id, *w);
+                }
+            }
+        }
+
+        let placed = blockers
+            .iter()
+            .filter(|t| rt.task(**t).is_assigned())
+            .count();
+        let free = ws
+            .iter()
+            .map(|w| {
+                let a = rt.worker(*w).sn_assignment().unwrap();
+                format!("w{w}: {:?}", a.free_resources.get(ResourceId::new(0)))
+            })
+            .collect();
+        (placed, free)
+    }
+
+    for n_blockers in 1..=4 {
+        let (placed, free) = started_within_one_drain(n_blockers);
+        assert_eq!(
+            placed,
+            n_blockers,
+            "only {placed} of {n_blockers} blockers started; workers drained one at a time ({})",
+            free.join(", ")
+        );
+    }
+}
+
+#[test]
+fn test_schedule_wide_workers_held_one_per_blocker() {
+    let mut rt = TestEnv::new();
+    let ws = rt.new_workers(3, &WorkerBuilder::new(16));
+    let mut running: Vec<Vec<TaskId>> = ws
+        .iter()
+        .map(|w| {
+            (0..16)
+                .map(|_| rt.new_task_running(&TaskBuilder::new().cpus(1), *w))
+                .collect()
+        })
+        .collect();
+    let blockers = rt.new_tasks(2, &TaskBuilder::new().cpus(8).user_priority(10));
+    rt.new_tasks(60, &TaskBuilder::new().cpus(1));
+
+    // Eight rounds is what a held worker needs to reach the 8 free cpus a blocker wants; both
+    // blockers must be served by that point, not one after the other.
+    for _tick in 0..=8 {
+        rt.schedule();
+        if blockers.iter().all(|t| rt.task(*t).is_assigned()) {
+            return;
+        }
+        for (idx, w) in ws.iter().enumerate() {
+            if let Some(task_id) = running[idx].pop() {
+                rt.finish_task(task_id, *w);
+            }
+        }
+    }
+
+    let placed = blockers
+        .iter()
+        .filter(|t| rt.task(**t).is_assigned())
+        .count();
+    let free: Vec<String> = ws
+        .iter()
+        .map(|w| {
+            let a = rt.worker(*w).sn_assignment().unwrap();
+            format!("w{w}: {:?}", a.free_resources.get(ResourceId::new(0)))
+        })
+        .collect();
+    panic!(
+        "only {placed} of 2 blockers started; one wide worker was credited for both ({})",
+        free.join(", ")
     );
 }
