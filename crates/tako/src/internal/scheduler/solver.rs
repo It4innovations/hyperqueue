@@ -156,7 +156,7 @@ pub(crate) fn run_scheduling_solver(
                 && worker.is_capable_to_run_rqv(rqv, now)
                 && let Some(a) = worker.sn_assignment()
             {
-                let weight = w_idx as f64 / (n_workers * 100) as f64;
+                let weight = -((n_workers - w_idx) as f64 / (n_workers * 1024) as f64);
                 solver.set_name(|| format!("R{}:{}", worker.id, batch.resource_rq_id));
                 let v = solver.add_bool_variable(weight);
                 tasks_count_vars
