@@ -243,15 +243,9 @@ impl Worker {
             let mut resources = self.resources.clone();
             for task_id in a.assigned_tasks.iter() {
                 let task = task_map.get_task(*task_id);
-                let (worker_id, rv_id) = match &task.state {
-                    TaskRuntimeState::Assigned { worker_id, rv_id }
-                    | TaskRuntimeState::Running { worker_id, rv_id } => (*worker_id, *rv_id),
-                    TaskRuntimeState::Retracting { .. } => {
-                        let (worker_id, rv_id) = transfers.get(task_id).unwrap();
-                        (*worker_id, *rv_id)
-                    }
-                    s => panic!("Invalid state {s:?}"),
-                };
+                let (worker_id, rv_id) = task
+                    .assigned_placement(transfers)
+                    .unwrap_or_else(|| panic!("Invalid state {:?}", task.state));
                 assert_eq!(self.id, worker_id);
                 let rq = request_map.get(task.resource_rq_id).get(rv_id);
                 assert!(resources.is_capable_to_run_request(rq));

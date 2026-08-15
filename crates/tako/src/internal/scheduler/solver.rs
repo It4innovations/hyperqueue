@@ -47,7 +47,7 @@ pub(crate) fn run_scheduling_solver(
         task_queues: _,
         request_map,
         worker_groups,
-        scheduler_state: scheduler_cache,
+        scheduler_state,
         ..
     } = core.split();
     if request_map.is_empty() {
@@ -292,13 +292,16 @@ pub(crate) fn run_scheduling_solver(
                         if !w.is_capable_to_run_rqv(blocker_rqv, now) {
                             continue;
                         }
-                        let gap = scheduler_cache.gap_cache.get_gap(
+                        let gap = scheduler_state.gap_cache.get_gap(
                             *blocker_rq_id,
                             batch.resource_rq_id,
                             &w.resources,
                             sn_assignment.assigned_tasks.iter().map(|task_id| {
                                 let t = task_map.get_task(*task_id);
-                                (t.resource_rq_id, t.rv_id().unwrap())
+                                (
+                                    t.resource_rq_id,
+                                    t.assigned_placement(&scheduler_state.redirects).unwrap().1,
+                                )
                             }),
                             request_map,
                         );
@@ -430,7 +433,7 @@ pub(crate) fn run_scheduling_solver(
     }
 
     let mut result = SchedulingSolution::default();
-    let Some((solution, is_optimal)) = solver.solve_bounded(scheduler_cache.config.mip_time_limit)
+    let Some((solution, is_optimal)) = solver.solve_bounded(scheduler_state.config.mip_time_limit)
     else {
         return result;
     };
