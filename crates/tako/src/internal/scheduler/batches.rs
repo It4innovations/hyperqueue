@@ -7,6 +7,7 @@ use std::time::Instant;
 
 const BATCH_PRUNING_MAX_SIZE: usize = 32;
 const BATCH_PRUNING_FIXED_PREFIX: usize = 4;
+const BATCH_PRUNING_GLOBAL_MAX: usize = 42;
 
 #[derive(Debug)]
 #[cfg_attr(test, derive(Eq, PartialEq))]
@@ -177,13 +178,43 @@ pub(crate) fn create_task_batches(
         );
         b.size > 0
     });
+    apply_global_cut_budget(
+        &mut batches,
+        BATCH_PRUNING_FIXED_PREFIX,
+        BATCH_PRUNING_GLOBAL_MAX,
+    );
     batches
+}
+
+fn apply_global_cut_budget(batches: &mut [TaskBatch], prefix: usize, budget: usize) {
+    let total: usize = batches.iter().map(|b| b.cuts.len()).sum();
+    if total <= budget {
+        return;
+    }
+    let n_nonempty = batches.iter().filter(|b| !b.cuts.is_empty()).count();
+    let prefix = prefix.min(budget / n_nonempty).max(1);
+    let extra_budget = budget.saturating_sub(prefix * n_nonempty);
+    let extra_total: usize = batches
+        .iter()
+        .map(|b| b.cuts.len().saturating_sub(prefix))
+        .sum();
+    for b in batches.iter_mut().filter(|b| !b.cuts.is_empty()) {
+        let extra = (extra_budget * b.cuts.len().saturating_sub(prefix))
+            .checked_div(extra_total)
+            .unwrap_or(0);
+        prune_progressive(&mut b.cuts, prefix, prefix + extra);
+    }
 }
 
 fn prune_progressive<T>(vec: &mut Vec<T>, prefix_size: usize, size_limit: usize) {
     let original_len = vec.len();
 
     if original_len <= size_limit {
+        return;
+    }
+
+    if size_limit <= prefix_size + 1 {
+        vec.truncate(size_limit);
         return;
     }
 
@@ -246,6 +277,61 @@ mod tests {
                 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
                 23, 24, 25, 27, 29, 32, 34, 36, 39
             ]
+        );
+    }
+
+    /// A global budget can ask for a limit at or just above the prefix, where the quadratic
+    /// sampler has no slots left to place (`i / (slots - 1)` would be `0.0 / 0.0`).
+    #[test]
+    fn test_prune_progressive_at_prefix_boundary() {
+        for size_limit in 0..=5 {
+            let mut vec = (0..40).collect::<Vec<_>>();
+            prune_progressive(&mut vec, 4, size_limit);
+            assert_eq!(vec, (0..size_limit as i32).collect::<Vec<_>>());
+        }
+
+        let mut vec = (0..40).collect::<Vec<_>>();
+        prune_progressive(&mut vec, 4, 6);
+        assert_eq!(vec, vec![0, 1, 2, 3, 4, 39]);
+    }
+
+    #[test]
+    fn test_global_cut_budget() {
+        fn batch(n_cuts: usize) -> TaskBatch {
+            let mut b = TaskBatch::new(0.into(), 100, false);
+            b.cuts = (0..n_cuts)
+                .map(|i| PriorityCut {
+                    size: i as u32,
+                    blockers: Vec::new(),
+                })
+                .collect();
+            b
+        }
+        let total = |bs: &[TaskBatch]| bs.iter().map(|b| b.cuts.len()).sum::<usize>();
+
+        // Under budget: untouched.
+        let mut batches = vec![batch(3), batch(3)];
+        apply_global_cut_budget(&mut batches, 4, 32);
+        assert_eq!(total(&batches), 6);
+
+        // What the per-batch cap cannot reach: 8 batches of 3, each below it, 24 in total.
+        let mut batches: Vec<_> = (0..8).map(|_| batch(3)).collect();
+        apply_global_cut_budget(&mut batches, 4, 8);
+        assert_eq!(total(&batches), 8);
+
+        // Proportional: the bigger batch keeps more, and the budget holds.
+        let mut batches = vec![batch(60), batch(10), batch(10)];
+        apply_global_cut_budget(&mut batches, 4, 16);
+        assert!(batches[0].cuts.len() > batches[1].cuts.len());
+        assert!(total(&batches) <= 16);
+
+        // Below the batch count, each batch still keeps its first cut.
+        let mut batches: Vec<_> = (0..8).map(|_| batch(5)).collect();
+        apply_global_cut_budget(&mut batches, 4, 2);
+        assert!(
+            batches
+                .iter()
+                .all(|b| b.cuts.len() == 1 && b.cuts[0].size == 0)
         );
     }
 }
