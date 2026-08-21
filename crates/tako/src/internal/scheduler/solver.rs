@@ -1,7 +1,8 @@
-use crate::internal::common::resources::{ResourceId, ResourceRequest};
+use crate::internal::common::resources::{ResourceId, ResourceRequest, ResourceRequestVariants};
 use crate::internal::scheduler::TaskBatch;
 use crate::internal::server::core::{Core, CoreSplit};
 use crate::internal::server::worker::Worker;
+use crate::internal::server::workerload::WorkerResources;
 use crate::internal::solver::{ConstraintType, LpSolution, LpSolver, Variable};
 use crate::resources::{CPU_RESOURCE_ID, ResourceRqId};
 use crate::{Map, ResourceVariantId, Set, WorkerId};
@@ -33,6 +34,11 @@ impl SchedulingSolution {
     }
 }
 
+struct Candidates {
+    demand: u32,
+    candidates: Vec<(f64, WorkerId)>,
+}
+
 pub(crate) fn run_scheduling_solver(
     core: &Core,
     now: std::time::Instant,
@@ -47,7 +53,7 @@ pub(crate) fn run_scheduling_solver(
         task_queues: _,
         request_map,
         worker_groups,
-        scheduler_state: scheduler_cache,
+        scheduler_state,
         ..
     } = core.split();
     if request_map.is_empty() {
@@ -91,6 +97,17 @@ pub(crate) fn run_scheduling_solver(
     let mut worker_res_constraint = vec![Vec::new(); n_resources];
     let mut worker_cpu_constraint_no_reserves: Vec<(Variable, f64)> =
         Vec::with_capacity(task_batches.len());
+
+    let mut reservation_candidates: Map<ResourceRqId, Candidates> = Map::new();
+    for batch in task_batches {
+        reservation_candidates.insert(
+            batch.resource_rq_id,
+            Candidates {
+                demand: batch.size,
+                candidates: Vec::new(),
+            },
+        );
+    }
     // Create worker-task placements
     for (w_idx, worker) in workers.iter().enumerate() {
         worker_cpu_constraint_no_reserves.clear();
@@ -150,13 +167,25 @@ pub(crate) fn run_scheduling_solver(
                 }
             }
 
+            if has_variant
+                && !rqv.is_multi_node()
+                && batch.is_blocker
+                && let Some(a) = worker.sn_assignment()
+            {
+                let demand = &mut reservation_candidates
+                    .get_mut(&batch.resource_rq_id)
+                    .unwrap()
+                    .demand;
+                *demand = demand.saturating_sub(a.free_resources.task_max_count(rqv));
+            }
+
             if !has_variant
                 && !rqv.is_multi_node()
                 && batch.is_blocker
                 && worker.is_capable_to_run_rqv(rqv, now)
                 && let Some(a) = worker.sn_assignment()
             {
-                let weight = w_idx as f64 / (n_workers * 100) as f64;
+                let weight = -((n_workers - w_idx) as f64 / (n_workers * 1024) as f64);
                 solver.set_name(|| format!("R{}:{}", worker.id, batch.resource_rq_id));
                 let v = solver.add_bool_variable(weight);
                 tasks_count_vars
@@ -166,6 +195,13 @@ pub(crate) fn run_scheduling_solver(
                 for (res_id, count) in a.free_resources.iter_pairs() {
                     worker_res_constraint[res_id.as_usize()].push((v, count.as_f64()));
                 }
+                // The blocker cannot run here now, but this worker could host it once it drains.
+                // How close it already is decides which workers are held for the blocker below.
+                reservation_candidates
+                    .get_mut(&batch.resource_rq_id)
+                    .unwrap()
+                    .candidates
+                    .push((fit_ratio(&a.free_resources, rqv), worker.id));
             }
         }
 
@@ -190,6 +226,31 @@ pub(crate) fn run_scheduling_solver(
             c.clear();
         }
     }
+    let reserved: Map<ResourceRqId, Set<WorkerId>> = reservation_candidates
+        .into_iter()
+        .map(
+            |(
+                rq_id,
+                Candidates {
+                    mut candidates,
+                    demand,
+                },
+            )| {
+                if demand > 0 {
+                    candidates.sort_unstable_by(|(fit_a, w_a), (fit_b, w_b)| {
+                        fit_b.total_cmp(fit_a).then(w_b.cmp(w_a))
+                    });
+                }
+                let held = candidates
+                    .into_iter()
+                    .take(demand as usize)
+                    .map(|(_fit, w_id)| w_id)
+                    .collect();
+                (rq_id, held)
+            },
+        )
+        .collect();
+
     let mut task_counts_per_group: Map<(ResourceRqId, &str), Variable> = Map::new();
     let mut temp = Vec::new();
     for batch in task_batches.iter() {
@@ -253,6 +314,7 @@ pub(crate) fn run_scheduling_solver(
     };
 
     let mut zero_cond = Vec::new();
+    let mut zero_cond_reserved = Vec::new();
     let mut blocked_by_unbounded: Set<ResourceRqId> = Set::new();
 
     for batch in task_batches.iter() {
@@ -274,6 +336,7 @@ pub(crate) fn run_scheduling_solver(
         for cut in &batch.cuts {
             for (blocker_rq_id, blocking_size) in &cut.blockers {
                 zero_cond.clear();
+                zero_cond_reserved.clear();
                 let blocker_rqv = request_map.get(*blocker_rq_id);
                 if batch_rqv.is_multi_node() {
                     for (group_name, group) in worker_groups.iter() {
@@ -292,22 +355,31 @@ pub(crate) fn run_scheduling_solver(
                         if !w.is_capable_to_run_rqv(blocker_rqv, now) {
                             continue;
                         }
-                        let gap = scheduler_cache.gap_cache.get_gap(
+                        let gap = scheduler_state.gap_cache.get_gap(
                             *blocker_rq_id,
                             batch.resource_rq_id,
                             &w.resources,
                             sn_assignment.assigned_tasks.iter().map(|task_id| {
                                 let t = task_map.get_task(*task_id);
-                                (t.resource_rq_id, t.rv_id().unwrap())
+                                (
+                                    t.resource_rq_id,
+                                    t.assigned_placement(&scheduler_state.redirects).unwrap().1,
+                                )
                             }),
                             request_map,
                         );
+                        // A worker held for this blocker gets the unconditional form: with no
+                        // blocker-count term there is nothing a reservation variable can discharge.
+                        let is_reserved = reserved
+                            .get(blocker_rq_id)
+                            .is_some_and(|ws| ws.contains(&w.id));
                         if gap > 0 {
                             let vars = batch_rqv.variant_ids().filter_map(|v_id| {
                                 placements.get(&(w.id, batch.resource_rq_id, v_id)).copied()
                             });
                             let cut_size = cut.size as f64;
                             if let Some(s) = blocking_size
+                                && !is_reserved
                                 && let Some(blocking_v) = get_bvar(&mut solver, *blocker_rq_id, *s)
                             {
                                 solver.set_name(|| {
@@ -324,7 +396,7 @@ pub(crate) fn run_scheduling_solver(
                                     blocking_v,
                                     batch_size,
                                 );
-                            } else if blocking_size.is_none() {
+                            } else if blocking_size.is_none() || is_reserved {
                                 solver.set_name(|| {
                                     format!(
                                         "w{}: limit #rq{} to {} + {} (gap) where it can run with rq{blocker_rq_id}",
@@ -343,6 +415,9 @@ pub(crate) fn run_scheduling_solver(
                                     placements.get(&(w.id, batch.resource_rq_id, v_id))
                                 {
                                     zero_cond.push(*var);
+                                    if is_reserved {
+                                        zero_cond_reserved.push(*var);
+                                    }
                                 }
                             }
                         }
@@ -390,6 +465,21 @@ pub(crate) fn run_scheduling_solver(
                         }*/
                     }
                 }
+                // Workers held for the blocker take only what the priority rule allows anyway
+                // (`cut.size`), with no blocker-count escape, so their capacity accumulates.
+                if !zero_cond_reserved.is_empty() {
+                    solver.set_name(|| {
+                        format!(
+                            "limit #rq{} to {} on workers held for rq{blocker_rq_id}",
+                            batch.resource_rq_id, cut.size
+                        )
+                    });
+                    solver.add_constraint(
+                        ConstraintType::Max,
+                        cut.size as f64,
+                        zero_cond_reserved.iter().map(|v| (*v, 1.0)),
+                    );
+                }
                 if zero_cond.is_empty() {
                     continue;
                 }
@@ -430,7 +520,7 @@ pub(crate) fn run_scheduling_solver(
     }
 
     let mut result = SchedulingSolution::default();
-    let Some((solution, is_optimal)) = solver.solve_bounded(scheduler_cache.config.mip_time_limit)
+    let Some((solution, is_optimal)) = solver.solve_bounded(scheduler_state.config.mip_time_limit)
     else {
         return result;
     };
@@ -537,6 +627,26 @@ fn add_min_utilization(
         worker_res_constraint.iter().copied(),
     );
     worker_res_constraint.pop();
+}
+
+fn fit_ratio(free: &WorkerResources, rqv: &ResourceRequestVariants) -> f64 {
+    rqv.requests()
+        .iter()
+        .map(|rq| {
+            rq.entries()
+                .iter()
+                .map(|e| {
+                    let available = free.get(e.resource_id).total_fractions() as f64;
+                    match e.request.amount_or_none_if_all() {
+                        // `all` is only satisfied by an untouched resource, so anything less is 0.
+                        None => 0.0,
+                        Some(required) if required.is_zero() => 1.0,
+                        Some(required) => (available / required.total_fractions() as f64).min(1.0),
+                    }
+                })
+                .fold(f64::INFINITY, f64::min)
+        })
+        .fold(0.0, f64::max)
 }
 
 fn create_sn_var(

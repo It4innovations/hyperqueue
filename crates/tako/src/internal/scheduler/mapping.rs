@@ -161,10 +161,15 @@ fn process_proactive_filling(core: &mut Core, mapping: &mut WorkerTaskMapping) {
         task_map,
         worker_map,
         task_queues,
-        request_map: _,
+        request_map,
         scheduler_state,
         ..
     } = core.split_mut();
+    let max_prefill = scheduler_state.config.proactive_filling_max as u64;
+    if max_prefill == 0 {
+        // Prefill explicitly disabled.
+        return;
+    }
     let top_priority = task_queues.top_priority();
     for queue in task_queues.iter_mut() {
         if queue.top_priority() != Some(top_priority) {
@@ -176,6 +181,13 @@ fn process_proactive_filling(core: &mut Core, mapping: &mut WorkerTaskMapping) {
         if size == 0 {
             continue;
         }
+        let rqv = request_map.get(queue.resource_rq_id);
+        let max_capacity = worker_map
+            .get_workers()
+            .map(|w| w.resources.task_max_count(rqv))
+            .max()
+            .unwrap_or(1)
+            .max(1) as u64;
         let workers: Vec<_> = worker_map
             .values_mut()
             .filter(|worker| {
@@ -207,28 +219,45 @@ fn process_proactive_filling(core: &mut Core, mapping: &mut WorkerTaskMapping) {
         if workers.is_empty() {
             continue;
         }
-        let prefill_size =
-            (size / workers.len() as u32).min(scheduler_state.config.proactive_filling_max);
-        if prefill_size == 0 {
-            continue;
-        }
-        for worker in workers {
-            let tasks = queue.take_tasks_for_prefill(prefill_size);
-            for task_id in &tasks {
-                log::debug!("Prefiling task={task_id} to worker={}", worker.id);
-                let task = task_map.get_task_mut(*task_id);
-                assert!(task.is_waiting());
-                task.state = TaskRuntimeState::Prefilled {
-                    worker_id: worker.id,
-                };
-                worker.insert_prefill_task(*task_id);
+        let capacities: Vec<u64> = workers
+            .iter()
+            .map(|w| w.resources.task_max_count(rqv).max(1) as u64)
+            .collect();
+        let total_capacity: u64 = capacities.iter().sum();
+        let mut return_back = Vec::new();
+        for (worker, capacity) in workers.into_iter().zip(capacities) {
+            // The shares sum to at most `size`, so the queue entry we are drawing from is
+            // never exhausted before the last worker.
+            let share = size as u64 * capacity / total_capacity;
+            let depth = (max_prefill * capacity / max_capacity).max(1);
+            let prefill_size = share.min(depth);
+            if prefill_size == 0 {
+                continue;
             }
-            mapping
-                .workers
-                .entry(worker.id)
-                .or_default()
-                .prefills
-                .extend(tasks);
+            let prefills = &mut mapping.workers.entry(worker.id).or_default().prefills;
+            for _ in 0..prefill_size {
+                let task_id = queue.take_one().unwrap();
+                log::debug!("Prefiling task={task_id} to worker={}", worker.id);
+                let task = task_map.get_task_mut(task_id);
+                if task.is_waiting() {
+                    task.state = TaskRuntimeState::Prefilled {
+                        worker_id: worker.id,
+                    };
+                    worker.insert_prefill_task(task_id);
+                    queue.insert_prefill(task_id, top_priority, prefill_size as usize);
+                    prefills.push(task_id);
+                } else {
+                    // This can happen when task is in retracting, and it should be queite rare
+                    log::debug!(
+                        "Task is not in waiting state ({:?}) back to the queue.",
+                        task.state
+                    );
+                    return_back.push(task_id);
+                }
+            }
+        }
+        for task_id in return_back {
+            queue.return_back(task_id, top_priority);
         }
     }
 }

@@ -320,13 +320,20 @@ fn task_running(
             // By removing redirections first, we unassign the task so we can later assign it back
             // In theory, we could optimize this special case by doing nothing, but it should be quite rare
             // So I prefer to keep the code simple.
-            try_remove_redirection(
+            if !try_remove_redirection(
                 worker_map,
                 scheduler_state,
                 request_map,
                 task_id,
                 task.resource_rq_id,
-            );
+            ) {
+                // We have tried to retract the task, but it has already started.
+                // Without a redirection, the task is still in the ready queue and it has
+                // to be removed, otherwise the queue keeps an id of an already removed task.
+                task_queues
+                    .get_mut(task.resource_rq_id)
+                    .remove_if_queued(task.id, task.priority());
+            }
             let rqv = request_map.get(task.resource_rq_id);
             worker_map
                 .get_worker_mut(worker_id)
@@ -546,13 +553,17 @@ fn task_finished(
             }
             TaskRuntimeState::Retracting { worker_id: w_id } => {
                 assert_eq!(*w_id, worker_id);
-                try_remove_redirection(
+                if !try_remove_redirection(
                     worker_map,
                     scheduler_state,
                     request_map,
                     task_id,
                     task.resource_rq_id,
-                );
+                ) {
+                    task_queues
+                        .get_mut(task.resource_rq_id)
+                        .remove_if_queued(task.id, task.priority());
+                }
             }
             TaskRuntimeState::Prefilled { .. }
             | TaskRuntimeState::Waiting { .. }
@@ -589,17 +600,23 @@ fn task_finished(
     true
 }
 
+/// Returns true if a redirection was found (and removed).
+/// A task with a redirection was already taken out of the ready queue by the scheduler,
+/// a retracting task without a redirection is still waiting in the ready queue.
 fn try_remove_redirection(
     worker_map: &mut WorkerMap,
     scheduler_state: &mut SchedulerState,
     request_map: &ResourceRqMap,
     task_id: TaskId,
     resource_rq_id: ResourceRqId,
-) {
+) -> bool {
     if let Some((worker_id, rv_id)) = scheduler_state.redirects.remove(&task_id) {
         let worker = worker_map.get_worker_mut(worker_id);
         let rq = request_map.get(resource_rq_id).get(rv_id);
         worker.remove_sn_task(task_id, rq);
+        true
+    } else {
+        false
     }
 }
 
@@ -653,13 +670,17 @@ fn task_failed(
                         }
                         TaskRuntimeState::Retracting { worker_id: w } => {
                             assert_eq!(worker_id, *w);
-                            try_remove_redirection(
+                            if !try_remove_redirection(
                                 worker_map,
                                 scheduler_state,
                                 request_map,
                                 task_id,
                                 task.resource_rq_id,
-                            );
+                            ) {
+                                task_queues
+                                    .get_mut(task.resource_rq_id)
+                                    .remove_if_queued(task.id, task.priority());
+                            }
                         }
                         _ => {}
                     }

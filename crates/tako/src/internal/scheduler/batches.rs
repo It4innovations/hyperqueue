@@ -5,8 +5,8 @@ use crate::resources::ResourceRqId;
 use std::cmp::Ordering;
 use std::time::Instant;
 
-const BATCH_PRUNING_MAX_SIZE: usize = 32;
 const BATCH_PRUNING_FIXED_PREFIX: usize = 4;
+const BATCH_PRUNING_GLOBAL_MAX: usize = 64;
 
 #[derive(Debug)]
 #[cfg_attr(test, derive(Eq, PartialEq))]
@@ -169,21 +169,54 @@ pub(crate) fn create_task_batches(
             };
         }
     }
-    batches.retain_mut(|b| {
-        prune_progressive(
-            &mut b.cuts,
-            BATCH_PRUNING_FIXED_PREFIX,
-            BATCH_PRUNING_MAX_SIZE,
-        );
-        b.size > 0
-    });
+    batches.retain_mut(|b| b.size > 0);
+    apply_global_cut_budget(
+        &mut batches,
+        BATCH_PRUNING_FIXED_PREFIX,
+        BATCH_PRUNING_GLOBAL_MAX,
+    );
     batches
+}
+
+fn apply_global_cut_budget(batches: &mut [TaskBatch], prefix: usize, mut budget: usize) {
+    let total: usize = batches.iter().map(|b| b.cuts.len()).sum();
+    if total <= budget {
+        return;
+    }
+    let mut granted = vec![0; batches.len()];
+    for (batch, g) in batches.iter().zip(granted.iter_mut()) {
+        let take = batch.cuts.len().min(prefix);
+        budget = budget.saturating_sub(take);
+        *g += take;
+    }
+
+    while budget > 0 {
+        for (batch, g) in batches.iter().zip(granted.iter_mut()) {
+            if *g < batch.cuts.len() {
+                *g += 1;
+                budget -= 1;
+                if budget == 0 {
+                    break;
+                }
+            }
+        }
+    }
+    for (batch, granted) in batches.iter_mut().zip(granted.iter()) {
+        if *granted < batch.cuts.len() {
+            prune_progressive(&mut batch.cuts, prefix, *granted);
+        }
+    }
 }
 
 fn prune_progressive<T>(vec: &mut Vec<T>, prefix_size: usize, size_limit: usize) {
     let original_len = vec.len();
 
     if original_len <= size_limit {
+        return;
+    }
+
+    if size_limit <= prefix_size + 1 {
+        vec.truncate(size_limit);
         return;
     }
 
@@ -247,5 +280,59 @@ mod tests {
                 23, 24, 25, 27, 29, 32, 34, 36, 39
             ]
         );
+    }
+
+    /// A global budget can ask for a limit at or just above the prefix, where the quadratic
+    /// sampler has no slots left to place (`i / (slots - 1)` would be `0.0 / 0.0`).
+    #[test]
+    fn test_prune_progressive_at_prefix_boundary() {
+        for size_limit in 0..=5 {
+            let mut vec = (0..40).collect::<Vec<_>>();
+            prune_progressive(&mut vec, 4, size_limit);
+            assert_eq!(vec, (0..size_limit as i32).collect::<Vec<_>>());
+        }
+
+        let mut vec = (0..40).collect::<Vec<_>>();
+        prune_progressive(&mut vec, 4, 6);
+        assert_eq!(vec, vec![0, 1, 2, 3, 4, 39]);
+    }
+
+    #[test]
+    fn test_global_cut_budget() {
+        fn batch(n_cuts: usize) -> TaskBatch {
+            let mut b = TaskBatch::new(0.into(), 100, false);
+            b.cuts = (0..n_cuts)
+                .map(|i| PriorityCut {
+                    size: i as u32,
+                    blockers: Vec::new(),
+                })
+                .collect();
+            b
+        }
+        let total = |bs: &[TaskBatch]| bs.iter().map(|b| b.cuts.len()).sum::<usize>();
+
+        // Under budget: untouched.
+        let mut batches = vec![batch(3), batch(3)];
+        apply_global_cut_budget(&mut batches, 4, 32);
+        assert_eq!(total(&batches), 6);
+
+        let mut batches: Vec<_> = (0..8).map(|_| batch(3)).collect();
+        apply_global_cut_budget(&mut batches, 4, 8);
+        assert_eq!(total(&batches), 24);
+
+        // Proportional: the bigger batch keeps more, and the budget is spent exactly.
+        let mut batches = vec![batch(60), batch(10), batch(10)];
+        apply_global_cut_budget(&mut batches, 4, 16);
+        assert!(batches[0].cuts.len() > batches[1].cuts.len());
+        assert_eq!(total(&batches), 16);
+
+        let mut batches = vec![batch(60), batch(5), batch(5)];
+        apply_global_cut_budget(&mut batches, 4, 40);
+        assert_eq!(total(&batches), 40);
+
+        let mut batches = vec![batch(30), batch(5), batch(5)];
+        apply_global_cut_budget(&mut batches, 4, 39);
+        assert_eq!(total(&batches), 39);
+        assert_eq!(batches[0].cuts.len(), 29);
     }
 }
