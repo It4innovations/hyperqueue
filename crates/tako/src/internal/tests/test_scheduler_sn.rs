@@ -1995,3 +1995,42 @@ fn test_schedule_wide_workers_held_one_per_blocker() {
         free.join(", ")
     );
 }
+
+#[test]
+fn test_reservation_one_assigned() {
+    let mut rt = TestEnv::new();
+    rt.set_scheduler_config(SchedulerConfig {
+        proactive_filling_max: 0,
+        ..Default::default()
+    });
+
+    rt.new_worker(&WorkerBuilder::new(3));
+    let mut held = Vec::new();
+    for _ in 0..4 {
+        let w = rt.new_worker(&WorkerBuilder::new(3));
+        rt.new_task_running(&TaskBuilder::new().cpus(1), w);
+        held.push(w);
+    }
+
+    let blocker = rt.new_tasks(2, &TaskBuilder::new().cpus(3).user_priority(10));
+    let filler = rt.new_tasks(8, &TaskBuilder::new().cpus(1).user_priority(5));
+
+    rt.schedule();
+
+    let blocker_scheduled = blocker
+        .iter()
+        .filter(|t| rt.task(**t).is_assigned())
+        .count();
+    assert_eq!(blocker_scheduled, 1);
+
+    let filler_scheduled = held
+        .iter()
+        .map(|w| {
+            filler
+                .iter()
+                .filter(|t| rt.worker_tasks(*w).contains(*t))
+                .count()
+        })
+        .sum::<usize>();
+    assert_eq!(filler_scheduled, 6);
+}
