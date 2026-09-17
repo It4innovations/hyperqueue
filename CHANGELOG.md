@@ -6,6 +6,9 @@
 
 * The server scheduler now contains a safety limit for computation, configurable via `--scheduler-time-limit` (default: 5s)
 * Better scheduling policy (prefill) for heterogenous clusters
+* Workers held for a waiting high-priority task are now chosen per priority threshold, so fewer
+  workers are held back and more lower-priority work can run elsewhere
+* More precise computation of gap for low-priority tasks
 
 ### Fixes
 
@@ -13,6 +16,17 @@
 * Fixed server crash in a specific situation when an unschedulable high-priority task occurs
 * Fixed server crash caused by invalid handling of prefill
 * Fixed canceling of prefilled tasks
+* Fixed multi-node tasks that could be placed on workers from two different worker groups
+  when worker ids of the groups interleaved
+* A held worker is no longer switched to a different worker only because small tasks were placed
+  into its unusable remainder; the scheduler moves a hold only to a worker that is at least as free
+  for the waiting task, so held capacity is not repeatedly given away
+* Reservations: reservations respect priorities, and they no longer block resources
+  the waiting task could never use
+* Fixed wrong resource amounts in this computation for tasks with resource variants on workers
+  that lack some resource
+* Fixed constraining gap that could lead to priority inversion
+
 
 ## v0.26.2
 
