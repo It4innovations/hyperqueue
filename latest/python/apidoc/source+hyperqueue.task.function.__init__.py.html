@@ -182,15 +182,15 @@
 <a id=line-24 name=line-24></a>
 <a id=line-25 name=line-25></a>
 <a id=line-26 name=line-26></a><span class=n>LOG_LEVELS</span> <span class=o>=</span> <span class=p>{</span>
-<a id=line-27 name=line-27></a>    <span class=s2>&quot;DEBUG&quot;</span><span class=p>:</span> <span class=n>logging</span><span class=o>.</span><span class=n>DEBUG</span><span class=p>,</span>
-<a id=line-28 name=line-28></a>    <span class=s2>&quot;INFO&quot;</span><span class=p>:</span> <span class=n>logging</span><span class=o>.</span><span class=n>INFO</span><span class=p>,</span>
-<a id=line-29 name=line-29></a>    <span class=s2>&quot;WARNING&quot;</span><span class=p>:</span> <span class=n>logging</span><span class=o>.</span><span class=n>WARNING</span><span class=p>,</span>
-<a id=line-30 name=line-30></a>    <span class=s2>&quot;ERROR&quot;</span><span class=p>:</span> <span class=n>logging</span><span class=o>.</span><span class=n>ERROR</span><span class=p>,</span>
+<a id=line-27 name=line-27></a>    <span class=s2>"DEBUG"</span><span class=p>:</span> <span class=n>logging</span><span class=o>.</span><span class=n>DEBUG</span><span class=p>,</span>
+<a id=line-28 name=line-28></a>    <span class=s2>"INFO"</span><span class=p>:</span> <span class=n>logging</span><span class=o>.</span><span class=n>INFO</span><span class=p>,</span>
+<a id=line-29 name=line-29></a>    <span class=s2>"WARNING"</span><span class=p>:</span> <span class=n>logging</span><span class=o>.</span><span class=n>WARNING</span><span class=p>,</span>
+<a id=line-30 name=line-30></a>    <span class=s2>"ERROR"</span><span class=p>:</span> <span class=n>logging</span><span class=o>.</span><span class=n>ERROR</span><span class=p>,</span>
 <a id=line-31 name=line-31></a><span class=p>}</span>
 <a id=line-32 name=line-32></a>
 <a id=line-33 name=line-33></a>
 <a id=line-34 name=line-34></a><span class=k>def</span><span class=w> </span><span class=nf>get_logging_level</span><span class=p>(</span><span class=n>default</span><span class=p>:</span> <span class=nb>int</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=nb>int</span><span class=p>:</span>
-<a id=line-35 name=line-35></a>    <span class=n>level</span> <span class=o>=</span> <span class=n>os</span><span class=o>.</span><span class=n>environ</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=s2>&quot;HQ_PYLOG&quot;</span><span class=p>)</span>
+<a id=line-35 name=line-35></a>    <span class=n>level</span> <span class=o>=</span> <span class=n>os</span><span class=o>.</span><span class=n>environ</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=s2>"HQ_PYLOG"</span><span class=p>)</span>
 <a id=line-36 name=line-36></a>    <span class=k>return</span> <span class=n>LOG_LEVELS</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=n>level</span><span class=p>,</span> <span class=n>default</span><span class=p>)</span>
 <a id=line-37 name=line-37></a>
 <a id=line-38 name=line-38></a>
@@ -201,8 +201,8 @@
 <a id=line-43 name=line-43></a>    <span class=k>try</span><span class=p>:</span>
 <a id=line-44 name=line-44></a>        <span class=n>logging</span><span class=o>.</span><span class=n>basicConfig</span><span class=p>(</span>
 <a id=line-45 name=line-45></a>            <span class=n>level</span><span class=o>=</span><span class=n>get_logging_level</span><span class=p>(</span><span class=n>logging</span><span class=o>.</span><span class=n>INFO</span><span class=p>),</span>
-<a id=line-46 name=line-46></a>            <span class=nb>format</span><span class=o>=</span><span class=s2>&quot;</span><span class=si>%(asctime)s</span><span class=s2> </span><span class=si>%(name)s</span><span class=s2>:</span><span class=si>%(levelname)-4s</span><span class=s2> </span><span class=si>%(message)s</span><span class=s2>&quot;</span><span class=p>,</span>
-<a id=line-47 name=line-47></a>            <span class=n>datefmt</span><span class=o>=</span><span class=s2>&quot;</span><span class=si>%d</span><span class=s2>-%m-%Y %H:%M:%S&quot;</span><span class=p>,</span>
+<a id=line-46 name=line-46></a>            <span class=nb>format</span><span class=o>=</span><span class=s2>"</span><span class=si>%(asctime)s</span><span class=s2> </span><span class=si>%(name)s</span><span class=s2>:</span><span class=si>%(levelname)-4s</span><span class=s2> </span><span class=si>%(message)s</span><span class=s2>"</span><span class=p>,</span>
+<a id=line-47 name=line-47></a>            <span class=n>datefmt</span><span class=o>=</span><span class=s2>"</span><span class=si>%d</span><span class=s2>-%m-%Y %H:%M:%S"</span><span class=p>,</span>
 <a id=line-48 name=line-48></a>        <span class=p>)</span>
 <a id=line-49 name=line-49></a>
 <a id=line-50 name=line-50></a>        <span class=n>fn</span><span class=p>,</span> <span class=n>a</span><span class=p>,</span> <span class=n>kw</span> <span class=o>=</span> <span class=n>pickle</span><span class=o>.</span><span class=n>loads</span><span class=p>(</span><span class=n>sys</span><span class=o>.</span><span class=n>stdin</span><span class=o>.</span><span class=n>buffer</span><span class=o>.</span><span class=n>read</span><span class=p>())</span>
@@ -212,7 +212,7 @@
 <a id=line-54 name=line-54></a>        <span class=kn>import</span><span class=w> </span><span class=nn>traceback</span>
 <a id=line-55 name=line-55></a>
 <a id=line-56 name=line-56></a>        <span class=n>t</span> <span class=o>=</span> <span class=n>traceback</span><span class=o>.</span><span class=n>format_exc</span><span class=p>()</span>
-<a id=line-57 name=line-57></a>        <span class=k>with</span> <span class=nb>open</span><span class=p>(</span><span class=n>os</span><span class=o>.</span><span class=n>environ</span><span class=p>[</span><span class=s2>&quot;HQ_ERROR_FILENAME&quot;</span><span class=p>],</span> <span class=s2>&quot;w&quot;</span><span class=p>)</span> <span class=k>as</span> <span class=n>f</span><span class=p>:</span>
+<a id=line-57 name=line-57></a>        <span class=k>with</span> <span class=nb>open</span><span class=p>(</span><span class=n>os</span><span class=o>.</span><span class=n>environ</span><span class=p>[</span><span class=s2>"HQ_ERROR_FILENAME"</span><span class=p>],</span> <span class=s2>"w"</span><span class=p>)</span> <span class=k>as</span> <span class=n>f</span><span class=p>:</span>
 <a id=line-58 name=line-58></a>            <span class=n>f</span><span class=o>.</span><span class=n>write</span><span class=p>(</span><span class=n>t</span><span class=p>)</span>
 <a id=line-59 name=line-59></a>        <span class=nb>print</span><span class=p>(</span><span class=n>t</span><span class=p>,</span> <span class=n>file</span><span class=o>=</span><span class=n>sys</span><span class=o>.</span><span class=n>stderr</span><span class=p>)</span>
 <a id=line-60 name=line-60></a>        <span class=n>sys</span><span class=o>.</span><span class=n>stdout</span><span class=o>.</span><span class=n>flush</span><span class=p>()</span>
@@ -223,28 +223,28 @@
 <a id=line-65 name=line-65></a><span class=k>class</span><span class=w> </span><span class=nc>PythonEnv</span><span class=p>:</span>
 <a id=line-66 name=line-66></a>    <span class=k>def</span><span class=w> </span><span class=fm>__init__</span><span class=p>(</span>
 <a id=line-67 name=line-67></a>        <span class=bp>self</span><span class=p>,</span>
-<a id=line-68 name=line-68></a>        <span class=n>python_bin</span><span class=p>:</span> <span class=nb>str</span> <span class=o>=</span> <span class=s2>&quot;python3&quot;</span><span class=p>,</span>
+<a id=line-68 name=line-68></a>        <span class=n>python_bin</span><span class=p>:</span> <span class=nb>str</span> <span class=o>=</span> <span class=s2>"python3"</span><span class=p>,</span>
 <a id=line-69 name=line-69></a>        <span class=n>prologue</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=nb>str</span><span class=p>]</span> <span class=o>=</span> <span class=kc>None</span><span class=p>,</span>
-<a id=line-70 name=line-70></a>        <span class=n>shell</span><span class=p>:</span> <span class=nb>str</span> <span class=o>=</span> <span class=s2>&quot;bash&quot;</span><span class=p>,</span>
+<a id=line-70 name=line-70></a>        <span class=n>shell</span><span class=p>:</span> <span class=nb>str</span> <span class=o>=</span> <span class=s2>"bash"</span><span class=p>,</span>
 <a id=line-71 name=line-71></a>    <span class=p>):</span>
-<a id=line-72 name=line-72></a><span class=w>        </span><span class=sd>&quot;&quot;&quot;</span>
+<a id=line-72 name=line-72></a><span class=w>        </span><span class=sd>"""</span>
 <a id=line-73 name=line-73></a><span class=sd>        Describes an environment for spawning Python interpreters.</span>
 <a id=line-74 name=line-74></a><span class=sd>        :param python_bin: Python binary that will be executed.</span>
 <a id=line-75 name=line-75></a><span class=sd>        :param prologue: Shell command that will be executed prior to launching the Python interpreter.</span>
 <a id=line-76 name=line-76></a><span class=sd>        :param shell: Shell used for executing `prologue`.</span>
-<a id=line-77 name=line-77></a><span class=sd>        &quot;&quot;&quot;</span>
-<a id=line-78 name=line-78></a>        <span class=n>code</span> <span class=o>=</span> <span class=s2>&quot;from hyperqueue.task.function import task_main as m; m()&quot;</span>
+<a id=line-77 name=line-77></a><span class=sd>        """</span>
+<a id=line-78 name=line-78></a>        <span class=n>code</span> <span class=o>=</span> <span class=s2>"from hyperqueue.task.function import task_main as m; m()"</span>
 <a id=line-79 name=line-79></a>
 <a id=line-80 name=line-80></a>        <span class=k>if</span> <span class=n>prologue</span><span class=p>:</span>
-<a id=line-81 name=line-81></a>            <span class=bp>self</span><span class=o>.</span><span class=n>args</span> <span class=o>=</span> <span class=p>[</span><span class=n>shell</span><span class=p>,</span> <span class=s2>&quot;-c&quot;</span><span class=p>,</span> <span class=sa>f</span><span class=s1>&#39;</span><span class=si>{</span><span class=n>prologue</span><span class=si>}</span><span class=se>\n\n</span><span class=si>{</span><span class=n>python_bin</span><span class=si>}</span><span class=s1> -c &quot;</span><span class=si>{</span><span class=n>code</span><span class=si>}</span><span class=s1>&quot;&#39;</span><span class=p>]</span>
+<a id=line-81 name=line-81></a>            <span class=bp>self</span><span class=o>.</span><span class=n>args</span> <span class=o>=</span> <span class=p>[</span><span class=n>shell</span><span class=p>,</span> <span class=s2>"-c"</span><span class=p>,</span> <span class=sa>f</span><span class=s1>'</span><span class=si>{</span><span class=n>prologue</span><span class=si>}</span><span class=se>\n\n</span><span class=si>{</span><span class=n>python_bin</span><span class=si>}</span><span class=s1> -c "</span><span class=si>{</span><span class=n>code</span><span class=si>}</span><span class=s1>"'</span><span class=p>]</span>
 <a id=line-82 name=line-82></a>        <span class=k>else</span><span class=p>:</span>
-<a id=line-83 name=line-83></a>            <span class=bp>self</span><span class=o>.</span><span class=n>args</span> <span class=o>=</span> <span class=p>[</span><span class=n>python_bin</span><span class=p>,</span> <span class=s2>&quot;-c&quot;</span><span class=p>,</span> <span class=n>code</span><span class=p>]</span>
+<a id=line-83 name=line-83></a>            <span class=bp>self</span><span class=o>.</span><span class=n>args</span> <span class=o>=</span> <span class=p>[</span><span class=n>python_bin</span><span class=p>,</span> <span class=s2>"-c"</span><span class=p>,</span> <span class=n>code</span><span class=p>]</span>
 <a id=line-84 name=line-84></a>
 <a id=line-85 name=line-85></a>
 <a id=line-86 name=line-86></a><span class=k>class</span><span class=w> </span><span class=nc>PythonFunction</span><span class=p>(</span><span class=n>Task</span><span class=p>):</span>
-<a id=line-87 name=line-87></a><span class=w>    </span><span class=sd>&quot;&quot;&quot;</span>
+<a id=line-87 name=line-87></a><span class=w>    </span><span class=sd>"""</span>
 <a id=line-88 name=line-88></a><span class=sd>    Task that represents the execution of a Python function.</span>
-<a id=line-89 name=line-89></a><span class=sd>    &quot;&quot;&quot;</span>
+<a id=line-89 name=line-89></a><span class=sd>    """</span>
 <a id=line-90 name=line-90></a>
 <a id=line-91 name=line-91></a>    <span class=k>def</span><span class=w> </span><span class=fm>__init__</span><span class=p>(</span>
 <a id=line-92 name=line-92></a>        <span class=bp>self</span><span class=p>,</span>
@@ -305,14 +305,14 @@
 <a id=line-147 name=line-147></a>        <span class=p>)</span>
 <a id=line-148 name=line-148></a>
 <a id=line-149 name=line-149></a>    <span class=k>def</span><span class=w> </span><span class=fm>__repr__</span><span class=p>(</span><span class=bp>self</span><span class=p>):</span>
-<a id=line-150 name=line-150></a>        <span class=k>return</span> <span class=sa>f</span><span class=s2>&quot;&lt;PyFunction fn=</span><span class=si>{</span><span class=bp>self</span><span class=o>.</span><span class=n>fn</span><span class=o>.</span><span class=vm>__name__</span><span class=si>}</span><span class=s2>&gt;&quot;</span>
+<a id=line-150 name=line-150></a>        <span class=k>return</span> <span class=sa>f</span><span class=s2>"&lt;PyFunction fn=</span><span class=si>{</span><span class=bp>self</span><span class=o>.</span><span class=n>fn</span><span class=o>.</span><span class=vm>__name__</span><span class=si>}</span><span class=s2>&gt;"</span>
 <a id=line-151 name=line-151></a>
 <a id=line-152 name=line-152></a>
 <a id=line-153 name=line-153></a><span class=k>def</span><span class=w> </span><span class=nf>generate_task_name</span><span class=p>(</span><span class=nb>id</span><span class=p>:</span> <span class=n>TaskId</span><span class=p>,</span> <span class=n>name</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=nb>str</span><span class=p>],</span> <span class=n>fn</span><span class=p>:</span> <span class=n>Callable</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=n>Optional</span><span class=p>[</span><span class=nb>str</span><span class=p>]:</span>
 <a id=line-154 name=line-154></a>    <span class=k>if</span> <span class=n>name</span> <span class=ow>is</span> <span class=ow>not</span> <span class=kc>None</span><span class=p>:</span>
 <a id=line-155 name=line-155></a>        <span class=k>return</span> <span class=n>name</span>
 <a id=line-156 name=line-156></a>
-<a id=line-157 name=line-157></a>    <span class=k>if</span> <span class=nb>hasattr</span><span class=p>(</span><span class=n>fn</span><span class=p>,</span> <span class=s2>&quot;__name__&quot;</span><span class=p>):</span>
-<a id=line-158 name=line-158></a>        <span class=k>return</span> <span class=sa>f</span><span class=s2>&quot;</span><span class=si>{</span><span class=n>fn</span><span class=o>.</span><span class=vm>__name__</span><span class=si>}</span><span class=s2>/</span><span class=si>{</span><span class=nb>id</span><span class=si>}</span><span class=s2>&quot;</span>
+<a id=line-157 name=line-157></a>    <span class=k>if</span> <span class=nb>hasattr</span><span class=p>(</span><span class=n>fn</span><span class=p>,</span> <span class=s2>"__name__"</span><span class=p>):</span>
+<a id=line-158 name=line-158></a>        <span class=k>return</span> <span class=sa>f</span><span class=s2>"</span><span class=si>{</span><span class=n>fn</span><span class=o>.</span><span class=vm>__name__</span><span class=si>}</span><span class=s2>/</span><span class=si>{</span><span class=nb>id</span><span class=si>}</span><span class=s2>"</span>
 <a id=line-159 name=line-159></a>    <span class=k>return</span> <span class=kc>None</span>
-</pre></div></td></tr></table></div><p class=footer> Generated by <a href=https://github.com/spirali/nedoc>nedoc</a> v0.10 at 2026-08-03 10:14 </p></div></div></body></html>
+</pre></div></td></tr></table></div><p class=footer> Generated by <a href=https://github.com/spirali/nedoc>nedoc</a> v0.10 at 2026-09-17 07:08 </p></div></div></body></html>

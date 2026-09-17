@@ -66,28 +66,28 @@
 <a id=line-5 name=line-5></a>
 <a id=line-6 name=line-6></a>
 <a id=line-7 name=line-7></a><span class=k>class</span><span class=w> </span><span class=nc>CloudWrapper</span><span class=p>:</span>
-<a id=line-8 name=line-8></a><span class=w>    </span><span class=sd>&quot;&quot;&quot;</span>
+<a id=line-8 name=line-8></a><span class=w>    </span><span class=sd>"""</span>
 <a id=line-9 name=line-9></a><span class=sd>    Wraps a callable so that cloudpickle is used to pickle it, caching the pickle.</span>
-<a id=line-10 name=line-10></a><span class=sd>    &quot;&quot;&quot;</span>
+<a id=line-10 name=line-10></a><span class=sd>    """</span>
 <a id=line-11 name=line-11></a>
 <a id=line-12 name=line-12></a>    <span class=k>def</span><span class=w> </span><span class=fm>__init__</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>fn</span><span class=p>,</span> <span class=n>pickled_fn</span><span class=o>=</span><span class=kc>None</span><span class=p>,</span> <span class=n>cache</span><span class=o>=</span><span class=kc>True</span><span class=p>,</span> <span class=n>protocol</span><span class=o>=</span><span class=n>cloudpickle</span><span class=o>.</span><span class=n>DEFAULT_PROTOCOL</span><span class=p>):</span>
 <a id=line-13 name=line-13></a>        <span class=k>if</span> <span class=n>fn</span> <span class=ow>is</span> <span class=kc>None</span><span class=p>:</span>
 <a id=line-14 name=line-14></a>            <span class=k>if</span> <span class=n>pickled_fn</span> <span class=ow>is</span> <span class=kc>None</span><span class=p>:</span>
-<a id=line-15 name=line-15></a>                <span class=k>raise</span> <span class=ne>ValueError</span><span class=p>(</span><span class=s2>&quot;Pass at least one of `fn` and `pickled_fn`&quot;</span><span class=p>)</span>
+<a id=line-15 name=line-15></a>                <span class=k>raise</span> <span class=ne>ValueError</span><span class=p>(</span><span class=s2>"Pass at least one of `fn` and `pickled_fn`"</span><span class=p>)</span>
 <a id=line-16 name=line-16></a>            <span class=n>fn</span> <span class=o>=</span> <span class=n>cloudpickle</span><span class=o>.</span><span class=n>loads</span><span class=p>(</span><span class=n>pickled_fn</span><span class=p>)</span>
 <a id=line-17 name=line-17></a>        <span class=k>assert</span> <span class=nb>callable</span><span class=p>(</span><span class=n>fn</span><span class=p>)</span>
 <a id=line-18 name=line-18></a>        <span class=c1># Forget pickled_fn if it should not be cached</span>
 <a id=line-19 name=line-19></a>        <span class=k>if</span> <span class=n>pickled_fn</span> <span class=ow>is</span> <span class=ow>not</span> <span class=kc>None</span> <span class=ow>and</span> <span class=ow>not</span> <span class=n>cache</span><span class=p>:</span>
 <a id=line-20 name=line-20></a>            <span class=n>pickled_fn</span> <span class=o>=</span> <span class=kc>None</span>
 <a id=line-21 name=line-21></a>        <span class=k>if</span> <span class=n>inspect</span><span class=o>.</span><span class=n>isasyncgen</span><span class=p>(</span><span class=n>fn</span><span class=p>):</span>
-<a id=line-22 name=line-22></a>            <span class=k>raise</span> <span class=ne>TypeError</span><span class=p>(</span><span class=s2>&quot;async functions not supported&quot;</span><span class=p>)</span>
+<a id=line-22 name=line-22></a>            <span class=k>raise</span> <span class=ne>TypeError</span><span class=p>(</span><span class=s2>"async functions not supported"</span><span class=p>)</span>
 <a id=line-23 name=line-23></a>
 <a id=line-24 name=line-24></a>        <span class=bp>self</span><span class=o>.</span><span class=n>fn</span> <span class=o>=</span> <span class=n>fn</span>
 <a id=line-25 name=line-25></a>        <span class=bp>self</span><span class=o>.</span><span class=n>pickled_fn</span> <span class=o>=</span> <span class=n>pickled_fn</span>
 <a id=line-26 name=line-26></a>        <span class=bp>self</span><span class=o>.</span><span class=n>cache</span> <span class=o>=</span> <span class=n>cache</span>
 <a id=line-27 name=line-27></a>        <span class=bp>self</span><span class=o>.</span><span class=n>protocol</span> <span class=o>=</span> <span class=n>protocol</span>
-<a id=line-28 name=line-28></a>        <span class=bp>self</span><span class=o>.</span><span class=vm>__doc__</span> <span class=o>=</span> <span class=s2>&quot;CloudWrapper for </span><span class=si>{!r}</span><span class=s2>. Original doc:</span><span class=se>\n\n</span><span class=si>{}</span><span class=s2>&quot;</span><span class=o>.</span><span class=n>format</span><span class=p>(</span><span class=bp>self</span><span class=o>.</span><span class=n>fn</span><span class=p>,</span> <span class=bp>self</span><span class=o>.</span><span class=n>fn</span><span class=o>.</span><span class=vm>__doc__</span><span class=p>)</span>
-<a id=line-29 name=line-29></a>        <span class=k>if</span> <span class=nb>hasattr</span><span class=p>(</span><span class=bp>self</span><span class=o>.</span><span class=n>fn</span><span class=p>,</span> <span class=s2>&quot;__name__&quot;</span><span class=p>):</span>
+<a id=line-28 name=line-28></a>        <span class=bp>self</span><span class=o>.</span><span class=vm>__doc__</span> <span class=o>=</span> <span class=s2>"CloudWrapper for </span><span class=si>{!r}</span><span class=s2>. Original doc:</span><span class=se>\n\n</span><span class=si>{}</span><span class=s2>"</span><span class=o>.</span><span class=n>format</span><span class=p>(</span><span class=bp>self</span><span class=o>.</span><span class=n>fn</span><span class=p>,</span> <span class=bp>self</span><span class=o>.</span><span class=n>fn</span><span class=o>.</span><span class=vm>__doc__</span><span class=p>)</span>
+<a id=line-29 name=line-29></a>        <span class=k>if</span> <span class=nb>hasattr</span><span class=p>(</span><span class=bp>self</span><span class=o>.</span><span class=n>fn</span><span class=p>,</span> <span class=s2>"__name__"</span><span class=p>):</span>
 <a id=line-30 name=line-30></a>            <span class=bp>self</span><span class=o>.</span><span class=vm>__name__</span> <span class=o>=</span> <span class=bp>self</span><span class=o>.</span><span class=n>fn</span><span class=o>.</span><span class=vm>__name__</span>
 <a id=line-31 name=line-31></a>
 <a id=line-32 name=line-32></a>        <span class=c1># Build-in functions does not have signature</span>
@@ -100,10 +100,10 @@
 <a id=line-39 name=line-39></a>        <span class=k>return</span> <span class=n>inspect</span><span class=o>.</span><span class=n>isgeneratorfunction</span><span class=p>(</span><span class=bp>self</span><span class=o>.</span><span class=n>fn</span><span class=p>)</span>
 <a id=line-40 name=line-40></a>
 <a id=line-41 name=line-41></a>    <span class=k>def</span><span class=w> </span><span class=fm>__repr__</span><span class=p>(</span><span class=bp>self</span><span class=p>):</span>
-<a id=line-42 name=line-42></a>        <span class=k>return</span> <span class=s2>&quot;&lt;</span><span class=si>{}</span><span class=s2>(</span><span class=si>{!r}</span><span class=s2>)&gt;&quot;</span><span class=o>.</span><span class=n>format</span><span class=p>(</span><span class=bp>self</span><span class=o>.</span><span class=vm>__class__</span><span class=o>.</span><span class=vm>__name__</span><span class=p>,</span> <span class=bp>self</span><span class=o>.</span><span class=n>fn</span><span class=p>)</span>
+<a id=line-42 name=line-42></a>        <span class=k>return</span> <span class=s2>"&lt;</span><span class=si>{}</span><span class=s2>(</span><span class=si>{!r}</span><span class=s2>)&gt;"</span><span class=o>.</span><span class=n>format</span><span class=p>(</span><span class=bp>self</span><span class=o>.</span><span class=vm>__class__</span><span class=o>.</span><span class=vm>__name__</span><span class=p>,</span> <span class=bp>self</span><span class=o>.</span><span class=n>fn</span><span class=p>)</span>
 <a id=line-43 name=line-43></a>
 <a id=line-44 name=line-44></a>    <span class=k>def</span><span class=w> </span><span class=nf>_get_pickled_fn</span><span class=p>(</span><span class=bp>self</span><span class=p>):</span>
-<a id=line-45 name=line-45></a>        <span class=s2>&quot;Get cloudpickled version of self.fn, optionally caching the result&quot;</span>
+<a id=line-45 name=line-45></a>        <span class=s2>"Get cloudpickled version of self.fn, optionally caching the result"</span>
 <a id=line-46 name=line-46></a>        <span class=k>if</span> <span class=bp>self</span><span class=o>.</span><span class=n>pickled_fn</span> <span class=ow>is</span> <span class=ow>not</span> <span class=kc>None</span><span class=p>:</span>
 <a id=line-47 name=line-47></a>            <span class=k>return</span> <span class=bp>self</span><span class=o>.</span><span class=n>pickled_fn</span>
 <a id=line-48 name=line-48></a>
@@ -113,7 +113,7 @@
 <a id=line-52 name=line-52></a>        <span class=k>return</span> <span class=n>pfn</span>
 <a id=line-53 name=line-53></a>
 <a id=line-54 name=line-54></a>    <span class=k>def</span><span class=w> </span><span class=fm>__call__</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=o>*</span><span class=n>args</span><span class=p>,</span> <span class=o>**</span><span class=n>kwargs</span><span class=p>):</span>
-<a id=line-55 name=line-55></a>        <span class=n>logging</span><span class=o>.</span><span class=n>debug</span><span class=p>(</span><span class=sa>f</span><span class=s2>&quot;Running function </span><span class=si>{</span><span class=bp>self</span><span class=o>.</span><span class=n>fn</span><span class=si>}</span><span class=s2> using args </span><span class=si>{</span><span class=n>args</span><span class=si>}</span><span class=s2> and kwargs </span><span class=si>{</span><span class=n>kwargs</span><span class=si>}</span><span class=s2>&quot;</span><span class=p>)</span>
+<a id=line-55 name=line-55></a>        <span class=n>logging</span><span class=o>.</span><span class=n>debug</span><span class=p>(</span><span class=sa>f</span><span class=s2>"Running function </span><span class=si>{</span><span class=bp>self</span><span class=o>.</span><span class=n>fn</span><span class=si>}</span><span class=s2> using args </span><span class=si>{</span><span class=n>args</span><span class=si>}</span><span class=s2> and kwargs </span><span class=si>{</span><span class=n>kwargs</span><span class=si>}</span><span class=s2>"</span><span class=p>)</span>
 <a id=line-56 name=line-56></a>        <span class=k>return</span> <span class=bp>self</span><span class=o>.</span><span class=n>fn</span><span class=p>(</span><span class=o>*</span><span class=n>args</span><span class=p>,</span> <span class=o>**</span><span class=n>kwargs</span><span class=p>)</span>
 <a id=line-57 name=line-57></a>
 <a id=line-58 name=line-58></a>    <span class=k>def</span><span class=w> </span><span class=nf>__reduce__</span><span class=p>(</span><span class=bp>self</span><span class=p>):</span>
@@ -121,4 +121,4 @@
 <a id=line-60 name=line-60></a>            <span class=bp>self</span><span class=o>.</span><span class=vm>__class__</span><span class=p>,</span>
 <a id=line-61 name=line-61></a>            <span class=p>(</span><span class=kc>None</span><span class=p>,</span> <span class=bp>self</span><span class=o>.</span><span class=n>_get_pickled_fn</span><span class=p>(),</span> <span class=bp>self</span><span class=o>.</span><span class=n>cache</span><span class=p>,</span> <span class=bp>self</span><span class=o>.</span><span class=n>protocol</span><span class=p>),</span>
 <a id=line-62 name=line-62></a>        <span class=p>)</span>
-</pre></div></td></tr></table></div><p class=footer> Generated by <a href=https://github.com/spirali/nedoc>nedoc</a> v0.10 at 2026-08-03 10:14 </p></div></div></body></html>
+</pre></div></td></tr></table></div><p class=footer> Generated by <a href=https://github.com/spirali/nedoc>nedoc</a> v0.10 at 2026-09-17 07:08 </p></div></div></body></html>
