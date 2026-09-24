@@ -102,18 +102,27 @@ impl WorkerState {
         self.prefilled_tasks = Default::default();
     }
 
-    pub fn cancel_task(&mut self, task_id: TaskId) {
-        log::debug!("Canceling task {task_id}");
-        match self.running_tasks.find_mut(&task_id) {
-            None => {
-                /* The task may be prefilled (not started yet), or it was
-                  computed or work steal was successful
-                */
-                for tasks in self.prefilled_tasks.values_mut() {
-                    tasks.retain(|t| t.id != task_id);
+    pub fn cancel_tasks(&mut self, task_ids: &[TaskId]) {
+        let mut not_running: Set<TaskId> = Set::default();
+        for &task_id in task_ids {
+            log::debug!("Canceling task {task_id}");
+            match self.running_tasks.find_mut(&task_id) {
+                Some(task) => task.cancel(),
+                None => {
+                    not_running.insert(task_id);
                 }
             }
-            Some(task) => task.cancel(),
+        }
+        if not_running.is_empty() {
+            return;
+        }
+        // Tasks that are not running may be prefilled (not started yet)
+        self.prefilled_tasks.values_mut().for_each(|tasks| {
+            tasks.retain(|t| !not_running.remove(&t.id));
+        });
+        for task_id in not_running {
+            /* The task was already computed, or it was retracted */
+            log::debug!("Task {task_id} not found");
         }
     }
 

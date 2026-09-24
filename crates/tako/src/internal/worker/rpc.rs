@@ -447,9 +447,7 @@ pub(crate) fn process_worker_message(state: &mut WorkerState, message: ToWorkerM
             }
         }
         ToWorkerMessage::CancelTasks(msg) => {
-            for task_id in msg.ids {
-                state.cancel_task(task_id);
-            }
+            state.cancel_tasks(&msg.ids);
         }
         ToWorkerMessage::NewWorker(msg) => {
             state.new_worker(msg);
