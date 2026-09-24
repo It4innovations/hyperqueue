@@ -1,6 +1,6 @@
 use crate::internal::messages::worker::{
-    FromWorkerMessage, NewWorkerMsg, TaskRunningMsg, ToWorkerMessage, WorkerResourceCounts,
-    WorkerTaskUpdate,
+    FromWorkerMessage, NewWorkerMsg, TaskIdsMsg, TaskRunningMsg, ToWorkerMessage,
+    WorkerResourceCounts, WorkerTaskUpdate,
 };
 use crate::internal::tests::utils::resources::ra_builder;
 use crate::internal::worker::rpc::process_worker_message;
@@ -195,4 +195,34 @@ fn test_worker_other_workers() {
     assert_eq!(state.worker_addresses.len(), 2);
     assert!(state.worker_addresses.get(&WorkerId::new(40)).is_none());
     process_worker_message(&mut state, ToWorkerMessage::LostWorker(30.into()));
+}
+
+#[test]
+fn test_worker_cancel_prefilled_task() {
+    let mut rt = WorkerTestEnv::new(&WorkerBuilder::new(4));
+
+    // A task without a resource variant is not started, only prefilled.
+    let mut msg = rt.compute_msg(TaskId::new_test(5), 0, &TaskBuilder::new().cpus(1));
+    msg.tasks[0].resource_rq_variant = None;
+    let rq_id = msg.tasks[0].resource_rq_id;
+
+    let mut state = rt.state().get_mut();
+    process_worker_message(&mut state, ToWorkerMessage::ComputeTasks(msg));
+    assert_eq!(state.prefilled_tasks[&rq_id].len(), 1);
+    assert!(state.running_tasks.is_empty());
+
+    process_worker_message(
+        &mut state,
+        ToWorkerMessage::CancelTasks(TaskIdsMsg {
+            ids: vec![TaskId::new_test(5)],
+        }),
+    );
+    // The cancelled task must not stay prefilled, otherwise the worker starts it
+    // later when a task with the same resource request finishes.
+    assert!(
+        state
+            .prefilled_tasks
+            .get(&rq_id)
+            .is_none_or(|tasks| tasks.is_empty())
+    );
 }
