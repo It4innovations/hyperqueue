@@ -311,7 +311,8 @@ fn command_server_generate_access(
 }
 
 async fn wait_for_server(gsettings: &GlobalSettings, opts: WaitOpts) -> anyhow::Result<()> {
-    let retry_interval = Duration::from_secs(5);
+    const INITIAL_RETRY_INTERVAL: Duration = Duration::from_millis(100);
+    const MAX_RETRY_INTERVAL: Duration = Duration::from_secs(5);
 
     log::info!(
         "Waiting for server to become available (timeout: {})...",
@@ -319,6 +320,7 @@ async fn wait_for_server(gsettings: &GlobalSettings, opts: WaitOpts) -> anyhow::
     );
 
     let result = tokio::time::timeout(opts.timeout, async {
+        let mut retry_interval = INITIAL_RETRY_INTERVAL;
         loop {
             match get_client_session(gsettings.server_directory()).await {
                 Ok(_session) => {
@@ -327,10 +329,11 @@ async fn wait_for_server(gsettings: &GlobalSettings, opts: WaitOpts) -> anyhow::
                 }
                 Err(_) => {
                     log::debug!(
-                        "Server not yet available, retrying in {}s...",
-                        retry_interval.as_secs()
+                        "Server not yet available, retrying in {}...",
+                        format_duration(retry_interval)
                     );
                     tokio::time::sleep(retry_interval).await;
+                    retry_interval = (retry_interval * 2).min(MAX_RETRY_INTERVAL);
                 }
             }
         }
