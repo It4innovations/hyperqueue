@@ -106,10 +106,12 @@ impl WorkerState {
         log::debug!("Canceling task {task_id}");
         match self.running_tasks.find_mut(&task_id) {
             None => {
-                /* This may happen that task was computed or when work steal
-                  was successful
+                /* The task may be prefilled (not started yet), or it was
+                  computed or work steal was successful
                 */
-                log::debug!("Task not found");
+                for tasks in self.prefilled_tasks.values_mut() {
+                    tasks.retain(|t| t.id != task_id);
+                }
             }
             Some(task) => task.cancel(),
         }
