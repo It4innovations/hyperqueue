@@ -153,39 +153,39 @@ impl WorkerResources {
             .sum::<u32>()
     }
 
+    /// Subtract `amount` (or everything when the request asks for all) of one resource.
+    /// The vector only spans the resources this worker declared (`from_description`), while a
+    /// request may name a resource that exists elsewhere in the cluster: for such a resource the
+    /// worker holds nothing, so there is nothing to subtract. `get` already treats it as zero;
+    /// indexing directly panicked the server in the scheduler's gap computation once a
+    /// prioritized multi-variant request met a worker without the variant's resource.
+    fn subtract(&mut self, resource_id: ResourceId, amount: Option<ResourceAmount>) {
+        if let Some(slot) = self.n_resources.get_mut(resource_id.as_usize()) {
+            *slot = match amount {
+                Some(amount) => slot.saturating_sub(amount),
+                None => ResourceAmount::ZERO,
+            };
+        }
+    }
+
     pub fn remove(&mut self, rq: &ResourceRequest) {
         for entry in rq.entries() {
-            if let Some(amount) = entry.request.amount_or_none_if_all() {
-                self.n_resources[entry.resource_id] =
-                    self.n_resources[entry.resource_id].saturating_sub(amount);
-            } else {
-                self.n_resources[entry.resource_id] = ResourceAmount::ZERO;
-            }
+            self.subtract(entry.resource_id, entry.request.amount_or_none_if_all());
         }
     }
 
     pub fn remove_multiple(&mut self, rq: &ResourceRequest, n: u32) {
         for entry in rq.entries() {
-            if let Some(amount) = entry.request.amount_or_none_if_all() {
-                let a = amount.times(n);
-                self.n_resources[entry.resource_id] =
-                    self.n_resources[entry.resource_id].saturating_sub(a);
-            } else {
-                self.n_resources[entry.resource_id] = ResourceAmount::ZERO;
-            }
+            let amount = entry.request.amount_or_none_if_all().map(|a| a.times(n));
+            self.subtract(entry.resource_id, amount);
         }
     }
 
     pub fn remove_multiple_masked(&mut self, rq: &ResourceRequest, n: u32, r_id: ResourceId) {
         for entry in rq.entries() {
             if entry.resource_id == r_id {
-                if let Some(amount) = entry.request.amount_or_none_if_all() {
-                    let a = amount.times(n);
-                    self.n_resources[entry.resource_id] =
-                        self.n_resources[entry.resource_id].saturating_sub(a);
-                } else {
-                    self.n_resources[entry.resource_id] = ResourceAmount::ZERO;
-                }
+                let amount = entry.request.amount_or_none_if_all().map(|a| a.times(n));
+                self.subtract(entry.resource_id, amount);
                 return;
             }
         }

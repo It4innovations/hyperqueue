@@ -244,4 +244,25 @@ mod tests {
         let t2 = rt.new_task_cpus(1);
         assert_eq!(compute_gap(&mut rt, t1, t2, w), 2);
     }
+
+    #[test]
+    fn test_compute_gap_resource_the_worker_lacks() {
+        // A worker's resource vector spans only the resources it declared; a request naming a
+        // resource that other workers have must not index past its end (server panic, 2026-09).
+        let mut rt = TestEnv::new();
+        rt.new_named_resource("foo");
+        let w = rt.new_worker(&WorkerBuilder::new(4)); // cpus only
+        let t2 = rt.new_task_cpus(1);
+        let t1 = rt.new_task(&TaskBuilder::new().cpus(1).add_resource(1, 1));
+        // nothing of it can run here, so nothing is held back: the whole worker stays for t2
+        assert_eq!(compute_gap(&mut rt, t1, t2, w), 4);
+        let t1 = rt.new_task(
+            &TaskBuilder::new()
+                .cpus(1)
+                .add_resource(1, 1)
+                .next_variant()
+                .cpus(3),
+        );
+        assert_eq!(compute_gap(&mut rt, t1, t2, w), 1);
+    }
 }
