@@ -88,6 +88,60 @@ fn test_task_grouping_blocker() {
 }
 
 #[test]
+fn test_task_grouping_same_level_needs_no_cut() {
+    // a: 5 4, b: 4. Nothing of b is strictly above a's task at 4, so `a` needs no cut.
+    let mut rt = TestEnv::new();
+    rt.new_workers_cpus(&[5]);
+    let a5 = rt.new_task(&TaskBuilder::new().user_priority(5));
+    rt.new_task(&TaskBuilder::new().user_priority(4));
+    rt.new_task(&TaskBuilder::new().cpus(2).user_priority(4));
+    let rq_a = rt.task(a5).resource_rq_id;
+    let now = std::time::Instant::now();
+    let a = create_task_batches(rt.core(), now, None);
+    assert_eq!(a.len(), 2);
+    assert_eq!(a[0].resource_rq_id, rq_a);
+    assert_eq!(a[0].size, 2);
+    assert_eq!(a[0].cuts, vec![]);
+    assert_eq!(
+        a[1].cuts,
+        vec![PriorityCut {
+            size: 0,
+            blockers: vec![(rq_a, Some(1))],
+        }]
+    );
+}
+
+#[test]
+fn test_task_grouping_no_repeated_cut() {
+    // c: 9, a: 5 4, b: 4. The tasks of other requests above a's task at 4 are the same as
+    // above its task at 5 (just c), so `a` gets a single cut.
+    let mut rt = TestEnv::new();
+    rt.new_workers_cpus(&[10]);
+    let a5 = rt.new_task(&TaskBuilder::new().user_priority(5));
+    rt.new_task(&TaskBuilder::new().user_priority(4));
+    let b4 = rt.new_task(&TaskBuilder::new().cpus(2).user_priority(4));
+    let c9 = rt.new_task(&TaskBuilder::new().cpus(3).user_priority(9));
+    let rq_a = rt.task(a5).resource_rq_id;
+    let rq_b = rt.task(b4).resource_rq_id;
+    let rq_c = rt.task(c9).resource_rq_id;
+    let now = std::time::Instant::now();
+    let a = create_task_batches(rt.core(), now, None);
+    assert_eq!(a.len(), 3);
+    let get = |rq| a.iter().find(|b| b.resource_rq_id == rq).unwrap();
+    assert_eq!(get(rq_a).size, 2);
+    assert_eq!(
+        get(rq_a).cuts,
+        vec![PriorityCut {
+            size: 0,
+            blockers: vec![(rq_c, Some(1))],
+        }]
+    );
+    assert_eq!(get(rq_b).cuts.len(), 1);
+    assert_eq!(get(rq_b).cuts[0].size, 0);
+    assert_eq!(get(rq_c).cuts, vec![]);
+}
+
+#[test]
 fn test_task_group_saturation() {
     let mut rt = TestEnv::new();
     rt.new_workers_cpus(&[5, 5, 5]);
@@ -2137,9 +2191,10 @@ fn test_schedule_one_worker_cannot_be_reserved_for_two_blockers() {
     // fully occupied. Neither covers any part of either request, so both are held on the higher
     // id, `w1`, which has no free resources. Reservations there consume nothing, so without a
     // per-worker limit `x` and `y` are both served by one worker that can later host only one
-    // of them, and narrow work fills `w0`. With the limit, the one not reserved for is held back
-    // on `w0` by its own condition, except for the gap: `y` (7 cpus) can never use more than 7 of
-    // `w0`'s 8 cpus, so one narrow task may still run there.
+    // of them, and narrow work fills `w0` (seven tasks). With the limit, the one not reserved for is
+    // held back on `w0` by its own condition, and `w0` offers no gap either: `y` alone could never
+    // use more than 7 of its 8 cpus, but `x` can use all eight, and a gap is only capacity that no
+    // waiting blocker can use.
     let mut rt = TestEnv::new();
     rt.new_named_resource("foo");
     let w0 = rt.new_worker(&WorkerBuilder::new(8).res_sum("foo", 1));
@@ -2163,7 +2218,7 @@ fn test_schedule_one_worker_cannot_be_reserved_for_two_blockers() {
 
     assert_eq!(
         narrow_per_worker(&rt, &narrow, &[w0, w1]),
-        vec![1, 0],
+        vec![0, 0],
         "one worker can be reserved for at most one blocker, so one of them stays unserved"
     );
 }
@@ -2561,5 +2616,58 @@ fn test_schedule_unused_allowance_does_not_widen_the_shared_gap() {
         "requests without an allowance use {} cpus of w0 ({b1_cpus} + {b2_cpus}), \
          but they share a gap of 4",
         b1_cpus + b2_cpus
+    );
+}
+
+/// Gap filling is bounded by what *all* the blockers of a worker could use together, not by what
+/// each of them could use alone. On a 12-cpu worker with a 5-cpu and a 7-cpu blocker the two
+/// gaps are 2 and 5, but 5 + 7 fills the worker exactly, so there is nothing to fill.
+#[test]
+fn test_schedule_gap_is_bounded_by_the_mix_of_blockers() {
+    let mut rt = TestEnv::new();
+    rt.new_worker(&WorkerBuilder::new(12));
+    let wide = rt.new_tasks(2, &TaskBuilder::new().cpus(5).user_priority(10));
+    let wider = rt.new_tasks(2, &TaskBuilder::new().cpus(7).user_priority(10));
+    let narrow = rt.new_tasks(8, &TaskBuilder::new().cpus(1).user_priority(0));
+    rt.schedule();
+    let placed = |ts: &[TaskId]| ts.iter().filter(|t| rt.task(**t).is_assigned()).count();
+    assert_eq!(placed(&wide), 1);
+    assert_eq!(placed(&wider), 1);
+    assert_eq!(
+        placed(&narrow),
+        0,
+        "the blockers pack into the worker exactly, so no narrow task may take a cpu"
+    );
+}
+
+/// The same worker with one cpu more does leave a gap of one, and exactly one narrow task fits.
+#[test]
+fn test_schedule_mix_of_blockers_can_still_leave_a_gap() {
+    let mut rt = TestEnv::new();
+    rt.new_worker(&WorkerBuilder::new(13));
+    let wide = rt.new_tasks(2, &TaskBuilder::new().cpus(5).user_priority(10));
+    let wider = rt.new_tasks(2, &TaskBuilder::new().cpus(7).user_priority(10));
+    let narrow = rt.new_tasks(8, &TaskBuilder::new().cpus(1).user_priority(0));
+    rt.schedule();
+    let placed = |ts: &[TaskId]| ts.iter().filter(|t| rt.task(**t).is_assigned()).count();
+    assert_eq!(placed(&wide), 1);
+    assert_eq!(placed(&wider), 1);
+    assert_eq!(placed(&narrow), 1);
+}
+
+/// A single blocker keeps its own gap: the joint bound only exists for a mix.
+#[test]
+fn test_schedule_single_blocker_keeps_its_gap() {
+    let mut rt = TestEnv::new();
+    rt.new_worker(&WorkerBuilder::new(12));
+    let wider = rt.new_tasks(3, &TaskBuilder::new().cpus(7).user_priority(10));
+    let narrow = rt.new_tasks(8, &TaskBuilder::new().cpus(1).user_priority(0));
+    rt.schedule();
+    let placed = |ts: &[TaskId]| ts.iter().filter(|t| rt.task(**t).is_assigned()).count();
+    assert_eq!(placed(&wider), 1);
+    assert_eq!(
+        placed(&narrow),
+        5,
+        "12 - 7 = 5 cpus no 7-cpu task can ever use"
     );
 }
