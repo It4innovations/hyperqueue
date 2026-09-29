@@ -78,6 +78,15 @@ impl GapCache {
         if h_rqv.is_multi_node() {
             return None;
         }
+        // Callers ask only for workers that can run the blocker; otherwise the gap is meaningless
+        // and the blocker may name a resource the worker lacks (out of bounds in `remove_multiple`).
+        debug_assert!(
+            h_rqv
+                .requests()
+                .iter()
+                .any(|rq| resources.is_capable_to_run_request(rq)),
+            "gap computed for a worker that cannot run the blocker"
+        );
         let mut free: WorkerResources = if let Some(h_rq) = h_rqv.trivial_request() {
             if h_rq.entries().iter().any(|r| r.request.amount_is_all()) {
                 return None;
@@ -416,6 +425,10 @@ mod tests {
     fn test_gap_matches_brute_force_over_sub_occupancies() {
         for capacity in [6u32, 8, 11, 12, 16] {
             for blocker in [2u32, 3, 5, 6, 7] {
+                if blocker > capacity {
+                    // The gap is only computed for workers that can run the blocker
+                    continue;
+                }
                 for occupants in [
                     vec![],
                     vec![1u32],
