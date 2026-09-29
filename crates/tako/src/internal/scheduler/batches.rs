@@ -98,8 +98,14 @@ pub(crate) fn create_task_batches(
     let mut current: Vec<Option<_>> = iters.iter_mut().map(|it| it.next()).collect();
     let mut unique = None;
     let mut found = Vec::new();
+    // The sweep step at which each batch last consumed tasks. A batch needs a new cut only if
+    // some other batch consumed since then: otherwise the tasks of other requests above it are
+    // the same as at its previous cut, so the cut would only repeat that one with a bigger size.
+    let mut step = 0u32;
+    let mut last_step: Vec<Option<u32>> = vec![None; batches.len()];
 
     loop {
+        step += 1;
         found.clear();
         let mut highest_p = Priority::new(0);
         for (idx, c) in current.iter().enumerate() {
@@ -121,6 +127,7 @@ pub(crate) fn create_task_batches(
             let idx = found[0];
             let size = current[idx].unwrap().1;
             if unique == Some(idx) {
+                last_step[idx] = Some(step);
                 batches[idx].size += size;
                 if batches[idx].size > batches[idx].limit {
                     batches[idx].size = batches[idx].limit;
@@ -134,6 +141,14 @@ pub(crate) fn create_task_batches(
             break;
         } else {
             for idx in &found {
+                let since = last_step[*idx];
+                let changed = last_step
+                    .iter()
+                    .enumerate()
+                    .any(|(i, s)| i != *idx && s.is_some_and(|s| since.is_none_or(|l| s >= l)));
+                if !changed {
+                    continue;
+                }
                 let size = batches[*idx].size;
                 let higher_priorities: Vec<_> = batches
                     .iter_mut()
@@ -153,6 +168,7 @@ pub(crate) fn create_task_batches(
                 }
             }
             for idx in &found {
+                last_step[*idx] = Some(step);
                 batches[*idx].size += current[*idx].unwrap().1;
                 if batches[*idx].size > batches[*idx].limit {
                     batches[*idx].size = batches[*idx].limit;
@@ -247,6 +263,26 @@ fn prune_progressive<T>(vec: &mut Vec<T>, prefix_size: usize, size_limit: usize)
     }
 
     vec.truncate(size_limit);
+}
+
+pub(crate) fn trim_to_unblocked(batches: &[TaskBatch]) -> Vec<TaskBatch> {
+    batches
+        .iter()
+        .filter_map(|batch| {
+            let size = batch.cuts.first().map_or(batch.size, |cut| cut.size);
+            if size == 0 {
+                return None;
+            }
+            Some(TaskBatch {
+                resource_rq_id: batch.resource_rq_id,
+                cuts: Vec::new(),
+                size,
+                limit: batch.limit,
+                limit_reached: false,
+                is_blocker: false,
+            })
+        })
+        .collect()
 }
 
 #[cfg(test)]

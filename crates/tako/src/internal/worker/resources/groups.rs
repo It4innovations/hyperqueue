@@ -139,7 +139,7 @@ pub fn group_solver(
             [(v2, 1.0), (v3, -1.0)].into_iter(),
         );
     }
-    let (solution, objective_value): (_, _) = solver.solve()?;
+    let solution = solver.solve(None)?;
     Some((
         vars.iter()
             .map(|var_group| {
@@ -150,6 +150,6 @@ pub fn group_solver(
                     .collect()
             })
             .collect(),
-        objective_value,
+        solution.objective(),
     ))
 }

@@ -2,6 +2,8 @@ use crate::internal::common::resources::{
     ResourceAmount, ResourceId, ResourceRequest, ResourceRequestVariants,
 };
 use crate::internal::scheduler::TaskBatch;
+use crate::internal::scheduler::batches::trim_to_unblocked;
+use crate::internal::scheduler::gap::joint_gap_units;
 use crate::internal::scheduler::state::SchedulerState;
 use crate::internal::server::core::{Core, CoreSplit};
 use crate::internal::server::taskmap::TaskMap;
@@ -44,6 +46,33 @@ pub(crate) fn run_scheduling_solver(
     task_batches: &[TaskBatch],
     custom_workers: Option<&[Worker]>,
 ) -> SchedulingSolution {
+    let CoreSplit { worker_map, .. } = core.split();
+    let workers: Vec<&Worker> = if let Some(ws) = custom_workers {
+        ws.iter().collect()
+    } else {
+        let mut ws = worker_map
+            .get_workers()
+            .filter(|w| w.sn_assignment().is_some())
+            .collect::<Vec<_>>();
+        ws.sort_unstable_by_key(|w| w.id);
+        ws
+    };
+    let solution = run_scheduling_solver_inner(core, now, task_batches, &workers);
+    if solution.is_optimal || !solution.is_empty() {
+        return solution;
+    };
+    let task_batches = trim_to_unblocked(task_batches);
+    let mut solution = run_scheduling_solver_inner(core, now, &task_batches, &workers);
+    solution.is_optimal = false;
+    solution
+}
+
+pub fn run_scheduling_solver_inner(
+    core: &Core,
+    now: std::time::Instant,
+    task_batches: &[TaskBatch],
+    workers: &[&Worker],
+) -> SchedulingSolution {
     let n_resources = core.resource_map().n_resources();
 
     let CoreSplit {
@@ -59,16 +88,8 @@ pub(crate) fn run_scheduling_solver(
         return SchedulingSolution::default();
     }
     let mut resource_sums = vec![0f64; n_resources];
-    let workers: Vec<&Worker> = if let Some(ws) = custom_workers {
-        ws.iter().collect()
-    } else {
-        let mut ws = worker_map
-            .get_workers()
-            .filter(|w| w.sn_assignment().is_some())
-            .collect::<Vec<_>>();
-        ws.sort_unstable_by_key(|w| w.id);
-        ws
-    };
+
+    let n_workers = workers.len();
 
     workers.iter().for_each(|worker| {
         let Some(a) = worker.sn_assignment() else {
@@ -85,8 +106,6 @@ pub(crate) fn run_scheduling_solver(
                 }
             })
     });
-
-    let n_workers = workers.len();
 
     let mut solver = LpSolver::new(false);
 
@@ -106,7 +125,7 @@ pub(crate) fn run_scheduling_solver(
     // penalty, and with no worker held (the blocker fits somewhere right now) it would let a
     // lower-priority request take the very capacity the blocker was counted as using.
     let reserved = held_workers(
-        &workers,
+        workers,
         task_batches,
         request_map,
         task_map,
@@ -117,7 +136,7 @@ pub(crate) fn run_scheduling_solver(
     // Placement weights shrink as the cluster's free resources grow, so a fixed penalty would
     // outweigh every placement on a large cluster and no reservation would ever pay for itself.
     let reservation_scale =
-        placement_weight_lower_bound(&workers, task_batches, request_map, &resource_sums);
+        placement_weight_lower_bound(workers, task_batches, request_map, &resource_sums);
 
     // Create worker-task placements
     let mut worker_reservations: Vec<Variable> = Vec::new();
@@ -317,6 +336,13 @@ pub(crate) fn run_scheduling_solver(
     // Gap parts per (worker, blocker, resource): the gap allowance and the terms that share it.
     let mut shared_gap: Map<SharedGapKey, (ResourceAmount, Vec<(Variable, f64)>)> = Map::new();
     let mut shared_gap_seen: Set<(WorkerId, ResourceRqId, ResourceRqId)> = Set::new();
+    // The rows above bound the gap of one blocker at a time. Blockers that pack better together
+    // than alone need a second bound, on everything their gaps admit on a worker; see
+    // `joint_gap_units`. Terms per (worker, resource), and the blockers each worker has.
+    // Keyed per request as well: a request gets one gap variable per blocker, and they stand for
+    // the same tasks, so the row below must take their maximum rather than their sum.
+    let mut joint_gap: Map<(WorkerId, ResourceId, ResourceRqId), (f64, Vec<Variable>)> = Map::new();
+    let mut joint_blockers: Map<WorkerId, (&Worker, Set<ResourceRqId>)> = Map::new();
 
     for batch in task_batches.iter() {
         let Some(task_counts) = tasks_count_vars.get(&batch.resource_rq_id) else {
@@ -349,13 +375,21 @@ pub(crate) fn run_scheduling_solver(
                         }
                     }
                 } else {
-                    for w in &workers {
+                    for w in workers {
                         let Some(sn_assignment) = w.sn_assignment() else {
                             continue;
                         };
                         if !w.is_capable_to_run_rqv(blocker_rqv, now) {
                             continue;
                         }
+                        // Every blocker of this worker takes part in the joint bound below, also
+                        // the ones whose own gap is zero: those are the ones that constrain a mix
+                        // of blockers the most.
+                        joint_blockers
+                            .entry(w.id)
+                            .or_insert_with(|| (w, Set::new()))
+                            .1
+                            .insert(*blocker_rq_id);
                         let gap_resources = scheduler_state.gap_cache.gap_resources(
                             *blocker_rq_id,
                             &w.resources,
@@ -468,6 +502,11 @@ pub(crate) fn run_scheduling_solver(
                                         .or_insert_with(|| (gap_amount, Vec::new()))
                                         .1
                                         .push((gap_var, largest.as_f64()));
+                                    joint_gap
+                                        .entry((w.id, resource_id, batch.resource_rq_id))
+                                        .or_insert_with(|| (largest.as_f64(), Vec::new()))
+                                        .1
+                                        .push(gap_var);
                                 }
                             }
                         }
@@ -543,12 +582,116 @@ pub(crate) fn run_scheduling_solver(
         solver.add_constraint(ConstraintType::Max, gap_amount.as_f64(), terms.into_iter());
     }
 
+    // One term per (worker, resource, request): the largest gap claim that request makes there.
+    let mut joint_rows: Map<(WorkerId, ResourceId), Vec<(Variable, f64)>> = Map::new();
+    for ((worker_id, resource_id, rq_id), (amount, gap_vars)) in joint_gap {
+        // A request that is itself a blocker on this worker is part of the mix, not a threat to
+        // it: its tasks are taken in priority order, so a task admitted here is one of the very
+        // tasks the mix is made of. Only requests from outside the blocker set are bounded.
+        if joint_blockers
+            .get(&worker_id)
+            .is_some_and(|(_, blockers)| blockers.contains(&rq_id))
+        {
+            continue;
+        }
+        let term = if let [single] = gap_vars[..] {
+            single
+        } else {
+            solver.set_name(|| format!("w{worker_id}: gap use of rq{rq_id} across its blockers"));
+            let shared = solver.add_variable(0.0, 0.0, f64::INFINITY);
+            for gap_var in gap_vars {
+                constraint_extra_var(
+                    &mut solver,
+                    ConstraintType::Min,
+                    0.0,
+                    std::iter::once(shared),
+                    gap_var,
+                    -1.0,
+                );
+            }
+            shared
+        };
+        joint_rows
+            .entry((worker_id, resource_id))
+            .or_default()
+            .push((term, amount));
+    }
+
+    for ((worker_id, resource_id), terms) in joint_rows {
+        let Some((worker, blockers)) = joint_blockers.get(&worker_id) else {
+            continue;
+        };
+        if blockers.len() < 2 {
+            // With one blocker the gap of `gap_resources` is already exact, and it accounts for
+            // the whole resource vector of every sub-occupancy. This row only exists to catch a
+            // mix of blockers, and its per-resource view would be the cruder of the two here.
+            continue;
+        }
+        let Some(sn_assignment) = worker.sn_assignment() else {
+            continue;
+        };
+        let capacity = worker.resources.get(resource_id);
+        // A blocker is charged at its smallest variant: a variant that packs tighter leaves less
+        // for the gap, which is the safe direction. A request for *all* of the resource takes the
+        // whole worker.
+        let blocker_amounts: Vec<(ResourceAmount, u32)> = blockers
+            .iter()
+            .filter_map(|rq_id| {
+                let rqv = request_map.get(*rq_id);
+                if rqv.is_multi_node() {
+                    return None;
+                }
+                rqv.requests()
+                    .iter()
+                    .map(|rq| {
+                        let amount = rq
+                            .entries()
+                            .iter()
+                            .find(|entry| entry.resource_id == resource_id)
+                            .map(|entry| {
+                                entry
+                                    .request
+                                    .amount_or_none_if_all()
+                                    .unwrap_or_else(|| worker.resources.get(resource_id))
+                            })
+                            .unwrap_or(ResourceAmount::ZERO);
+                        (amount, worker.resources.task_max_count_for_request(rq))
+                    })
+                    .min_by_key(|(amount, _)| *amount)
+            })
+            .collect();
+        let occupant_amounts: Vec<ResourceAmount> = sn_assignment
+            .assigned_tasks
+            .iter()
+            .filter_map(|task_id| {
+                let task = task_map.get_task(*task_id);
+                let (_, rv_id) = task.assigned_placement(&scheduler_state.redirects)?;
+                request_map
+                    .get(task.resource_rq_id)
+                    .get(rv_id)
+                    .get_amount(resource_id)
+            })
+            .collect();
+        let joint = joint_gap_units(capacity, &blocker_amounts, &occupant_amounts);
+        if joint >= sn_assignment.free_resources.get(resource_id) {
+            // The worker's own capacity row is at least as strict.
+            continue;
+        }
+        solver.set_name(|| {
+            format!(
+                "w{worker_id}: all gaps on resource {} are {joint} together",
+                resource_id.as_num()
+            )
+        });
+        solver.add_constraint(ConstraintType::Max, joint.as_f64(), terms.into_iter());
+    }
+
     let mut result = SchedulingSolution::default();
-    let Some((solution, is_optimal)) = solver.solve_bounded(scheduler_state.config.mip_time_limit)
-    else {
+    let Some(solution) = solver.solve(Some(scheduler_state.config.mip_time_limit)) else {
+        result.is_optimal = false;
         return result;
     };
-    result.is_optimal = is_optimal;
+    result.is_optimal = solution.is_optimal();
 
     for batch in task_batches {
         let resource_rq_id = batch.resource_rq_id;
@@ -561,7 +704,7 @@ pub(crate) fn run_scheduling_solver(
             // multiple of `n_nodes`, but worker ids of different groups may interleave, so cutting
             // across all workers in id order could give a task nodes from two groups.
             let mut open: Map<&str, ThinVec<WorkerId>> = Map::new();
-            for worker in &workers {
+            for worker in workers {
                 if let Some(v) = placements.get(&(worker.id, resource_rq_id, v_id)) {
                     let count = solution.get_value(*v).round() as u32;
                     if count > 0 {
@@ -759,7 +902,9 @@ fn held_workers(
                 placeable = placeable.saturating_add(a.free_resources.task_max_count(rqv));
             } else if worker.is_capable_to_run_rqv(rqv, now) {
                 // The blocker cannot run here now, but this worker could host it once it drains.
-                // Rank by the free resources the blocker can use: its gap is lost to it anyway.
+                // Rank by the free resources minus the blocker's gap: gap filling may give the
+                // gap to lower-priority tasks at any time without delaying the blocker, so it
+                // does not bring the blocker closer to starting.
                 // Tasks placed into the gap lower free resources and gap equally, so they never
                 // move the hold, and a finishing task never lowers the rank. A held worker
                 // therefore loses its hold only to a worker that offers the blocker more.

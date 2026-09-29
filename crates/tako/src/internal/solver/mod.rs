@@ -39,23 +39,18 @@ pub(crate) trait LpInnerSolver {
         value: f64,
         variables: impl Iterator<Item = (Self::Variable, f64)>,
     );
-    fn solve(self) -> Option<(Self::Solution, f64)>;
 
     /// Like `solve`, but allowed to trade exactness for a hard wall-clock
     /// cap. Returns whether the solution is proven optimal. Backends without
     /// a tuned implementation fall back to the exact `solve`.
-    fn solve_bounded(self, time_limit: Duration) -> Option<(Self::Solution, bool)>
-    where
-        Self: Sized,
-    {
-        let _ = time_limit;
-        self.solve().map(|(solution, _)| (solution, true))
-    }
+    fn solve(self, time_limit: Option<Duration>) -> Option<Self::Solution>;
 }
 
 pub(crate) trait LpSolution {
     type Variable: Copy;
     fn get_value(&self, v: Self::Variable) -> f64;
+    fn objective(&self) -> f64;
+    fn is_optimal(&self) -> bool;
 }
 
 pub(crate) struct LpSolver {
@@ -175,7 +170,7 @@ impl LpSolver {
     }
 
     #[inline]
-    pub fn solve(self) -> Option<(Solution, f64)> {
+    pub fn solve(self, time_limit: Option<Duration>) -> Option<Solution> {
         if self.verbose {
             println!("Weights:");
             for (name, weight, _var) in self.variables.iter() {
@@ -184,30 +179,8 @@ impl LpSolver {
                 }
             }
         }
-        let s = self.solver.solve();
-        if let Some((s, _)) = &s
-            && self.verbose
-        {
-            println!("==== Solution: ====");
-            for (name, _weight, var) in self.variables.iter() {
-                println!("{} = {}", name, s.get_value(*var));
-            }
-        }
-        s
-    }
-
-    #[inline]
-    pub fn solve_bounded(self, time_limit: Duration) -> Option<(Solution, bool)> {
-        if self.verbose {
-            println!("Weights:");
-            for (name, weight, _var) in self.variables.iter() {
-                if *weight != 0.0 {
-                    println!("{} -> {}", name, weight);
-                }
-            }
-        }
-        let s = self.solver.solve_bounded(time_limit);
-        if let Some((s, _)) = &s
+        let s = self.solver.solve(time_limit);
+        if let Some(s) = &s
             && self.verbose
         {
             println!("==== Solution: ====");

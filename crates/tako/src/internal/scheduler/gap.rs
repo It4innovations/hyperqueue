@@ -1,6 +1,6 @@
 use crate::internal::common::resources::ResourceId;
 use crate::internal::server::workerload::WorkerResources;
-use crate::internal::solver::{ConstraintType, LpSolver};
+use crate::internal::solver::{ConstraintType, LpSolution, LpSolver};
 use crate::resources::{
     ResourceAmount, ResourceRequest, ResourceRequestVariants, ResourceRqId, ResourceRqMap,
 };
@@ -181,6 +181,116 @@ fn exact_single_resource_gap(
     Some((resource_id, ResourceAmount::new(gap, 0)))
 }
 
+/// Capacity of one resource that no *mix* of `blockers` can use, whatever subset of the current
+/// occupants departs.
+///
+/// The gap of `gap_resources` is computed for one blocker at a time, and is safe against that
+/// blocker alone. Two blockers that pack better together than either of them does by itself can
+/// still be delayed by tasks that respect both gaps separately: on a $12$-cpu worker with a
+/// $5$-cpu and a $7$-cpu blocker the two gaps are $2$ and $5$, so two 1-cpu tasks admitted under
+/// the first leave $10$ cpus, which no longer holds $5 + 7$. The value computed here bounds what
+/// all gap users of a worker may take together, and for a single blocker it equals that blocker's
+/// own gap, so nothing changes where only one request blocks.
+///
+/// Zero is always safe, and is the answer whenever the exact value is out of reach: fractional
+/// amounts, or a capacity above `MAX_EXACT_GAP_UNITS`. A blocker that asks for *all* of the
+/// resource is passed in as the whole capacity, which also yields zero.
+pub(crate) fn joint_gap_units(
+    capacity: ResourceAmount,
+    blockers: &[(ResourceAmount, u32)],
+    occupants: &[ResourceAmount],
+) -> ResourceAmount {
+    if capacity.fractions() != 0 || capacity.units() > MAX_EXACT_GAP_UNITS {
+        return ResourceAmount::ZERO;
+    }
+    let capacity_units = capacity.units() as usize;
+    // Each blocker is bounded by how many of its tasks the whole worker could hold: its other
+    // resources limit the mix just as much as this one. Without that bound a blocker that needs
+    // a scarce second resource would appear able to fill the worker on its own.
+    let mut sizes: Vec<(usize, u32)> = Vec::with_capacity(blockers.len());
+    for (amount, max_count) in blockers {
+        if amount.fractions() != 0 {
+            return ResourceAmount::ZERO;
+        }
+        if amount.units() > 0 && *max_count > 0 {
+            sizes.push((amount.units() as usize, *max_count));
+        }
+    }
+    if sizes.is_empty() {
+        // No blocker consumes this resource, so none of it is being withheld from them.
+        return capacity;
+    }
+
+    // `reachable[v]`: a mix of blockers, each within its own count, totals exactly `v`.
+    let mut reachable = vec![false; capacity_units + 1];
+    reachable[0] = true;
+    for (size, max_count) in &sizes {
+        let size = *size;
+        if size.saturating_mul(*max_count as usize) >= capacity_units {
+            // The count never binds here: the plain ascending pass is the unbounded case.
+            for value in 0..=capacity_units.saturating_sub(size) {
+                if reachable[value] {
+                    reachable[value + size] = true;
+                }
+            }
+            continue;
+        }
+        // Bounded: binary splitting turns `max_count` copies into `log(max_count)` items.
+        let mut remaining = *max_count;
+        let mut chunk = 1u32;
+        while remaining > 0 {
+            let take = chunk.min(remaining) as usize;
+            let step = size * take;
+            if step <= capacity_units {
+                for value in (step..=capacity_units).rev() {
+                    if reachable[value - step] {
+                        reachable[value] = true;
+                    }
+                }
+            }
+            remaining -= chunk.min(remaining);
+            chunk = chunk.saturating_mul(2);
+        }
+    }
+    // `mix[v]`: the largest reachable total at or below `v`.
+    let mut mix = vec![0usize; capacity_units + 1];
+    for value in 1..=capacity_units {
+        mix[value] = if reachable[value] {
+            value
+        } else {
+            mix[value - 1]
+        };
+    }
+
+    // Totals the current occupants can still hold once any subset of them has departed.
+    let mut departed = vec![false; capacity_units + 1];
+    departed[0] = true;
+    for occupant in occupants {
+        if occupant.fractions() != 0 {
+            return ResourceAmount::ZERO;
+        }
+        let amount = occupant.units() as usize;
+        if amount == 0 || amount > capacity_units {
+            continue;
+        }
+        for value in (amount..=capacity_units).rev() {
+            if departed[value - amount] {
+                departed[value] = true;
+            }
+        }
+    }
+
+    let gap = (0..=capacity_units)
+        .filter(|held| departed[*held])
+        .map(|held| {
+            let free = capacity_units - held;
+            free - mix[free]
+        })
+        .min()
+        .unwrap_or(0);
+    ResourceAmount::new(gap as u32, 0)
+}
+
 const MAX_GAP_SUB_OCCUPANCIES: u32 = 2048;
 
 fn exact_gap_by_enumeration(
@@ -286,10 +396,10 @@ fn compute_gap_resources(
                     c.into_iter(),
                 );
             }
-            let Some((_, v)) = solver.solve() else {
+            let Some(s) = solver.solve(None) else {
                 return ResourceAmount::ZERO;
             };
-            r_amount - ResourceAmount::from_float(v.round() as f32)
+            r_amount - ResourceAmount::from_float(s.objective().round() as f32)
         })
         .collect();
     WorkerResources::new(gap_res.into())

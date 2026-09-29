@@ -1,4 +1,6 @@
 #[cfg(test)]
+mod test_min_utilization;
+#[cfg(test)]
 mod test_query;
 #[cfg(test)]
 mod test_reactor;

@@ -769,3 +769,84 @@ fn test_query_after_task_cancel() {
     );
     assert_eq!(r.single_node_workers_per_query, vec![0]);
 }
+
+/// A partial query completes undeclared resources as unbounded sums, which makes their scarcity
+/// share nearly zero. The share stays strictly positive, so the probe of \S queries still
+/// appears even when every resource a task asks for is undeclared.
+#[test]
+fn test_query_partial_probes_for_entirely_undeclared_resources() {
+    let mut rt = TestEnv::new();
+    rt.new_named_resource("gpus");
+    rt.new_tasks(10, &TaskBuilder::new().cpus(1));
+    rt.schedule();
+    let r = compute_new_worker_query(
+        rt.core(),
+        &[WorkerTypeQuery {
+            partial: true,
+            // Declares only gpus; the cpus the tasks ask for are unknown until a worker connects.
+            descriptor: ResourceDescriptor::new(
+                vec![ResourceDescriptorItem {
+                    name: "gpus".into(),
+                    kind: ResourceDescriptorKind::simple_indices(8),
+                }],
+                Default::default(),
+            ),
+            time_limit: None,
+            max_sn_workers: 3,
+            max_workers_per_allocation: 1,
+            min_utilization: 0.0,
+        }],
+    );
+    assert_eq!(
+        r.single_node_workers_per_query,
+        vec![1],
+        "one worker is asked for as a probe, not none and not all three"
+    );
+}
+
+/// An unbounded completion lets one worker absorb any amount of undeclared demand.
+///
+/// A partial query fills in the resources the queue has not declared as unbounded sums. Two
+/// things follow in the model: such a resource contributes a single unit to the global amount of
+/// the objective rather than its numeric value, so a task that needs it keeps an ordinary weight;
+/// and a worker whose free amount is unbounded gets no capacity row for it. Work that asks only
+/// for undeclared resources therefore never needs a second worker, however much of it waits.
+#[test]
+fn test_query_partial_absorbs_undeclared_demand_on_one_worker() {
+    let ask = |n_cpu_only: usize, n_gpu: usize| {
+        let mut rt = TestEnv::new();
+        rt.new_named_resource("gpus");
+        if n_cpu_only > 0 {
+            rt.new_tasks(n_cpu_only, &TaskBuilder::new().cpus(1));
+        }
+        if n_gpu > 0 {
+            rt.new_tasks(n_gpu, &TaskBuilder::new().cpus(1).add_resource(1, 1));
+        }
+        rt.schedule();
+        let r = compute_new_worker_query(
+            rt.core(),
+            &[WorkerTypeQuery {
+                partial: true,
+                descriptor: ResourceDescriptor::new(
+                    vec![ResourceDescriptorItem {
+                        name: "gpus".into(),
+                        kind: ResourceDescriptorKind::simple_indices(8),
+                    }],
+                    Default::default(),
+                ),
+                time_limit: None,
+                max_sn_workers: 3,
+                max_workers_per_allocation: 1,
+                min_utilization: 0.0,
+            }],
+        );
+        r.single_node_workers_per_query[0]
+    };
+    // Sixteen tasks of one gpu each need two eight-gpu workers.
+    assert_eq!(ask(0, 16), 2);
+    // Ten thousand tasks that ask only for the undeclared resource add no worker: the first
+    // one absorbs all of them.
+    assert_eq!(ask(10_000, 16), 2);
+    // On their own they are the probe of \S queries: exactly one worker, not none and not three.
+    assert_eq!(ask(100, 0), 1);
+}
