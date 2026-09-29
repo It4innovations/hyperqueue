@@ -8,7 +8,7 @@ pub(crate) trait ToPyError {
 
 impl ToPyError for HqError {
     fn to_py(self) -> PyErr {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             PyErr::from_value(
                 PyException::new_err(format!("{self:?}"))
                     .value(py)
