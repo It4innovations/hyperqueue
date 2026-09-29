@@ -4,7 +4,7 @@ use std::ops::{Deref, DerefMut};
 use std::time::Duration;
 
 use pyo3::types::{PyFloat, PyInt};
-use pyo3::{Bound, FromPyObject, PyAny, PyResult};
+use pyo3::{Borrowed, Bound, FromPyObject, PyAny, PyErr, PyResult};
 use pythonize::depythonize;
 use serde::de::DeserializeOwned;
 
@@ -32,11 +32,13 @@ impl<T> DerefMut for FromPy<T> {
     }
 }
 
-impl<'source, T> FromPyObject<'source> for FromPy<T>
+impl<'a, 'py, T> FromPyObject<'a, 'py> for FromPy<T>
 where
     T: DeserializeOwned,
 {
-    fn extract_bound(obj: &Bound<'source, PyAny>) -> PyResult<Self> {
-        depythonize(obj).map(|v| FromPy(v)).map_err(|e| e.into())
+    type Error = PyErr;
+
+    fn extract(obj: Borrowed<'a, 'py, PyAny>) -> PyResult<Self> {
+        depythonize(&obj).map(|v| FromPy(v)).map_err(|e| e.into())
     }
 }
