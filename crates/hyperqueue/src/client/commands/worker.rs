@@ -144,7 +144,7 @@ pub struct SharedWorkerStartOpts {
     #[arg(
         long,
         value_parser = parse_hms_or_human_time,
-        help = duration_doc!("How often heartbeats are sent\n\nHeartbeats are used to detect worker's liveness. If the worker does not send a heartbeat for given time, then the worker is considered as lost.\n\nDefaults to 8s.")
+        help = duration_doc!("How often heartbeats are sent\n\nHeartbeats are used to detect worker's liveness. If the worker does not send a heartbeat for given time, then the worker is considered as lost.")
     )]
     pub heartbeat: Option<Duration>,
 
