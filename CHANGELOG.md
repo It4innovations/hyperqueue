@@ -12,6 +12,7 @@
 * Fixed some occasional greedy backfilling in server scheduler + improvements in the reservation algorithm
 * Fixed server crash in a specific situation when an unschedulable high-priority task occurs
 * Fixed server crash caused by invalid handling of prefill
+* Fixed canceling of prefilled tasks
 
 ## v0.26.2
 

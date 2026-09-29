@@ -395,7 +395,10 @@ async fn retract_check_process(check_interval: Duration, state_ref: WrappedRcRef
         interval.tick().await;
         {
             let mut state = state_ref.get_mut();
-            if !state.prefilled_tasks.is_empty()
+            if state
+                .prefilled_tasks
+                .values()
+                .any(|tasks| !tasks.is_empty())
                 && let Some(remaining_time) = state.remaining_time()
             {
                 log::debug!("Checking tasks for retract");
