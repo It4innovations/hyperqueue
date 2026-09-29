@@ -37,7 +37,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v2
         with:
-          python-version: "3.9"
+          python-version: "3.12"
 
       - name: Install Python dependencies
         run: |
@@ -115,7 +115,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v2
         with:
-          python-version: "3.9"
+          python-version: "3.12"
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip wheel setuptools
