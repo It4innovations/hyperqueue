@@ -1858,6 +1858,377 @@ fn test_schedule_reservation_leaves_other_workers_for_backfill() {
     );
 }
 
+/// Narrow tasks assigned to each of `workers`, in order.
+fn narrow_per_worker(rt: &TestEnv, narrow: &[TaskId], workers: &[WorkerId]) -> Vec<usize> {
+    workers
+        .iter()
+        .map(|w| {
+            narrow
+                .iter()
+                .filter(|t| {
+                    matches!(rt.task(**t).state,
+                        TaskRuntimeState::Assigned { worker_id, .. } if worker_id == *w)
+                })
+                .count()
+        })
+        .collect()
+}
+
+#[test]
+fn test_schedule_placeable_blocker_holds_nothing() {
+    // A wide blocker that a free worker can host right now needs no held worker, so capable but
+    // partially occupied workers keep backfilling.
+    let mut rt = TestEnv::new();
+    let ws = rt.new_workers(4, &WorkerBuilder::new(8));
+    for w in &ws[1..] {
+        rt.new_task_running(&TaskBuilder::new().cpus(6), *w);
+    }
+    let blocker = rt.new_task(&TaskBuilder::new().cpus(8).user_priority(10));
+    let narrow = rt.new_tasks(30, &TaskBuilder::new().cpus(1));
+    rt.schedule();
+
+    assert!(
+        matches!(rt.task(blocker).state,
+            TaskRuntimeState::Assigned { worker_id, .. } if worker_id == ws[0]),
+        "the blocker starts on the free worker"
+    );
+    assert_eq!(
+        narrow_per_worker(&rt, &narrow, &ws[1..]),
+        vec![2, 2, 2],
+        "no worker is held, so every partial worker backfills its 2 free cpus"
+    );
+}
+
+#[test]
+fn test_schedule_lower_priority_cannot_take_capacity_of_higher() {
+    // One free worker can host either the higher-priority 4-cpu task or the lower-priority 8-cpu
+    // task, but not both, so priority must give it to the 4-cpu task.
+    //
+    // The saturated worker is what makes this fail. It is capable of the 4-cpu task but has no
+    // free cpus, so the solver gets a reservation variable for that task there, and reserving a
+    // worker with nothing free costs no capacity. Setting it discharges the priority condition
+    // "8-cpu tasks may run only once the 4-cpu task is served", after which the 8-cpu task is the
+    // more valuable placement. Held workers do not close this: held-worker depth is the number of
+    // blockers no worker can host *before* the solve, and the free worker is counted as hosting
+    // the 4-cpu task although the solve then gives it to the 8-cpu one.
+    //
+    // Without the saturated worker the 4-cpu task is placed correctly.
+    let mut rt = TestEnv::new();
+    let ws = rt.new_workers(2, &WorkerBuilder::new(8));
+    for _ in 0..8 {
+        rt.new_task_running(&TaskBuilder::new().cpus(1), ws[1]);
+    }
+    let high = rt.new_task(&TaskBuilder::new().cpus(4).user_priority(11));
+    let wide = rt.new_task(&TaskBuilder::new().cpus(8).user_priority(10));
+    rt.schedule();
+
+    assert!(
+        matches!(rt.task(high).state,
+            TaskRuntimeState::Assigned { worker_id, .. } if worker_id == ws[0]),
+        "the higher-priority task must take the free worker; high = {:?}, wide = {:?}",
+        rt.task(high).state,
+        rt.task(wide).state
+    );
+    assert!(
+        !rt.task(wide).is_assigned(),
+        "the lower-priority task must wait; wide = {:?}",
+        rt.task(wide).state
+    );
+}
+
+#[test]
+fn test_schedule_reservation_cannot_take_capacity_of_higher_blocker() {
+    // A reservation for a request must obey that request's own priority conditions, exactly as
+    // its placements do. Here `x` (8 cpus, priority 10) cannot run anywhere now, so the emptiest
+    // capable worker `w1` is held for it. `h` (4 cpus + a "foo" only `w1` has, priority 20)
+    // outranks `x` and fits into `w1`'s free cpus. Reserving `w1` for `x` would consume those
+    // cpus and leave `h` waiting behind a lower-priority request.
+    //
+    // The objective alone does not prevent it. `h` is incapable of the other workers, so a
+    // reservation for `x` releases their freed cpus for narrow work without `h` blocking it, and
+    // eight workers' worth of backfill outweighs placing `h`.
+    let mut rt = TestEnv::new();
+    rt.new_named_resource("foo");
+    let w1 = rt.new_worker(&WorkerBuilder::new(8).res_sum("foo", 1000));
+    rt.new_task_running(&TaskBuilder::new().cpus(4), w1);
+    let others = rt.new_workers(8, &WorkerBuilder::new(8));
+    for w in &others {
+        rt.new_task_running(&TaskBuilder::new().cpus(6), *w);
+    }
+    let h = rt.new_task(
+        &TaskBuilder::new()
+            .cpus(4)
+            .add_resource(1, 1)
+            .user_priority(20),
+    );
+    let x = rt.new_task(&TaskBuilder::new().cpus(8).user_priority(10));
+    rt.new_tasks(40, &TaskBuilder::new().cpus(1));
+    rt.schedule();
+
+    assert!(
+        matches!(rt.task(h).state,
+            TaskRuntimeState::Assigned { worker_id, .. } if worker_id == w1),
+        "the higher-priority task must take the free cpus on w1; h = {:?}, x = {:?}",
+        rt.task(h).state,
+        rt.task(x).state
+    );
+}
+
+#[test]
+fn test_schedule_held_worker_not_refilled_when_one_reservation_serves_blocker() {
+    // Two 8-cpu tasks share one request, but the narrow request's priority lies between them:
+    // `x_high` (10) > narrow (5) > `x_low` (3). The held count covers the whole batch, so two
+    // workers are held, while the narrow request is blocked only by `x_high`, i.e. at threshold 1.
+    // One reservation therefore serves the blocker for the narrow request, and a second held
+    // worker is left with free capacity.
+    //
+    // `w0` is the emptiest worker and should accumulate for `x_high`. If narrow work may enter a
+    // held worker whenever the blocker is served elsewhere, the solver reserves `w1` instead (a
+    // reservation on a higher index is cheaper) and refills `w0`, so `x_high` waits for the fuller
+    // worker to drain.
+    let mut rt = TestEnv::new();
+    let ws = rt.new_workers(2, &WorkerBuilder::new(8));
+    let mut running: Vec<Vec<TaskId>> = [4, 6]
+        .iter()
+        .zip(&ws)
+        .map(|(n, w)| {
+            (0..*n)
+                .map(|_| rt.new_task_running(&TaskBuilder::new().cpus(1), *w))
+                .collect()
+        })
+        .collect();
+    let x_high = rt.new_task(&TaskBuilder::new().cpus(8).user_priority(10));
+    rt.new_tasks(40, &TaskBuilder::new().cpus(1).user_priority(5));
+    rt.new_task(&TaskBuilder::new().cpus(8).user_priority(3));
+
+    // `w0` needs 4 finishes to fit an 8-cpu task, `w1` needs 6.
+    for _tick in 0..=4 {
+        rt.schedule();
+        if rt.task(x_high).is_assigned() {
+            return;
+        }
+        for (idx, w) in ws.iter().enumerate() {
+            if let Some(task_id) = running[idx].pop() {
+                rt.finish_task(task_id, *w);
+            }
+        }
+    }
+    let free: Vec<String> = ws
+        .iter()
+        .map(|w| {
+            let a = rt.worker(*w).sn_assignment().unwrap();
+            format!("w{w}: {:?}", a.free_resources.get(ResourceId::new(0)))
+        })
+        .collect();
+    panic!(
+        "the priority-10 task did not start once the emptiest worker drained ({})",
+        free.join(", ")
+    );
+}
+
+#[test]
+fn test_schedule_no_worker_held_for_blocker_tasks_the_blocked_request_outranks() {
+    // `x_high` (10) > narrow (5) > `x_low` (3), both x tasks 8 cpus and unplaceable now. Narrow is
+    // blocked only by `x_high`, so only one worker is needed for it: the emptiest, `w0`. Holding a
+    // second worker for `x_low` would keep narrow off it although narrow outranks `x_low`.
+    let mut rt = TestEnv::new();
+    let ws = rt.new_workers(2, &WorkerBuilder::new(8));
+    for (n, w) in [4, 6].iter().zip(&ws) {
+        for _ in 0..*n {
+            rt.new_task_running(&TaskBuilder::new().cpus(1), *w);
+        }
+    }
+    rt.new_task(&TaskBuilder::new().cpus(8).user_priority(10));
+    let narrow = rt.new_tasks(40, &TaskBuilder::new().cpus(1).user_priority(5));
+    rt.new_task(&TaskBuilder::new().cpus(8).user_priority(3));
+    rt.schedule();
+
+    assert_eq!(
+        narrow_per_worker(&rt, &narrow, &ws),
+        vec![0, 2],
+        "w0 is held for x_high; w1 must be free for narrow work"
+    );
+}
+
+#[test]
+fn test_schedule_held_worker_not_refilled_at_a_shallower_threshold() {
+    // Two lower requests block on the same 8-cpu request at different thresholds:
+    // `x_a` (10) > `l1` (9) > `x_b` (8) > `l2` (7). `l2` needs both x tasks served, so two workers
+    // are held and both carry a reservation variable; `l1` needs only `x_a`, i.e. one. A single
+    // reservation on the fuller `w1` serves `x_a` for `l1`, so the emptiest `w0` must stay closed to
+    // `l1` by the held-worker constraint itself, or `l1` refills it and `x_a` waits for `w1`.
+    let mut rt = TestEnv::new();
+    let ws = rt.new_workers(2, &WorkerBuilder::new(8));
+    let mut running: Vec<Vec<TaskId>> = [4, 6]
+        .iter()
+        .zip(&ws)
+        .map(|(n, w)| {
+            (0..*n)
+                .map(|_| rt.new_task_running(&TaskBuilder::new().cpus(1), *w))
+                .collect()
+        })
+        .collect();
+    let x_a = rt.new_task(&TaskBuilder::new().cpus(8).user_priority(10));
+    rt.new_tasks(40, &TaskBuilder::new().cpus(1).user_priority(9));
+    rt.new_task(&TaskBuilder::new().cpus(8).user_priority(8));
+    rt.new_tasks(40, &TaskBuilder::new().cpus(2).user_priority(7));
+
+    for _tick in 0..=4 {
+        rt.schedule();
+        if rt.task(x_a).is_assigned() {
+            return;
+        }
+        for (idx, w) in ws.iter().enumerate() {
+            if let Some(task_id) = running[idx].pop() {
+                rt.finish_task(task_id, *w);
+            }
+        }
+    }
+    let free: Vec<String> = ws
+        .iter()
+        .map(|w| {
+            let a = rt.worker(*w).sn_assignment().unwrap();
+            format!("w{w}: {:?}", a.free_resources.get(ResourceId::new(0)))
+        })
+        .collect();
+    panic!(
+        "the priority-10 task did not start once the emptiest worker drained ({})",
+        free.join(", ")
+    );
+}
+
+#[test]
+fn test_schedule_reservation_pays_on_a_large_cluster() {
+    // Placement weights scale with 1 / (free cpus in the cluster), so on a large cluster each
+    // placement is worth very little. The reservation penalty must scale with them: a reservation
+    // that unlocks placements has to pay for itself regardless of cluster size.
+    //
+    // `x` (8 cpus + 1 "foo", priority 10) fits nowhere now. `w0` is held for it. `w1` is capable
+    // but not held, so narrow work there is blocked until `x` is served, which only a reservation
+    // on `w0` can do. `big` contributes 10 000 free cpus but has no "foo": `x` never runs there, so
+    // narrow work fills it unconditionally and more narrow tasks wait than it can take.
+    let mut rt = TestEnv::new();
+    rt.new_named_resource("foo");
+    let big = rt.new_worker(&WorkerBuilder::new(10_000));
+    let w0 = rt.new_worker(&WorkerBuilder::new(8).res_sum("foo", 1));
+    let w1 = rt.new_worker(&WorkerBuilder::new(8).res_sum("foo", 1));
+    rt.new_task_running(&TaskBuilder::new().cpus(4), w0);
+    rt.new_task_running(&TaskBuilder::new().cpus(6), w1);
+    rt.new_task(
+        &TaskBuilder::new()
+            .cpus(8)
+            .add_resource(1, 1)
+            .user_priority(10),
+    );
+    let narrow = rt.new_tasks(10_020, &TaskBuilder::new().cpus(1).user_priority(5));
+    rt.schedule();
+
+    assert_eq!(
+        narrow_per_worker(&rt, &narrow, &[big, w0, w1]),
+        vec![10_000, 0, 2],
+        "a reservation on w0 must release w1 even when placements are worth little"
+    );
+}
+
+#[test]
+fn test_schedule_one_worker_cannot_be_reserved_for_two_blockers() {
+    // `x` and `y` are different requests at equal priority, both needing the single "foo" of a
+    // worker, and neither fits anywhere now. `w0` has 7 free cpus but its "foo" is taken; `w1` is
+    // fully occupied. Neither covers any part of either request, so both are held on the higher
+    // id, `w1`, which has no free resources. Reservations there consume nothing, so without a
+    // per-worker limit `x` and `y` are both served by one worker that can later host only one
+    // of them, and narrow work fills `w0`. With the limit, the one not reserved for is held back
+    // on `w0` by its own condition, except for the gap: `y` (7 cpus) can never use more than 7 of
+    // `w0`'s 8 cpus, so one narrow task may still run there.
+    let mut rt = TestEnv::new();
+    rt.new_named_resource("foo");
+    let w0 = rt.new_worker(&WorkerBuilder::new(8).res_sum("foo", 1));
+    let w1 = rt.new_worker(&WorkerBuilder::new(8).res_sum("foo", 1));
+    rt.new_task_running(&TaskBuilder::new().cpus(1).add_resource(1, 1), w0);
+    rt.new_task_running(&TaskBuilder::new().cpus(8).add_resource(1, 1), w1);
+    rt.new_task(
+        &TaskBuilder::new()
+            .cpus(8)
+            .add_resource(1, 1)
+            .user_priority(10),
+    );
+    rt.new_task(
+        &TaskBuilder::new()
+            .cpus(7)
+            .add_resource(1, 1)
+            .user_priority(10),
+    );
+    let narrow = rt.new_tasks(20, &TaskBuilder::new().cpus(1).user_priority(5));
+    rt.schedule();
+
+    assert_eq!(
+        narrow_per_worker(&rt, &narrow, &[w0, w1]),
+        vec![1, 0],
+        "one worker can be reserved for at most one blocker, so one of them stays unserved"
+    );
+}
+
+#[test]
+fn test_schedule_reservation_leaves_gap_allowance() {
+    // A reservation withholds the worker's free resources for the blocker, but part of them is
+    // capacity the blocker can never use: its gap allowance. The priority condition already lets
+    // gap tasks run there, and the reservation must not take that capacity away.
+    //
+    // Two workers of 16 cpus and 4 gpus each run four 1-cpu + 1-gpu tasks, so every gpu is taken
+    // and the blocker (2 cpus + 1 gpu) fits nowhere. A full packing of the blocker uses 8 cpus
+    // and all 4 gpus, so 8 cpus per worker are never usable by it. While k of the running tasks
+    // remain it fits 4 - k times and cannot use 8 + k cpus, so the gap is 8 cpus (the bound
+    // `C - M(C) - o` would charge the running tasks' 4 cpus and give only 4). `w1` is held (tie,
+    // higher id); a reservation there serves the blocker and releases `w0`, but it must consume
+    // only 12 - 8 = 4 of `w1`'s free cpus, leaving room for 8 gap tasks.
+    let mut rt = TestEnv::new();
+    rt.new_named_resource("gpu");
+    let ws = rt.new_workers(2, &WorkerBuilder::new(16).res_sum("gpu", 4));
+    for w in &ws {
+        for _ in 0..4 {
+            rt.new_task_running(&TaskBuilder::new().cpus(1).add_resource(1, 1), *w);
+        }
+    }
+    rt.new_task(
+        &TaskBuilder::new()
+            .cpus(2)
+            .add_resource(1, 1)
+            .user_priority(10),
+    );
+    let narrow = rt.new_tasks(40, &TaskBuilder::new().cpus(1).user_priority(5));
+    rt.schedule();
+
+    assert_eq!(
+        narrow_per_worker(&rt, &narrow, &ws),
+        vec![12, 8],
+        "w0 is released by the reservation; the reserved w1 keeps its 8-cpu gap"
+    );
+}
+
+#[test]
+fn test_schedule_reservation_example() {
+    // ten 8-cpu workers, each running a single
+    // 4-cpu task, one 6-cpu task at priority 2 and a hundred 1-cpu tasks at priority 1. The 6-cpu
+    // task fits nowhere, so one worker is held and reserved for it, which releases the other nine
+    // (4 cpus each). On the reserved worker the reservation withholds only what the 6-cpu task
+    // could use: 8 mod 6 = 2 cpus are its gap and stay available.
+    //
+    // The single 4-cpu occupant matters: four 1-cpu occupants could leave 6 cpus free at an
+    // intermediate point, and the gap would be 0.
+    let mut rt = TestEnv::new();
+    let ws = rt.new_workers(10, &WorkerBuilder::new(8));
+    for w in &ws {
+        rt.new_task_running(&TaskBuilder::new().cpus(4), *w);
+    }
+    rt.new_task(&TaskBuilder::new().cpus(6).user_priority(2));
+    let narrow = rt.new_tasks(100, &TaskBuilder::new().cpus(1).user_priority(1));
+    rt.schedule();
+
+    let mut expected = vec![4; 9];
+    expected.push(2);
+    assert_eq!(narrow_per_worker(&rt, &narrow, &ws), expected);
+}
+
 #[test]
 fn test_schedule_blockers_hold_all_needed_workers() {
     const N_WORKERS: usize = 4;
@@ -2033,4 +2404,162 @@ fn test_reservation_one_assigned() {
         })
         .sum::<usize>();
     assert_eq!(filler_scheduled, 6);
+}
+
+#[test]
+fn test_schedule_gap_tasks_do_not_move_the_hold() {
+    // The blocker needs 6 cpus. `w0` runs one 4-cpu task: 4 cpus free, 2 of them a gap the blocker
+    // can never use. `w1` runs one 5-cpu task: 3 cpus free, 2 of them a gap. `w0` is held and its
+    // gap is filled with 2 narrow tasks. Then 3 narrow tasks finish on `w1`. By plain free cpus
+    // `w1` (3) now looks better than `w0` (2), but the blocker can use only 1 of them, against 2 on
+    // `w0`. The hold must stay on `w0`: filling a gap never makes a worker less useful to the
+    // blocker, so it must not cost the worker its hold (and then its drained capacity).
+    let mut rt = TestEnv::new();
+    let w0 = rt.new_worker(&WorkerBuilder::new(8));
+    let w1 = rt.new_worker(&WorkerBuilder::new(8));
+    rt.new_task_running(&TaskBuilder::new().cpus(4), w0);
+    rt.new_task_running(&TaskBuilder::new().cpus(5), w1);
+    rt.new_task(&TaskBuilder::new().cpus(6).user_priority(10));
+    let narrow = rt.new_tasks(40, &TaskBuilder::new().cpus(1).user_priority(5));
+    rt.schedule();
+    assert_eq!(narrow_per_worker(&rt, &narrow, &[w0, w1]), vec![2, 3]);
+
+    let finished: Vec<_> = narrow
+        .iter()
+        .copied()
+        .filter(|t| {
+            matches!(rt.task(*t).state,
+                TaskRuntimeState::Assigned { worker_id, .. } if worker_id == w1)
+        })
+        .collect();
+    for t in &finished {
+        rt.finish_task(*t, w1);
+    }
+    let live: Vec<_> = narrow
+        .iter()
+        .copied()
+        .filter(|t| !finished.contains(t))
+        .collect();
+    rt.schedule();
+    assert_eq!(
+        narrow_per_worker(&rt, &live, &[w0, w1]),
+        vec![2, 3],
+        "w0 keeps its hold; w1 is refilled"
+    );
+}
+
+#[test]
+fn test_schedule_blocker_count_allowance_is_not_multiplied_per_worker() {
+    let mut rt = TestEnv::new();
+    let ws = rt.new_workers(3, &WorkerBuilder::new(12));
+    for w in &ws {
+        rt.new_task_running(&TaskBuilder::new().cpus(5), *w);
+    }
+    rt.new_task(&TaskBuilder::new().cpus(8).user_priority(2));
+    let above = rt.new_tasks(3, &TaskBuilder::new().cpus(1).user_priority(3));
+    let below = rt.new_tasks(40, &TaskBuilder::new().cpus(1).user_priority(1));
+
+    rt.schedule();
+
+    let per_worker: Vec<usize> = narrow_per_worker(&rt, &above, &ws)
+        .iter()
+        .zip(narrow_per_worker(&rt, &below, &ws))
+        .map(|(a, b)| a + b)
+        .collect();
+    assert!(
+        per_worker.iter().any(|placed| *placed <= 4),
+        "every worker took more than its 4-cpu gap ({per_worker:?}), \
+         so the blocker cannot start anywhere once the 5-cpu tasks finish"
+    );
+}
+
+#[test]
+fn test_schedule_two_requests_share_one_gap_allowance() {
+    let mut rt = TestEnv::new();
+    let foo = rt.new_named_resource("foo");
+    let w = rt.new_worker(&WorkerBuilder::new(12).res_sum("foo", 10));
+    rt.new_task_running(&TaskBuilder::new().cpus(5), w);
+    rt.new_task(&TaskBuilder::new().cpus(8).user_priority(10));
+    let plain = rt.new_tasks(20, &TaskBuilder::new().cpus(1).user_priority(5));
+    let with_foo = rt.new_tasks(
+        20,
+        &TaskBuilder::new()
+            .cpus(1)
+            .add_resource(foo, 1)
+            .user_priority(5),
+    );
+
+    rt.schedule();
+
+    let plain_placed = narrow_per_worker(&rt, &plain, &[w])[0];
+    let foo_placed = narrow_per_worker(&rt, &with_foo, &[w])[0];
+    assert!(
+        plain_placed + foo_placed <= 4,
+        "worker runs {} lower-priority cpus ({plain_placed} plain + {foo_placed} with foo), \
+         but the blocker leaves a gap of 4 there",
+        plain_placed + foo_placed
+    );
+}
+
+#[test]
+fn test_schedule_soft_rejected_worker_is_still_limited_by_the_blocker() {
+    let mut rt = TestEnv::new();
+    let w = rt.new_worker(&WorkerBuilder::new(12));
+    rt.new_task_running(&TaskBuilder::new().cpus(5), w);
+    let blocker = rt.new_task(&TaskBuilder::new().cpus(8).user_priority(10));
+    let narrow = rt.new_tasks(20, &TaskBuilder::new().cpus(1).user_priority(1));
+
+    let blocker_rq = rt.task(blocker).resource_rq_id;
+    rt.core()
+        .get_worker_mut(w)
+        .block_request(blocker_rq, ResourceVariantId::new(0));
+
+    rt.schedule();
+
+    assert_eq!(
+        narrow_per_worker(&rt, &narrow, &[w]),
+        vec![4],
+        "a soft-rejected worker keeps its gap limit"
+    );
+}
+
+/// The excess of a request over a worker's gap must never exceed what the request actually runs
+/// there. The excess lowers the shared gap constraint, so excess that no task uses would buy other
+/// requests room beyond the gap, paid from an allowance spent on nothing.
+///
+/// `w0` has 12 cpus with a 5-cpu task running: 7 free, and a gap of 4 for the 8-cpu blocker at
+/// priority 5. The donor request (2-cpu tasks) has three tasks above the blocker, so it carries an
+/// allowance of 3, and they are placed on `w1`, which is too small for the blocker. The donor
+/// therefore runs nothing on `w0` while holding an allowance there. Its own tasks may use that
+/// allowance and outrank the blocker, but the other two requests have no allowance at all: they
+/// share `w0`'s gap and must stay within it together, 4 cpus rather than 4 each.
+#[test]
+fn test_schedule_unused_allowance_does_not_widen_the_shared_gap() {
+    let mut rt = TestEnv::new();
+    let foo = rt.new_named_resource("foo");
+    let w0 = rt.new_worker(&WorkerBuilder::new(12).res_sum("foo", 10));
+    let w1 = rt.new_worker(&WorkerBuilder::new(6));
+    rt.new_task_running(&TaskBuilder::new().cpus(5), w0);
+    rt.new_tasks(3, &TaskBuilder::new().cpus(2).user_priority(9));
+    rt.new_tasks(10, &TaskBuilder::new().cpus(2).user_priority(1));
+    rt.new_task(&TaskBuilder::new().cpus(8).user_priority(5));
+    let b1 = rt.new_tasks(20, &TaskBuilder::new().cpus(1).user_priority(1));
+    let b2 = rt.new_tasks(
+        20,
+        &TaskBuilder::new()
+            .cpus(1)
+            .add_resource(foo, 1)
+            .user_priority(1),
+    );
+
+    rt.schedule();
+
+    let b1_cpus = narrow_per_worker(&rt, &b1, &[w0])[0];
+    let b2_cpus = narrow_per_worker(&rt, &b2, &[w0])[0];
+    assert!(
+        b1_cpus + b2_cpus <= 4,
+        "requests without an allowance use {} cpus of w0 ({b1_cpus} + {b2_cpus}), \
+         but they share a gap of 4",
+        b1_cpus + b2_cpus
+    );
 }

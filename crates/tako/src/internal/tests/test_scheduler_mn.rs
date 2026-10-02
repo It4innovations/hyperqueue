@@ -354,3 +354,30 @@ fn test_schedule_mn_and_sn4() {
     assert!(rt.task(t1).is_mn_running());
     assert!(rt.task(t2).is_assigned());
 }
+
+#[test]
+fn test_mn_task_stays_within_one_group_when_group_ids_interleave() {
+    // Worker ids of two groups interleave (a, b, a, b), as when two allocations start at the
+    // same time. Each group can run one 2-node task, and each task must use workers of a single
+    // group: a task spanning two allocations would not share an interconnect.
+    let mut rt = TestEnv::new();
+    for group in ["a", "b", "a", "b"] {
+        rt.new_worker(&WorkerBuilder::new(1).group(group));
+    }
+    rt.new_task(&TaskBuilder::new().n_nodes(2));
+    rt.new_task(&TaskBuilder::new().n_nodes(2));
+    let solution = rt.schedule_solution();
+
+    let tasks: Vec<_> = solution.mn_workers.values().flatten().collect();
+    assert_eq!(tasks.len(), 2);
+    for workers in tasks {
+        let groups: Vec<&str> = workers
+            .iter()
+            .map(|w| rt.worker(*w).configuration.group.as_str())
+            .collect();
+        assert!(
+            groups.iter().all(|g| *g == groups[0]),
+            "multi-node task {workers:?} spans worker groups {groups:?}"
+        );
+    }
+}

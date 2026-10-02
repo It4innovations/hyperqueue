@@ -30,18 +30,20 @@ impl WorkerResources {
             .unwrap_or(ResourceAmount::ZERO)
     }
 
-    pub(crate) fn iter_pairs(&self) -> impl Iterator<Item = (ResourceId, ResourceAmount)> {
-        self.n_resources
-            .iter()
-            .copied()
+    pub(crate) fn iter_all_pairs(&self) -> impl Iterator<Item = (ResourceId, ResourceAmount)> {
+        self.iter_amounts()
             .enumerate()
-            .filter_map(|(idx, c)| {
-                if !c.is_zero() {
-                    Some((ResourceId::new(idx as u32), c))
-                } else {
-                    None
-                }
-            })
+            .map(|(idx, c)| (ResourceId::new(idx as u32), c))
+    }
+
+    pub(crate) fn iter_nonzero_pairs(&self) -> impl Iterator<Item = (ResourceId, ResourceAmount)> {
+        self.iter_amounts().enumerate().filter_map(|(idx, c)| {
+            if !c.is_zero() {
+                Some((ResourceId::new(idx as u32), c))
+            } else {
+                None
+            }
+        })
     }
 
     pub(crate) fn iter_amounts(&self) -> impl Iterator<Item = ResourceAmount> {
@@ -151,6 +153,12 @@ impl WorkerResources {
             .iter()
             .map(|r| self.task_max_count_for_request(r))
             .sum::<u32>()
+    }
+
+    /// Overwrite one resource's amount. Used by the gap computation, which derives an exact
+    /// value for the blocker's resource and keeps the derived-by-subtraction value elsewhere.
+    pub fn set(&mut self, resource_id: ResourceId, amount: ResourceAmount) {
+        self.n_resources[resource_id] = amount;
     }
 
     pub fn remove(&mut self, rq: &ResourceRequest) {
