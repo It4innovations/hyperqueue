@@ -1,6 +1,16 @@
 use crate::internal::solver::{ConstraintType, LpInnerSolver, LpSolution};
 use highs::{HighsModelStatus, HighsSolutionStatus, Sense};
+use std::sync::LazyLock;
+use std::thread::available_parallelism;
 use std::time::Duration;
+
+/// HiGHS uses `nproc`/2 threads per default, but documents that more than 8 threads are
+/// unlikely to help. On big machines, the N/2 threads spawned for every solve can become
+/// a thundering herd and cause issues, so we'll just cap it at 8.
+static SCHEDULER_THREADS: LazyLock<i32> = LazyLock::new(|| {
+    let available = available_parallelism().map_or(1, |n| n.get());
+    available.div_ceil(2).clamp(1, 8) as i32
+});
 
 pub(crate) struct HighsSolver(highs::RowProblem);
 
@@ -49,7 +59,9 @@ impl LpInnerSolver for HighsSolver {
     /// LPs are tiny (single-worker resource groups), so there is no
     /// scheduler-scale performance problem to trade off here.
     fn solve(self) -> Option<(Self::Solution, f64)> {
-        let solved_model = self.0.optimise(Sense::Maximise).solve();
+        let mut model = self.0.optimise(Sense::Maximise);
+        model.set_option("threads", 1);
+        let solved_model = model.solve();
         if !matches!(solved_model.status(), HighsModelStatus::Optimal) {
             return None;
         }
@@ -65,6 +77,7 @@ impl LpInnerSolver for HighsSolver {
     fn solve_bounded(self, time_limit: Duration) -> Option<(Self::Solution, bool)> {
         let mut model = self.0.optimise(Sense::Maximise);
         model.set_option("time_limit", time_limit.as_secs_f64());
+        model.set_option("threads", *SCHEDULER_THREADS);
         let solved_model = model.solve();
 
         let is_optimal = match solved_model.status() {
