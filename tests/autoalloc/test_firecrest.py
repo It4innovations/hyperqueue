@@ -15,6 +15,7 @@ CLIENT_SECRET = "mock-client-secret-12345"
 REMOTE_HQ_PATH = "/remote/bin/hq"
 REMOTE_SERVER_DIR = "/remote/server-dir"
 REMOTE_WORKDIR = "/remote/workdir"
+DEFAULT_TIME_LIMIT = "3m"
 
 
 def start_server(hq_env: HqEnv, secret: Optional[str] = CLIENT_SECRET, **kwargs):
@@ -34,7 +35,7 @@ def start_server(hq_env: HqEnv, secret: Optional[str] = CLIENT_SECRET, **kwargs)
 
 def firecrest_queue_args(
     mock: MockFirecrest,
-    time_limit="3m",
+    time_limit: str = DEFAULT_TIME_LIMIT,
     additional_args: Optional[str] = None,
 ) -> List[str]:
     args = [
@@ -65,7 +66,7 @@ def add_queue(
     hq_env: HqEnv,
     mock: MockFirecrest,
     dry_run=False,
-    time_limit="3m",
+    time_limit: str = DEFAULT_TIME_LIMIT,
     additional_args: Optional[str] = None,
     expect_fail: Optional[str] = None,
 ) -> str:
@@ -81,7 +82,7 @@ def test_firecrest_submit_script(hq_env: HqEnv):
         start_server(hq_env)
         prepare_tasks(hq_env)
 
-        add_queue(hq_env, mock, additional_args="--account=foo --partition=bar")
+        add_queue(hq_env, mock, time_limit="3m", additional_args="--account=foo --partition=bar")
         wait_until(lambda: len(mock.submitted) > 0)
 
         submission = mock.submitted[0]

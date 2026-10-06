@@ -582,9 +582,14 @@ mod tests {
 
     #[test]
     fn finished_without_end_time_falls_back_to_now() {
-        assert!(matches!(
-            parse_job_status(&job("COMPLETED", None, None)).unwrap(),
-            AllocationExternalStatus::Finished { .. }
-        ));
+        let before = SystemTime::now();
+        let status = parse_job_status(&job("COMPLETED", None, None)).unwrap();
+        let after = SystemTime::now();
+        match status {
+            AllocationExternalStatus::Finished { finished_at, .. } => {
+                assert!(before <= finished_at.inner() && finished_at.inner() <= after);
+            }
+            _ => panic!("expected a finished allocation"),
+        }
     }
 }

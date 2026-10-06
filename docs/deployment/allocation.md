@@ -305,6 +305,12 @@ Because the server cannot assume anything about the cluster's filesystem, you al
     connection, workers will fail to connect: you can either run the server somewhere reachable (e.g. inside the
     cluster's network) or tunnel the worker port (e.g. with a reverse SSH tunnel).
 
+    If the server runs outside the cluster's network, this typically means it needs a public IP address with the worker
+    port open for inbound connections. The access file has to advertise that address, otherwise the workers will try
+    to connect to the server machine's local hostname. Set it with `--worker-host` when generating the access file
+    (`hq server generate-access ... --worker-host=<PUBLIC_HOST>`), see
+    [different hostnames for workers and clients](cloud.md#setting-different-server-hostname-for-workers-and-clients).
+
 !!! tip "Submitting jobs from outside the cluster"
 
     When the client submitting HyperQueue jobs also runs outside the cluster, the default working directory and
