@@ -138,7 +138,9 @@ pub fn build_worker_args(
 ) -> String {
     let manager = match manager {
         ManagerType::Pbs => "pbs",
-        ManagerType::Slurm => "slurm",
+        // FirecREST allocations are ordinary Slurm jobs on the target cluster,
+        // so the workers inside them use the Slurm manager.
+        ManagerType::Slurm | ManagerType::Firecrest => "slurm",
     };
 
     let idle_timeout = params

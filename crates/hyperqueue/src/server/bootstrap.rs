@@ -382,16 +382,24 @@ async fn start_server(
             }
             log::debug!("Restoration of old tasks is completed");
             for queue in new_queues {
-                senders
+                // A queue can fail to restore e.g. when its backend is not available in this
+                // build or its configuration (such as a required environment variable) is
+                // missing after the restart. Skip it and keep restoring the rest.
+                let queue_id = queue.queue_id;
+                if let Err(error) = senders
                     .autoalloc
                     .add_queue(
                         &server_dir,
                         *queue.params,
-                        Some(queue.queue_id),
+                        Some(queue_id),
                         queue.worker_resources,
                     )
                     .await
-                    .unwrap();
+                {
+                    log::error!(
+                        "Could not restore allocation queue {queue_id} from the journal: {error:#}. The queue was not restored; you can re-create it with `hq alloc add`."
+                    );
+                }
             }
             log::debug!("Restoration of old queues is completed");
             log::info!("State restoration completed");

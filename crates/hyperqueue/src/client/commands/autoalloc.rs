@@ -9,7 +9,7 @@ use crate::common::manager::info::ManagerType;
 use crate::common::utils::time::parse_hms_or_human_time;
 use crate::rpc_call;
 use crate::server::autoalloc::{
-    Allocation, AllocationId, AllocationState, QueueId, QueueParameters,
+    Allocation, AllocationId, AllocationState, FirecrestQueueParams, QueueId, QueueParameters,
 };
 use crate::server::bootstrap::get_client_session;
 use crate::transfer::connection::ClientSession;
@@ -82,6 +82,56 @@ enum AddQueueCommand {
     Pbs(SharedQueueOpts),
     /// Create a SLURM allocation queue
     Slurm(SharedQueueOpts),
+    /// Create an allocation queue submitting Slurm jobs through a FirecREST API
+    Firecrest(FirecrestQueueOpts),
+}
+
+#[derive(Parser)]
+struct FirecrestQueueOpts {
+    /// Base URL of the FirecREST API
+    ///
+    /// Example: `https://api.cscs.ch/hpc/firecrest/v2`
+    #[arg(long)]
+    api_url: String,
+
+    /// Name of the target system (cluster) as known to FirecREST, e.g. `daint`
+    #[arg(long)]
+    system: String,
+
+    /// URL of the OAuth2 token endpoint used for the client credentials grant
+    #[arg(long)]
+    token_url: String,
+
+    /// OAuth2 client ID
+    #[arg(long)]
+    client_id: String,
+
+    /// Name of an environment variable that holds the OAuth2 client secret
+    ///
+    /// The variable is read in the environment of the **server**, at the time the queue
+    /// is created or restored. The secret itself is never stored by HyperQueue.
+    #[arg(long, default_value = "HQ_FIRECREST_CLIENT_SECRET")]
+    client_secret_env: String,
+
+    /// Path to the `hq` binary on the target cluster
+    ///
+    /// It must be the same version as the server.
+    #[arg(long)]
+    remote_hq_path: String,
+
+    /// Directory on the target cluster containing the worker access file (`access.json`)
+    ///
+    /// Generate the access file with `hq server generate-access` and copy it to the
+    /// target cluster before creating the queue.
+    #[arg(long)]
+    remote_server_dir: String,
+
+    /// Existing directory on the target cluster where allocation stdout/stderr will be written
+    #[arg(long)]
+    remote_workdir: String,
+
+    #[clap(flatten)]
+    shared: SharedQueueOpts,
 }
 
 fn parse_backlog(value: &str) -> Result<u32, anyhow::Error> {
@@ -192,6 +242,8 @@ enum DryRunCommand {
     Pbs(SharedQueueOpts),
     /// Try to create a SLURM allocation
     Slurm(SharedQueueOpts),
+    /// Try to create a Slurm allocation through a FirecREST API
+    Firecrest(FirecrestQueueOpts),
 }
 
 #[derive(Parser)]
@@ -413,7 +465,35 @@ wasted allocation duration."
         worker_args,
         idle_timeout,
         cli_resource_descriptor,
+        firecrest: None,
     })
+}
+
+fn firecrest_args_to_params(opts: FirecrestQueueOpts) -> anyhow::Result<QueueParameters> {
+    let FirecrestQueueOpts {
+        api_url,
+        system,
+        token_url,
+        client_id,
+        client_secret_env,
+        remote_hq_path,
+        remote_server_dir,
+        remote_workdir,
+        shared,
+    } = opts;
+
+    let mut params = args_to_params(ManagerType::Firecrest, shared)?;
+    params.firecrest = Some(FirecrestQueueParams {
+        api_url,
+        system,
+        token_url,
+        client_id,
+        client_secret_env,
+        remote_hq_path,
+        remote_server_dir,
+        remote_workdir,
+    });
+    Ok(params)
 }
 
 fn construct_resources_from_cli(args: &SharedWorkerStartOpts) -> Option<ResourceDescriptor> {
@@ -444,6 +524,7 @@ async fn dry_run_command(mut session: ClientSession, opts: DryRunOpts) -> anyhow
     let parameters = match opts.subcmd {
         DryRunCommand::Pbs(params) => args_to_params(ManagerType::Pbs, params),
         DryRunCommand::Slurm(params) => args_to_params(ManagerType::Slurm, params),
+        DryRunCommand::Firecrest(params) => firecrest_args_to_params(params),
     };
     let message = FromClientMessage::AutoAlloc(AutoAllocRequest::DryRun {
         parameters: parameters?,
@@ -470,6 +551,10 @@ async fn add_queue(mut session: ClientSession, opts: AddQueueOpts) -> anyhow::Re
         AddQueueCommand::Slurm(params) => {
             let no_dry_run = params.no_dry_run;
             (args_to_params(ManagerType::Slurm, params), !no_dry_run)
+        }
+        AddQueueCommand::Firecrest(params) => {
+            let no_dry_run = params.shared.no_dry_run;
+            (firecrest_args_to_params(params), !no_dry_run)
         }
     };
 

@@ -125,11 +125,8 @@ pub async fn autoalloc_process(
 /// given allocation parameters.
 pub async fn try_submit_allocation(params: QueueParameters) -> anyhow::Result<()> {
     let tmpdir = TempDir::with_prefix("hq")?;
-    let mut handler = create_allocation_handler(
-        &params.manager,
-        params.name.clone(),
-        tmpdir.as_ref().to_path_buf(),
-    )?;
+    let mut handler =
+        create_allocation_handler(&params, params.name.clone(), tmpdir.as_ref().to_path_buf())?;
 
     // Try the highest possible worker count, to ensure that it works
     let worker_count = params.max_workers_per_alloc;
@@ -164,11 +161,11 @@ pub async fn try_submit_allocation(params: QueueParameters) -> anyhow::Result<()
 // The code doesn't compile if the Box closures are removed
 #[allow(clippy::redundant_closure)]
 pub fn create_allocation_handler(
-    manager: &ManagerType,
+    params: &QueueParameters,
     name: Option<String>,
     directory: PathBuf,
 ) -> anyhow::Result<Box<dyn QueueHandler>> {
-    match manager {
+    match &params.manager {
         ManagerType::Pbs => {
             let handler = PbsHandler::new(directory, name);
             handler.map::<Box<dyn QueueHandler>, _>(|handler| Box::new(handler))
@@ -176,6 +173,26 @@ pub fn create_allocation_handler(
         ManagerType::Slurm => {
             let handler = SlurmHandler::new(directory, name);
             handler.map::<Box<dyn QueueHandler>, _>(|handler| Box::new(handler))
+        }
+        ManagerType::Firecrest => {
+            let config = params.firecrest.clone().ok_or_else(|| {
+                anyhow::anyhow!("FirecREST queue parameters are missing in the queue definition")
+            })?;
+            #[cfg(feature = "firecrest")]
+            {
+                let handler = crate::server::autoalloc::queue::firecrest::FirecrestHandler::new(
+                    directory, name, config,
+                );
+                handler.map::<Box<dyn QueueHandler>, _>(|handler| Box::new(handler))
+            }
+            #[cfg(not(feature = "firecrest"))]
+            {
+                let _ = (config, directory, name);
+                Err(anyhow::anyhow!(
+                    "This hq build does not include FirecREST support. \
+Rebuild HyperQueue with the `firecrest` feature enabled."
+                ))
+            }
         }
     }
 }
@@ -683,7 +700,7 @@ fn create_queue(
     worker_resources: Option<ResourceDescriptor>,
 ) -> anyhow::Result<QueueId> {
     let name = params.name.clone();
-    let handler = create_allocation_handler(&params.manager, name.clone(), server_directory);
+    let handler = create_allocation_handler(&params, name.clone(), server_directory);
     let queue_info = QueueInfo::new(params.clone());
 
     match handler {
@@ -2681,6 +2698,7 @@ mod tests {
                 cli_resource_descriptor: cli_resources,
                 worker_args: vec![],
                 idle_timeout: None,
+                firecrest: None,
             };
 
             (

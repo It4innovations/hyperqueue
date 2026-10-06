@@ -61,6 +61,7 @@ tako = { path = "../tako", default-features = false }
 
 # Optional dependencies
 jemallocator = { version = "0.5", optional = true }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"], optional = true }
 which = "8"
 
 [dev-dependencies]
@@ -69,11 +70,13 @@ insta = "1.15.0"
 criterion = { workspace = true }
 
 [features]
-default = ["jemalloc", "dashboard", "highs"]
+default = ["jemalloc", "dashboard", "highs", "firecrest"]
 # Use the jemalloc allocator
 jemalloc = ["jemallocator"]
 # Enable the dashboard
 dashboard = ["dep:ratatui", "dep:crossterm", "dep:unicode-width"]
+# Enable the FirecREST autoalloc backend
+firecrest = ["dep:reqwest"]
 
 highs = ["tako/highs"]
 microlp = ["tako/microlp"]
