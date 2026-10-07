@@ -1,3 +1,4 @@
+[![Linux tests](https://github.com/jaredfischbach/HyperNibi/actions/workflows/test.yml/badge.svg)](https://github.com/jaredfischbach/HyperNibi/actions/workflows/test.yml)
 # HyperQueue for Nibi HPC
 
 This fork runs a shared HyperQueue server and requests Nibi SLURM allocations as tasks arrive. Tasks run inside those allocations, allowing many short jobs to reuse the same worker. `configs/nibi.sh` defines the worker sizes and limits below; no SLURM partitions are selected.
