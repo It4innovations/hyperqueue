@@ -1,7 +1,6 @@
 import io
 import logging
 import os
-import re
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -15,6 +14,7 @@ from tornado.ioloop import IOLoop
 
 from ..benchmark.database import Database
 from .common import create_database_df, groupby_environment, groupby_workload
+from .comparison import ComparisonHandler
 from .monitor import create_page
 from .overview import (
     create_comparer_page,
@@ -59,30 +59,6 @@ def serve_summary_html(database: Database, directory: Path, port: int):
             report = entries[str(Path(key).stem)].report
             page = create_page(report)
             self.write(file_html(page, CDN, "Cluster report"))
-
-    class ComparisonHandler(web.RequestHandler):
-        def get(self, key: str):
-            safe_name = Path(key).name
-            if safe_name != key or not re.fullmatch(r"[A-Za-z0-9._-]+(?:\.html)?", safe_name):
-                raise web.HTTPError(400, reason="Invalid comparison path")
-
-            entry_key = Path(safe_name).stem
-            if entry_key not in entries:
-                raise web.HTTPError(404, reason="Comparison not found")
-
-            root = Path("summary/comparisons").resolve()
-            html_path = Path(entries[entry_key].path).resolve()
-            try:
-                html_path.relative_to(root)
-            except ValueError:
-                raise web.HTTPError(400, reason="Invalid comparison path")
-
-            if not html_path.is_file() or html_path.suffix.lower() != ".html":
-                raise web.HTTPError(400, reason="Invalid comparison path")
-
-            with html_path.open("r", encoding="utf-8") as html_file:
-                source_code = html_file.read()
-            self.write(source_code)
 
     class CompareOverview(web.RequestHandler):
         def get(self, key: str):
@@ -197,7 +173,7 @@ def serve_summary_html(database: Database, directory: Path, port: int):
 
     app = web.Application(
         [
-            (r"/comparisons/(.*)", ComparisonHandler),
+            (r"/comparisons/(.*)", ComparisonHandler, {"directory": directory / "comparisons"}),
             (r"/monitoring/(.*)", ClusterHandler),
             (r"/compare/(.*)", CompareOverview),
             (r"/img", ImgHandler),
