@@ -78,6 +78,24 @@ impl QueueInfo {
         &self.0.worker_args
     }
 
+    pub fn resource_detection_disabled(&self) -> bool {
+        self.worker_args()
+            .windows(2)
+            .any(|args| args[0] == "--detect-resources" && args[1] == "none")
+    }
+
+    /// Explicit-resource queues with the same worker group share a worker cap.
+    /// Grouping is opt-in; ungrouped queues keep their existing behavior.
+    pub fn allocation_group(&self) -> Option<&str> {
+        if !self.resource_detection_disabled() {
+            return None;
+        }
+        self.worker_args()
+            .windows(2)
+            .find(|args| args[0] == "--group")
+            .map(|args| args[1].as_str())
+    }
+
     pub fn min_utilization(&self) -> f32 {
         self.0.min_utilization
     }

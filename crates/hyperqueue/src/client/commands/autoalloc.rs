@@ -1,7 +1,9 @@
 use crate::client::commands::duration_doc;
 use std::time::Duration;
 
-use crate::client::commands::worker::{ArgServerLostPolicy, SharedWorkerStartOpts};
+use crate::client::commands::worker::{
+    ArgServerLostPolicy, SharedWorkerStartOpts, min_utilization_parser,
+};
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::output::outputs::OutputStream;
 use crate::common::format::server_lost_policy_to_str;
@@ -112,8 +114,17 @@ struct SharedQueueOpts {
     max_workers_per_alloc: u32,
 
     /// The maximum number of workers that can be queued/running at any given time in this queue
+    ///
+    /// Explicit-resource queues with the same --group share the most restrictive limit.
+    /// Without a group, the limit applies only to this queue.
     #[arg(long)]
     max_worker_count: Option<u32>,
+
+    /// Minimum requested CPU utilization for new allocations only (0.0-1.0).
+    ///
+    /// Connected workers can accept any task that fits.
+    #[arg(long, default_value_t = 0.0f32, value_parser = min_utilization_parser)]
+    allocation_min_utilization: f32,
 
     /// Name of the allocation queue (for debug purposes only)
     #[arg(long, short)]
@@ -288,6 +299,7 @@ fn args_to_params(manager: ManagerType, args: SharedQueueOpts) -> anyhow::Result
         time_limit,
         max_workers_per_alloc,
         max_worker_count,
+        allocation_min_utilization,
         name,
         worker_args,
         worker_start_cmd,
@@ -403,7 +415,7 @@ wasted allocation duration."
         max_workers_per_alloc,
         backlog,
         timelimit: time_limit,
-        min_utilization,
+        min_utilization: min_utilization.max(allocation_min_utilization),
         name,
         additional_args,
         worker_start_cmd,
@@ -594,5 +606,83 @@ fn filter_allocations(allocations: &mut Vec<Allocation>, filter: Option<Allocati
                 }
             }
         })
+    }
+}
+
+#[cfg(test)]
+mod cpu_allocation_tests {
+    use super::*;
+
+    #[test]
+    fn cpu_allocation_threshold_is_not_forwarded_to_connected_workers() {
+        let args = SharedQueueOpts::try_parse_from([
+            "alloc",
+            "--time-limit",
+            "3h",
+            "--cpus",
+            "16",
+            "--detect-resources",
+            "none",
+            "--group",
+            "cpu",
+            "--allocation-min-utilization",
+            "0.5",
+            "--idle-timeout",
+            "5m",
+        ])
+        .unwrap();
+        let params = args_to_params(ManagerType::Slurm, args).unwrap();
+        assert_eq!(params.min_utilization, 0.5);
+        assert!(
+            !params
+                .worker_args
+                .iter()
+                .any(|arg| arg == "--min-utilization")
+        );
+        assert_eq!(params.idle_timeout, Some(Duration::from_secs(300)));
+        assert_eq!(
+            crate::server::autoalloc::QueueInfo::new(params).allocation_group(),
+            Some("cpu")
+        );
+    }
+
+    #[test]
+    fn cpu_allocation_threshold_preserves_explicit_worker_threshold() {
+        let args = SharedQueueOpts::try_parse_from([
+            "alloc",
+            "--time-limit",
+            "3h",
+            "--cpus",
+            "16",
+            "--allocation-min-utilization",
+            "0.5",
+            "--min-utilization",
+            "0.25",
+        ])
+        .unwrap();
+        let params = args_to_params(ManagerType::Slurm, args).unwrap();
+        assert_eq!(params.min_utilization, 0.5);
+        assert!(
+            params
+                .worker_args
+                .windows(2)
+                .any(|args| args[0] == "--min-utilization" && args[1] == "0.25")
+        );
+    }
+
+    #[test]
+    fn cpu_allocation_threshold_rejects_invalid_values() {
+        for value in ["1.1", "NaN", "inf"] {
+            assert!(
+                SharedQueueOpts::try_parse_from([
+                    "alloc",
+                    "--time-limit",
+                    "3h",
+                    "--allocation-min-utilization",
+                    value,
+                ])
+                .is_err()
+            );
+        }
     }
 }

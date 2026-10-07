@@ -4,8 +4,8 @@ set -euo pipefail
 # Register once against a running HQ server built from this fork.
 # Account selection is supplied by the caller, not stored in this config.
 
-# Every task must request its exact worker/* class. In Nextflow, route CPU
-# tasks <=748.GB to worker/cpu and tasks >748.GB to worker/cpuLarge.
+# Every task must request its exact worker/* class. Regular CPU tasks request
+# worker/cpu; the full, half, quarter and eighth allocations share this class.
 # GPU tasks additionally request gpus=N (Nextflow's accelerator directive).
 # GPU queues reserve one GPU/MIG: keep SLURM's CUDA_VISIBLE_DEVICES
 # or ROCR_VISIBLE_DEVICES rather than overriding its selected device.
@@ -14,6 +14,10 @@ set -euo pipefail
 # In this fork, new allocations use the first tier strictly
 # above HQ's --time-request: 3, 12, 24, 72, 168h. Existing workers can accept
 # any task that fits. Set --time-request explicitly; --time-limit is separate.
+# Regular CPU groups prefer full, half, quarter, then eighth allocations.
+# Each smaller size has one shared queued/running worker across all five tiers.
+# Full/half/quarter require 50% requested CPU demand only before allocation;
+# connected workers accept any fitting task and stop after five idle minutes.
 
 add_queue() {
     local name=$1 hours=$2 cpus=$3 memory_mib=$4 class_pool=$5
@@ -33,8 +37,26 @@ add_queue() {
 
 for hours in 3 12 24 72 168; do
     add_queue cpu_base "$hours" 192 766000 'worker/cpu=sum(192)' \
+        --group cpu_base --allocation-min-utilization 0.5 --idle-timeout 5m \
         -- --account="$SLURM_ACCOUNT" --ntasks-per-node=1 \
         --cpus-per-task=192 --threads-per-core=1 --mem=766000M --exclusive
+
+    add_queue cpu_base_half "$hours" 96 383000 'worker/cpu=sum(96)' \
+        --group cpu_base_half --max-worker-count 1 \
+        --allocation-min-utilization 0.5 --idle-timeout 5m \
+        -- --account="$SLURM_ACCOUNT" --ntasks-per-node=1 \
+        --cpus-per-task=96 --threads-per-core=1 --mem=383000M
+
+    add_queue cpu_base_quarter "$hours" 48 191500 'worker/cpu=sum(48)' \
+        --group cpu_base_quarter --max-worker-count 1 \
+        --allocation-min-utilization 0.5 --idle-timeout 5m \
+        -- --account="$SLURM_ACCOUNT" --ntasks-per-node=1 \
+        --cpus-per-task=48 --threads-per-core=1 --mem=191500M
+
+    add_queue cpu_base_eighth "$hours" 24 95750 'worker/cpu=sum(24)' \
+        --group cpu_base_eighth --max-worker-count 1 --idle-timeout 5m \
+        -- --account="$SLURM_ACCOUNT" --ntasks-per-node=1 \
+        --cpus-per-task=24 --threads-per-core=1 --mem=95750M
 
     add_queue cpu_large "$hours" 192 6144000 'worker/cpuLarge=sum(192)' \
         -- --account="$SLURM_ACCOUNT" --ntasks-per-node=1 \

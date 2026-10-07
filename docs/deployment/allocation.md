@@ -140,6 +140,14 @@ Maximum number of workers that can be queued or running across all allocations m
 total amount of workers will be usually limited by the manager (PBS/Slurm), but you can use this parameter to make the
 limit smaller, for example if you also want to manage allocations outside HyperQueue.
 
+In this fork, explicit-resource queues (`--detect-resources none`) using the same `--group` share
+the most restrictive `--max-worker-count` configured in that group. Queued and running workers
+from all queues in the group count toward the limit, including paused queues. This lets a set of
+walltime queues have a single shared worker limit. Omit `--group` to retain per-queue limits.
+
+Explicit worker groups are considered in descending CPU capacity when planning new allocations,
+provided their utilization thresholds are met. Other queues retain their existing order.
+
 #### Minimal utilization
 
 - Format: `--min-utilization <ratio>`
@@ -153,6 +161,21 @@ It has to be a floating point number between 0.0 and 1.0.
 
 The default minimal utilization is `0`, which means that an allocation will be created if the scheduler thinks that it
 can use any (non-zero) amount of resources of worker(s) in the allocation.
+
+#### Allocation-only minimal utilization
+
+- Format: `--allocation-min-utilization <ratio>`
+- Default: `0.0`
+
+This fork also supports a minimum requested CPU utilization for **new allocations only**.
+For example, `--allocation-min-utilization 0.5` requires enough currently waiting tasks to occupy
+at least half the worker's CPUs, with their other resource and time requests also fitting.
+It measures requested CPUs, not measured CPU activity or memory utilization.
+
+The allocation-only threshold is not passed to workers. Connected workers continue accepting any
+task that fits, even below this threshold; the normal idle timeout is unchanged. If the worker's
+`--min-utilization` is also set, the higher of the two thresholds is used for allocation planning,
+and the worker retains its own threshold.
 
 #### Worker resources
 

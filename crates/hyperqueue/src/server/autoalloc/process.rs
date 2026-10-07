@@ -22,12 +22,13 @@ use crate::server::event::streamer::EventStreamer;
 use crate::transfer::messages::{QueueData, QueueState};
 use anyhow::Context;
 use futures::future::join_all;
+use std::cmp::Reverse;
 use std::future::Future;
 use std::path::PathBuf;
 use std::time::Instant;
 use tako::WorkerId;
 use tako::control::{ServerRef, WorkerTypeQuery};
-use tako::resources::ResourceDescriptor;
+use tako::resources::{CPU_RESOURCE_NAME, ResourceAmount, ResourceDescriptor};
 use tako::{Map, Set};
 use tempfile::TempDir;
 
@@ -373,12 +374,41 @@ async fn perform_submits(
     }
 
     // Keep only active queues
-    let queues = autoalloc
+    let mut queues = autoalloc
         .queues()
         .filter(|(_, queue)| queue.state().is_active())
         .collect::<Vec<_>>();
     if queues.is_empty() {
         return Ok(());
+    }
+
+    // Prefer larger explicit worker groups when their utilization threshold is met.
+    // Replace only grouped slots, preserving the order of all other queues.
+    let mut grouped: Vec<_> = queues
+        .iter()
+        .copied()
+        .filter(|(_, queue)| queue.info().allocation_group().is_some())
+        .collect();
+    grouped.sort_by_key(|(id, queue)| {
+        let cpus = queue
+            .info()
+            .cli_resource_descriptor()
+            .and_then(|descriptor| {
+                descriptor
+                    .resources
+                    .iter()
+                    .find(|r| r.name == CPU_RESOURCE_NAME)
+            })
+            .map(|r| r.kind.size())
+            .unwrap_or(ResourceAmount::ZERO);
+        (Reverse(cpus), *id)
+    });
+    let mut grouped = grouped.into_iter();
+    for entry in &mut queues {
+        if entry.1.info().allocation_group().is_some() {
+            // The iterator contains exactly the grouped entries in `queues`.
+            *entry = grouped.next().unwrap();
+        }
     }
 
     // If there is no allocation that we could possibly create, then stop
@@ -392,7 +422,16 @@ async fn perform_submits(
     let queries: Vec<WorkerTypeQuery> = queues
         .iter()
         .map(|(id, queue)| {
-            let query = create_queue_worker_query(queue);
+            let mut query = create_queue_worker_query(queue);
+            if queue.info().allocation_group().is_some() {
+                let queued_workers: u32 = queue
+                    .queued_allocations()
+                    .map(|allocation| allocation.target_worker_count as u32)
+                    .sum();
+                query.max_sn_workers = query
+                    .max_sn_workers
+                    .min(queued_workers.saturating_add(remaining_group_workers(autoalloc, queue)));
+            }
             log::debug!("Creating worker query {query:?} for queue {id}");
             query
         })
@@ -430,11 +469,7 @@ fn create_queue_worker_query(queue: &AllocationQueue) -> WorkerTypeQuery {
     let info = queue.info();
     // With autodetection disabled, omitted resources are absent, not unknown.
     // The allocation CLI stores this option as a separate flag/value pair.
-    let partial = partial
-        && !info
-            .worker_args()
-            .windows(2)
-            .any(|args| args[0] == "--detect-resources" && args[1] == "none");
+    let partial = partial && !info.resource_detection_disabled();
     WorkerTypeQuery {
         descriptor,
         partial,
@@ -448,6 +483,23 @@ fn create_queue_worker_query(queue: &AllocationQueue) -> WorkerTypeQuery {
         max_workers_per_allocation: info.max_workers_per_alloc(),
         min_utilization: info.min_utilization(),
     }
+}
+
+/// Share the most restrictive cap across all walltime queues in an explicit worker group.
+/// Paused queues still count: pausing does not stop their queued or running allocations.
+fn remaining_group_workers(autoalloc: &AutoAllocState, queue: &AllocationQueue) -> u32 {
+    let Some(group) = queue.info().allocation_group() else {
+        return u32::MAX;
+    };
+    let mut limit = u32::MAX;
+    let mut active_workers = 0u32;
+    for (_, member) in autoalloc.queues() {
+        if member.info().allocation_group() == Some(group) {
+            limit = limit.min(member.info().max_worker_count().unwrap_or(u32::MAX));
+            active_workers = active_workers.saturating_add(member.active_worker_count());
+        }
+    }
+    limit.saturating_sub(active_workers)
 }
 
 /// A new SLURM allocation in one of these tiers must be strictly longer than
@@ -611,13 +663,22 @@ async fn queue_try_submit(
 
     // Figure out how many allocations we are allowed to submit, according to queue limits
     // Also check the rate limiter
+    let mut group_remaining = match autoalloc.get_queue(queue_id) {
+        Some(queue) => remaining_group_workers(autoalloc, queue),
+        None => return,
+    };
     let permit = {
         let queue = get_or_return!(autoalloc.get_queue_mut(queue_id));
         if !queue.state().is_active() {
             return;
         }
 
-        let permit = compute_submission_permit(queue, query_response);
+        let mut permit = compute_submission_permit(queue, query_response);
+        permit.allocs_to_submit.retain_mut(|count| {
+            *count = (*count).min(group_remaining as u64);
+            group_remaining -= *count as u32;
+            *count > 0
+        });
         if permit.is_empty() {
             return;
         }
@@ -1280,7 +1341,7 @@ mod tests {
     use crate::common::utils::time::mock_time::MockTime;
     use crate::server::autoalloc::process::{
         AutoallocSenders, QueryResponse, compute_submission_permit, do_periodic_update,
-        handle_message, perform_submits,
+        handle_message, perform_submits, remaining_group_workers,
     };
     use crate::server::autoalloc::queue::{
         AllocationExternalStatus, AllocationStatusMap, AllocationSubmissionResult, QueueHandler,
@@ -1645,6 +1706,296 @@ mod tests {
             });
         }
         ResourceDescriptor::new(resources, Default::default())
+    }
+
+    fn cpu_allocation_queue(cpus: u32) -> QueueBuilder {
+        let mut resources = ResourceDescriptor::simple_cpus(cpus).resources;
+        resources.push(ResourceDescriptorItem::sum("mem", cpus * 100));
+        resources.push(ResourceDescriptorItem::sum("worker/cpu", cpus));
+        QueueBuilder::default()
+            .cli_resources(Some(ResourceDescriptor::new(resources, Default::default())))
+            .worker_args(vec![
+                "--detect-resources".into(),
+                "none".into(),
+                "--group".into(),
+                format!("cpu-{cpus}"),
+            ])
+            .min_utilization(if cpus == 2 { 0.0 } else { 0.5 })
+            .max_worker_count((cpus != 16).then_some(1))
+    }
+
+    #[tokio::test]
+    async fn cpu_allocation_sizes_follow_demand_and_time_tiers() {
+        // Generic profiles scaled to 16/8/4/2 CPUs; no cluster-specific config.
+        for (demand, expected) in [
+            (0, None),
+            (1, Some(2)),
+            (2, Some(4)),
+            (3, Some(4)),
+            (4, Some(8)),
+            (7, Some(8)),
+            (8, Some(16)),
+            (15, Some(16)),
+            (16, Some(16)),
+        ] {
+            for (request_hours, allocation_hours) in
+                [(0, 3), (3, 12), (12, 24), (24, 72), (72, 168)]
+            {
+                run_test(async |mut ctx: TestCtx| {
+                    let mut queues = Vec::new();
+                    // Deliberately add smaller queues first and reverse the walltime order.
+                    for cpus in [2, 4, 8, 16] {
+                        for hours in [168, 72, 24, 12, 3] {
+                            let id = ctx
+                                .add_queue(
+                                    always_queued_handler(),
+                                    cpu_allocation_queue(cpus)
+                                        .timelimit(Duration::from_secs(hours * 3600)),
+                                )
+                                .await;
+                            queues.push((cpus, hours, id));
+                        }
+                    }
+                    let rq = ctx.handle.register_request(
+                        ResourceRequestConfigBuilder::default()
+                            .cpus(1)
+                            .add_compact("mem", 1)
+                            .add_compact("worker/cpu", 1)
+                            .min_time(Duration::from_secs(request_hours * 3600)),
+                    );
+                    if demand > 0 {
+                        ctx.create_simple_tasks(demand, rq).await;
+                    }
+                    ctx.try_submit().await;
+                    for (cpus, hours, id) in queues {
+                        assert_eq!(
+                            ctx.get_allocations(id).len(),
+                            usize::from(expected == Some(cpus) && hours == allocation_hours),
+                            "demand={demand}, task={request_hours}h, queue={cpus}cpu/{hours}h"
+                        );
+                    }
+                })
+                .await;
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn cpu_allocation_cap_is_shared_across_queued_running_and_paused_tiers() {
+        run_test(async |mut ctx: TestCtx| {
+            let mut queues = Vec::new();
+            for hours in [3, 12, 24, 72, 168] {
+                let id = ctx
+                    .add_queue(
+                        always_queued_handler(),
+                        cpu_allocation_queue(8).timelimit(Duration::from_secs(hours * 3600)),
+                    )
+                    .await;
+                queues.push(id);
+            }
+            let mut graph = GraphBuilder::default();
+            for request_hours in [0, 3, 12, 24, 72] {
+                let rq = ctx.handle.register_request(
+                    ResourceRequestConfigBuilder::default()
+                        .cpus(4)
+                        .add_compact("mem", 1)
+                        .add_compact("worker/cpu", 1)
+                        .min_time(Duration::from_secs(request_hours * 3600)),
+                );
+                graph = graph.task(
+                    TaskConfigBuilder::default()
+                        .resources(rq)
+                        .args(simple_args(&["ls"])),
+                );
+            }
+            ctx.handle.submit(graph.build()).await;
+            ctx.try_submit().await;
+            let (id, allocation) = queues
+                .iter()
+                .find_map(|id| {
+                    ctx.get_allocations(*id)
+                        .first()
+                        .cloned()
+                        .map(|allocation| (*id, allocation))
+                })
+                .unwrap();
+            for _ in 0..3 {
+                ctx.try_submit().await;
+                assert_eq!(
+                    queues
+                        .iter()
+                        .map(|id| ctx.get_allocations(*id).len())
+                        .sum::<usize>(),
+                    1
+                );
+            }
+            ctx.state.get_queue_mut(id).unwrap().pause();
+            ctx.try_submit().await;
+            assert_eq!(
+                queues
+                    .iter()
+                    .map(|id| ctx.get_allocations(*id).len())
+                    .sum::<usize>(),
+                1
+            );
+            ctx.state
+                .get_queue_mut(id)
+                .unwrap()
+                .get_allocation_mut(&allocation.id)
+                .unwrap()
+                .status = AllocationState::Running {
+                started_at: allocation.queued_at,
+                connected_workers: Default::default(),
+                disconnected_workers: Default::default(),
+                status_error_count: 0,
+            };
+            for queue_id in &queues {
+                assert_eq!(
+                    remaining_group_workers(&ctx.state, ctx.state.get_queue(*queue_id).unwrap()),
+                    0
+                );
+            }
+            ctx.try_submit().await;
+            assert_eq!(
+                queues
+                    .iter()
+                    .map(|id| ctx.get_allocations(*id).len())
+                    .sum::<usize>(),
+                1
+            );
+            ctx.state
+                .get_queue_mut(id)
+                .unwrap()
+                .get_allocation_mut(&allocation.id)
+                .unwrap()
+                .status = AllocationState::Finished {
+                started_at: allocation.queued_at,
+                finished_at: allocation.queued_at,
+                disconnected_workers: Default::default(),
+            };
+            ctx.try_submit().await;
+            assert_eq!(
+                queues
+                    .iter()
+                    .map(|id| ctx.get_allocations(*id).len())
+                    .sum::<usize>(),
+                2
+            );
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn cpu_allocation_smaller_caps_are_independent() {
+        run_test(async |mut ctx: TestCtx| {
+            let mut queues = Vec::new();
+            for cpus in [2, 4, 8] {
+                let id = ctx
+                    .add_queue(
+                        always_queued_handler(),
+                        cpu_allocation_queue(cpus).timelimit(Duration::from_secs(3 * 3600)),
+                    )
+                    .await;
+                queues.push(id);
+            }
+            let rq = ctx.handle.register_request(
+                ResourceRequestConfigBuilder::default()
+                    .cpus(1)
+                    .add_compact("mem", 1)
+                    .add_compact("worker/cpu", 1),
+            );
+            ctx.create_simple_tasks(14, rq).await;
+            ctx.try_submit().await;
+            for id in queues {
+                assert_eq!(ctx.get_allocations(id).len(), 1);
+                assert_eq!(
+                    remaining_group_workers(&ctx.state, ctx.state.get_queue(id).unwrap()),
+                    0
+                );
+            }
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn cpu_allocation_full_workers_have_no_shared_cap() {
+        run_test(async |mut ctx: TestCtx| {
+            let id = ctx
+                .add_queue(always_queued_handler(), cpu_allocation_queue(16))
+                .await;
+            let rq = ctx.handle.register_request(
+                ResourceRequestConfigBuilder::default()
+                    .cpus(8)
+                    .add_compact("mem", 1)
+                    .add_compact("worker/cpu", 1),
+            );
+            ctx.create_simple_tasks(1, rq).await;
+            for expected in 1..=3 {
+                ctx.try_submit().await;
+                let allocations = ctx.get_allocations(id);
+                assert_eq!(allocations.len(), expected);
+                let allocation = allocations.last().unwrap();
+                ctx.state
+                    .get_queue_mut(id)
+                    .unwrap()
+                    .get_allocation_mut(&allocation.id)
+                    .unwrap()
+                    .status = AllocationState::Running {
+                    started_at: allocation.queued_at,
+                    connected_workers: Default::default(),
+                    disconnected_workers: Default::default(),
+                    status_error_count: 0,
+                };
+            }
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn cpu_allocation_existing_worker_accepts_below_threshold() {
+        run_test(async |mut ctx: TestCtx| {
+            let id = ctx
+                .add_queue(always_queued_handler(), cpu_allocation_queue(16))
+                .await;
+            let rq = ctx.handle.register_request(
+                ResourceRequestConfigBuilder::default()
+                    .cpus(1)
+                    .add_compact("mem", 1)
+                    .add_compact("worker/cpu", 1),
+            );
+            let tasks = ctx
+                .handle
+                .submit(
+                    GraphBuilder::default()
+                        .task(
+                            TaskConfigBuilder::default()
+                                .resources(rq)
+                                .args(simple_args(&["ls"])),
+                        )
+                        .build(),
+                )
+                .await;
+            ctx.try_submit().await;
+            assert!(ctx.get_allocations(id).is_empty());
+            ctx.state.add_allocation(
+                Allocation::new("existing".into(), 1, PathBuf::from("test").into()),
+                id,
+            );
+            let resources = cpu_allocation_queue(16)
+                .build()
+                .0
+                .cli_resource_descriptor
+                .unwrap();
+            ctx.start_worker(
+                WorkerConfigBuilder::default().resources(resources),
+                "existing",
+            )
+            .await;
+            ctx.try_submit().await;
+            assert_eq!(ctx.get_allocations(id).len(), 1);
+            assert!(ctx.handle.wait(&tasks).await.assert_all_finished());
+        })
+        .await;
     }
 
     #[tokio::test]

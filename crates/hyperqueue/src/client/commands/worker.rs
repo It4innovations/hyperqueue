@@ -516,7 +516,7 @@ pub async fn get_worker_list(
     Ok(workers)
 }
 
-fn min_utilization_parser(str: &str) -> anyhow::Result<f32> {
+pub(super) fn min_utilization_parser(str: &str) -> anyhow::Result<f32> {
     let f: f32 = str.parse()?;
     if !(0.0..=1.0).contains(&f) {
         return Err(anyhow::anyhow!(
