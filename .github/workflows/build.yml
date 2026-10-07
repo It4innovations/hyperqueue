@@ -22,7 +22,7 @@ jobs:
       sha: ${{ env.HQ_SHA }}
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Set version
         run: |
           echo "HQ_VERSION=${{ inputs.version || 'dev' }}" | tee -a $GITHUB_ENV
@@ -38,7 +38,7 @@ jobs:
       - name: Show GLIBC
         run: ldd --version
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ needs.set-env.outputs.sha }}
       - name: Install stable toolchain
@@ -66,7 +66,7 @@ jobs:
           echo "archive-name=$ARCHIVE_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Store archive
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: archive-x64
           path: ${{ steps.archive.outputs.archive-name }}
