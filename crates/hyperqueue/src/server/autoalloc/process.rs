@@ -439,11 +439,27 @@ fn create_queue_worker_query(queue: &AllocationQueue) -> WorkerTypeQuery {
         descriptor,
         partial,
         time_limit: Some(info.timelimit()),
+        allocation_task_time_range: match info.manager() {
+            ManagerType::Slurm => slurm_allocation_task_time_range(info.timelimit()),
+            ManagerType::Pbs => None,
+        },
         // How many workers can we provide at the moment
         max_sn_workers: info.backlog() * info.max_workers_per_alloc(),
         max_workers_per_allocation: info.max_workers_per_alloc(),
         min_utilization: info.min_utilization(),
     }
+}
+
+/// A new SLURM allocation in one of these tiers must be strictly longer than
+/// the task's time request. This policy is not applied to connected workers.
+fn slurm_allocation_task_time_range(
+    time_limit: std::time::Duration,
+) -> Option<std::ops::Range<std::time::Duration>> {
+    [0, 3, 12, 24, 72, 168].windows(2).find_map(|hours| {
+        let start = std::time::Duration::from_secs(hours[0] * 3600);
+        let end = std::time::Duration::from_secs(hours[1] * 3600);
+        (time_limit == end).then_some(start..end)
+    })
 }
 
 /// Computes the given worker queries and returns aggregated responses together with leftovers.
@@ -1774,6 +1790,68 @@ mod tests {
                 assert!(ctx.get_allocations(queue_id).is_empty());
             })
             .await;
+        }
+    }
+
+    #[tokio::test]
+    async fn allocation_time_tier_selects_next_tier_for_new_slurm_allocations() {
+        let hour = 3600;
+        for (seconds, expected) in [
+            (0, Some(3)),
+            (3 * hour - 1, Some(3)),
+            (3 * hour, Some(12)),
+            (12 * hour - 1, Some(12)),
+            (12 * hour, Some(24)),
+            (24 * hour - 1, Some(24)),
+            (24 * hour, Some(72)),
+            (48 * hour, Some(72)),
+            (71 * hour, Some(72)),
+            (72 * hour - 1, Some(72)),
+            (72 * hour, Some(168)),
+            (168 * hour - 1, Some(168)),
+            (168 * hour, None),
+            (169 * hour, None),
+        ] {
+            for class in ["worker/cpu", "worker/large-cpu", "worker/gpu"] {
+                run_test(async |mut ctx: TestCtx| {
+                    let mut queues = Vec::new();
+                    // Deliberately reverse the order: tier choice must not depend on order.
+                    for hours in [168, 72, 24, 12, 3] {
+                        let queue_id = ctx
+                            .add_queue(
+                                always_queued_handler(),
+                                QueueBuilder::default()
+                                    .timelimit(Duration::from_secs(hours * hour))
+                                    .cli_resources(Some(explicit_resources(
+                                        class,
+                                        class == "worker/gpu",
+                                    )))
+                                    .worker_args(vec!["--detect-resources".into(), "none".into()]),
+                            )
+                            .await;
+                        queues.push((hours, queue_id));
+                    }
+                    let mut request = ResourceRequestConfigBuilder::default()
+                        .cpus(2)
+                        .add_compact("mem", 10)
+                        .add_compact(class, 1)
+                        .min_time(Duration::from_secs(seconds));
+                    if class == "worker/gpu" {
+                        request = request.add_compact("gpus/nvidia", 1);
+                    }
+                    let rq_id = ctx.handle.register_request(request);
+                    ctx.create_simple_tasks(1, rq_id).await;
+                    ctx.try_submit().await;
+                    for (hours, queue_id) in queues {
+                        assert_eq!(
+                            ctx.get_allocations(queue_id).len(),
+                            usize::from(expected == Some(hours)),
+                            "{class}: request {seconds}s, allocation tier {hours}h",
+                        );
+                    }
+                })
+                .await;
+            }
         }
     }
 

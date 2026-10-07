@@ -19,3 +19,5 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Check explicit resource allocation routing
         run: cargo test -p hyperqueue --locked explicit_worker_resources
+      - name: Check allocation time tiers and existing worker reuse
+        run: cargo test -p hyperqueue -p tako --locked allocation_time_tier
