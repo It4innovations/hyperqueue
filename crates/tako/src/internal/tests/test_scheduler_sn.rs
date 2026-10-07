@@ -2593,7 +2593,7 @@ fn test_schedule_unused_allowance_does_not_widen_the_shared_gap() {
     let mut rt = TestEnv::new();
     let foo = rt.new_named_resource("foo");
     let w0 = rt.new_worker(&WorkerBuilder::new(12).res_sum("foo", 10));
-    let w1 = rt.new_worker(&WorkerBuilder::new(6));
+    let _w1 = rt.new_worker(&WorkerBuilder::new(6));
     rt.new_task_running(&TaskBuilder::new().cpus(5), w0);
     rt.new_tasks(3, &TaskBuilder::new().cpus(2).user_priority(9));
     rt.new_tasks(10, &TaskBuilder::new().cpus(2).user_priority(1));
