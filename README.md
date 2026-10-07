@@ -34,7 +34,7 @@ Queues are registered when the server has no allocation queues. A restored journ
 
 Each SLURM allocation starts one worker on one node with one task and one thread per core. CPU full-node allocations are exclusive; fractional CPU allocations and all GPU allocations are not.
 
-Memory is in MiB, matching SLURM `--mem=<value>M`. Convert a SLURM `G` request to `M` by multiplying by **1024**: `1G = 1024M`, so `250G = 256000M`.
+Memory is in MiB, matching SLURM `--mem=<value>M`. Note: `1G = 1024M`.
 
 | Worker group | CPUs | Memory (MiB) | Task class (`--resource`) | Minimum requested CPUs for a new allocation | Total limit | Backlog | Exclusive |
 | --- | ---: | ---: | --- | ---: | ---: | ---: | --- |
