@@ -428,9 +428,14 @@ async fn perform_submits(
                     .queued_allocations()
                     .map(|allocation| allocation.target_worker_count as u32)
                     .sum();
-                query.max_sn_workers = query
-                    .max_sn_workers
-                    .min(queued_workers.saturating_add(remaining_group_workers(autoalloc, queue)));
+                query.max_sn_workers = query.max_sn_workers.min(
+                    queued_workers.saturating_add(
+                        remaining_group_workers(autoalloc, queue).min(
+                            remaining_group_backlog(autoalloc, queue)
+                                .saturating_mul(queue.info().max_workers_per_alloc()),
+                        ),
+                    ),
+                );
             }
             log::debug!("Creating worker query {query:?} for queue {id}");
             query
@@ -500,6 +505,24 @@ fn remaining_group_workers(autoalloc: &AutoAllocState, queue: &AllocationQueue) 
         }
     }
     limit.saturating_sub(active_workers)
+}
+
+/// Share the most restrictive queued-allocation cap across an explicit worker group.
+/// Running allocations no longer use a backlog slot; paused queues still count.
+fn remaining_group_backlog(autoalloc: &AutoAllocState, queue: &AllocationQueue) -> u32 {
+    let Some(group) = queue.info().allocation_group() else {
+        return u32::MAX;
+    };
+    let mut limit = u32::MAX;
+    let mut queued_allocations = 0u32;
+    for (_, member) in autoalloc.queues() {
+        if member.info().allocation_group() == Some(group) {
+            limit = limit.min(member.info().backlog());
+            queued_allocations =
+                queued_allocations.saturating_add(member.queued_allocations().count() as u32);
+        }
+    }
+    limit.saturating_sub(queued_allocations)
 }
 
 /// A new SLURM allocation in one of these tiers must be strictly longer than
@@ -663,8 +686,11 @@ async fn queue_try_submit(
 
     // Figure out how many allocations we are allowed to submit, according to queue limits
     // Also check the rate limiter
-    let mut group_remaining = match autoalloc.get_queue(queue_id) {
-        Some(queue) => remaining_group_workers(autoalloc, queue),
+    let (mut group_remaining, group_backlog) = match autoalloc.get_queue(queue_id) {
+        Some(queue) => (
+            remaining_group_workers(autoalloc, queue),
+            remaining_group_backlog(autoalloc, queue),
+        ),
         None => return,
     };
     let permit = {
@@ -674,6 +700,7 @@ async fn queue_try_submit(
         }
 
         let mut permit = compute_submission_permit(queue, query_response);
+        permit.allocs_to_submit.truncate(group_backlog as usize);
         permit.allocs_to_submit.retain_mut(|count| {
             *count = (*count).min(group_remaining as u64);
             group_remaining -= *count as u32;
@@ -1722,6 +1749,258 @@ mod tests {
             ])
             .min_utilization(if cpus == 2 { 0.0 } else { 0.5 })
             .max_worker_count((cpus != 16).then_some(1))
+    }
+
+    fn shared_caps_queue(class: &str, gpu: bool, total: u32, backlog: u32) -> QueueBuilder {
+        let mut resources = ResourceDescriptor::simple_cpus(1).resources;
+        resources.push(ResourceDescriptorItem::sum("mem", 100));
+        resources.push(ResourceDescriptorItem {
+            name: class.into(),
+            kind: if gpu {
+                ResourceDescriptorKind::simple_indices(1)
+            } else {
+                ResourceDescriptorKind::Sum { size: 1.into() }
+            },
+        });
+        if gpu {
+            resources.push(ResourceDescriptorItem {
+                name: "gpus".into(),
+                kind: ResourceDescriptorKind::simple_indices(1),
+            });
+        }
+        QueueBuilder::default()
+            .cli_resources(Some(ResourceDescriptor::new(resources, Default::default())))
+            .worker_args(vec![
+                "--detect-resources".into(),
+                "none".into(),
+                "--group".into(),
+                class.into(),
+            ])
+            .max_worker_count(Some(total))
+            .backlog(backlog)
+    }
+
+    fn shared_caps_counts(ctx: &TestCtx, queues: &[QueueId]) -> (u32, usize) {
+        queues.iter().fold((0, 0), |(workers, queued), id| {
+            let queue = ctx.state.get_queue(*id).unwrap();
+            (
+                workers + queue.active_worker_count(),
+                queued + queue.queued_allocations().count(),
+            )
+        })
+    }
+
+    fn shared_caps_start_queued(ctx: &mut TestCtx, queues: &[QueueId]) -> (QueueId, AllocationId) {
+        for &id in queues {
+            let queue = ctx.state.get_queue_mut(id).unwrap();
+            if let Some(allocation) = queue
+                .active_allocations_mut()
+                .find(|allocation| matches!(allocation.status, AllocationState::Queued { .. }))
+            {
+                allocation.status = AllocationState::Running {
+                    started_at: allocation.queued_at,
+                    connected_workers: Default::default(),
+                    disconnected_workers: Default::default(),
+                    status_error_count: 0,
+                };
+                return (id, allocation.id.clone());
+            }
+        }
+        panic!("No queued allocation available");
+    }
+
+    #[tokio::test]
+    async fn shared_allocation_caps_hold_across_queued_running_paused_and_finished_tiers() {
+        // Small generic CPU and indexed GPU profiles; no private cluster configuration.
+        for gpu in [false, true] {
+            run_test(async |mut ctx: TestCtx| {
+                let class = "worker/test";
+                let mut queues = Vec::new();
+                let mut graph = GraphBuilder::default();
+                for (hours, request_hours) in [(168, 72), (72, 24), (24, 12), (12, 3), (3, 0)] {
+                    queues.push(
+                        ctx.add_queue(
+                            always_queued_handler(),
+                            shared_caps_queue(class, gpu, 4, 2)
+                                .timelimit(Duration::from_secs(hours * 3600)),
+                        )
+                        .await,
+                    );
+                    let mut request = ResourceRequestConfigBuilder::default()
+                        .cpus(1)
+                        .add_compact("mem", 1)
+                        .add_compact(class, 1)
+                        .min_time(Duration::from_secs(request_hours * 3600));
+                    if gpu {
+                        request = request.add_compact("gpus", 1);
+                    }
+                    let rq = ctx.handle.register_request(request);
+                    graph = graph.task(
+                        TaskConfigBuilder::default()
+                            .resources(rq)
+                            .args(simple_args(&["ls"])),
+                    );
+                }
+                ctx.handle.submit(graph.build()).await;
+                for _ in 0..3 {
+                    ctx.try_submit().await;
+                    assert_eq!(shared_caps_counts(&ctx, &queues), (2, 2));
+                }
+
+                // Pausing must not release either the queued or total group quota.
+                let paused = queues
+                    .iter()
+                    .copied()
+                    .find(|id| {
+                        ctx.state
+                            .get_queue(*id)
+                            .unwrap()
+                            .queued_allocations()
+                            .count()
+                            > 0
+                    })
+                    .unwrap();
+                ctx.state.get_queue_mut(paused).unwrap().pause();
+                ctx.try_submit().await;
+                assert_eq!(shared_caps_counts(&ctx, &queues), (2, 2));
+
+                let retired = shared_caps_start_queued(&mut ctx, &queues);
+                ctx.try_submit().await;
+                assert_eq!(shared_caps_counts(&ctx, &queues), (3, 2));
+                shared_caps_start_queued(&mut ctx, &queues);
+                ctx.try_submit().await;
+                assert_eq!(shared_caps_counts(&ctx, &queues), (4, 2));
+
+                // Starting jobs frees backlog slots, but never frees total worker slots.
+                while shared_caps_counts(&ctx, &queues).1 > 0 {
+                    shared_caps_start_queued(&mut ctx, &queues);
+                }
+                ctx.try_submit().await;
+                assert_eq!(shared_caps_counts(&ctx, &queues), (4, 0));
+
+                let allocation = ctx
+                    .state
+                    .get_queue_mut(retired.0)
+                    .unwrap()
+                    .get_allocation_mut(&retired.1)
+                    .unwrap();
+                allocation.status = AllocationState::Finished {
+                    started_at: allocation.queued_at,
+                    finished_at: allocation.queued_at,
+                    disconnected_workers: Default::default(),
+                };
+                ctx.try_submit().await;
+                assert_eq!(shared_caps_counts(&ctx, &queues), (4, 1));
+            })
+            .await;
+        }
+    }
+
+    #[tokio::test]
+    async fn shared_allocation_caps_are_independent_between_cpu_and_gpu_groups() {
+        run_test(async |mut ctx: TestCtx| {
+            let mut families = Vec::new();
+            let mut graph = GraphBuilder::default();
+            for (class, gpu) in [("worker/cpu", false), ("worker/gpu", true)] {
+                let mut queues = Vec::new();
+                for (hours, request_hours) in [(3, 0), (12, 3), (24, 12), (72, 24), (168, 72)] {
+                    queues.push(
+                        ctx.add_queue(
+                            always_queued_handler(),
+                            shared_caps_queue(class, gpu, 3, 1)
+                                .timelimit(Duration::from_secs(hours * 3600)),
+                        )
+                        .await,
+                    );
+                    let mut request = ResourceRequestConfigBuilder::default()
+                        .cpus(1)
+                        .add_compact("mem", 1)
+                        .add_compact(class, 1)
+                        .min_time(Duration::from_secs(request_hours * 3600));
+                    if gpu {
+                        request = request.add_compact("gpus", 1);
+                    }
+                    let rq = ctx.handle.register_request(request);
+                    graph = graph.task(
+                        TaskConfigBuilder::default()
+                            .resources(rq)
+                            .args(simple_args(&["ls"])),
+                    );
+                }
+                families.push(queues);
+            }
+            ctx.handle.submit(graph.build()).await;
+            ctx.try_submit().await;
+            assert_eq!(shared_caps_counts(&ctx, &families[0]), (1, 1));
+            assert_eq!(shared_caps_counts(&ctx, &families[1]), (1, 1));
+            shared_caps_start_queued(&mut ctx, &families[0]);
+            ctx.try_submit().await;
+            assert_eq!(shared_caps_counts(&ctx, &families[0]), (2, 1));
+            assert_eq!(shared_caps_counts(&ctx, &families[1]), (1, 1));
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn shared_allocation_caps_count_allocations_for_backlog_and_workers_for_total() {
+        run_test(async |mut ctx: TestCtx| {
+            let id = ctx
+                .add_queue(
+                    always_queued_handler(),
+                    shared_caps_queue("worker/test", false, 4, 2).max_workers_per_alloc(3),
+                )
+                .await;
+            let rq = ctx.handle.register_request(
+                ResourceRequestConfigBuilder::default()
+                    .cpus(1)
+                    .add_compact("worker/test", 1),
+            );
+            ctx.create_simple_tasks(10, rq).await;
+            ctx.try_submit().await;
+            assert_eq!(shared_caps_counts(&ctx, &[id]), (4, 2));
+            let mut sizes: Vec<_> = ctx
+                .get_allocations(id)
+                .iter()
+                .map(|allocation| allocation.target_worker_count)
+                .collect();
+            sizes.sort_unstable();
+            assert_eq!(sizes, [1, 3]);
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn shared_allocation_caps_leave_ungrouped_queues_independent() {
+        run_test(async |mut ctx: TestCtx| {
+            let mut queues = Vec::new();
+            let mut graph = GraphBuilder::default();
+            for (hours, request_hours) in [(3, 0), (12, 3), (24, 12), (72, 24), (168, 72)] {
+                queues.push(
+                    ctx.add_queue(
+                        always_queued_handler(),
+                        shared_caps_queue("worker/test", false, 4, 1)
+                            .worker_args(vec!["--detect-resources".into(), "none".into()])
+                            .timelimit(Duration::from_secs(hours * 3600)),
+                    )
+                    .await,
+                );
+                let rq = ctx.handle.register_request(
+                    ResourceRequestConfigBuilder::default()
+                        .cpus(1)
+                        .add_compact("worker/test", 1)
+                        .min_time(Duration::from_secs(request_hours * 3600)),
+                );
+                graph = graph.task(
+                    TaskConfigBuilder::default()
+                        .resources(rq)
+                        .args(simple_args(&["ls"])),
+                );
+            }
+            ctx.handle.submit(graph.build()).await;
+            ctx.try_submit().await;
+            assert_eq!(shared_caps_counts(&ctx, &queues), (5, 5));
+        })
+        .await;
     }
 
     #[tokio::test]

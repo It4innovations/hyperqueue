@@ -106,6 +106,11 @@ get started with an actual time limit of e.g. `59m 58s`.
 Maximum number of allocations that should be queued (waiting to be started) in PBS/Slurm at any given time. Has to be a
 positive integer.
 
+In this fork, explicit-resource queues (`--detect-resources none`) using the same `--group`
+share the most restrictive `--backlog` across all queues in the group, including paused queues.
+Starting an allocation releases its backlog slot, while the worker continues to count toward
+the shared total worker limit.
+
 !!! note
 
     The **backlog** value does not limit the number of running allocations, only the number of queued allocations.
@@ -301,6 +306,9 @@ running `hq alloc add`). Here are a few scenarios for which we show how would th
       tasks that require a GPU.
 
 ### Rate limits
+
+This fork refreshes allocation status from PBS/Slurm every five minutes by default. Task and
+worker events are handled independently of this status refresh.
 
 The allocator internally uses rate limiting to avoid overloading the PBS/Slurm allocation manager by spawning too many
 allocations too quickly.

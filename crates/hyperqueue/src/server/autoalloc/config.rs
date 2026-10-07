@@ -7,7 +7,7 @@ pub const MAX_KEPT_DIRECTORIES: usize = 20;
 /// How often should the external allocation state be queried using e.g. `qstat`.
 pub(super) fn get_allocation_refresh_interval() -> Duration {
     get_duration_from_env("HQ_AUTOALLOC_REFRESH_INTERVAL_MS")
-        .unwrap_or_else(|| Duration::from_secs(30 * 60))
+        .unwrap_or_else(|| Duration::from_secs(5 * 60))
 }
 
 /// How often should scheduling (potential creation of new allocations) be performed,

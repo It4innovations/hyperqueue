@@ -98,6 +98,9 @@ fn parse_backlog(value: &str) -> Result<u32, anyhow::Error> {
 #[derive(Parser)]
 struct SharedQueueOpts {
     /// The maximal number of jobs that can be waiting in the queue
+    ///
+    /// Explicit-resource queues with the same --group share the most restrictive backlog.
+    /// Without a group, the backlog applies only to this queue.
     #[arg(long, short, default_value_t = 1, value_parser = parse_backlog)]
     backlog: u32,
 

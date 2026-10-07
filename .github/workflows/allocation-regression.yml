@@ -23,6 +23,8 @@ jobs:
         run: cargo test -p hyperqueue -p tako --locked allocation_time_tier
       - name: Check CPU allocation sizes, thresholds and shared worker caps
         run: cargo test -p hyperqueue --locked cpu_allocation
+      - name: Check shared total and queued allocation caps across walltime tiers
+        run: cargo test -p hyperqueue --locked shared_allocation_caps
       - name: Check journal and server directory defaults
         run: cargo test -p hyperqueue --locked journal_directory
       - name: Build HQ for journal CLI regression

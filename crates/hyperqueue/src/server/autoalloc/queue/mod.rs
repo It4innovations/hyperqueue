@@ -84,7 +84,7 @@ impl QueueInfo {
             .any(|args| args[0] == "--detect-resources" && args[1] == "none")
     }
 
-    /// Explicit-resource queues with the same worker group share a worker cap.
+    /// Explicit-resource queues with the same worker group share worker and backlog caps.
     /// Grouping is opt-in; ungrouped queues keep their existing behavior.
     pub fn allocation_group(&self) -> Option<&str> {
         if !self.resource_detection_disabled() {
