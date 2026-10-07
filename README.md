@@ -7,7 +7,7 @@ This fork runs a shared HyperQueue server and requests Nibi SLURM allocations as
 Run in zsh on a Nibi login node with `SLURM_ACCOUNT` already exported:
 
 ```zsh
-source <(curl -fsSL https://raw.githubusercontent.com/jaredfischbach/hyperqueue/main/configs/install_nibi.sh)
+source <(curl -fsSL https://raw.githubusercontent.com/jaredfischbach/HyperNibi/main/configs/install_nibi.sh)
 ```
 
 The installer downloads the latest published stable Linux x86-64 release and its matching config and launcher. Changes on `main` become available as binaries after a release tag is published. It requires Python 3, `curl`, `tar`, and SLURM client commands.
@@ -32,7 +32,7 @@ Queues are registered when the server has no allocation queues. A restored journ
 
 ## Worker options
 
-Every row has five walltime queues: **3, 12, 24, 72, and 168 hours**. Names append the duration, for example `cpu_base_quarter-72h`. Each SLURM allocation starts one worker on one node with one task and one thread per core. CPU full-node allocations are exclusive; fractional CPU allocations and all GPU allocations are not.
+Each SLURM allocation starts one worker on one node with one task and one thread per core. CPU full-node allocations are exclusive; fractional CPU allocations and all GPU allocations are not.
 
 Memory is in MiB, matching SLURM `--mem=<value>M`. The total limit counts queued plus running workers. Backlog limits queued allocations and is part of that total. Both limits apply across all five durations for that row, including paused queues.
 
@@ -63,6 +63,8 @@ Resources are explicit (`--detect-resources none`). Missing classes stay absent 
 Within a CPU class, larger workers are preferred when enough fitting work meets their CPU threshold and shared limits. The base sixteenth has no minimum and can serve small demand below the eighth's 12-CPU minimum. CPU demand means requested CPUs, not measured CPU activity or memory usage.
 
 Every **new large-memory allocation** must contain at least one task requesting **strictly more than 766000 MiB**, with `worker/cpuLarge=1`. Equality does not qualify, and the combined memory of several smaller tasks cannot trigger it. Each allocation must also reach 50% requested CPU demand. Smaller tasks with the same large class can contribute to that demand, but cannot cause extra large allocations on their own. Connected large workers can accept smaller tasks with `worker/cpuLarge`; ordinary `worker/cpu` tasks stay on base workers.
+
+Every row has five walltime queues: **3, 12, 24, 72, and 168 hours**. Names append the duration, for example `cpu_base_quarter-72h`.
 
 For a **new SLURM submission**, the allocator chooses the first walltime tier strictly longer than the task's `--time-request`:
 
@@ -147,7 +149,92 @@ HQ schedules these tasks inside eligible workers using the same allocation rules
 
 You can also create tasks from a file with `--each-line inputs.txt` or a JSON array with `--from-json inputs.json`; each task receives its input through `HQ_ENTRY`. See the official [HQ task array documentation](https://it4innovations.github.io/hyperqueue/stable/jobs/arrays/).
 
-For Nextflow, use the `hq` executor and pass the class and `--time-request` through `clusterOptions`. A process that replaces `clusterOptions` must include its own time request. GPU processes also set `accelerator` so Nextflow requests `gpus`. Set the applicable Nextflow memory limits above 766000 MiB when using the large class. See the official [Nextflow HyperQueue executor](https://docs.seqera.io/nextflow/executor/hyperqueue).
+## Nextflow
+
+Start the shared server before launching a pipeline. Nextflow submits its process tasks to HQ; HQ packs eligible tasks into workers and submits SLURM allocations when more capacity is needed. Pipelines using the same `HQ_SERVER_DIR` share those workers and allocation limits. Nextflow still manages dependencies, containers, task work directories, outputs, and resume caching.
+
+The Nextflow launch environment needs the installed `hq` on `PATH` and the same server directory as the server launcher. For example, in a pipeline batch script:
+
+```bash
+export PATH="/project/$SLURM_ACCOUNT/tools/hyperqueue/0.26.2:$PATH"
+export HQ_SERVER_DIR="$HOME/hyperqueue/server"
+
+hq server info >/dev/null 2>&1 || exit 1
+```
+
+`HQ_JOURNAL_DIR` is used by the server launcher; Nextflow does not need it to submit tasks. Keep the pipeline work directory and inputs on storage accessible to the workers. See the official [Nextflow HQ executor documentation](https://docs.seqera.io/nextflow/executor/hyperqueue).
+
+### Base CPU configuration
+
+Add this to your custom Nextflow config and pass it with `-c`. This sets the base CPU class for every process; pipeline process selectors can still supply their own CPU, memory, and time values.
+
+```groovy
+process {
+    executor = 'hq'
+    cpus     = 1
+    memory   = 4096.MB
+    time     = 4.h
+
+    clusterOptions = { "--resource worker/cpu=1 --time-request ${task.time.toSeconds()}sec" }
+}
+```
+
+Nextflow translates the resolved task directives into HQ submission options:
+
+| Nextflow setting | HQ submission option | Purpose |
+| --- | --- | --- |
+| `cpus` | `--cpus <count>` | Reserve task CPU capacity |
+| `memory` | `--resource mem=<MiB>` | Reserve task memory capacity |
+| `time` | `--time-limit <seconds>sec` | Stop a task that reaches its execution limit |
+| `accelerator = 1` | `--resource gpus=1` | Reserve one indexed GPU |
+| `clusterOptions` | Additional HQ options | Select the resource class and supply `--time-request` |
+
+Nextflow uses binary memory units: `4096.MB` becomes `mem=4096`, matching the MiB values in the worker table. See [Nextflow memory units](https://docs.seqera.io/nextflow/reference/stdlib-types/memory-unit).
+
+Nextflow's `time` directive supplies **`--time-limit`**, so the closure separately supplies **`--time-request`** from the same resolved `task.time`. With `time = 4.h`, both are 14400 seconds: a connected worker needs at least four hours remaining, while a new allocation uses the 12h tier. The task itself has a four-hour execution limit. Dynamic time values, including retry increases, are evaluated for each task. See the [Nextflow HQ submission implementation](https://github.com/nextflow-io/nextflow/blob/master/modules/nextflow/src/main/groovy/nextflow/executor/HyperQueueExecutor.groovy) and [dynamic directives](https://docs.seqera.io/nextflow/process#dynamic-directives).
+
+### Large-memory and GPU processes
+
+Choose these classes explicitly with `withName` or `withLabel` selectors. A larger memory request alone does not change `worker/cpu` to `worker/cpuLarge`. The labels below are examples: replace them with labels your pipeline actually uses, or target the required processes with `withName`.
+
+```groovy
+process {
+    withLabel: process_large_memory {
+        cpus   = 24
+        memory = 800000.MB
+        time   = 24.h
+
+        clusterOptions = { "--resource worker/cpuLarge=1 --time-request ${task.time.toSeconds()}sec" }
+    }
+
+    withLabel: process_gpu {
+        cpus        = 14
+        memory      = 256000.MB
+        time        = 4.h
+        accelerator = 1
+
+        clusterOptions = { "--resource worker/h100=1 --time-request ${task.time.toSeconds()}sec" }
+    }
+}
+```
+
+The large-memory example can trigger the large quarter: its individual request exceeds 766000 MiB and reaches that worker's 24-CPU minimum. A new allocation uses 72h for its 24h time request. Any applicable `process.resourceLimits` or pipeline-specific memory cap must permit the requested memory; a cap that lowers it to 766000 MiB or less prevents a new large allocation. See [process selectors](https://docs.seqera.io/nextflow/config#process-selectors) and [resource limits](https://docs.seqera.io/nextflow/reference/process/directives/resource-limits).
+
+The GPU example selects the full H100 class. `accelerator = 1` supplies `gpus=1`; the class identifies the model. For a MIG or MI300A task, replace `worker/h100` with its exact class from the worker table and keep CPU and memory requests within that row's capacities. Each task uses one device and one node.
+
+**A selector that sets `clusterOptions` replaces the default value.** Include both its class and its time request in that replacement. These options go to `hq submit`, so use HQ flags there; SLURM options such as the account, `--gres`, and exclusivity belong in the HQ allocation config. See [clusterOptions](https://docs.seqera.io/nextflow/reference/process/directives/cluster-options).
+
+### Launch and submission controls
+
+For example, with the HQ settings saved in `nextflow-hq.config` and your pipeline parameters in `params.json`:
+
+```bash
+nextflow run nf-core/rnaseq -c nextflow-hq.config -params-file params.json -resume
+```
+
+Add your usual pipeline revision and container profile. Each Nextflow task is submitted as its own HQ job; the HQ task-array example above is for direct `hq submit` use. Nextflow's `process.array` directive does not support the HQ executor. See the official [supported array executors](https://docs.seqera.io/nextflow/reference/process/directives/array).
+
+Nextflow's `executor.pollInterval`, `queueSize`, and `submitRateLimit` control its task monitoring and submissions to HQ. They do not change HQ's SLURM polling, worker limits, or backlog. Those are controlled by this fork and `configs/nibi.sh`. See the official [executor settings](https://docs.seqera.io/nextflow/reference/config/executor).
 
 ## Monitor and releases
 
