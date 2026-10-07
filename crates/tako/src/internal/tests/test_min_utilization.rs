@@ -75,10 +75,26 @@ fn test_weight_expresses_preference_without_blocking() {
 
 #[test]
 fn test_weight_is_a_real_knob() {
-    // Below one, the same full batch loses the worker to the whole-worker task, so the knob
-    // selects between the two mixes rather than merely reinforcing a default.
+    // A placement is worth its share of the cluster's resources times its weight. A full batch of
+    // eight one-CPU tasks of weight `w` is worth `8 * 1/8 * w = w`; the whole-worker task, at the
+    // default weight, is worth `1`. The knob therefore flips the worker between the two mixes at
+    // `w = 1`, rather than merely reinforcing a default.
+
+    // Below one, the full batch loses the worker to the whole-worker task ...
     assert_eq!(place(8, 1, 0.5, 0, 0), (0, 1));
-    assert_eq!(place(8, 1, 1.0, 0, 0), (8, 0));
+    assert_eq!(place(8, 1, 0.9, 0, 0), (0, 1));
+    // ... and above one it wins it.
+    assert_eq!(place(8, 1, 1.1, 0, 0), (8, 0));
+    assert_eq!(place(8, 1, 2.0, 0, 0), (8, 0));
+
+    // At exactly one the two mixes are worth the same, and which one an LP backend returns is
+    // its own tie-break (HiGHS and Cbc differ). Only what both optima share is asserted: the
+    // worker is filled by one mix or the other, never split or left idle.
+    let at_tie = place(8, 1, 1.0, 0, 0);
+    assert!(
+        at_tie == (8, 0) || at_tie == (0, 1),
+        "expected one full mix at the tie, got {at_tie:?}"
+    );
 }
 
 /// How many workers the allocation queue would ask for, in the same two states.

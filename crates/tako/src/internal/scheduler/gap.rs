@@ -399,7 +399,7 @@ fn compute_gap_resources(
             let Some(s) = solver.solve(None) else {
                 return ResourceAmount::ZERO;
             };
-            r_amount - ResourceAmount::from_float(s.objective().round() as f32)
+            r_amount - ResourceAmount::from_float(LpSolution::objective(&s).round() as f32)
         })
         .collect();
     WorkerResources::new(gap_res.into())

@@ -350,14 +350,12 @@ pub fn run_scheduling_solver_inner(
         };
         let batch_rqv = request_map.get(batch.resource_rq_id);
         assert!(!task_counts.is_empty());
-        if !batch.limit_reached {
-            solver.set_name(|| format!("size limit for rq{}", batch.resource_rq_id));
-            solver.add_constraint(
-                ConstraintType::Max,
-                batch.size as f64,
-                task_counts.iter().map(|v| (*v, 1.0)),
-            )
-        }
+        solver.set_name(|| format!("size limit for rq{}", batch.resource_rq_id));
+        solver.add_constraint(
+            ConstraintType::Max,
+            batch.size as f64,
+            task_counts.iter().map(|v| (*v, 1.0)),
+        );
         let batch_size = batch.size as f64;
         blocked_by_unbounded.clear();
         for cut in &batch.cuts {

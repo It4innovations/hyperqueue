@@ -225,13 +225,8 @@ impl LpSolver {
     }
 
     #[inline]
-    pub fn solve(self) -> Option<(Solution, f64)> {
-        self.solver.solve()
-    }
-
-    #[inline]
-    pub fn solve_bounded(self, time_limit: Duration) -> Option<(Solution, bool)> {
-        self.solver.solve_bounded(time_limit)
+    pub fn solve(self, time_limit: Option<Duration>) -> Option<Solution> {
+        self.solver.solve(time_limit)
     }
 }
 
