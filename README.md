@@ -151,4 +151,4 @@ For Nextflow, use the `hq` executor and pass the class and `--time-request` thro
 
 Run `hq dashboard` to view jobs, workers, and allocations. Journalling is enabled by the launcher. See the official [dashboard documentation](https://it4innovations.github.io/hyperqueue/stable/cli/dashboard/). `hq alloc list`, `hq worker list`, and `hq job list` also show current state.
 
-There are no macOS, ARM, PowerPC, Python-wheel, nightly, container, or documentation-deployment builds.
+Only the Nibi-compatible Linux x86-64 build is provided.
