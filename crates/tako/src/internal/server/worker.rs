@@ -4,12 +4,12 @@ use crate::gateway::{LostWorkerReason, WorkerRuntimeInfo};
 use crate::internal::common::Set;
 use crate::internal::common::resources::TimeRequest;
 use crate::internal::common::resources::map::{ResourceIdMap, ResourceRqMap};
-use crate::internal::common::resources::{ResourceRequest, ResourceRequestVariants};
+use crate::internal::common::resources::{ResourceId, ResourceRequest, ResourceRequestVariants};
 use crate::internal::server::task::TaskRuntimeState;
 use crate::internal::server::taskmap::TaskMap;
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::configuration::WorkerConfiguration;
-use crate::resources::ResourceRqId;
+use crate::resources::{ResourceAmount, ResourceRqId};
 use crate::{Map, ResourceVariantId, TaskId, WorkerId};
 use serde_json::json;
 use std::time::{Duration, Instant};
@@ -73,6 +73,7 @@ pub struct Worker {
     pub(crate) termination_time: Option<Instant>,
     // Set only for hypothetical workers used to plan new allocations.
     pub(crate) allocation_task_time_range: Option<std::ops::Range<Duration>>,
+    pub(crate) allocation_min_task_memory: Option<(ResourceId, ResourceAmount)>,
 
     pub(crate) flags: WorkerFlags,
     pub(crate) stop_reason: Option<(LostWorkerReason, Instant)>,
@@ -359,6 +360,7 @@ impl Worker {
             id,
             termination_time: configuration.time_limit.map(|duration| now + duration),
             allocation_task_time_range: None,
+            allocation_min_task_memory: None,
             configuration,
             assignment: WorkerAssignment::empty_sn(&resources),
             resources,

@@ -5,7 +5,9 @@ set -euo pipefail
 # Account selection is supplied by the caller, not stored in this config.
 
 # Every task must request its exact worker/* class. Regular CPU tasks request
-# worker/cpu; the full, half, quarter and eighth allocations share this class.
+# worker/cpu; all five base CPU sizes share this class.
+# Large-memory tasks request worker/cpuLarge; all three large sizes share it.
+# New large allocations require a single task requesting strictly over 766000 MiB.
 # GPU tasks additionally request gpus=N (Nextflow's accelerator directive).
 # GPU queues reserve one GPU/MIG: keep SLURM's CUDA_VISIBLE_DEVICES
 # or ROCR_VISIBLE_DEVICES rather than overriding its selected device.
@@ -14,10 +16,10 @@ set -euo pipefail
 # In this fork, new allocations use the first tier strictly
 # above HQ's --time-request: 3, 12, 24, 72, 168h. Existing workers can accept
 # any task that fits. Set --time-request explicitly; --time-limit is separate.
-# Regular CPU groups prefer full, half, quarter, then eighth allocations.
+# CPU groups prefer full, half, quarter, eighth, then sixteenth allocations.
 # Each smaller size has one shared queued/running worker across all five tiers.
 # Each worker type also shares its total and queued allocation caps across all tiers.
-# Full/half/quarter and large CPU require 50% requested CPU demand only before allocation.
+# All CPU sizes except base sixteenth require 50% requested CPU demand before allocation.
 # All workers stop after five idle minutes; connected workers accept any fitting task.
 
 add_queue() {
@@ -37,8 +39,8 @@ add_queue() {
 }
 
 for hours in 3 12 24 72 168; do
-    add_queue cpu_base "$hours" 192 766000 'worker/cpu=sum(192)' \
-        --group cpu_base --max-worker-count 100 --backlog 25 \
+    add_queue cpu_base_full "$hours" 192 766000 'worker/cpu=sum(192)' \
+        --group cpu_base_full --max-worker-count 100 --backlog 25 \
         --allocation-min-utilization 0.5 --idle-timeout 5m \
         -- --account="$SLURM_ACCOUNT" --ntasks-per-node=1 \
         --cpus-per-task=192 --threads-per-core=1 --mem=766000M --exclusive
@@ -56,15 +58,33 @@ for hours in 3 12 24 72 168; do
         --cpus-per-task=48 --threads-per-core=1 --mem=191500M
 
     add_queue cpu_base_eighth "$hours" 24 95750 'worker/cpu=sum(24)' \
-        --group cpu_base_eighth --max-worker-count 1 --backlog 1 --idle-timeout 5m \
+        --group cpu_base_eighth --max-worker-count 1 --backlog 1 \
+        --allocation-min-utilization 0.5 --idle-timeout 5m \
         -- --account="$SLURM_ACCOUNT" --ntasks-per-node=1 \
         --cpus-per-task=24 --threads-per-core=1 --mem=95750M
 
-    add_queue cpu_large "$hours" 192 6144000 'worker/cpuLarge=sum(192)' \
-        --group cpu_large --max-worker-count 4 --backlog 2 \
+    add_queue cpu_base_sixteenth "$hours" 12 47875 'worker/cpu=sum(12)' \
+        --group cpu_base_sixteenth --max-worker-count 1 --backlog 1 --idle-timeout 5m \
+        -- --account="$SLURM_ACCOUNT" --ntasks-per-node=1 \
+        --cpus-per-task=12 --threads-per-core=1 --mem=47875M
+
+    add_queue cpu_large_full "$hours" 192 6144000 'worker/cpuLarge=sum(192)' \
+        --group cpu_large_full --max-worker-count 4 --backlog 2 \
         --allocation-min-utilization 0.5 --idle-timeout 5m \
         -- --account="$SLURM_ACCOUNT" --ntasks-per-node=1 \
         --cpus-per-task=192 --threads-per-core=1 --mem=6144000M --exclusive
+
+    add_queue cpu_large_half "$hours" 96 3072000 'worker/cpuLarge=sum(96)' \
+        --group cpu_large_half --max-worker-count 1 --backlog 1 \
+        --allocation-min-utilization 0.5 --idle-timeout 5m \
+        -- --account="$SLURM_ACCOUNT" --ntasks-per-node=1 \
+        --cpus-per-task=96 --threads-per-core=1 --mem=3072000M
+
+    add_queue cpu_large_quarter "$hours" 48 1536000 'worker/cpuLarge=sum(48)' \
+        --group cpu_large_quarter --max-worker-count 1 --backlog 1 \
+        --allocation-min-utilization 0.5 --idle-timeout 5m \
+        -- --account="$SLURM_ACCOUNT" --ntasks-per-node=1 \
+        --cpus-per-task=48 --threads-per-core=1 --mem=1536000M
 
     add_queue mi300a "$hours" 24 126750 'worker/mi300a=[0]' \
         --resource 'gpus=[0]' \

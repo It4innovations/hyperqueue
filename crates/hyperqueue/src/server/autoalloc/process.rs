@@ -475,7 +475,17 @@ fn create_queue_worker_query(queue: &AllocationQueue) -> WorkerTypeQuery {
     // With autodetection disabled, omitted resources are absent, not unknown.
     // The allocation CLI stores this option as a separate flag/value pair.
     let partial = partial && !info.resource_detection_disabled();
+    // Nibi's large-memory class must be triggered by one task above the base
+    // node's 766000 MiB capacity. This applies only to new allocation planning.
+    let allocation_min_task_memory = (info.manager() == &ManagerType::Slurm
+        && info.resource_detection_disabled()
+        && descriptor
+            .resources
+            .iter()
+            .any(|r| r.name == "worker/cpuLarge"))
+    .then_some(ResourceAmount::from(766000));
     WorkerTypeQuery {
+        allocation_min_task_memory,
         descriptor,
         partial,
         time_limit: Some(info.timelimit()),
@@ -2057,6 +2067,126 @@ mod tests {
                 .await;
             }
         }
+    }
+
+    fn large_memory_allocation_queue(cpus: u32) -> QueueBuilder {
+        let mut resources = ResourceDescriptor::simple_cpus(cpus).resources;
+        resources.push(ResourceDescriptorItem::sum("mem", 6144000 / 192 * cpus));
+        resources.push(ResourceDescriptorItem::sum("worker/cpuLarge", cpus));
+        QueueBuilder::default()
+            .cli_resources(Some(ResourceDescriptor::new(resources, Default::default())))
+            .worker_args(vec![
+                "--detect-resources".into(),
+                "none".into(),
+                "--group".into(),
+                format!("cpu-large-{cpus}"),
+            ])
+            .min_utilization(0.5)
+            .max_worker_count(Some(if cpus == 192 { 4 } else { 1 }))
+            .backlog(if cpus == 192 { 2 } else { 1 })
+    }
+
+    #[tokio::test]
+    async fn large_memory_allocation_selects_size_time_and_strict_memory_trigger() {
+        for (cpus, memory, expected) in [
+            (24, 765999, None),
+            (24, 766000, None),
+            (24, 766001, Some(48)),
+            (48, 800000, Some(96)),
+            (96, 800000, Some(192)),
+            (23, 800000, None),
+            (24, 1536001, None),
+            (48, 1536001, Some(96)),
+            (96, 3072001, Some(192)),
+        ] {
+            run_test(async |mut ctx: TestCtx| {
+                let mut queues = Vec::new();
+                for hours in [3, 12, 24, 72, 168] {
+                    for size in [48, 96, 192] {
+                        let id = ctx
+                            .add_queue(
+                                always_queued_handler(),
+                                large_memory_allocation_queue(size)
+                                    .timelimit(Duration::from_secs(hours * 3600)),
+                            )
+                            .await;
+                        queues.push((size, hours, id));
+                    }
+                }
+                let rq = ctx.handle.register_request(
+                    ResourceRequestConfigBuilder::default()
+                        .cpus(cpus)
+                        .add_compact("mem", memory)
+                        .add_compact("worker/cpuLarge", 1)
+                        .min_time(Duration::from_secs(24 * 3600)),
+                );
+                ctx.create_simple_tasks(1, rq).await;
+                ctx.try_submit().await;
+                for (size, hours, id) in queues {
+                    assert_eq!(
+                        ctx.get_allocations(id).len(),
+                        usize::from(expected == Some(size) && hours == 72),
+                        "task={cpus}cpu/{memory}MiB, queue={size}cpu/{hours}h"
+                    );
+                }
+            })
+            .await;
+        }
+    }
+
+    #[tokio::test]
+    async fn large_memory_allocation_one_trigger_does_not_launch_extra_workers_for_small_tasks() {
+        run_test(async |mut ctx: TestCtx| {
+            let mut queues = Vec::new();
+            for hours in [3, 12, 24, 72, 168] {
+                for size in [48, 96, 192] {
+                    let id = ctx
+                        .add_queue(
+                            always_queued_handler(),
+                            large_memory_allocation_queue(size)
+                                .timelimit(Duration::from_secs(hours * 3600)),
+                        )
+                        .await;
+                    queues.push(id);
+                }
+            }
+            let big = ctx.handle.register_request(
+                ResourceRequestConfigBuilder::default()
+                    .cpus(24)
+                    .add_compact("mem", 800000)
+                    .add_compact("worker/cpuLarge", 1)
+                    .min_time(Duration::from_secs(24 * 3600)),
+            );
+            let small = ctx.handle.register_request(
+                ResourceRequestConfigBuilder::default()
+                    .cpus(1)
+                    .add_compact("mem", 100)
+                    .add_compact("worker/cpuLarge", 1)
+                    .min_time(Duration::from_secs(24 * 3600)),
+            );
+            ctx.handle
+                .submit(
+                    GraphBuilder::default()
+                        .simple_task(&["ls"], big)
+                        .task_copied(
+                            TaskConfigBuilder::default()
+                                .resources(small)
+                                .args(simple_args(&["ls"])),
+                            200,
+                        )
+                        .build(),
+                )
+                .await;
+            ctx.try_submit().await;
+            assert_eq!(
+                queues
+                    .iter()
+                    .map(|id| ctx.get_allocations(*id).len())
+                    .sum::<usize>(),
+                1
+            );
+        })
+        .await;
     }
 
     #[tokio::test]

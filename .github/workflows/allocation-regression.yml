@@ -1,9 +1,7 @@
 name: Allocation regression
 
 on:
-  push:
-  pull_request:
-  workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
@@ -23,6 +21,8 @@ jobs:
         run: cargo test -p hyperqueue -p tako --locked allocation_time_tier
       - name: Check CPU allocation sizes, thresholds and shared worker caps
         run: cargo test -p hyperqueue --locked cpu_allocation
+      - name: Check large-memory trigger, utilization and connected worker filling
+        run: cargo test -p hyperqueue -p tako --locked large_memory_allocation
       - name: Check shared total and queued allocation caps across walltime tiers
         run: cargo test -p hyperqueue --locked shared_allocation_caps
       - name: Check journal and server directory defaults
@@ -31,3 +31,5 @@ jobs:
         run: cargo build -p hyperqueue --bin hq --locked
       - name: Check journal environment, overrides, directory creation and restoration
         run: python3 scripts/test_journal_directory.py target/debug/hq
+      - name: Check Nibi allocation definitions and launcher
+        run: python3 scripts/test_nibi_config.py target/debug/hq

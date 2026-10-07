@@ -3,7 +3,7 @@
 #SBATCH --job-name=hyperqueue_server
 #SBATCH --time=168:00:00
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=2
+#SBATCH --cpus-per-task=1
 #SBATCH --mem=4096M
 #SBATCH --nodes=1
 #SBATCH --threads-per-core=1

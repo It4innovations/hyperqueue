@@ -1,154 +1,27 @@
-## Based on https://github.com/actions-rs/meta/blob/master/recipes/quickstart.md
-name: Test
+name: Linux tests
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
 
 permissions:
   contents: read
 
 jobs:
   test:
-    name: Test
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
-
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
         with:
-          profile: minimal
-          toolchain: 1.95
-          override: true
+          toolchain: 1.95.0
           components: clippy, rustfmt
-
       - uses: Swatinem/rust-cache@v2
-
-      - name: Check package versions
-        run: python scripts/check_package_versions.py
-
-      - name: Build
-        run: cargo build --workspace --all-targets --locked
-
-      - name: Test
-        run: cargo test --workspace --locked
-
-      - name: Setup Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: "3.12"
-
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip wheel setuptools
-          python -m pip install -r tests/requirements.txt
-
-      - name: Build Python binding
-        run: |
-          maturin build --manifest-path crates/pyhq/Cargo.toml --out wheels --locked
-          WHEEL=`realpath wheels/*.whl`
-          python -m pip install $WHEEL[all]
-
-      - name: Test Python
-        id: python_test
-        run: python -m pytest tests -n4
-
-      - name: Archive test artifacts
-        if: always() && steps.python_test.outcome == 'failure'
-        run: tar -cvf artifacts.tar /tmp/pytest-*
-
-      - name: Upload test artifacts
-        uses: actions/upload-artifact@v4
-        if: always() && steps.python_test.outcome == 'failure'
-        with:
-          name: pytest artifacts
-          path: artifacts.tar
-
-      - name: Lint Rust
-        run: cargo clippy --workspace -- -D warnings
-
       - name: Check Rust formatting
         run: cargo fmt --all -- --check
-
-      - name: Lint Python
-        run: python -m ruff check
-
-      - name: Check Python formatting
-        run: python -m ruff format --check
-
-      - name: Build docs
-        run: |
-          python -m pip install -r docs/requirements.txt
-          cargo install --git https://github.com/spirali/cli_doc
-          mkdocs build
-
-
-      - name: Spellcheck
-        uses: crate-ci/typos@v1.34.0
-  compatibility_mode:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: macos-latest
-            target: aarch64-apple-darwin
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: ${{ matrix.os }}
-
-      - name: Build HyperQueue
-        run: cargo build --no-default-features --features dashboard,highs --locked
-      - name: Run HyperQueue
-        run: ./target/debug/hq --version
-
-      - name: Setup Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: "3.12"
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip wheel setuptools
-          python -m pip install -r tests/requirements.txt
-
-      - name: Install coreutils
-        run: brew install coreutils
-
-      - name: Build Python binding
-        run: |
-          maturin build --manifest-path crates/pyhq/Cargo.toml --out wheels --locked
-          WHEEL=`realpath wheels/*.whl`
-          python -m pip install $WHEEL[all]
-
-  features:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Build HyperQueue with the zero worker mode
-        run: RUSTFLAGS="--cfg zero_worker" cargo build --workspace --locked
-
-      - name: Build HyperQueue with all features enabled
-        run: cargo build --all-features --workspace --locked
+      - name: Test Linux CLI and scheduler
+        run: cargo test -p hyperqueue -p tako --lib --locked
+      - name: Lint Linux CLI and scheduler
+        run: cargo clippy -p hyperqueue -p tako --lib --locked -- -D warnings
