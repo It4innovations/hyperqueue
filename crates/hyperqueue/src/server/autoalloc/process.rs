@@ -428,6 +428,13 @@ fn create_queue_worker_query(queue: &AllocationQueue) -> WorkerTypeQuery {
     };
 
     let info = queue.info();
+    // With autodetection disabled, omitted resources are absent, not unknown.
+    // The allocation CLI stores this option as a separate flag/value pair.
+    let partial = partial
+        && !info
+            .worker_args()
+            .windows(2)
+            .any(|args| args[0] == "--detect-resources" && args[1] == "none");
     WorkerTypeQuery {
         descriptor,
         partial,
@@ -1277,7 +1284,9 @@ mod tests {
     use log::LevelFilter;
     use tako::WorkerId;
     use tako::gateway::{LostWorkerReason, ResourceRequestVariants};
-    use tako::resources::{ResourceDescriptor, ResourceRqId};
+    use tako::resources::{
+        ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind, ResourceRqId,
+    };
     use tako::tests::integration::utils::api::wait_for_worker_connected;
     use tako::tests::integration::utils::server::{
         ServerConfigBuilder, ServerHandle, run_server_test,
@@ -1601,6 +1610,171 @@ mod tests {
             assert!(ctx.get_allocations(queue_id).is_empty());
         })
         .await;
+    }
+
+    fn explicit_resources(class: &str, gpu: bool) -> ResourceDescriptor {
+        let mut resources = ResourceDescriptor::simple_cpus(4).resources;
+        resources.push(ResourceDescriptorItem {
+            name: class.into(),
+            kind: ResourceDescriptorKind::simple_indices(1),
+        });
+        resources.push(ResourceDescriptorItem {
+            name: "mem".into(),
+            kind: ResourceDescriptorKind::Sum { size: 1000.into() },
+        });
+        if gpu {
+            resources.push(ResourceDescriptorItem {
+                name: "gpus/nvidia".into(),
+                kind: ResourceDescriptorKind::simple_indices(1),
+            });
+        }
+        ResourceDescriptor::new(resources, Default::default())
+    }
+
+    #[tokio::test]
+    async fn explicit_worker_resources_reject_incompatible_classes_before_connection() {
+        for requested in ["worker/cpu", "worker/large-cpu", "worker/gpu"] {
+            for provided in ["worker/cpu", "worker/large-cpu", "worker/gpu"] {
+                run_test(async |mut ctx: TestCtx| {
+                    let queue_id = ctx
+                        .add_queue(
+                            always_queued_handler(),
+                            QueueBuilder::default()
+                                .cli_resources(Some(explicit_resources(
+                                    provided,
+                                    provided == "worker/gpu",
+                                )))
+                                .worker_args(vec!["--detect-resources".into(), "none".into()]),
+                        )
+                        .await;
+                    let mut request = ResourceRequestConfigBuilder::default()
+                        .cpus(2)
+                        .add_compact("mem", 10)
+                        .add_compact(requested, 1);
+                    if requested == "worker/gpu" {
+                        request = request.add_compact("gpus/nvidia", 1);
+                    }
+                    let rq_id = ctx.handle.register_request(request);
+                    ctx.create_simple_tasks(1, rq_id).await;
+                    ctx.try_submit().await;
+                    assert_eq!(
+                        ctx.get_allocations(queue_id).len(),
+                        usize::from(requested == provided),
+                        "task requesting {requested} against queue providing {provided}",
+                    );
+                })
+                .await;
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn explicit_worker_resources_do_not_invent_missing_capacity() {
+        for missing in ["mem", "gpus/nvidia"] {
+            run_test(async |mut ctx: TestCtx| {
+                let queue_id = ctx
+                    .add_queue(
+                        always_queued_handler(),
+                        QueueBuilder::default()
+                            .cli_resources(Some(ResourceDescriptor::simple_cpus(4)))
+                            .worker_args(vec!["--detect-resources".into(), "none".into()]),
+                    )
+                    .await;
+                let rq_id = ctx.handle.register_request(
+                    ResourceRequestConfigBuilder::default()
+                        .cpus(2)
+                        .add_compact(missing, 1),
+                );
+                ctx.create_simple_tasks(1, rq_id).await;
+                ctx.try_submit().await;
+                assert!(
+                    ctx.get_allocations(queue_id).is_empty(),
+                    "missing {missing}"
+                );
+            })
+            .await;
+        }
+    }
+
+    #[tokio::test]
+    async fn explicit_worker_resources_route_among_multiple_cold_queues() {
+        let classes = ["worker/cpu", "worker/large-cpu", "worker/gpu"];
+        for requested in classes {
+            for reverse_order in [false, true] {
+                run_test(async |mut ctx: TestCtx| {
+                    let mut queues = Vec::new();
+                    let mut order = classes;
+                    if reverse_order {
+                        order.reverse();
+                    }
+                    for provided in order {
+                        let queue_id = ctx
+                            .add_queue(
+                                always_queued_handler(),
+                                QueueBuilder::default()
+                                    .cli_resources(Some(explicit_resources(
+                                        provided,
+                                        provided == "worker/gpu",
+                                    )))
+                                    .worker_args(vec!["--detect-resources".into(), "none".into()]),
+                            )
+                            .await;
+                        queues.push((provided, queue_id));
+                    }
+                    let mut request = ResourceRequestConfigBuilder::default()
+                        .cpus(2)
+                        .add_compact("mem", 10)
+                        .add_compact(requested, 1);
+                    if requested == "worker/gpu" {
+                        request = request.add_compact("gpus/nvidia", 1);
+                    }
+                    let rq_id = ctx.handle.register_request(request);
+                    ctx.create_simple_tasks(1, rq_id).await;
+                    ctx.try_submit().await;
+                    for (provided, queue_id) in queues {
+                        assert_eq!(
+                            ctx.get_allocations(queue_id).len(),
+                            usize::from(provided == requested),
+                            "task requesting {requested} against queue providing {provided}",
+                        );
+                    }
+                })
+                .await;
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn explicit_worker_resources_respect_capacity_and_time() {
+        for (cpus, mem, gpus, seconds) in [
+            (5, 10, 1, 0),
+            (2, 1001, 1, 0),
+            (2, 10, 2, 0),
+            (2, 10, 1, 3601),
+        ] {
+            run_test(async |mut ctx: TestCtx| {
+                let queue_id = ctx
+                    .add_queue(
+                        always_queued_handler(),
+                        QueueBuilder::default()
+                            .cli_resources(Some(explicit_resources("worker/gpu", true)))
+                            .worker_args(vec!["--detect-resources".into(), "none".into()]),
+                    )
+                    .await;
+                let rq_id = ctx.handle.register_request(
+                    ResourceRequestConfigBuilder::default()
+                        .cpus(cpus)
+                        .add_compact("mem", mem)
+                        .add_compact("worker/gpu", 1)
+                        .add_compact("gpus/nvidia", gpus)
+                        .min_time(Duration::from_secs(seconds)),
+                );
+                ctx.create_simple_tasks(1, rq_id).await;
+                ctx.try_submit().await;
+                assert!(ctx.get_allocations(queue_id).is_empty());
+            })
+            .await;
+        }
     }
 
     // Check that autoalloc reacts to a worker connecting from an allocation, which should update
@@ -2650,6 +2824,8 @@ mod tests {
         min_utilization: f32,
         #[builder(default)]
         cli_resources: Option<ResourceDescriptor>,
+        #[builder(default)]
+        worker_args: Vec<String>,
     }
 
     impl QueueBuilder {
@@ -2665,6 +2841,7 @@ mod tests {
                 limiter_delays,
                 min_utilization,
                 cli_resources,
+                worker_args,
             } = self.finish().unwrap();
             let params = QueueParameters {
                 manager,
@@ -2679,7 +2856,7 @@ mod tests {
                 worker_stop_cmd: None,
                 worker_wrap_cmd: None,
                 cli_resource_descriptor: cli_resources,
-                worker_args: vec![],
+                worker_args,
                 idle_timeout: None,
             };
 
