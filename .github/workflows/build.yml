@@ -11,6 +11,9 @@ on:
         default: ${{ github.sha }}
         type: string
 
+permissions:
+  contents: read
+
 jobs:
   set-env:
     runs-on: ubuntu-latest
@@ -39,15 +42,9 @@ jobs:
         with:
           ref: ${{ needs.set-env.outputs.sha }}
       - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
-          profile: minimal
-          toolchain: 1.95
-          override: true
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: x64
+          toolchain: 1.95.0
 
       # Needed for the highs dependency
       - name: Install Clang

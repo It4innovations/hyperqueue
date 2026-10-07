@@ -1,21 +1,5 @@
 # Security Policy
 
-## Supported Versions
+This is a custom fork intended for Nibi. It is provided as-is, without guarantees of security, reliability, or suitability for other systems.
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
-
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
-
-## Reporting a Vulnerability
-
-Use this section to tell people how to report a vulnerability.
-
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+No version has guaranteed security support. Security updates, response times, and fix timelines are not promised. Use it at your own risk.

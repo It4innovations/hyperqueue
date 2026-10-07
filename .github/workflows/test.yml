@@ -22,3 +22,7 @@ jobs:
         run: cargo test -p hyperqueue -p tako --lib --locked
       - name: Lint Linux CLI and scheduler
         run: cargo clippy -p hyperqueue -p tako --lib --locked -- -D warnings
+      - name: Install comparison server test dependency
+        run: python3 -m pip install tornado==6.5.10
+      - name: Check comparison report path traversal protection
+        run: python3 scripts/test_comparison_server.py

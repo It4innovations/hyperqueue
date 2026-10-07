@@ -14,6 +14,7 @@ from tornado.ioloop import IOLoop
 
 from ..benchmark.database import Database
 from .common import create_database_df, groupby_environment, groupby_workload
+from .comparison import ComparisonHandler
 from .monitor import create_page
 from .overview import (
     create_comparer_page,
@@ -58,12 +59,6 @@ def serve_summary_html(database: Database, directory: Path, port: int):
             report = entries[str(Path(key).stem)].report
             page = create_page(report)
             self.write(file_html(page, CDN, "Cluster report"))
-
-    class ComparisonHandler(web.RequestHandler):
-        def get(self, key: str):
-            html_file = open(Path("summary/comparisons").joinpath(key), "r", encoding="utf-8")
-            source_code = html_file.read()
-            self.write(source_code)
 
     class CompareOverview(web.RequestHandler):
         def get(self, key: str):
@@ -178,7 +173,7 @@ def serve_summary_html(database: Database, directory: Path, port: int):
 
     app = web.Application(
         [
-            (r"/comparisons/(.*)", ComparisonHandler),
+            (r"/comparisons/(.*)", ComparisonHandler, {"directory": directory / "comparisons"}),
             (r"/monitoring/(.*)", ClusterHandler),
             (r"/compare/(.*)", CompareOverview),
             (r"/img", ImgHandler),
