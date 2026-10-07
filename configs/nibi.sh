@@ -3,7 +3,6 @@ set -euo pipefail
 
 # Register once against a running HQ server built from this fork.
 # Account selection is supplied by the caller, not stored in this config.
-: "${SLURM_ACCOUNT:?Set SLURM_ACCOUNT before running this config}"
 
 # Every task must request its exact worker/* class. In Nextflow, route CPU
 # tasks <=748.GB to worker/cpu and tasks >748.GB to worker/cpuLarge.
