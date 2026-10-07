@@ -1,5 +1,6 @@
 use crate::internal::solver::{ConstraintType, LpInnerSolver, LpSolution};
 use coin_cbc::{Col, Model, Sense};
+use std::time::Duration;
 
 pub(crate) struct CoinCbcSolver {
     model: Model,
@@ -60,13 +61,16 @@ impl LpInnerSolver for CoinCbcSolver {
         }
     }
 
-    fn solve(self) -> Option<(Self::Solution, f64)> {
+    fn solve(mut self, time_limit: Option<Duration>) -> Option<Self::Solution> {
+        if let Some(time_limit) = time_limit {
+            self.model
+                .set_parameter("seconds", &time_limit.as_secs_f64().to_string());
+        }
         let solution = self.model.solve();
         if !solution.raw().is_proven_optimal() {
             return None;
         }
-        let obj = solution.raw().obj_value();
-        Some((solution, obj))
+        Some(solution)
     }
 }
 
@@ -76,5 +80,15 @@ impl LpSolution for coin_cbc::Solution {
     #[inline]
     fn get_value(&self, v: Col) -> f64 {
         self.col(v)
+    }
+
+    #[inline]
+    fn objective(&self) -> f64 {
+        self.raw().obj_value()
+    }
+
+    #[inline]
+    fn is_optimal(&self) -> bool {
+        self.raw().is_proven_optimal()
     }
 }

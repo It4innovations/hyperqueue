@@ -1,5 +1,5 @@
 use crate::internal::solver::{ConstraintType, LpInnerSolver, LpSolution};
-use microlp::{ComparisonOp, Solution};
+use microlp::{ComparisonOp, Solution, SolveOutcome};
 use std::time::Duration;
 
 pub(crate) struct MicrolpSolver(microlp::Problem);
@@ -55,11 +55,11 @@ impl LpInnerSolver for MicrolpSolver {
         )
     }
 
-    fn solve(self, time_limit: Option<Duration>) -> Option<crate::internal::solver::Solution> {
+    fn solve(mut self, time_limit: Option<Duration>) -> Option<crate::internal::solver::Solution> {
         if let Some(time_limit) = time_limit {
             self.0.set_time_limit(time_limit);
         }
-        let Ok(SolutionOutcome::Solution(solution)) = self.0.solve() else {
+        let Ok(SolveOutcome::Solution(solution)) = self.0.solve() else {
             return None;
         };
         Some(solution)
