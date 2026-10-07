@@ -1,6 +1,7 @@
 import io
 import logging
 import os
+import re
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -61,8 +62,12 @@ def serve_summary_html(database: Database, directory: Path, port: int):
 
     class ComparisonHandler(web.RequestHandler):
         def get(self, key: str):
+            safe_key = Path(key).name
+            if safe_key != key or not re.fullmatch(r"[A-Za-z0-9._-]+\.html", safe_key):
+                raise web.HTTPError(400, reason="Invalid comparison path")
+
             root = Path("summary/comparisons").resolve()
-            html_path = (root / key).resolve()
+            html_path = (root / safe_key).resolve()
             try:
                 html_path.relative_to(root)
             except ValueError:
