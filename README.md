@@ -54,6 +54,8 @@ Memory is in MiB, matching SLURM `--mem=<value>M`. The total limit counts queued
 
 GPU workers each reserve **one** matching GPU or MIG instance via SLURM `--gres=gpu:<type>:1`. GPU tasks must explicitly request the exact GPU or MIG class from the table, **`--resource gpus=1`**, and their CPU and memory needs. For example, `--resource worker/h100mig20=1` selects the 20-GB H100 MIG type; `gpus=1` alone does not select a model or MIG size. Each task reserves the worker's one indexed device. Every task must request its resource class using `--resource`, so it can run only on workers that provide that class.
 
+This Nibi setup currently supports **one GPU or MIG instance and one node per task**. Multi-GPU requests such as `:2` or `:4`, and individual tasks spanning multiple nodes, are not supported.
+
 ## Allocation and scheduling rules
 
 Resources are explicit (`--detect-resources none`). Missing classes stay absent during allocation planning, including before the first worker connects. There are 65 allocation queues; registering them does not start 65 workers. Allocations are submitted only when eligible pending work exists.
