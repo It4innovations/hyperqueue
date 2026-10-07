@@ -52,7 +52,7 @@ Memory is in MiB, matching SLURM `--mem=<value>M`. The total limit counts queued
 | `h100_2g.20gb` | 4 | 63488 | `worker/h100mig20=1` | N/A | 24 | 12 | No |
 | `H100-3g.40gb` | 6 | 126976 | `worker/h100mig40=1` | N/A | 24 | 12 | No |
 
-GPU workers each reserve **one** matching GPU or MIG instance via SLURM `--gres=gpu:<type>:1`. GPU tasks must request their exact class **and** `gpus=1`. Each task reserves the worker's one indexed device; there is no CPU minimum for these allocations (N/A in the table). Every task must request its resource class using `--resource`, so it can run only on workers that provide that class.
+GPU workers each reserve **one** matching GPU or MIG instance via SLURM `--gres=gpu:<type>:1`. GPU tasks must explicitly request the exact GPU or MIG class from the table, **`--resource gpus=1`**, and their CPU and memory needs. For example, `--resource worker/h100mig20=1` selects the 20-GB H100 MIG type; `gpus=1` alone does not select a model or MIG size. Each task reserves the worker's one indexed device; there is no CPU minimum for these allocations (N/A in the table). Every task must request its resource class using `--resource`, so it can run only on workers that provide that class.
 
 ## Allocation and scheduling rules
 
@@ -118,7 +118,32 @@ hq submit --cpus 4 --resource mem=63488 --resource worker/h100mig20=1 \
     --resource gpus=1 --time-request 1h --time-limit 1h /bin/bash ./mock_task.sh
 ```
 
-`--time-request` checks worker eligibility and chooses the new allocation tier. `--time-limit` is the task's execution limit. These examples reserve real SLURM resources even though the mock script only sleeps. More examples are in the official [submission documentation](https://it4innovations.github.io/hyperqueue/stable/jobs/jobs/).
+The two task time options have separate purposes:
+
+- **`--time-request`** is the minimum remaining worker lifetime needed to start the task. In this fork it also selects the next longer walltime tier when a new SLURM allocation is needed. A 24h request therefore needs at least 24h remaining on an existing worker, or starts a new 72h allocation. It does not stop the task after 24h.
+- **`--time-limit`** is the task's execution limit, counted from when that task starts. HQ terminates the task if it reaches this limit. It does not select a worker or allocation tier.
+
+These examples reserve real SLURM resources even though the mock script only sleeps. See the official [time management and submission documentation](https://it4innovations.github.io/hyperqueue/stable/jobs/jobs/#time-management).
+
+## HQ task arrays
+
+Use `hq submit --array` to create one HQ job containing multiple independent tasks. The range is inclusive, and each task receives its own `HQ_TASK_ID`. For example, this creates 48 tasks, **each** requesting 4 CPUs, 4096 MiB, the base CPU class, and one hour:
+
+```bash
+hq submit \
+    --name array-example \
+    --array 1-48 \
+    --cpus 4 \
+    --resource mem=4096 \
+    --resource worker/cpu=1 \
+    --time-request 1h \
+    --time-limit 1h \
+    -- /bin/bash -c 'printf "Task %s on %s\n" "$HQ_TASK_ID" "$(hostname)"; sleep 30'
+```
+
+HQ schedules these tasks inside eligible workers using the same allocation rules and shared limits. The time limit applies separately to each task. Default stdout and stderr files are separate for each task under `job-<jobid>/`.
+
+You can also create tasks from a file with `--each-line inputs.txt` or a JSON array with `--from-json inputs.json`; each task receives its input through `HQ_ENTRY`. See the official [HQ task array documentation](https://it4innovations.github.io/hyperqueue/stable/jobs/arrays/).
 
 For Nextflow, use the `hq` executor and pass the class and `--time-request` through `clusterOptions`. A process that replaces `clusterOptions` must include its own time request. GPU processes also set `accelerator` so Nextflow requests `gpus`. Set the applicable Nextflow memory limits above 766000 MiB when using the large class. See the official [Nextflow HyperQueue executor](https://docs.seqera.io/nextflow/executor/hyperqueue).
 
@@ -126,4 +151,4 @@ For Nextflow, use the `hq` executor and pass the class and `--time-request` thro
 
 Run `hq dashboard` to view jobs, workers, and allocations. Journalling is enabled by the launcher. See the official [dashboard documentation](https://it4innovations.github.io/hyperqueue/stable/cli/dashboard/). `hq alloc list`, `hq worker list`, and `hq job list` also show current state.
 
-Only pushing a `v*` release tag triggers CI. Linux x86-64 tests and allocation regressions must pass before the Linux binary is built and published. There are no macOS, ARM, PowerPC, Python-wheel, nightly, container, or documentation-deployment builds.
+There are no macOS, ARM, PowerPC, Python-wheel, nightly, container, or documentation-deployment builds.
