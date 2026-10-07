@@ -38,12 +38,12 @@ Memory is in MiB, matching SLURM `--mem=<value>M`. The total limit counts queued
 
 | Worker group | CPUs | Memory (MiB) | Task class (`--resource`) | Minimum requested CPUs for a new allocation | Total limit | Backlog | Exclusive |
 | --- | ---: | ---: | --- | ---: | ---: | ---: | --- |
-| `cpu_base` | 192 | 766000 | `worker/cpu=1` | 96 (50%) | 100 | 25 | Yes |
+| `cpu_base_full` | 192 | 766000 | `worker/cpu=1` | 96 (50%) | 100 | 25 | Yes |
 | `cpu_base_half` | 96 | 383000 | `worker/cpu=1` | 48 (50%) | 1 | 1 | No |
 | `cpu_base_quarter` | 48 | 191500 | `worker/cpu=1` | 24 (50%) | 1 | 1 | No |
 | `cpu_base_eighth` | 24 | 95750 | `worker/cpu=1` | 12 (50%) | 1 | 1 | No |
 | `cpu_base_sixteenth` | 12 | 47875 | `worker/cpu=1` | None | 1 | 1 | No |
-| `cpu_large` | 192 | 6144000 | `worker/cpuLarge=1` | 96 (50%) | 4 | 2 | Yes |
+| `cpu_large_full` | 192 | 6144000 | `worker/cpuLarge=1` | 96 (50%) | 4 | 2 | Yes |
 | `cpu_large_half` | 96 | 3072000 | `worker/cpuLarge=1` | 48 (50%) | 1 | 1 | No |
 | `cpu_large_quarter` | 48 | 1536000 | `worker/cpuLarge=1` | 24 (50%) | 1 | 1 | No |
 | `mi300a` | 24 | 126750 | `worker/mi300a=1` | N/A | 8 | 4 | No |

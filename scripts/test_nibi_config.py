@@ -12,12 +12,12 @@ from test_journal_directory import run, server
 ROOT = Path(__file__).resolve().parents[1]
 # CPUs, memory MiB, class, total cap, backlog, exclusive, GPU type
 EXPECTED = {
-    "cpu_base": (192, 766000, "worker/cpu", 100, 25, True, None),
+    "cpu_base_full": (192, 766000, "worker/cpu", 100, 25, True, None),
     "cpu_base_half": (96, 383000, "worker/cpu", 1, 1, False, None),
     "cpu_base_quarter": (48, 191500, "worker/cpu", 1, 1, False, None),
     "cpu_base_eighth": (24, 95750, "worker/cpu", 1, 1, False, None),
     "cpu_base_sixteenth": (12, 47875, "worker/cpu", 1, 1, False, None),
-    "cpu_large": (192, 6144000, "worker/cpuLarge", 4, 2, True, None),
+    "cpu_large_full": (192, 6144000, "worker/cpuLarge", 4, 2, True, None),
     "cpu_large_half": (96, 3072000, "worker/cpuLarge", 1, 1, False, None),
     "cpu_large_quarter": (48, 1536000, "worker/cpuLarge", 1, 1, False, None),
     "mi300a": (24, 126750, "worker/mi300a", 8, 4, False, "mi300a"),

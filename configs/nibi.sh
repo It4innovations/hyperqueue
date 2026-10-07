@@ -39,8 +39,8 @@ add_queue() {
 }
 
 for hours in 3 12 24 72 168; do
-    add_queue cpu_base "$hours" 192 766000 'worker/cpu=sum(192)' \
-        --group cpu_base --max-worker-count 100 --backlog 25 \
+    add_queue cpu_base_full "$hours" 192 766000 'worker/cpu=sum(192)' \
+        --group cpu_base_full --max-worker-count 100 --backlog 25 \
         --allocation-min-utilization 0.5 --idle-timeout 5m \
         -- --account="$SLURM_ACCOUNT" --ntasks-per-node=1 \
         --cpus-per-task=192 --threads-per-core=1 --mem=766000M --exclusive
@@ -68,8 +68,8 @@ for hours in 3 12 24 72 168; do
         -- --account="$SLURM_ACCOUNT" --ntasks-per-node=1 \
         --cpus-per-task=12 --threads-per-core=1 --mem=47875M
 
-    add_queue cpu_large "$hours" 192 6144000 'worker/cpuLarge=sum(192)' \
-        --group cpu_large --max-worker-count 4 --backlog 2 \
+    add_queue cpu_large_full "$hours" 192 6144000 'worker/cpuLarge=sum(192)' \
+        --group cpu_large_full --max-worker-count 4 --backlog 2 \
         --allocation-min-utilization 0.5 --idle-timeout 5m \
         -- --account="$SLURM_ACCOUNT" --ntasks-per-node=1 \
         --cpus-per-task=192 --threads-per-core=1 --mem=6144000M --exclusive
