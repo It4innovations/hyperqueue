@@ -12,6 +12,10 @@ on:
   push:
     tags:
       - 'v*'
+
+permissions:
+  contents: read
+
 jobs:
   version-check:
     runs-on: ubuntu-latest

@@ -9,9 +9,14 @@ on:
 
 concurrency: docs
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     if: github.repository_owner == 'It4innovations'
     steps:
       - uses: actions/checkout@v4

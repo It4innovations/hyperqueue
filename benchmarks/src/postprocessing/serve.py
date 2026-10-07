@@ -61,8 +61,12 @@ def serve_summary_html(database: Database, directory: Path, port: int):
 
     class ComparisonHandler(web.RequestHandler):
         def get(self, key: str):
-            html_file = open(Path("summary/comparisons").joinpath(key), "r", encoding="utf-8")
-            source_code = html_file.read()
+            root = Path("summary/comparisons").resolve()
+            html_path = (root / key).resolve()
+            if root not in html_path.parents:
+                raise web.HTTPError(400, reason="Invalid comparison path")
+            with html_path.open("r", encoding="utf-8") as html_file:
+                source_code = html_file.read()
             self.write(source_code)
 
     class CompareOverview(web.RequestHandler):

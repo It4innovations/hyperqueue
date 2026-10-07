@@ -15,6 +15,9 @@ on:
         default: ${{ github.sha }}
         type: string
 
+permissions:
+  contents: read
+
 jobs:
   set-env:
     runs-on: ubuntu-latest
@@ -48,10 +51,6 @@ jobs:
           profile: minimal
           toolchain: 1.95
           override: true
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: x64
 
       # Needed for the highs dependency
       - name: Install Clang
@@ -100,10 +99,6 @@ jobs:
           profile: minimal
           toolchain: 1.95 
           override: true
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: ${{ matrix.arch }}
 
       - name: Install cross
         run: cargo install cross --git https://github.com/cross-rs/cross --locked --rev d8e00ce3940124e67591346cbe234c415fcfc6eb
