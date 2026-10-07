@@ -19,7 +19,7 @@ set -euo pipefail
 # CPU groups prefer full, half, quarter, eighth, then sixteenth allocations.
 # Each smaller size has one shared queued/running worker across all five tiers.
 # Each worker type also shares its total and queued allocation caps across all tiers.
-# All CPU sizes except base eighth require 50% requested CPU demand before allocation.
+# All CPU sizes except base sixteenth require 50% requested CPU demand before allocation.
 # All workers stop after five idle minutes; connected workers accept any fitting task.
 
 add_queue() {
@@ -58,13 +58,13 @@ for hours in 3 12 24 72 168; do
         --cpus-per-task=48 --threads-per-core=1 --mem=191500M
 
     add_queue cpu_base_eighth "$hours" 24 95750 'worker/cpu=sum(24)' \
-        --group cpu_base_eighth --max-worker-count 1 --backlog 1 --idle-timeout 5m \
+        --group cpu_base_eighth --max-worker-count 1 --backlog 1 \
+        --allocation-min-utilization 0.5 --idle-timeout 5m \
         -- --account="$SLURM_ACCOUNT" --ntasks-per-node=1 \
         --cpus-per-task=24 --threads-per-core=1 --mem=95750M
 
     add_queue cpu_base_sixteenth "$hours" 12 47875 'worker/cpu=sum(12)' \
-        --group cpu_base_sixteenth --max-worker-count 1 --backlog 1 \
-        --allocation-min-utilization 0.5 --idle-timeout 5m \
+        --group cpu_base_sixteenth --max-worker-count 1 --backlog 1 --idle-timeout 5m \
         -- --account="$SLURM_ACCOUNT" --ntasks-per-node=1 \
         --cpus-per-task=12 --threads-per-core=1 --mem=47875M
 

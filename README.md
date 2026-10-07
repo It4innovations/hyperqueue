@@ -41,24 +41,24 @@ Memory is in MiB, matching SLURM `--mem=<value>M`. The total limit counts queued
 | `cpu_base` | 192 | 766000 | `worker/cpu=1` | 96 (50%) | 100 | 25 | Yes |
 | `cpu_base_half` | 96 | 383000 | `worker/cpu=1` | 48 (50%) | 1 | 1 | No |
 | `cpu_base_quarter` | 48 | 191500 | `worker/cpu=1` | 24 (50%) | 1 | 1 | No |
-| `cpu_base_eighth` | 24 | 95750 | `worker/cpu=1` | None | 1 | 1 | No |
-| `cpu_base_sixteenth` | 12 | 47875 | `worker/cpu=1` | 6 (50%) | 1 | 1 | No |
+| `cpu_base_eighth` | 24 | 95750 | `worker/cpu=1` | 12 (50%) | 1 | 1 | No |
+| `cpu_base_sixteenth` | 12 | 47875 | `worker/cpu=1` | None | 1 | 1 | No |
 | `cpu_large` | 192 | 6144000 | `worker/cpuLarge=1` | 96 (50%) | 4 | 2 | Yes |
 | `cpu_large_half` | 96 | 3072000 | `worker/cpuLarge=1` | 48 (50%) | 1 | 1 | No |
 | `cpu_large_quarter` | 48 | 1536000 | `worker/cpuLarge=1` | 24 (50%) | 1 | 1 | No |
-| `mi300a` | 24 | 126750 | `worker/mi300a=1` | None | 8 | 4 | No |
-| `h100_full` | 14 | 256000 | `worker/h100=1` | None | 16 | 8 | No |
-| `h100_1g.10gb` | 2 | 31744 | `worker/h100mig10=1` | None | 48 | 24 | No |
-| `h100_2g.20gb` | 4 | 63488 | `worker/h100mig20=1` | None | 24 | 12 | No |
-| `H100-3g.40gb` | 6 | 126976 | `worker/h100mig40=1` | None | 24 | 12 | No |
+| `mi300a` | 24 | 126750 | `worker/mi300a=1` | N/A | 8 | 4 | No |
+| `h100_full` | 14 | 256000 | `worker/h100=1` | N/A | 16 | 8 | No |
+| `h100_1g.10gb` | 2 | 31744 | `worker/h100mig10=1` | N/A | 48 | 24 | No |
+| `h100_2g.20gb` | 4 | 63488 | `worker/h100mig20=1` | N/A | 24 | 12 | No |
+| `H100-3g.40gb` | 6 | 126976 | `worker/h100mig40=1` | N/A | 24 | 12 | No |
 
-GPU workers each reserve **one** matching GPU or MIG instance via SLURM `--gres=gpu:<type>:1`. GPU tasks must request their exact class **and** `gpus=1`. They cannot run on CPU workers. Every CPU task must request its CPU class, so it cannot run on GPU workers.
+GPU workers each reserve **one** matching GPU or MIG instance via SLURM `--gres=gpu:<type>:1`. GPU tasks must request their exact class **and** `gpus=1`. Each task reserves the worker's one indexed device; there is no CPU minimum for these allocations (N/A in the table). They cannot run on CPU workers. Every CPU task must request its CPU class, so it cannot run on GPU workers.
 
 ## Allocation and scheduling rules
 
 Resources are explicit (`--detect-resources none`). Missing classes stay absent during allocation planning, including before the first worker connects. There are 65 allocation queues; registering them does not start 65 workers. Allocations are submitted only when eligible pending work exists.
 
-Within a CPU class, larger workers are preferred when enough fitting work meets their CPU threshold and shared limits. The base eighth has no minimum, so it can serve small demand before a sixteenth worker; the sixteenth is another capped option when eligible. CPU demand means requested CPUs, not measured CPU activity or memory usage.
+Within a CPU class, larger workers are preferred when enough fitting work meets their CPU threshold and shared limits. The base sixteenth has no minimum and can serve small demand below the eighth's 12-CPU minimum. CPU demand means requested CPUs, not measured CPU activity or memory usage.
 
 Every **new large-memory allocation** must contain at least one task requesting **strictly more than 766000 MiB**, with `worker/cpuLarge=1`. Equality does not qualify, and the combined memory of several smaller tasks cannot trigger it. Each allocation must also reach 50% requested CPU demand. Smaller tasks with the same large class can contribute to that demand, but cannot cause extra large allocations on their own. Connected large workers can accept smaller tasks with `worker/cpuLarge`; ordinary `worker/cpu` tasks stay on base workers.
 

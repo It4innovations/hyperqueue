@@ -62,7 +62,7 @@ def main():
                 name = args[args.index("--name") + 1].rsplit("-", 1)[0]
                 assert args[args.index("--idle-timeout") + 1] == "5m"
                 assert "--no-dry-run" in args
-                if name.startswith("cpu_") and name != "cpu_base_eighth":
+                if name.startswith("cpu_") and name != "cpu_base_sixteenth":
                     assert args[args.index("--allocation-min-utilization") + 1] == "0.5"
                 else:
                     assert "--allocation-min-utilization" not in args
