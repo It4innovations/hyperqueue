@@ -34,7 +34,7 @@ Queues are registered when the server has no allocation queues. A restored journ
 
 Each SLURM allocation starts one worker on one node with one task and one thread per core. CPU full-node allocations are exclusive; fractional CPU allocations and all GPU allocations are not.
 
-Memory is in MiB, matching SLURM `--mem=<value>M`. The total limit counts queued plus running workers. Backlog limits queued allocations and is part of that total. Both limits apply across all five durations for that row, including paused queues.
+Memory is in MiB, matching SLURM `--mem=<value>M`. Convert a SLURM `G` request to `M` by multiplying by **1024**: `1G = 1024M`, so `250G = 256000M`.
 
 | Worker group | CPUs | Memory (MiB) | Task class (`--resource`) | Minimum requested CPUs for a new allocation | Total limit | Backlog | Exclusive |
 | --- | ---: | ---: | --- | ---: | ---: | ---: | --- |
@@ -52,7 +52,7 @@ Memory is in MiB, matching SLURM `--mem=<value>M`. The total limit counts queued
 | `h100_2g.20gb` | 4 | 63488 | `worker/h100mig20=1` | N/A | 24 | 12 | No |
 | `H100-3g.40gb` | 6 | 126976 | `worker/h100mig40=1` | N/A | 24 | 12 | No |
 
-GPU workers each reserve **one** matching GPU or MIG instance via SLURM `--gres=gpu:<type>:1`. GPU tasks must explicitly request the exact GPU or MIG class from the table, **`--resource gpus=1`**, and their CPU and memory needs. For example, `--resource worker/h100mig20=1` selects the 20-GB H100 MIG type; `gpus=1` alone does not select a model or MIG size. Each task reserves the worker's one indexed device. Every task must request its resource class using `--resource`, so it can run only on workers that provide that class.
+GPU workers each reserve **one** matching GPU or MIG instance via SLURM `--gres=gpu:<type>:1`. GPU tasks must explicitly request the exact GPU or MIG class from the table, **`--resource gpus=1`**, including matching their defined CPU and memory allotments. For example, `--resource worker/h100mig20=1` selects the 20-GB H100 MIG type; `gpus=1` alone does not select a model or MIG size. Each task reserves the worker's one indexed device. Every task must request its resource class using `--resource`, so it can run only on workers that provide that class.
 
 This Nibi setup currently supports **one GPU or MIG instance and one node per task**. Multi-GPU requests such as `:2` or `:4`, and individual tasks spanning multiple nodes, are not supported.
 
@@ -65,6 +65,8 @@ Within a CPU class, larger workers are preferred when enough fitting work meets 
 Every **new large-memory allocation** must contain at least one task requesting **strictly more than 766000 MiB**, with `worker/cpuLarge=1`. Equality does not qualify, and the combined memory of several smaller tasks cannot trigger it. Each allocation must also reach 50% requested CPU demand. Smaller tasks with the same large class can contribute to that demand, but cannot cause extra large allocations on their own. Connected large workers can accept smaller tasks with `worker/cpuLarge`; ordinary `worker/cpu` tasks stay on base workers.
 
 Every row has five walltime queues: **3, 12, 24, 72, and 168 hours**. Names append the duration, for example `cpu_base_quarter-72h`.
+
+The total limit counts queued plus running workers. Backlog limits queued allocations and is part of that total. Both limits apply across all five durations for that row, including paused queues.
 
 For a **new SLURM submission**, the allocator chooses the first walltime tier strictly longer than the task's `--time-request`:
 
