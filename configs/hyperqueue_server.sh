@@ -7,15 +7,16 @@
 #SBATCH --mem=4096M
 #SBATCH --nodes=1
 #SBATCH --threads-per-core=1
-#SBATCH --account=def-USER
+#SBATCH --account=$SLURM_ACCOUNT
+#SBATCH --output=$HOME/logs/hyperqueue_server_%j.log
+#SBATCH --error=$HOME/logs/hyperqueue_server_%j.log
 #SBATCH --signal=B:USR1@300
 
 set -euo pipefail
 
-export PATH=/project/def-USER/tools/hyperqueue/0.26.2:$PATH
+export PATH=/project/$SLURM_ACCOUNT/tools/hyperqueue/0.26.2:$PATH
 export HQ_JOURNAL_DIR="$HOME/hyperqueue/journal"
 export HQ_SERVER_DIR="$HOME/hyperqueue/server"
-export SLURM_ACCOUNT=def-USER
 
 idle_timeout_seconds=1800  # 30 minutes
 check_interval_seconds=30

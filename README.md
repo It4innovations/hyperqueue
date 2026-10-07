@@ -2,7 +2,7 @@
 
 ## Install on Nibi
 
-Paste this block into a zsh terminal on Nibi. Replace `def-USER` with your SLURM project account at the top; the remaining paths and account settings follow that value. Requires `curl`, `unzip`, `tar`, Python 3, and the SLURM client commands.
+Paste this block into a zsh terminal on a Nibi login node. It uses the existing `$SLURM_ACCOUNT` from your login environment for the project paths and launcher account. Requires `curl`, `unzip`, `tar`, Python 3, and the SLURM client commands.
 
 This installs this fork's Linux x86-64 build, the Nibi allocation config, and a shared-server launcher. The server requests 2 CPUs and 4096M, stops after 30 minutes without waiting or running jobs, and flushes its journal and exports timestamped HTML before stopping. It also shuts down five minutes before its seven-day walltime expires, including when jobs are still active. The journal is retained without pruning.
 
@@ -10,8 +10,7 @@ This installs this fork's Linux x86-64 build, the Nibi allocation config, and a 
 (
     set -euo pipefail
 
-    # Set your SLURM project account here before pasting, e.g. def-USER.
-    SLURM_ACCOUNT=def-USER
+    # Use SLURM_ACCOUNT from the login environment.
     HQ_INSTALL_DIR="/project/$SLURM_ACCOUNT/tools/hyperqueue"
 
     mkdir -p "$HQ_INSTALL_DIR/0.26.2"
@@ -38,13 +37,14 @@ EOF
 
     curl -fL --retry 3 \
         'https://raw.githubusercontent.com/jaredfischbach/hyperqueue/main/configs/hyperqueue_server.sh' | \
-        sed "s/def-USER/$SLURM_ACCOUNT/g" > "$HOME/hyperqueue/hyperqueue_server.sh"
+        sed -e "s|\$SLURM_ACCOUNT|$SLURM_ACCOUNT|g" \
+            -e "s|\$HOME|$HOME|g" > "$HOME/hyperqueue/hyperqueue_server.sh"
     chmod +x "$HQ_INSTALL_DIR/0.26.2/hq" "$HQ_INSTALL_DIR/nibi.sh" \
         "$HOME/hyperqueue/hyperqueue_server.sh"
 
     echo '
 hqstart() {
-    sbatch --output="$HOME/logs/hyperqueue_server_%j.log" "$HOME/hyperqueue/hyperqueue_server.sh"
+    sbatch "$HOME/hyperqueue/hyperqueue_server.sh"
 }
 ' >> "$HOME/.zshrc"
 ) &&
