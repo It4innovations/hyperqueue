@@ -8,8 +8,8 @@ set -euo pipefail
 # Every task must request its exact worker/* class. In Nextflow, route CPU
 # tasks <=748.GB to worker/cpu and tasks >748.GB to worker/cpuLarge.
 # GPU tasks additionally request gpus=N (Nextflow's accelerator directive).
-# NVIDIA queues reserve one GPU/MIG: keep SLURM's CUDA_VISIBLE_DEVICES.
-# MI300A tasks also request gpus/amd=N to select individual AMD devices.
+# GPU queues reserve one GPU/MIG: keep SLURM's CUDA_VISIBLE_DEVICES
+# or ROCR_VISIBLE_DEVICES rather than overriding its selected device.
 # CPU task classes are absent from every GPU queue, and vice versa.
 # No resources are autodetected; all capacities below are explicit.
 # In this fork, new allocations use the first tier strictly
@@ -41,32 +41,32 @@ for hours in 3 12 24 72 168; do
         -- --account="$SLURM_ACCOUNT" --ntasks-per-node=1 \
         --cpus-per-task=192 --threads-per-core=1 --mem=6144000M --exclusive
 
-    add_queue mi300a "$hours" 96 507000 'worker/mi300a=range(0-3)' \
-        --resource 'gpus=range(0-3)' --resource 'gpus/amd=range(0-3)' \
+    add_queue mi300a "$hours" 24 126750 'worker/mi300a=[0]' \
+        --resource 'gpus=[0]' \
         -- --account="$SLURM_ACCOUNT" --ntasks-per-node=1 \
-        --cpus-per-task=96 --threads-per-core=1 --mem=507000M --gres=gpu:mi300a:4
+        --cpus-per-task=24 --threads-per-core=1 --mem=126750M --gres=gpu:mi300a:1
 
     add_queue h100 "$hours" 14 256000 'worker/h100=[0]' \
         --resource 'gpus=[0]' \
         -- --account="$SLURM_ACCOUNT" --ntasks-per-node=1 \
-        --cpus-per-task=14 --threads-per-core=1 --mem=250G \
+        --cpus-per-task=14 --threads-per-core=1 --mem=256000M \
         --gres=gpu:nvidia_h100_80gb_hbm3:1
 
     add_queue h100-mig10 "$hours" 2 31744 'worker/h100mig10=[0]' \
         --resource 'gpus=[0]' \
         -- --account="$SLURM_ACCOUNT" --ntasks-per-node=1 \
-        --cpus-per-task=2 --threads-per-core=1 --mem=31G \
+        --cpus-per-task=2 --threads-per-core=1 --mem=31744M \
         --gres=gpu:nvidia_h100_80gb_hbm3_1g.10gb:1
 
     add_queue h100-mig20 "$hours" 4 63488 'worker/h100mig20=[0]' \
         --resource 'gpus=[0]' \
         -- --account="$SLURM_ACCOUNT" --ntasks-per-node=1 \
-        --cpus-per-task=4 --threads-per-core=1 --mem=62G \
+        --cpus-per-task=4 --threads-per-core=1 --mem=63488M \
         --gres=gpu:nvidia_h100_80gb_hbm3_2g.20gb:1
 
     add_queue h100-mig40 "$hours" 6 126976 'worker/h100mig40=[0]' \
         --resource 'gpus=[0]' \
         -- --account="$SLURM_ACCOUNT" --ntasks-per-node=1 \
-        --cpus-per-task=6 --threads-per-core=1 --mem=124G \
+        --cpus-per-task=6 --threads-per-core=1 --mem=126976M \
         --gres=gpu:nvidia_h100_80gb_hbm3_3g.40gb:1
 done
