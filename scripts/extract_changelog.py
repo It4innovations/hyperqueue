@@ -43,9 +43,6 @@ if __name__ == "__main__":
         output += f"{line}\n"
     output += f"""
 # Artifact summary:
-- **hq-v{tag}-\\***: Main HyperQueue build containing the `hq` binary. **Download this archive to
-use HyperQueue from the command line**.
-- **hyperqueue-{tag}-\\***: Wheel containing the `hyperqueue` package with HyperQueue Python
-bindings.
+- **hq-v{tag}-linux-x64.tar.gz**: Linux x86-64 archive containing the `hq` binary for Nibi.
 """
     print(output)

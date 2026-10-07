@@ -27,7 +27,7 @@ use crate::internal::server::explain::{
 };
 use crate::internal::server::reactor::{get_or_create_resource_rq_id, on_cancel_tasks};
 use crate::internal::server::worker::DEFAULT_WORKER_OVERVIEW_INTERVAL;
-use crate::resources::ResourceDescriptor;
+use crate::resources::{ResourceAmount, ResourceDescriptor};
 use crate::{TaskId, WorkerId};
 
 #[derive(Debug)]
@@ -41,6 +41,9 @@ pub struct WorkerTypeQuery {
     /// Optional task time-request range for new allocations only.
     /// Existing workers are not subject to this allocation policy.
     pub allocation_task_time_range: Option<std::ops::Range<Duration>>,
+    /// Every new single-node allocation must include a task requesting strictly
+    /// more memory than this amount. Connected workers are not subject to it.
+    pub allocation_min_task_memory: Option<ResourceAmount>,
     /// Max number of workers for single-node tasks
     pub max_sn_workers: u32,
     /// How big allocations for multinode tasks can queue provide

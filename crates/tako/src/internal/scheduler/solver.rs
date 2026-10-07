@@ -111,6 +111,7 @@ pub(crate) fn run_scheduling_solver(
     // Create worker-task placements
     for (w_idx, worker) in workers.iter().enumerate() {
         worker_cpu_constraint_no_reserves.clear();
+        let mut memory_trigger_placements = Vec::new();
         for batch in task_batches.iter() {
             let rqv = request_map.get(batch.resource_rq_id);
             let mut has_variant = false;
@@ -146,6 +147,13 @@ pub(crate) fn run_scheduling_solver(
                     let v =
                         create_sn_var(&mut solver, rq, n_workers, w_idx, worker, &resource_sums);
                     placements.insert((worker.id, batch.resource_rq_id, v_idx), v);
+                    if let Some((mem_id, threshold)) = worker.allocation_min_task_memory {
+                        let triggers = rq.entries().iter().any(|entry| {
+                            entry.resource_id == mem_id
+                                && entry.request.amount(worker.resources.get(mem_id)) > threshold
+                        });
+                        memory_trigger_placements.push((v, triggers));
+                    }
                     tasks_count_vars
                         .entry(batch.resource_rq_id)
                         .or_default()
@@ -203,6 +211,21 @@ pub(crate) fn run_scheduling_solver(
                     .candidates
                     .push((fit_ratio(&a.free_resources, rqv), worker.id));
             }
+        }
+
+        if worker.allocation_min_task_memory.is_some() && !memory_trigger_placements.is_empty() {
+            // A hypothetical worker can be used only if at least one assigned
+            // task exceeds the memory trigger. Smaller tasks can contribute to
+            // utilization, but cannot independently cause another allocation.
+            let max_tasks: f64 = task_batches.iter().map(|batch| f64::from(batch.size)).sum();
+            solver.set_name(|| format!("w{} allocation memory trigger", worker.id));
+            solver.add_constraint(
+                ConstraintType::Max,
+                0.0,
+                memory_trigger_placements
+                    .iter()
+                    .map(|(v, triggers)| (*v, if *triggers { 1.0 - max_tasks } else { 1.0 })),
+            );
         }
 
         if worker.configuration.min_utilization > 0.001 {
