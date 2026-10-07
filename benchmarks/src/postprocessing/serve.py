@@ -63,8 +63,14 @@ def serve_summary_html(database: Database, directory: Path, port: int):
         def get(self, key: str):
             root = Path("summary/comparisons").resolve()
             html_path = (root / key).resolve()
-            if root not in html_path.parents:
+            try:
+                html_path.relative_to(root)
+            except ValueError:
                 raise web.HTTPError(400, reason="Invalid comparison path")
+
+            if not html_path.is_file() or html_path.suffix.lower() != ".html":
+                raise web.HTTPError(400, reason="Invalid comparison path")
+
             with html_path.open("r", encoding="utf-8") as html_file:
                 source_code = html_file.read()
             self.write(source_code)
