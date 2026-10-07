@@ -20,9 +20,9 @@ pub struct ServerDir {
 }
 
 pub fn default_server_directory() -> PathBuf {
-    let mut home = dirs::home_dir().unwrap_or_else(std::env::temp_dir);
-    home.push(".hq-server");
-    home
+    dirs::home_dir()
+        .unwrap_or_else(std::env::temp_dir)
+        .join("hyperqueue/server")
 }
 
 pub const SYMLINK_PATH: &str = "hq-current";

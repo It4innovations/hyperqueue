@@ -12,7 +12,5 @@ pub mod task;
 pub mod utils;
 
 pub fn default_server_directory_path() -> PathBuf {
-    let mut home = dirs::home_dir().unwrap_or_else(std::env::temp_dir);
-    home.push(".hq-server");
-    home
+    crate::common::serverdir::default_server_directory()
 }

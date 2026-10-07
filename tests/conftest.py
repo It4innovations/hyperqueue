@@ -136,7 +136,7 @@ class HqEnv(Env):
         return env
 
     @staticmethod
-    def server_args(server_dir="hq-server", debug=True):
+    def server_args(server_dir="hq-server", debug=True, journal=False):
         args = [
             get_hq_binary(debug=debug),
             "--colors",
@@ -148,6 +148,9 @@ class HqEnv(Env):
             args.append("--debug")
 
         args += ["server", "start"]
+        if not journal:
+            # Existing tests opt into persistence explicitly and must not write into $HOME.
+            args.append("--no-journal")
         return args
 
     def start_server(self, server_dir="hq-server", args=None, env=None) -> subprocess.Popen:
@@ -155,7 +158,10 @@ class HqEnv(Env):
         environment = self.make_default_env()
         if env:
             environment.update(env)
-        server_args = self.server_args(self.server_dir, debug=self.debug)
+        journal = "HQ_JOURNAL_DIR" in (env or {}) or any(
+            str(arg).split("=", 1)[0] in ("--journal", "--journal-dir") for arg in (args or [])
+        )
+        server_args = self.server_args(self.server_dir, debug=self.debug, journal=journal)
         if args:
             server_args += args
         process = self.start_process("server", server_args, env=environment)

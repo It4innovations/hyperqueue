@@ -12,7 +12,7 @@ set -euo pipefail
 # MI300A tasks also request gpus/amd=N to select individual AMD devices.
 # CPU task classes are absent from every GPU queue, and vice versa.
 # No resources are autodetected; all capacities below are explicit.
-# On allocation-time-plus-one, new allocations use the first tier strictly
+# In this fork, new allocations use the first tier strictly
 # above HQ's --time-request: 3, 12, 24, 72, 168h. Existing workers can accept
 # any task that fits. Set --time-request explicitly; --time-limit is separate.
 

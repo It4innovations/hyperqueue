@@ -7,9 +7,9 @@ This file contains the address and port where the server is running, and also se
 
 ## Sharing the access file
 
-After you start a server, you can find its `access.json` file in the `$HOME/.hq-server/hq-current` directory. You can then copy it to a different filesystem using a method of your choosing, and configure clients and workers to use that file.
+After you start a server, you can find its `access.json` file in the `$HOME/hyperqueue/server/hq-current` directory. You can then copy it to a different filesystem using a method of your choosing, and configure clients and workers to use that file.
 
-By default, clients and workers search for the `access.json` file in the `$HOME/.hq-server` directory, but you can override that using the `--server-dir` argument, which is available for all `hq` CLI commands. If you moved the `access.json` file into a directory called `/home/foo/hq-access` on the worker's node, you should start the worker like this:
+By default, clients and workers search for the `access.json` file in the `$HOME/hyperqueue/server` directory, but you can override that using the `--server-dir` argument, which is available for all `hq` CLI commands. If you moved the `access.json` file into a directory called `/home/foo/hq-access` on the worker's node, you should start the worker like this:
 
 ```bash
 $ hq --server-dir=/home/foo/hq-access worker start

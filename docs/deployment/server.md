@@ -21,7 +21,7 @@ When the server is started, it creates a **server directory** where it stores in
 submitting [jobs](../jobs/jobs.md)
 and connecting [workers](worker.md). This directory is then used to select a running HyperQueue instance.
 
-By default, the server directory will be stored in `$HOME/.hq-server`. This location may be changed with the option
+By default, the server directory will be stored in `$HOME/hyperqueue/server`. This location may be changed with the option
 `--server-dir=<PATH>`, which is available for all HyperQueue CLI commands. You can run more instances of HyperQueue
 under
 the same Unix user, by making them use different server directories.
@@ -72,8 +72,24 @@ or using a terminal multiplexer like [tmux](https://en.wikipedia.org/wiki/Tmux).
 
 ## Resuming stopped/crashed server
 
-The server supports resilience, which allows it to restore its state after it is stopped or if it crashes. To enable
-resilience, you can tell the server to log events into a *journal* file, using the `--journal` flag:
+The server logs events into `$HOME/hyperqueue/journal/hq.journal` by default and restores its state from
+that file when restarted. The journal directory is created automatically if it does not exist.
+Set `HQ_JOURNAL_DIR` to choose a different directory, just as `HQ_SERVER_DIR` chooses the server directory:
+
+```bash
+$ export HQ_SERVER_DIR="$HOME/hyperqueue/server"
+$ export HQ_JOURNAL_DIR="$HOME/hyperqueue/journal"
+$ hq server start
+```
+
+You can also use `--journal-dir <directory>`, which overrides `HQ_JOURNAL_DIR`, or `--journal <file>`
+to select an exact journal file. `--journal` takes precedence over both the directory option and the
+environment variable. To disable journaling, use `hq server start --no-journal`.
+
+Each independent server must use a separate journal file or directory, as well as a separate server
+directory. Restarting a server with the same journal restores that server's jobs and allocation queues.
+
+For example, to select an exact journal file:
 
 ```bash
 $ hq server start --journal /path/to/journal

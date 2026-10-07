@@ -12,6 +12,7 @@ use crate::server::bootstrap::{
 };
 use crate::transfer::auth::generate_key;
 use crate::transfer::messages::{FromClientMessage, ToClientMessage};
+use anyhow::Context;
 use clap::Parser;
 use humantime::format_duration;
 use std::path::PathBuf;
@@ -102,8 +103,20 @@ pub struct ServerStartOpts {
     /// The path to a journal file
     ///
     /// If the file already exists, the file is first used to restore the server state.
+    /// Overrides --journal-dir and HQ_JOURNAL_DIR.
     #[arg(long)]
     journal: Option<PathBuf>,
+
+    /// Directory containing hq.journal (created automatically)
+    ///
+    /// Defaults to $HOME/hyperqueue/journal. The journal is used to restore server state
+    /// on restart. Use a separate journal directory for each independent server.
+    #[arg(long, env = "HQ_JOURNAL_DIR", value_hint = clap::ValueHint::DirPath)]
+    journal_dir: Option<PathBuf>,
+
+    /// Disable journaling, including HQ_JOURNAL_DIR and the default journal
+    #[arg(long, conflicts_with = "journal")]
+    no_journal: bool,
 
     #[arg(
         long,
@@ -138,6 +151,30 @@ pub struct ServerStartOpts {
         help = duration_doc!("Maximum time the scheduler's placement solve may run per round.")
     )]
     scheduler_time_limit: Duration,
+}
+
+fn default_journal_directory() -> PathBuf {
+    dirs::home_dir()
+        .unwrap_or_else(std::env::temp_dir)
+        .join("hyperqueue/journal")
+}
+
+impl ServerStartOpts {
+    fn resolve_journal_path(&self) -> anyhow::Result<Option<PathBuf>> {
+        if self.no_journal {
+            return Ok(None);
+        }
+        if let Some(path) = &self.journal {
+            return Ok(Some(path.clone()));
+        }
+        let directory = self
+            .journal_dir
+            .clone()
+            .unwrap_or_else(default_journal_directory);
+        std::fs::create_dir_all(&directory)
+            .with_context(|| format!("Cannot create journal directory {}", directory.display()))?;
+        Ok(Some(directory.join("hq.journal")))
+    }
 }
 
 #[derive(Parser)]
@@ -178,6 +215,7 @@ pub async fn command_server(gsettings: &GlobalSettings, opts: ServerOpts) -> any
 }
 
 async fn start_server(gsettings: &GlobalSettings, opts: ServerStartOpts) -> anyhow::Result<()> {
+    let journal_path = opts.resolve_journal_path()?;
     let access_file: Option<FullAccessRecord> = opts
         .access_file
         .map(|path| load_access_record(path.as_path()))
@@ -207,7 +245,7 @@ async fn start_server(gsettings: &GlobalSettings, opts: ServerStartOpts) -> anyh
         idle_timeout: opts.idle_timeout,
         client_port,
         worker_port,
-        journal_path: opts.journal,
+        journal_path,
         journal_flush_period: opts.journal_flush_period,
         worker_secret_key: access_file
             .as_ref()
@@ -347,5 +385,65 @@ async fn wait_for_server(gsettings: &GlobalSettings, opts: WaitOpts) -> anyhow::
             format_duration(opts.timeout),
             gsettings.server_directory().display()
         )),
+    }
+}
+
+#[cfg(test)]
+mod journal_directory_tests {
+    use super::{ServerStartOpts, default_journal_directory};
+    use crate::client::default_server_directory_path;
+    use clap::Parser;
+
+    #[test]
+    fn journal_directory_home_defaults() {
+        let home = dirs::home_dir().unwrap_or_else(std::env::temp_dir);
+        assert_eq!(
+            default_server_directory_path(),
+            home.join("hyperqueue/server")
+        );
+        assert_eq!(default_journal_directory(), home.join("hyperqueue/journal"));
+    }
+
+    #[test]
+    fn journal_directory_creates_missing_directory() {
+        let root = tempfile::tempdir().unwrap();
+        let directory = root.path().join("new/nested/journal");
+        let opts =
+            ServerStartOpts::parse_from(["start", "--journal-dir", directory.to_str().unwrap()]);
+        assert_eq!(
+            opts.resolve_journal_path().unwrap(),
+            Some(directory.join("hq.journal"))
+        );
+        assert!(directory.is_dir());
+    }
+
+    #[test]
+    fn journal_directory_explicit_file_takes_precedence() {
+        let root = tempfile::tempdir().unwrap();
+        let directory = root.path().join("unused");
+        let file = root.path().join("explicit.journal");
+        let opts = ServerStartOpts::parse_from([
+            "start",
+            "--journal-dir",
+            directory.to_str().unwrap(),
+            "--journal",
+            file.to_str().unwrap(),
+        ]);
+        assert_eq!(opts.resolve_journal_path().unwrap(), Some(file));
+        assert!(!directory.exists());
+    }
+
+    #[test]
+    fn journal_directory_can_be_disabled() {
+        let root = tempfile::tempdir().unwrap();
+        let directory = root.path().join("unused");
+        let opts = ServerStartOpts::parse_from([
+            "start",
+            "--journal-dir",
+            directory.to_str().unwrap(),
+            "--no-journal",
+        ]);
+        assert_eq!(opts.resolve_journal_path().unwrap(), None);
+        assert!(!directory.exists());
     }
 }
