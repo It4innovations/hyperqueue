@@ -62,7 +62,8 @@ pub(crate) fn compute_new_worker_query(
                 extra: Default::default(),
                 retract_check_interval: Duration::from_secs(30),
             };
-            let worker = Worker::new(worker_id, configuration, &resource_map, now);
+            let mut worker = Worker::new(worker_id, configuration, &resource_map, now);
+            worker.allocation_task_time_range = query.allocation_task_time_range.clone();
             fake_workers.push(worker);
         }
     });
@@ -105,6 +106,13 @@ pub(crate) fn compute_new_worker_query(
             let rq = rqv.unwrap_first();
             let n_nodes = rq.n_nodes();
             queries.iter().enumerate().find_map(|(i, worker_type)| {
+                if worker_type
+                    .allocation_task_time_range
+                    .as_ref()
+                    .is_some_and(|range| !range.contains(&rq.min_time()))
+                {
+                    return None;
+                }
                 if let Some(time_limit) = worker_type.time_limit
                     && rq.min_time() > time_limit
                 {

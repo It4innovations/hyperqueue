@@ -71,6 +71,8 @@ pub struct Worker {
     pub(crate) blocked_requests: Set<(ResourceRqId, ResourceVariantId)>,
     // When the worker will be terminated
     pub(crate) termination_time: Option<Instant>,
+    // Set only for hypothetical workers used to plan new allocations.
+    pub(crate) allocation_task_time_range: Option<std::ops::Range<Duration>>,
 
     pub(crate) flags: WorkerFlags,
     pub(crate) stop_reason: Option<(LostWorkerReason, Instant)>,
@@ -312,6 +314,13 @@ impl Worker {
     }
 
     pub fn has_time_to_run(&self, time_request: TimeRequest, now: Instant) -> bool {
+        if self
+            .allocation_task_time_range
+            .as_ref()
+            .is_some_and(|range| !range.contains(&time_request))
+        {
+            return false;
+        }
         if let Some(time) = self.termination_time {
             now + time_request <= time
         } else {
@@ -349,6 +358,7 @@ impl Worker {
         Self {
             id,
             termination_time: configuration.time_limit.map(|duration| now + duration),
+            allocation_task_time_range: None,
             configuration,
             assignment: WorkerAssignment::empty_sn(&resources),
             resources,

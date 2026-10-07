@@ -10,11 +10,64 @@ use crate::tests::utils::worker::WorkerBuilder;
 use std::time::Duration;
 
 #[test]
+fn allocation_time_tier_reuses_existing_workers_without_extra_tier() {
+    for (task_hours, remaining_seconds) in [(1, 3601), (24, 86401), (48, 172801), (72, 259201)] {
+        let mut rt = TestEnv::new();
+        rt.new_worker(&WorkerBuilder::new(2).time_limit_s(remaining_seconds));
+        let task = rt.new_task(&TaskBuilder::new().cpus(2).time_request(task_hours * 3600));
+        // ServerRef::new_worker_query schedules existing workers before planning allocations.
+        rt.schedule();
+        assert!(rt.core().get_task(task).is_assigned());
+        let queries = [0, 3, 12, 24, 72, 168]
+            .windows(2)
+            .map(|hours| WorkerTypeQuery {
+                partial: false,
+                descriptor: ResourceDescriptor::simple_cpus(2),
+                time_limit: Some(Duration::from_secs(hours[1] * 3600)),
+                allocation_task_time_range: Some(
+                    Duration::from_secs(hours[0] * 3600)..Duration::from_secs(hours[1] * 3600),
+                ),
+                max_sn_workers: 1,
+                max_workers_per_allocation: 1,
+                min_utilization: 0.0,
+            })
+            .collect::<Vec<_>>();
+        let response = compute_new_worker_query(rt.core(), &queries);
+        assert_eq!(response.single_node_workers_per_query, vec![0; 5]);
+        assert!(rt.core().get_task(task).is_assigned());
+    }
+}
+
+#[test]
+fn allocation_time_tier_uses_next_tier_when_existing_worker_has_insufficient_time() {
+    let mut rt = TestEnv::new();
+    rt.new_worker(&WorkerBuilder::new(2).time_limit_s(23 * 3600));
+    rt.new_task(&TaskBuilder::new().cpus(2).time_request(24 * 3600));
+    let queries = [0, 3, 12, 24, 72, 168]
+        .windows(2)
+        .map(|hours| WorkerTypeQuery {
+            partial: false,
+            descriptor: ResourceDescriptor::simple_cpus(2),
+            time_limit: Some(Duration::from_secs(hours[1] * 3600)),
+            allocation_task_time_range: Some(
+                Duration::from_secs(hours[0] * 3600)..Duration::from_secs(hours[1] * 3600),
+            ),
+            max_sn_workers: 1,
+            max_workers_per_allocation: 1,
+            min_utilization: 0.0,
+        })
+        .collect::<Vec<_>>();
+    let response = compute_new_worker_query(rt.core(), &queries);
+    assert_eq!(response.single_node_workers_per_query, vec![0, 0, 0, 1, 0]);
+}
+
+#[test]
 fn test_query_no_tasks() {
     let mut core = Core::default();
     let r = compute_new_worker_query(
         &mut core,
         &[WorkerTypeQuery {
+            allocation_task_time_range: None,
             partial: false,
             descriptor: ResourceDescriptor::simple_cpus(4),
             time_limit: None,
@@ -38,6 +91,7 @@ fn test_query_enough_workers() {
     let r = compute_new_worker_query(
         rt.core(),
         &[WorkerTypeQuery {
+            allocation_task_time_range: None,
             partial: false,
             descriptor: ResourceDescriptor::simple_cpus(4),
             time_limit: None,
@@ -61,6 +115,7 @@ fn test_query_no_enough_workers1() {
         rt.core(),
         &[
             WorkerTypeQuery {
+                allocation_task_time_range: None,
                 partial: false,
                 descriptor: ResourceDescriptor::simple_cpus(2),
                 time_limit: None,
@@ -69,6 +124,7 @@ fn test_query_no_enough_workers1() {
                 min_utilization: 0.0,
             },
             WorkerTypeQuery {
+                allocation_task_time_range: None,
                 partial: false,
                 descriptor: ResourceDescriptor::simple_cpus(3),
                 time_limit: None,
@@ -96,6 +152,7 @@ fn test_query_enough_workers2() {
         rt.core(),
         &[
             WorkerTypeQuery {
+                allocation_task_time_range: None,
                 partial: false,
                 descriptor: ResourceDescriptor::simple_cpus(2),
                 time_limit: None,
@@ -104,6 +161,7 @@ fn test_query_enough_workers2() {
                 min_utilization: 0.0,
             },
             WorkerTypeQuery {
+                allocation_task_time_range: None,
                 partial: false,
                 descriptor: ResourceDescriptor::simple_cpus(3),
                 time_limit: None,
@@ -133,6 +191,7 @@ fn test_query_not_enough_workers3() {
         rt.core(),
         &[
             WorkerTypeQuery {
+                allocation_task_time_range: None,
                 partial: false,
                 descriptor: ResourceDescriptor::simple_cpus(2),
                 time_limit: None,
@@ -141,6 +200,7 @@ fn test_query_not_enough_workers3() {
                 min_utilization: 0.0,
             },
             WorkerTypeQuery {
+                allocation_task_time_range: None,
                 partial: false,
                 descriptor: ResourceDescriptor::simple_cpus(3),
                 time_limit: None,
@@ -167,6 +227,7 @@ fn test_query_many_workers_needed() {
         rt.core(),
         &[
             WorkerTypeQuery {
+                allocation_task_time_range: None,
                 partial: false,
                 descriptor: ResourceDescriptor::simple_cpus(2),
                 time_limit: None,
@@ -175,6 +236,7 @@ fn test_query_many_workers_needed() {
                 min_utilization: 0.0,
             },
             WorkerTypeQuery {
+                allocation_task_time_range: None,
                 partial: false,
                 descriptor: ResourceDescriptor::simple_cpus(1),
                 time_limit: None,
@@ -183,6 +245,7 @@ fn test_query_many_workers_needed() {
                 min_utilization: 0.0,
             },
             WorkerTypeQuery {
+                allocation_task_time_range: None,
                 partial: false,
                 descriptor: ResourceDescriptor::simple_cpus(3),
                 time_limit: None,
@@ -214,6 +277,7 @@ fn test_query_multi_node_tasks() {
         rt.core(),
         &[
             WorkerTypeQuery {
+                allocation_task_time_range: None,
                 partial: false,
                 descriptor: ResourceDescriptor::simple_cpus(1),
                 time_limit: None,
@@ -222,6 +286,7 @@ fn test_query_multi_node_tasks() {
                 min_utilization: 0.0,
             },
             WorkerTypeQuery {
+                allocation_task_time_range: None,
                 partial: false,
                 descriptor: ResourceDescriptor::simple_cpus(1),
                 time_limit: None,
@@ -257,6 +322,7 @@ fn test_query_multi_node_time_limit() {
         let r = compute_new_worker_query(
             rt.core(),
             &[WorkerTypeQuery {
+                allocation_task_time_range: None,
                 partial: false,
                 descriptor: ResourceDescriptor::simple_cpus(1),
                 time_limit: Some(Duration::from_secs(secs)),
@@ -287,6 +353,7 @@ fn test_query_min_utilization1() {
         let r = compute_new_worker_query(
             &mut rt.core(),
             &[WorkerTypeQuery {
+                allocation_task_time_range: None,
                 partial: false,
                 descriptor: ResourceDescriptor::simple_cpus(*cpus),
                 time_limit: None,
@@ -331,6 +398,7 @@ fn test_query_min_utilization2() {
         let r = compute_new_worker_query(
             rt.core(),
             &[WorkerTypeQuery {
+                allocation_task_time_range: None,
                 partial: false,
                 descriptor,
                 time_limit: None,
@@ -359,6 +427,7 @@ fn test_query_min_utilization3() {
     let r = compute_new_worker_query(
         rt.core(),
         &[WorkerTypeQuery {
+            allocation_task_time_range: None,
             partial: false,
             descriptor,
             time_limit: None,
@@ -403,6 +472,7 @@ fn test_query_min_utilization_vs_partial() {
         let r = compute_new_worker_query(
             rt.core(),
             &[WorkerTypeQuery {
+                allocation_task_time_range: None,
                 partial: true, // !!! Worker is partial!
                 descriptor,
                 time_limit: None,
@@ -426,6 +496,7 @@ fn test_query_min_utilization_vs_partial2() {
         let r = compute_new_worker_query(
             rt.core(),
             &[WorkerTypeQuery {
+                allocation_task_time_range: None,
                 partial: true, // !!! Worker is partial!
                 descriptor,
                 time_limit: None,
@@ -462,6 +533,7 @@ fn test_query_min_time2() {
         let r = compute_new_worker_query(
             rt.core(),
             &[WorkerTypeQuery {
+                allocation_task_time_range: None,
                 partial: false,
                 descriptor: descriptor.clone(),
                 time_limit: Some(Duration::from_secs(secs)),
@@ -493,6 +565,7 @@ fn test_query_min_time1() {
     let r = compute_new_worker_query(
         rt.core(),
         &[WorkerTypeQuery {
+            allocation_task_time_range: None,
             partial: false,
             descriptor: descriptor.clone(),
             time_limit: Some(Duration::from_secs(99)),
@@ -507,6 +580,7 @@ fn test_query_min_time1() {
     let r = compute_new_worker_query(
         &mut rt.core(),
         &[WorkerTypeQuery {
+            allocation_task_time_range: None,
             partial: false,
             descriptor: descriptor.clone(),
             time_limit: Some(Duration::from_secs(101)),
@@ -528,6 +602,7 @@ fn test_query_min_time1() {
     let r = compute_new_worker_query(
         rt.core(),
         &[WorkerTypeQuery {
+            allocation_task_time_range: None,
             partial: false,
             descriptor,
             time_limit: Some(Duration::from_secs(101)),
@@ -554,6 +629,7 @@ fn test_query_sn_leftovers1() {
             rt.core(),
             &[
                 WorkerTypeQuery {
+                    allocation_task_time_range: None,
                     partial: false,
                     descriptor: ResourceDescriptor::simple_cpus(2),
                     time_limit: None,
@@ -562,6 +638,7 @@ fn test_query_sn_leftovers1() {
                     min_utilization: 0.0,
                 },
                 WorkerTypeQuery {
+                    allocation_task_time_range: None,
                     partial: true,
                     descriptor: ResourceDescriptor::new(Vec::new(), Default::default()),
                     time_limit: None,
@@ -585,6 +662,7 @@ fn test_query_sn_leftovers2() {
         let r = compute_new_worker_query(
             rt.core(),
             &[WorkerTypeQuery {
+                allocation_task_time_range: None,
                 partial: true,
                 descriptor: ResourceDescriptor::simple_cpus(cpus),
                 time_limit: None,
@@ -609,6 +687,7 @@ fn test_query_sn_leftovers() {
         rt.core(),
         &[
             WorkerTypeQuery {
+                allocation_task_time_range: None,
                 partial: true,
                 descriptor: ResourceDescriptor::new(Vec::new(), Default::default()),
                 time_limit: Some(Duration::from_secs(1000)),
@@ -617,6 +696,7 @@ fn test_query_sn_leftovers() {
                 min_utilization: 0.0,
             },
             WorkerTypeQuery {
+                allocation_task_time_range: None,
                 partial: true,
                 descriptor: ResourceDescriptor::new(Vec::new(), Default::default()),
                 time_limit: Some(Duration::from_secs(50)),
@@ -625,6 +705,7 @@ fn test_query_sn_leftovers() {
                 min_utilization: 0.0,
             },
             WorkerTypeQuery {
+                allocation_task_time_range: None,
                 partial: true,
                 descriptor: ResourceDescriptor::new(Vec::new(), Default::default()),
                 time_limit: None,
@@ -649,6 +730,7 @@ fn test_query_partial_query_cpus() {
         rt.core(),
         &[
             WorkerTypeQuery {
+                allocation_task_time_range: None,
                 partial: true,
                 descriptor: ResourceDescriptor::simple_cpus(4),
                 time_limit: None,
@@ -657,6 +739,7 @@ fn test_query_partial_query_cpus() {
                 min_utilization: 0.0,
             },
             WorkerTypeQuery {
+                allocation_task_time_range: None,
                 partial: true,
                 descriptor: ResourceDescriptor::simple_cpus(16),
                 time_limit: Some(Duration::from_secs(50)),
@@ -665,6 +748,7 @@ fn test_query_partial_query_cpus() {
                 min_utilization: 0.0,
             },
             WorkerTypeQuery {
+                allocation_task_time_range: None,
                 partial: true,
                 descriptor: ResourceDescriptor::new(Vec::new(), Default::default()),
                 time_limit: None,
@@ -714,6 +798,7 @@ fn test_query_partial_query_gpus1() {
         let r = compute_new_worker_query(
             rt.core(),
             &[WorkerTypeQuery {
+                allocation_task_time_range: None,
                 partial: true,
                 descriptor,
                 time_limit: None,
@@ -737,6 +822,7 @@ fn test_query_unknown_do_not_add_extra() {
     let r = compute_new_worker_query(
         rt.core(),
         &[WorkerTypeQuery {
+            allocation_task_time_range: None,
             partial: true,
             descriptor: ResourceDescriptor::simple_cpus(1),
             time_limit: None,
@@ -759,6 +845,7 @@ fn test_query_after_task_cancel() {
     let r = compute_new_worker_query(
         rt.core(),
         &[WorkerTypeQuery {
+            allocation_task_time_range: None,
             partial: true,
             descriptor: ResourceDescriptor::new(Vec::new(), Default::default()),
             time_limit: None,

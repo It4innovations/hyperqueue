@@ -38,6 +38,9 @@ pub struct WorkerTypeQuery {
     pub descriptor: ResourceDescriptor,
     /// Worker time limit
     pub time_limit: Option<Duration>,
+    /// Optional task time-request range for new allocations only.
+    /// Existing workers are not subject to this allocation policy.
+    pub allocation_task_time_range: Option<std::ops::Range<Duration>>,
     /// Max number of workers for single-node tasks
     pub max_sn_workers: u32,
     /// How big allocations for multinode tasks can queue provide
