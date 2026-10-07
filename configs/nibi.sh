@@ -32,11 +32,11 @@ add_queue() {
 }
 
 for hours in 3 12 24 72 168; do
-    add_queue cpu "$hours" 192 766000 'worker/cpu=sum(192)' \
+    add_queue cpu_base "$hours" 192 766000 'worker/cpu=sum(192)' \
         -- --account="$SLURM_ACCOUNT" --ntasks-per-node=1 \
         --cpus-per-task=192 --threads-per-core=1 --mem=766000M --exclusive
 
-    add_queue cpu-large "$hours" 192 6144000 'worker/cpuLarge=sum(192)' \
+    add_queue cpu_large "$hours" 192 6144000 'worker/cpuLarge=sum(192)' \
         -- --account="$SLURM_ACCOUNT" --ntasks-per-node=1 \
         --cpus-per-task=192 --threads-per-core=1 --mem=6144000M --exclusive
 
@@ -45,25 +45,25 @@ for hours in 3 12 24 72 168; do
         -- --account="$SLURM_ACCOUNT" --ntasks-per-node=1 \
         --cpus-per-task=24 --threads-per-core=1 --mem=126750M --gres=gpu:mi300a:1
 
-    add_queue h100 "$hours" 14 256000 'worker/h100=[0]' \
+    add_queue h100_full "$hours" 14 256000 'worker/h100=[0]' \
         --resource 'gpus=[0]' \
         -- --account="$SLURM_ACCOUNT" --ntasks-per-node=1 \
         --cpus-per-task=14 --threads-per-core=1 --mem=256000M \
         --gres=gpu:nvidia_h100_80gb_hbm3:1
 
-    add_queue h100-mig10 "$hours" 2 31744 'worker/h100mig10=[0]' \
+    add_queue h100_1g.10gb "$hours" 2 31744 'worker/h100mig10=[0]' \
         --resource 'gpus=[0]' \
         -- --account="$SLURM_ACCOUNT" --ntasks-per-node=1 \
         --cpus-per-task=2 --threads-per-core=1 --mem=31744M \
         --gres=gpu:nvidia_h100_80gb_hbm3_1g.10gb:1
 
-    add_queue h100-mig20 "$hours" 4 63488 'worker/h100mig20=[0]' \
+    add_queue h100_2g.20gb "$hours" 4 63488 'worker/h100mig20=[0]' \
         --resource 'gpus=[0]' \
         -- --account="$SLURM_ACCOUNT" --ntasks-per-node=1 \
         --cpus-per-task=4 --threads-per-core=1 --mem=63488M \
         --gres=gpu:nvidia_h100_80gb_hbm3_2g.20gb:1
 
-    add_queue h100-mig40 "$hours" 6 126976 'worker/h100mig40=[0]' \
+    add_queue H100-3g.40gb "$hours" 6 126976 'worker/h100mig40=[0]' \
         --resource 'gpus=[0]' \
         -- --account="$SLURM_ACCOUNT" --ntasks-per-node=1 \
         --cpus-per-task=6 --threads-per-core=1 --mem=126976M \
