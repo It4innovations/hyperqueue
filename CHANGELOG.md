@@ -10,6 +10,10 @@
   workers are held back and more lower-priority work can run elsewhere
 * More precise computation of gap for low-priority tasks
 
+### Changes
+
+* HiGHs solver uses only a single thread
+
 ### Fixes
 
 * Fixed some occasional greedy backfilling in server scheduler + improvements in the reservation algorithm
