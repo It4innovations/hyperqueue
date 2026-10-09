@@ -100,7 +100,9 @@ where
     // Propagate the errors
     if server_error.is_err() && test_error.is_err() {
         eprintln!("{server_error:?}");
-        test_error.expect("Test failed");
+        if let Err(error) = test_error {
+            panic!("Test failed: {error:?}");
+        }
     } else {
         test_error.expect("Test failed");
         server_error.expect("Server failed");

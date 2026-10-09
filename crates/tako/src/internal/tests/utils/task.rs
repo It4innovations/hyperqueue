@@ -124,7 +124,7 @@ impl TaskBuilder {
     pub fn build(&self, task_id: TaskId, core: &mut Core) -> Task {
         let rq_id = self.build_resource_rq_id(core);
         Task::new(
-            task_id.into(),
+            task_id,
             rq_id,
             self.task_deps.iter().copied().collect(),
             None,
@@ -165,7 +165,7 @@ impl TaskBuilder {
 
 pub fn task_running_msg(task_id: TaskId) -> TaskRunningMsg {
     TaskRunningMsg {
-        task_id: task_id,
+        task_id,
         rv_id: ResourceVariantId::new(0),
         context: Default::default(),
     }

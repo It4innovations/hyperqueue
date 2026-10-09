@@ -245,7 +245,7 @@ fn test_assignments_and_finish() {
 
     on_task_update(rt.core(), &mut comm, ws[0], smallvec![task_finished(t5)]);
 
-    assert!(rt.core().find_task(t5.into()).is_none());
+    assert!(rt.core().find_task(t5).is_none());
     check_worker_tasks_exact(rt.core(), ws[0], &[t1]);
     check_worker_tasks_exact(rt.core(), ws[1], &[t2]);
     check_worker_tasks_exact(rt.core(), ws[2], &[]);
@@ -370,7 +370,7 @@ fn test_task_cancel() {
     rt.assign_task(t2, ws[0]);
 
     let mut comm = TestComm::new();
-    on_cancel_tasks(rt.core(), &mut comm, &vec![wf[0], wf[1], t1, t2, wf[2]]);
+    on_cancel_tasks(rt.core(), &mut comm, &[wf[0], wf[1], t1, t2, wf[2]]);
 
     let msgs = comm.take_worker_msgs(ws[0], 1);
     assert!(
@@ -441,7 +441,7 @@ fn test_worker_crashing_task() {
         on_remove_worker(
             rt.core(),
             &mut comm,
-            worker_id.into(),
+            worker_id,
             LostWorkerReason::HeartbeatLost,
         );
         let mut lw = comm.client.take_lost_workers();
@@ -488,7 +488,7 @@ fn test_task_mn_fail() {
     comm.emptiness_check();
     assert!(rt.core().find_task(1.into()).is_none());
     for w in &ws {
-        assert!(rt.core().get_worker((*w).into()).mn_assignment().is_none());
+        assert!(rt.core().get_worker(*w).mn_assignment().is_none());
     }
 }
 
@@ -605,7 +605,7 @@ fn lost_worker_with_running_and_assign_tasks() {
 }
 
 fn check_worker_tasks_exact(core: &Core, worker_id: WorkerId, tasks: &[TaskId]) {
-    let worker = core.get_worker(worker_id.into());
+    let worker = core.get_worker(worker_id);
     let sn = worker.sn_assignment().unwrap();
     assert_eq!(sn.assigned_tasks.len(), tasks.len());
     for task in tasks {
@@ -614,7 +614,7 @@ fn check_worker_tasks_exact(core: &Core, worker_id: WorkerId, tasks: &[TaskId]) 
 }
 
 fn worker_has_task(core: &Core, worker_id: WorkerId, task_id: TaskId) -> bool {
-    core.get_worker(worker_id.into())
+    core.get_worker(worker_id)
         .sn_assignment()
         .unwrap()
         .assigned_tasks

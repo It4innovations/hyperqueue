@@ -142,7 +142,7 @@ impl TestEnv {
         let worker_id = WorkerId::new(self.worker_id_counter);
         self.worker_id_counter += 1;
         let resource_id_map = self.core.create_resource_map();
-        let worker = builder.build(worker_id, &&resource_id_map, Instant::now());
+        let worker = builder.build(worker_id, &resource_id_map, Instant::now());
         on_new_worker(&mut self.core, &mut TestComm::default(), worker);
         worker_id
     }
@@ -163,10 +163,7 @@ impl TestEnv {
 
     pub fn check_worker_tasks(&self, worker_id: WorkerId, tasks: &[TaskId]) {
         let ids: Vec<TaskId> = self.worker_tasks(worker_id).iter().copied().collect();
-        assert_eq!(
-            ids,
-            utils::sorted_vec(tasks.iter().map(|&id| id.into()).collect())
-        );
+        assert_eq!(ids, utils::sorted_vec(tasks.to_vec()));
     }
 
     pub fn start_and_finish_task(&mut self, task_id: TaskId, worker_id: WorkerId) {
@@ -203,7 +200,7 @@ impl TestEnv {
                 panic!("Task {} is not waiting", task_id);
             }
         }
-        let w = worker_map.get_worker_mut(worker_id.into());
+        let w = worker_map.get_worker_mut(worker_id);
         let rq = request_map
             .get(task.resource_rq_id)
             .get(ResourceVariantId::new(0));
@@ -256,7 +253,7 @@ impl TestEnv {
 
     pub fn schedule_mapping(&mut self) -> WorkerTaskMapping {
         let batches = create_task_batches(&mut self.core, self.now, None);
-        let solution = run_scheduling_solver(&mut self.core, self.now, &batches, None);
+        let solution = run_scheduling_solver(&self.core, self.now, &batches, None);
         create_task_mapping(&mut self.core, solution)
     }
 
@@ -264,7 +261,7 @@ impl TestEnv {
     /// tests can inspect `SchedulingSolution::is_optimal` directly.
     pub fn schedule_solution(&mut self) -> SchedulingSolution {
         let batches = create_task_batches(&mut self.core, self.now, None);
-        run_scheduling_solver(&mut self.core, self.now, &batches, None)
+        run_scheduling_solver(&self.core, self.now, &batches, None)
     }
 }
 

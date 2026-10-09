@@ -2502,7 +2502,10 @@ mod tests {
             let schedule_fn = self.schedule_fn.clone();
             let custom_state = self.custom_state.clone();
 
-            Box::pin(async move { (schedule_fn.get())(custom_state.clone(), worker_count).await })
+            Box::pin(async move {
+                let fut = (schedule_fn.get())(custom_state.clone(), worker_count);
+                fut.await
+            })
         }
 
         fn get_status_of_allocations(
@@ -2517,8 +2520,8 @@ mod tests {
             Box::pin(async move {
                 let mut result = Map::default();
                 for allocation_id in allocation_ids {
-                    let status =
-                        (status_fn.get())(custom_state.clone(), allocation_id.clone()).await;
+                    let fut = (status_fn.get())(custom_state.clone(), allocation_id.clone());
+                    let status = fut.await;
                     if let Some(status) = status.transpose() {
                         result.insert(allocation_id, status);
                     }
@@ -2535,7 +2538,10 @@ mod tests {
             let custom_state = self.custom_state.clone();
             let allocation_id = allocation.id.clone();
 
-            Box::pin(async move { (remove_fn.get())(custom_state.clone(), allocation_id).await })
+            Box::pin(async move {
+                let fut = (remove_fn.get())(custom_state.clone(), allocation_id);
+                fut.await
+            })
         }
     }
 

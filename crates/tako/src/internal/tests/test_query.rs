@@ -285,7 +285,7 @@ fn test_query_min_utilization1() {
         (0.7, 1, 3),
     ] {
         let r = compute_new_worker_query(
-            &mut rt.core(),
+            rt.core(),
             &[WorkerTypeQuery {
                 partial: false,
                 descriptor: ResourceDescriptor::simple_cpus(*cpus),
@@ -505,7 +505,7 @@ fn test_query_min_time1() {
     assert!(r.multi_node_allocations.is_empty());
 
     let r = compute_new_worker_query(
-        &mut rt.core(),
+        rt.core(),
         &[WorkerTypeQuery {
             partial: false,
             descriptor: descriptor.clone(),
