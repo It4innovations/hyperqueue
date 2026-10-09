@@ -48,6 +48,7 @@ impl LpInnerSolver for HighsSolver {
         if let Some(time_limit) = time_limit {
             model.set_option("time_limit", time_limit.as_secs_f64());
         }
+        model.set_option("threads", 1);
         let solved_model = model.solve();
         let is_optimal = match solved_model.status() {
             HighsModelStatus::Optimal => true,
