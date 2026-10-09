@@ -158,8 +158,8 @@ fn test_schedule_mn_reserve() {
 
     let ws2 = rt.task(t2).mn_placement().unwrap().to_vec();
     for w in &ws {
-        let s1 = get_worker_status(&ws1, (*w).into());
-        let s2 = get_worker_status(&ws2, (*w).into());
+        let s1 = get_worker_status(&ws1, *w);
+        let s2 = get_worker_status(&ws2, *w);
         let ms = comm.take_worker_msgs(*w, 0);
         check_worker_status_change(s1, s2, ms.as_slice());
     }
@@ -171,8 +171,8 @@ fn test_schedule_mn_reserve() {
     let ws3 = rt.task(t3).mn_placement().unwrap().to_vec();
 
     for w in &ws {
-        let s1 = get_worker_status(&ws2, (*w).into());
-        let s2 = get_worker_status(&ws3, (*w).into());
+        let s1 = get_worker_status(&ws2, *w);
+        let s2 = get_worker_status(&ws3, *w);
         let ms = comm.take_worker_msgs(*w, 0);
         check_worker_status_change(s1, s2, ms.as_slice());
     }
@@ -183,7 +183,7 @@ fn test_schedule_mn_reserve() {
     let mut comm = rt.schedule();
 
     for w in &ws {
-        let s = get_worker_status(&ws3, (*w).into());
+        let s = get_worker_status(&ws3, *w);
         let ms = comm.take_worker_msgs(*w, 0);
         check_worker_status_change(s, WorkerStatus::None, ms.as_slice());
     }

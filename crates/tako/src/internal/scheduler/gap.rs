@@ -429,7 +429,7 @@ mod tests {
         let res = &worker_map.get_worker(w).resources;
         scheduler_state
             .gap_cache
-            .get_gap(h_rq, l_rq, &res, iter::empty(), request_map)
+            .get_gap(h_rq, l_rq, res, iter::empty(), request_map)
     }
 
     fn compute_gap_occupied(

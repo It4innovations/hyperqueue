@@ -55,7 +55,6 @@ impl TestCase {
                 mapping
                     .workers
                     .get(&worker.get_worker_id())
-                    .as_deref()
                     .map_or(&[], |up| up.assigned.as_slice()),
             );
         }
@@ -108,7 +107,7 @@ pub fn normalize_workers(mapping: &mut WorkerTaskMapping, workers: &[WorkerId]) 
         .map(|w| mapping.workers.get(w).cloned().unwrap_or_default())
         .collect();
     tasks.sort_unstable();
-    for (w, up) in workers.iter().zip(tasks.into_iter()) {
+    for (w, up) in workers.iter().zip(tasks) {
         mapping.workers.insert(*w, up);
     }
 }
@@ -137,7 +136,7 @@ impl TestWorker {
     }
 
     pub fn get_eq_class(&self) -> Option<u32> {
-        self.eq_class.clone()
+        self.eq_class
     }
 
     pub fn get_worker_id(&self) -> WorkerId {

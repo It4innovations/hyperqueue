@@ -859,9 +859,9 @@ fn test_no_deps_scattering_1() {
     comm.emptiness_check();
     rt.core().sanity_check();
 
-    let c1 = if m1.len() > 0 { task_count(&m1[0]) } else { 0 };
-    let c2 = if m2.len() > 0 { task_count(&m2[0]) } else { 0 };
-    let c3 = if m3.len() > 0 { task_count(&m3[0]) } else { 0 };
+    let c1 = m1.first().map_or(0, task_count);
+    let c2 = m2.first().map_or(0, task_count);
+    let c3 = m3.first().map_or(0, task_count);
 
     assert_eq!(c1, 4);
     assert_eq!(c2, 0);
@@ -2159,11 +2159,13 @@ fn test_schedule_reservation_pays_on_a_large_cluster() {
     //
     // `x` (8 cpus + 1 "foo", priority 10) fits nowhere now. `w0` is held for it. `w1` is capable
     // but not held, so narrow work there is blocked until `x` is served, which only a reservation
-    // on `w0` can do. `big` contributes 10 000 free cpus but has no "foo": `x` never runs there, so
-    // narrow work fills it unconditionally and more narrow tasks wait than it can take.
+    // on `w0` can do. The `big` workers contribute 10 000 free cpus but have no "foo": `x` never
+    // runs there, so narrow work fills them unconditionally and more narrow tasks wait than they
+    // can take. The cpus are split over ten workers because one worker's share of a batch is
+    // capped at `MAX_TASK_PER_WORKER`.
     let mut rt = TestEnv::new();
     rt.new_named_resource("foo");
-    let big = rt.new_worker(&WorkerBuilder::new(10_000));
+    let big = rt.new_workers(10, &WorkerBuilder::new(1000));
     let w0 = rt.new_worker(&WorkerBuilder::new(8).res_sum("foo", 1));
     let w1 = rt.new_worker(&WorkerBuilder::new(8).res_sum("foo", 1));
     rt.new_task_running(&TaskBuilder::new().cpus(4), w0);
@@ -2178,8 +2180,13 @@ fn test_schedule_reservation_pays_on_a_large_cluster() {
     rt.schedule();
 
     assert_eq!(
-        narrow_per_worker(&rt, &narrow, &[big, w0, w1]),
-        vec![10_000, 0, 2],
+        narrow_per_worker(&rt, &narrow, &big),
+        vec![1000; 10],
+        "narrow work must fill the workers without \"foo\""
+    );
+    assert_eq!(
+        narrow_per_worker(&rt, &narrow, &[w0, w1]),
+        vec![0, 2],
         "a reservation on w0 must release w1 even when placements are worth little"
     );
 }
