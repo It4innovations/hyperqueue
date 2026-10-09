@@ -34,10 +34,27 @@ impl<'a> Equivalent<GapKey> for GapKeyRef<'a> {
 #[derive(Default)]
 struct GapCacheInner {
     resource_gaps: Map<GapKey, WorkerResources>,
+    /// Lookups that hit / missed the memo, for `SchedulerRoundStats`. Only the
+    /// non-trivial-request path consults the map, so trivial requests are
+    /// counted in neither.
+    hits: u32,
+    misses: u32,
 }
 
 impl GapCache {
-    #[cfg(test)]
+    /// Memo hits and misses accumulated since the last `reset_counters`.
+    pub fn counters(&self) -> (u32, u32) {
+        let inner = self.inner.borrow();
+        (inner.hits, inner.misses)
+    }
+
+    pub fn reset_counters(&self) {
+        let mut inner = self.inner.borrow_mut();
+        inner.hits = 0;
+        inner.misses = 0;
+    }
+
+    #[cfg(any(test, feature = "sim"))]
     pub fn get_gap(
         &self,
         high_priority_rq: ResourceRqId,
@@ -100,11 +117,15 @@ impl GapCache {
                 rq: high_priority_rq,
                 resources,
             };
-            if let Some(free) = self.inner.borrow().resource_gaps.get(&key) {
-                free.clone()
+            let cached = self.inner.borrow().resource_gaps.get(&key).cloned();
+            if let Some(free) = cached {
+                self.inner.borrow_mut().hits += 1;
+                free
             } else {
                 let free = compute_gap_resources(h_rqv, resources);
-                self.inner.borrow_mut().resource_gaps.insert(
+                let mut inner = self.inner.borrow_mut();
+                inner.misses += 1;
+                inner.resource_gaps.insert(
                     GapKey {
                         rq: high_priority_rq,
                         resources: resources.clone(),

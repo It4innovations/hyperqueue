@@ -9,10 +9,61 @@ use crate::internal::server::core::{Core, CoreSplit};
 use crate::internal::server::taskmap::TaskMap;
 use crate::internal::server::worker::Worker;
 use crate::internal::server::workerload::WorkerResources;
-use crate::internal::solver::{ConstraintType, LpSolution, LpSolver, Variable};
+use crate::internal::solver::{ConstraintType, LpSolution, LpSolver, Solution, Variable};
 use crate::resources::{CPU_RESOURCE_ID, ResourceRqId, ResourceRqMap};
 use crate::{Map, ResourceVariantId, Set, WorkerId};
 use thin_vec::ThinVec;
+
+/// Records the objective's terms so the evaluation can compare a pruned solve against an unpruned
+/// one in the currency the solver actually optimises.
+///
+/// It exists because task count is *not* the objective: a placement's weight is
+/// `resource share x compaction bias x request weight` (see `create_sn_var`), so "dispatched more
+/// tasks" and "found a better solution" are different statements. Every backend maximises
+/// (`solver/highs.rs:52` and friends), so a relaxed model -- which is what pruning produces, since
+/// it only ever deletes constraints -- can never score *worse* than the full one.
+///
+/// Only the three variables with a non-zero weight are recorded; every other variable in the model
+/// is added with `0.0` and contributes nothing.
+///
+/// Compiled out entirely in production builds: the evaluation binary is built `--features sim`, and
+/// the scheduling path must not pay for a measurement it never takes.
+#[cfg(any(test, feature = "sim"))]
+struct ObjectiveTerms(Vec<(Variable, f64)>);
+
+#[cfg(any(test, feature = "sim"))]
+impl ObjectiveTerms {
+    fn new() -> Self {
+        ObjectiveTerms(Vec::new())
+    }
+
+    fn record(&mut self, v: Variable, weight: f64) {
+        self.0.push((v, weight));
+    }
+
+    fn value(&self, solution: &Solution) -> Option<f64> {
+        Some(self.0.iter().map(|(v, w)| solution.get_value(*v) * w).sum())
+    }
+}
+
+#[cfg(not(any(test, feature = "sim")))]
+struct ObjectiveTerms;
+
+#[cfg(not(any(test, feature = "sim")))]
+impl ObjectiveTerms {
+    #[inline(always)]
+    fn new() -> Self {
+        ObjectiveTerms
+    }
+
+    #[inline(always)]
+    fn record(&mut self, _v: Variable, _weight: f64) {}
+
+    #[inline(always)]
+    fn value(&self, _solution: &Solution) -> Option<f64> {
+        None
+    }
+}
 
 #[derive(Debug)]
 pub(crate) struct SchedulingSolution {
@@ -21,6 +72,19 @@ pub(crate) struct SchedulingSolution {
     /// `false` if the MILP solve hit its time limit before proving
     /// optimality (see `SchedulerConfig::mip_time_limit`).
     pub(crate) is_optimal: bool,
+    /// Size of the model that produced this solution, for `SchedulerRoundStats`.
+    /// Zero when no model was built (empty request map / no batches).
+    pub(crate) n_variables: u32,
+    pub(crate) n_constraints: u32,
+    /// Per request, how many reservation variables the solution set. A reservation holds a whole
+    /// worker for one pending task of that request and counts toward the request's total in
+    /// `tasks_count_vars`, so the model discharges a priority condition on "placed **or** held",
+    /// while `sn_counts` records only what was placed. `sim.rs`'s `evaluate_cuts` needs this to
+    /// mirror that test rather than reporting held capacity as a violation.
+    pub(crate) reserved_counts: Map<ResourceRqId, u32>,
+    /// The model's objective value for this solution, or `None` in builds where the terms are not
+    /// recorded (see `ObjectiveTerms`). Not the task count -- see that type's doc.
+    pub(crate) objective: Option<f64>,
 }
 
 impl Default for SchedulingSolution {
@@ -29,6 +93,10 @@ impl Default for SchedulingSolution {
             sn_counts: Map::new(),
             mn_workers: Map::new(),
             is_optimal: true,
+            n_variables: 0,
+            n_constraints: 0,
+            reserved_counts: Map::new(),
+            objective: None,
         }
     }
 }
@@ -109,6 +177,7 @@ pub fn run_scheduling_solver_inner(
 
     let mut solver = LpSolver::new(false);
 
+    let mut objective = ObjectiveTerms::new();
     let mut placements: Map<(WorkerId, ResourceRqId, ResourceVariantId), Variable> = Map::new();
     let mut tasks_count_vars: Map<ResourceRqId, Vec<_>> = Map::new();
     // Reservation variables by (worker, request). A reservation stands for one task of its request
@@ -155,7 +224,7 @@ pub fn run_scheduling_solver_inner(
                             .is_capable_to_run_rq(rq, now, worker_map)
                     {
                         set_placement_name(&mut solver, worker.id, batch.resource_rq_id, v_idx);
-                        let v = create_mn_var(
+                        let (v, weight) = create_mn_var(
                             &mut solver,
                             rq,
                             n_workers,
@@ -163,6 +232,7 @@ pub fn run_scheduling_solver_inner(
                             worker,
                             &resource_sums,
                         );
+                        objective.record(v, weight);
                         placements.insert((worker.id, batch.resource_rq_id, v_idx), v);
                         // Insert into worker resource constraints
                         for (r, amount) in worker.resources.iter_nonzero_pairs() {
@@ -172,8 +242,9 @@ pub fn run_scheduling_solver_inner(
                 } else if sn_variant_fits_now(worker, batch.resource_rq_id, v_idx, rq, now) {
                     has_variant = true;
                     set_placement_name(&mut solver, worker.id, batch.resource_rq_id, v_idx);
-                    let v =
+                    let (v, weight) =
                         create_sn_var(&mut solver, rq, n_workers, w_idx, worker, &resource_sums);
+                    objective.record(v, weight);
                     placements.insert((worker.id, batch.resource_rq_id, v_idx), v);
                     tasks_count_vars
                         .entry(batch.resource_rq_id)
@@ -197,6 +268,7 @@ pub fn run_scheduling_solver_inner(
             }
 
             if !has_variant
+                && !scheduler_state.config.disable_reservations
                 && reserved
                     .get(&batch.resource_rq_id)
                     .is_some_and(|held| held.order.contains(&worker.id))
@@ -307,6 +379,7 @@ pub fn run_scheduling_solver_inner(
     // `s` tasks of `rq_id` scheduled
     let mut blocked_priority_vars: Map<(ResourceRqId, u32), _> = Map::new();
 
+    let strict_rule = scheduler_state.config.strict_rule;
     let mut get_bvar = |solver: &mut LpSolver, blocker_rq_id: ResourceRqId, size: u32| {
         if let Some(v) = blocked_priority_vars.get(&(blocker_rq_id, size)) {
             return Some(*v);
@@ -377,7 +450,9 @@ pub fn run_scheduling_solver_inner(
                         let Some(sn_assignment) = w.sn_assignment() else {
                             continue;
                         };
-                        if !w.is_capable_to_run_rqv(blocker_rqv, now) {
+                        if !scheduler_state.config.disable_impossible_filter
+                            && !w.is_capable_to_run_rqv(blocker_rqv, now)
+                        {
                             continue;
                         }
                         // Every blocker of this worker takes part in the joint bound below, also
@@ -388,18 +463,22 @@ pub fn run_scheduling_solver_inner(
                             .or_insert_with(|| (w, Set::new()))
                             .1
                             .insert(*blocker_rq_id);
-                        let gap_resources = scheduler_state.gap_cache.gap_resources(
-                            *blocker_rq_id,
-                            &w.resources,
-                            sn_assignment.assigned_tasks.iter().map(|task_id| {
-                                let t = task_map.get_task(*task_id);
-                                (
-                                    t.resource_rq_id,
-                                    t.assigned_placement(&scheduler_state.redirects).unwrap().1,
-                                )
-                            }),
-                            request_map,
-                        );
+                        let gap_resources = if scheduler_state.config.disable_gaps {
+                            None
+                        } else {
+                            scheduler_state.gap_cache.gap_resources(
+                                *blocker_rq_id,
+                                &w.resources,
+                                sn_assignment.assigned_tasks.iter().map(|task_id| {
+                                    let t = task_map.get_task(*task_id);
+                                    (
+                                        t.resource_rq_id,
+                                        t.assigned_placement(&scheduler_state.redirects).unwrap().1,
+                                    )
+                                }),
+                                request_map,
+                            )
+                        };
                         let gap = gap_resources
                             .as_ref()
                             .map(|g| gap_count(g, batch_rqv))
@@ -548,10 +627,14 @@ pub fn run_scheduling_solver_inner(
                             .copied()
                             .chain(std::iter::once((blocking_v, batch_size))),
                     );
-                } else if blocking_size.is_none()
+                } else if (blocking_size.is_none()
+                    || (strict_rule && !tasks_count_vars.contains_key(blocker_rq_id)))
                     && (cond_terms.iter().any(|(_, coef)| *coef < 0.0)
                         || !blocked_by_unbounded.contains(blocker_rq_id))
                 {
+                    // Under `strict_rule` a blocker with no variables cannot be served, so it
+                    // blocks; production drops the condition, since Relaxation 1 says a blocker no
+                    // worker can run must not block.
                     blocked_by_unbounded.insert(*blocker_rq_id);
                     solver.set_name(|| {
                         format!(
@@ -684,12 +767,27 @@ pub fn run_scheduling_solver_inner(
         solver.add_constraint(ConstraintType::Max, joint.as_f64(), terms.into_iter());
     }
 
-    let mut result = SchedulingSolution::default();
+    // Read the model size before `solve` consumes the solver, so a solve that times out still
+    // reports what it was working on.
+    let mut result = SchedulingSolution {
+        n_variables: solver.n_variables(),
+        n_constraints: solver.n_constraints(),
+        ..Default::default()
+    };
+    if let Some(path) = &scheduler_state.config.mip_log_file {
+        solver.set_log_file(path.clone());
+    }
     let Some(solution) = solver.solve(Some(scheduler_state.config.mip_time_limit)) else {
         result.is_optimal = false;
         return result;
     };
     result.is_optimal = solution.is_optimal();
+    result.objective = objective.value(&solution);
+    for ((_, rq_id), v) in &reservations {
+        if solution.get_value(*v) > 0.5 {
+            *result.reserved_counts.entry(*rq_id).or_default() += 1;
+        }
+    }
 
     for batch in task_batches {
         let resource_rq_id = batch.resource_rq_id;
@@ -1029,7 +1127,7 @@ fn create_sn_var(
     w_idx: usize,
     worker: &Worker,
     resource_sums: &[f64],
-) -> Variable {
+) -> (Variable, f64) {
     let weight = rq
         .entries()
         .iter()
@@ -1050,7 +1148,7 @@ fn create_sn_var(
         * rq.weight().as_f64()
         / n_workers as f64;
 
-    solver.add_nat_variable(weight)
+    (solver.add_nat_variable(weight), weight)
 }
 
 fn create_mn_var(
@@ -1060,7 +1158,7 @@ fn create_mn_var(
     w_idx: usize,
     worker: &Worker,
     resource_sums: &[f64],
-) -> Variable {
+) -> (Variable, f64) {
     let weight = worker
         .resources
         .iter_nonzero_pairs()
@@ -1076,7 +1174,7 @@ fn create_mn_var(
         * rq.weight().as_f64()
         / n_workers as f64;
 
-    solver.add_bool_variable(weight)
+    (solver.add_bool_variable(weight), weight)
 }
 
 /// How many tasks of `rqv` fit into a worker's gap allowance for some blocker.

@@ -188,7 +188,8 @@ impl Core {
     }
 
     #[inline]
-    #[cfg(test)]
+    #[cfg(any(test, feature = "sim"))]
+    #[cfg_attr(all(feature = "sim", not(test)), allow(dead_code))]
     pub fn get_worker_mut(&mut self, id: WorkerId) -> &mut Worker {
         self.workers.get_mut(&id).unwrap_or_else(|| {
             panic!("Asking for invalid worker id={id}");
@@ -276,7 +277,7 @@ impl Core {
         &self.custom_conn_handler
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "sim"))]
     pub fn sanity_check(&self) {
         use crate::internal::server::worker::WorkerAssignment;
         let fw_check = |task: &Task| {
@@ -487,7 +488,8 @@ impl Core {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "sim"))]
+#[cfg_attr(all(feature = "sim", not(test)), allow(dead_code))]
 mod tests {
     use crate::internal::server::core::Core;
     use crate::internal::server::task::Task;

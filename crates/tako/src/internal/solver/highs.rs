@@ -2,11 +2,11 @@ use crate::internal::solver::{ConstraintType, LpInnerSolver, LpSolution};
 use highs::{HighsModelStatus, HighsSolutionStatus, Sense, Solution};
 use std::time::Duration;
 
-pub(crate) struct HighsSolver(highs::RowProblem);
+pub(crate) struct HighsSolver(highs::RowProblem, Option<std::path::PathBuf>);
 
 impl HighsSolver {
     pub fn new() -> Self {
-        HighsSolver(highs::RowProblem::new())
+        HighsSolver(highs::RowProblem::new(), None)
     }
 }
 
@@ -49,6 +49,12 @@ impl LpInnerSolver for HighsSolver {
             model.set_option("time_limit", time_limit.as_secs_f64());
         }
         model.set_option("threads", 1);
+        // HiGHS prints every improved incumbent with a timestamp and the primal and dual bounds.
+        if let Some(path) = &self.1 {
+            model.set_option("output_flag", true);
+            model.set_option("log_to_console", false);
+            model.set_option("log_file", path.to_string_lossy().as_ref());
+        }
         let solved_model = model.solve();
         let is_optimal = match solved_model.status() {
             HighsModelStatus::Optimal => true,
@@ -71,6 +77,10 @@ impl LpInnerSolver for HighsSolver {
             objective: solved_model.objective_value(),
             is_optimal,
         })
+    }
+
+    fn set_log_file(&mut self, path: std::path::PathBuf) {
+        self.1 = Some(path);
     }
 }
 

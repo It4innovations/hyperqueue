@@ -8,11 +8,35 @@ use crate::worker::{ServerLostPolicy, WorkerConfiguration};
 use crate::{Set, WorkerId};
 use std::time::Duration;
 
+/// What the query's MILP cost, as opposed to its answer. A query runs the whole scheduling
+/// pipeline over real + fake workers, so it has a model size and can hit `mip_time_limit` like
+/// any other round -- and because it runs under an exclusive borrow of `Core`, that cost is
+/// server-thread blocking time. Measured by the E8 sweep in `sim.rs`; nothing in production
+/// reads it, hence the `dead_code` allowance off the `sim` feature.
+#[cfg_attr(not(feature = "sim"), allow(dead_code))]
+pub(crate) struct QuerySolveStats {
+    pub n_variables: u32,
+    pub n_constraints: u32,
+    /// `false` if the solve hit `mip_time_limit`, i.e. the answer is truncated rather than cheap.
+    pub is_optimal: bool,
+    /// Fake workers instantiated, summed over the query types.
+    pub n_fake_workers: usize,
+}
+
 /// Read the documentation of `new_worker_query`` in control.rs
 pub(crate) fn compute_new_worker_query(
     core: &mut Core,
     queries: &[WorkerTypeQuery],
 ) -> NewWorkerAllocationResponse {
+    compute_new_worker_query_with_stats(core, queries).0
+}
+
+/// `compute_new_worker_query`, additionally reporting what the solve cost. Kept as the single
+/// implementation so the evaluation measures the production path rather than a copy of it.
+pub(crate) fn compute_new_worker_query_with_stats(
+    core: &mut Core,
+    queries: &[WorkerTypeQuery],
+) -> (NewWorkerAllocationResponse, QuerySolveStats) {
     log::debug!("Compute new worker query: query = {queries:?}");
 
     let fake_worker_id_base = core.worker_counter() + 1;
@@ -69,6 +93,12 @@ pub(crate) fn compute_new_worker_query(
 
     let batches = create_task_batches(core, now, Some(fake_workers.as_slice()));
     let scheduling = run_scheduling_solver(core, now, &batches, Some(fake_workers.as_slice()));
+    let solve_stats = QuerySolveStats {
+        n_variables: scheduling.n_variables,
+        n_constraints: scheduling.n_constraints,
+        is_optimal: scheduling.is_optimal,
+        n_fake_workers: fake_workers.len(),
+    };
 
     let mut is_loaded: Set<WorkerId> = Set::new();
 
@@ -124,8 +154,11 @@ pub(crate) fn compute_new_worker_query(
         .collect();
     multi_node_allocations.sort_unstable_by_key(|x| (x.worker_type, x.worker_per_allocation));
 
-    NewWorkerAllocationResponse {
-        single_node_workers_per_query,
-        multi_node_allocations,
-    }
+    (
+        NewWorkerAllocationResponse {
+            single_node_workers_per_query,
+            multi_node_allocations,
+        },
+        solve_stats,
+    )
 }

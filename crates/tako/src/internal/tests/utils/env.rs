@@ -1,3 +1,6 @@
+// Compiled both under `cfg(test)` and under the `sim` feature. In a sim-only build most
+// of this harness is unused, which is expected -- it exists for the tests.
+#![cfg_attr(all(feature = "sim", not(test)), allow(dead_code))]
 use crate::events::EventProcessor;
 use crate::gateway::LostWorkerReason;
 use crate::internal::common::Map;
@@ -8,8 +11,8 @@ use crate::internal::messages::worker::{
     TaskRunningMsg, ToWorkerMessage, WorkerOverview, WorkerTaskUpdate,
 };
 use crate::internal::scheduler::{
-    SchedulerConfig, SchedulingSolution, WorkerTaskMapping, create_task_batches,
-    create_task_mapping, run_scheduling_inner, run_scheduling_solver,
+    SchedulerConfig, SchedulerRoundStats, SchedulingSolution, WorkerTaskMapping,
+    create_task_batches, create_task_mapping, run_scheduling_inner, run_scheduling_solver,
 };
 use crate::internal::server::comm::Comm;
 use crate::internal::server::core::{Core, CoreSplitMut};
@@ -59,6 +62,12 @@ impl TestEnv {
 
     pub fn core(&mut self) -> &mut Core {
         &mut self.core
+    }
+
+    /// The env's fixed clock. Scheduling decisions depend on it (worker time limits, `min_time`),
+    /// so anything re-running part of the pipeline must use this rather than `Instant::now()`.
+    pub fn now(&self) -> Instant {
+        self.now
     }
 
     pub fn task(&self, task_id: TaskId) -> &Task {
@@ -245,10 +254,16 @@ impl TestEnv {
     }
 
     pub fn schedule(&mut self) -> TestComm {
+        self.schedule_with_stats().0
+    }
+
+    /// As `schedule`, but also returns the round's `SchedulerRoundStats` so tests can
+    /// assert on MILP size, pruning and gap-cache behaviour without parsing logs.
+    pub fn schedule_with_stats(&mut self) -> (TestComm, SchedulerRoundStats) {
         let mut comm = TestComm::new();
-        run_scheduling_inner(&mut self.core, &mut comm, self.now);
+        let (_result, stats) = run_scheduling_inner(&mut self.core, &mut comm, self.now);
         self.core.sanity_check();
-        comm
+        (comm, stats)
     }
 
     pub fn schedule_mapping(&mut self) -> WorkerTaskMapping {

@@ -52,7 +52,7 @@ pub mod resources {
 
 pub mod server {
     pub use crate::control::server_start;
-    pub use crate::internal::scheduler::SchedulerConfig;
+    pub use crate::internal::scheduler::{PruneSchedule, SchedulerConfig};
     pub use crate::internal::server::explain::{TaskExplainItem, TaskExplanation};
     pub use crate::internal::server::rpc::ConnectionDescriptor;
 }
@@ -71,4 +71,11 @@ pub mod task {
 
 pub mod tests {
     pub use crate::internal::tests::*;
+}
+
+/// In-process scheduling simulation used by the paper's evaluation (`benchmarks/paper/`).
+/// Enabled by the opt-in `sim` feature; see `crates/tako/src/internal/sim.rs`.
+#[cfg(feature = "sim")]
+pub mod sim {
+    pub use crate::internal::sim::{SweepRow, SweepSpec, csv_header, run_sweep};
 }

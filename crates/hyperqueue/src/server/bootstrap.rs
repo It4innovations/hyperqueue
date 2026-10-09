@@ -208,7 +208,8 @@ pub async fn initialize_server(
         worker_id_initial_value,
         tako::server::SchedulerConfig {
             mip_time_limit: server_cfg.scheduler_mip_time_limit,
-            ..Default::default()
+            // Undocumented HQ_SCHED_* ablation knobs; see SchedulerConfig::from_env.
+            ..tako::server::SchedulerConfig::from_env()
         },
     )?;
     let (autoalloc_service, autoalloc_process) =

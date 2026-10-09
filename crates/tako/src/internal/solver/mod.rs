@@ -44,6 +44,12 @@ pub(crate) trait LpInnerSolver {
     /// cap. Returns whether the solution is proven optimal. Backends without
     /// a tuned implementation fall back to the exact `solve`.
     fn solve(self, time_limit: Option<Duration>) -> Option<Self::Solution>;
+
+    /// Write the solver's own log to `path`. The evaluation reads the anytime behaviour of a
+    /// truncated solve from it. Backends without a log ignore it.
+    fn set_log_file(&mut self, path: std::path::PathBuf) {
+        let _ = path;
+    }
 }
 
 pub(crate) trait LpSolution {
@@ -55,6 +61,11 @@ pub(crate) trait LpSolution {
 
 pub(crate) struct LpSolver {
     solver: LpInnerSolverImpl,
+
+    /// MILP size, counted in every build: the variable names below are debug-only, but the
+    /// evaluation measures release builds.
+    n_variables: u32,
+    n_constraints: u32,
 
     #[cfg(debug_assertions)]
     verbose: bool,
@@ -96,6 +107,8 @@ impl LpSolver {
         LpSolver {
             verbose,
             solver: LpInnerSolverImpl::new(),
+            n_variables: 0,
+            n_constraints: 0,
             var_name_map: Default::default(),
             variables: Default::default(),
             name_config: None,
@@ -109,6 +122,7 @@ impl LpSolver {
         value: f64,
         variables: impl Iterator<Item = (Variable, f64)>,
     ) {
+        self.n_constraints += 1;
         if self.verbose {
             let vars: Vec<_> = variables.collect();
             self.print_constraint(&vars, constraint_type, value);
@@ -210,6 +224,8 @@ impl LpSolver {
     pub fn new(_verbose: bool) -> Self {
         LpSolver {
             solver: LpInnerSolverImpl::new(),
+            n_variables: 0,
+            n_constraints: 0,
         }
     }
 
@@ -220,6 +236,7 @@ impl LpSolver {
         value: f64,
         variables: impl Iterator<Item = (Variable, f64)>,
     ) {
+        self.n_constraints += 1;
         self.solver
             .add_constraint(constraint_type, value, variables)
     }
@@ -231,21 +248,41 @@ impl LpSolver {
 }
 
 impl LpSolver {
+    /// Number of variables added to the model.
+    #[inline]
+    pub fn n_variables(&self) -> u32 {
+        self.n_variables
+    }
+
+    /// Number of constraints added to the model.
+    #[inline]
+    pub fn n_constraints(&self) -> u32 {
+        self.n_constraints
+    }
+
+    #[inline]
+    pub fn set_log_file(&mut self, path: std::path::PathBuf) {
+        self.solver.set_log_file(path);
+    }
+
     #[inline]
     pub fn add_variable(&mut self, weight: f64, min: f64, max: f64) -> Variable {
         let v = self.solver.add_variable(weight, min, max);
+        self.n_variables += 1;
         self.new_var(v, weight)
     }
 
     #[inline]
     pub fn add_bool_variable(&mut self, weight: f64) -> Variable {
         let v = self.solver.add_bool_variable(weight);
+        self.n_variables += 1;
         self.new_var(v, weight)
     }
 
     #[inline]
     pub fn add_nat_variable(&mut self, weight: f64) -> Variable {
         let v = self.solver.add_nat_variable(weight);
+        self.n_variables += 1;
         self.new_var(v, weight)
     }
 }

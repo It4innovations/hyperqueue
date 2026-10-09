@@ -1,3 +1,6 @@
+// Compiled both under `cfg(test)` and under the `sim` feature. In a sim-only build most
+// of this harness is unused, which is expected -- it exists for the tests.
+#![cfg_attr(all(feature = "sim", not(test)), allow(dead_code))]
 use super::resources::ResBuilder;
 use crate::gateway::CrashLimit;
 use crate::internal::common::resources::{

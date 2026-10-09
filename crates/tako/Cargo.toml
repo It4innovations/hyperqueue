@@ -12,6 +12,10 @@ default = ["highs"]
 highs = ["dep:highs"]
 microlp = ["dep:microlp"]
 coin_cbc = ["dep:coin_cbc"]
+# Exposes the in-process scheduling simulation (`tako::sim`) and the `sched_sim`
+# driver used by the paper's evaluation (`benchmarks/paper/`). Opt-in: it un-gates the test
+# harness, so it must never be enabled by a normal build.
+sim = []
 
 [dependencies]
 anyhow = { workspace = true }
@@ -49,6 +53,10 @@ derive_more = { version = "2", features = ["add", "add_assign", "sum"] }
 [dev-dependencies]
 env_logger = { workspace = true }
 criterion = { workspace = true }
+
+[[bin]]
+name = "sched_sim"
+required-features = ["sim"]
 
 [lints]
 workspace = true

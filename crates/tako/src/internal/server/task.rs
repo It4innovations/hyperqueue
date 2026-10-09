@@ -296,7 +296,8 @@ impl Task {
     }
 
     #[inline]
-    #[cfg(test)]
+    #[cfg(any(test, feature = "sim"))]
+    #[cfg_attr(all(feature = "sim", not(test)), allow(dead_code))]
     pub(crate) fn is_assigned(&self) -> bool {
         matches!(&self.state, TaskRuntimeState::Assigned { .. })
     }

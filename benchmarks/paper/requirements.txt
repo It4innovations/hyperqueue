@@ -1,0 +1,7 @@
+# The run scripts (run.py, fetch_binaries.py, the shell drivers) and the table printers need only the
+# standard library. The figures need these; the paper's were drawn with the versions given.
+altair==6.2.2
+pandas==3.0.5
+vl-convert-python==1.9.0
+# analyze.py's own plots (skip them with --no-plots).
+matplotlib==3.10.9
