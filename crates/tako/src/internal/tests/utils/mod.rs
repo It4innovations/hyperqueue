@@ -1,15 +1,15 @@
-#[cfg(test)]
+#[cfg(any(test, feature = "sim"))]
 pub mod env;
-#[cfg(test)]
+#[cfg(any(test, feature = "sim"))]
 pub mod resources;
 #[cfg(test)]
 pub(crate) mod scheduler;
 pub mod shared;
-#[cfg(test)]
+#[cfg(any(test, feature = "sim"))]
 pub mod task;
 #[cfg(test)]
 pub mod wenv;
-#[cfg(test)]
+#[cfg(any(test, feature = "sim"))]
 pub mod worker;
 #[cfg(test)]
 pub mod worker_comm;

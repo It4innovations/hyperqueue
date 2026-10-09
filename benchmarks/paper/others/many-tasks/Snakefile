@@ -1,0 +1,9 @@
+import os
+N = int(os.environ["NTASKS"])
+
+rule all:
+    input: expand("out/{i}.txt", i=range(N))
+
+rule t:
+    output: touch("out/{i}.txt")
+    shell: "true"

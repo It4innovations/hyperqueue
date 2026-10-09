@@ -818,7 +818,7 @@ pub(crate) fn get_or_create_resource_rq_id(
     (rq_id, is_new)
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "sim"))]
 pub(crate) fn get_or_create_raw_resource_rq_id(
     core: &mut Core,
     comm: &mut impl Comm,

@@ -26,6 +26,10 @@ impl OneOrMoreTaskIds {
 #[derive(Default, Debug)]
 pub(crate) struct TaskQueues {
     queues: Vec<TaskQueue>,
+    /// Prefilled tasks dumped because a strictly higher priority arrived. Disposal happens when
+    /// tasks are submitted, not during a scheduling round, so this accumulates between rounds and
+    /// is drained into `SchedulerRoundStats` -- the same shape as `GapCache`'s counters.
+    prefill_disposed: u32,
 }
 
 impl TaskQueues {
@@ -36,10 +40,21 @@ impl TaskQueues {
 
     pub fn add_ready_task(&mut self, task: &Task, retracted: &mut Vec<TaskId>) {
         let priority = task.priority();
+        let before = retracted.len();
         for queue in self.queues.iter_mut() {
             queue.check_dispose_prefill(priority, retracted)
         }
+        self.prefill_disposed += (retracted.len() - before) as u32;
         self.get_mut(task.resource_rq_id).add(task.id, priority);
+    }
+
+    /// Prefill disposals since the last `reset_prefill_disposed`.
+    pub fn prefill_disposed(&self) -> u32 {
+        self.prefill_disposed
+    }
+
+    pub fn reset_prefill_disposed(&mut self) {
+        self.prefill_disposed = 0;
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &TaskQueue> {
@@ -54,7 +69,7 @@ impl TaskQueues {
         &mut self.queues[resource_rq_id.as_usize()]
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "sim"))]
     pub fn get(&self, resource_rq_id: ResourceRqId) -> &TaskQueue {
         &self.queues[resource_rq_id.as_usize()]
     }
@@ -73,7 +88,7 @@ impl TaskQueues {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "sim"))]
     pub fn sanity_check(
         &self,
         task_map: &crate::internal::server::taskmap::TaskMap,
@@ -127,7 +142,7 @@ impl TaskQueue {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "sim"))]
     pub(crate) fn is_ready(&self, task_id: TaskId, priority: Priority) -> bool {
         let Some(item) = self.queue.get(&Reverse(priority)) else {
             return false;
@@ -138,7 +153,7 @@ impl TaskQueue {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "sim"))]
     pub(crate) fn is_prefilled(&self, task_id: TaskId) -> bool {
         self.prefill.as_ref().unwrap().1.contains(&task_id)
     }

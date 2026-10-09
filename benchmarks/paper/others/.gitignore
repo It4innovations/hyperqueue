@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+logs/
+results/
+runinfo/
+results.csv
+status.txt
+analysis.md
+hq.*/
+smk.*/
+figures/

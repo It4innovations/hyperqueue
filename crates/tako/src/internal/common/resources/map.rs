@@ -200,7 +200,7 @@ impl ResourceRqMap {
         self.0.get(rq_id.as_usize()).unwrap()
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "sim"))]
     pub fn get_or_create(&mut self, rqv: ResourceRequestVariants) -> ResourceRqId {
         if let Some(rq_id) = self
             .0

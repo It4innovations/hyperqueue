@@ -1,0 +1,4 @@
+e2e/bin/
+e2e/results/
+sim/results/
+__pycache__/

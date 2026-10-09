@@ -1,0 +1,4 @@
+snakemake==9.27.0
+dask[distributed]==2026.8.0
+ray[default]==2.59.0
+parsl==2026.10.5
