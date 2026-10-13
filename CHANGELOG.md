@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.27.0
 
 ### New features
 
