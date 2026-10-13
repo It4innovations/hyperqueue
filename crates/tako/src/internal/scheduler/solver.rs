@@ -151,8 +151,7 @@ pub fn run_scheduling_solver_inner(
                     if worker.is_free()
                         && worker_groups
                             .get(&worker.configuration.group)
-                            .unwrap()
-                            .is_capable_to_run_rq(rq, now, worker_map)
+                            .is_some_and(|g| g.is_capable_to_run_rq(rq, now, worker_map))
                     {
                         set_placement_name(&mut solver, worker.id, batch.resource_rq_id, v_idx);
                         let v = create_mn_var(
