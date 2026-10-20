@@ -4,7 +4,7 @@ from typing import Dict, List, Optional, Sequence, Union
 
 from .common import GenericPath
 from .ffi import JobId, TaskId
-from .ffi.protocol import JobDescription, ResourceRequest
+from .ffi.protocol import CrashLimit, JobDescription, ResourceRequest
 from .output import Stdio, default_stderr, default_stdout
 from .task.function import PythonFunction
 from .task.program import ExternalProgram, ProgramArgs
@@ -57,7 +57,7 @@ class Job:
         task_dir: bool = False,
         priority: int = 0,
         resources: Optional[Union[ResourceRequest, Sequence[ResourceRequest]]] = None,
-        crash_limit: Optional[int] = None,
+        crash_limit: Optional[CrashLimit] = None,
     ) -> ExternalProgram:
         """
         Creates a new task that will execute the provided command.
@@ -77,7 +77,8 @@ class Job:
         :param priority: Priority of the created task.
         :param resources: List of resource requests required by this task.
         :param crash_limit: How many times can a worker that executes this task crash before the
-        task is considered to be failed.
+        task is considered to be failed. Either a positive number,
+        ``"unlimited"`` or ``"never-restart"``.
         """
         task = ExternalProgram(
             len(self.tasks),
@@ -111,7 +112,7 @@ class Job:
         name: Optional[str] = None,
         priority: int = 0,
         resources: Optional[Union[ResourceRequest, Sequence[ResourceRequest]]] = None,
-        crash_limit: Optional[int] = None,
+        crash_limit: Optional[CrashLimit] = None,
     ) -> PythonFunction:
         """
         Creates a new task that will execute the provided Python function.
@@ -129,7 +130,8 @@ class Job:
         :param priority: Priority of the created task.
         :param resources: List of resource requests required by this task.
         :param crash_limit: How many times can a worker that executes this task crash before the
-        task is considered to be failed.
+        task is considered to be failed. Either a positive number,
+        ``"unlimited"`` or ``"never-restart"``.
         """
         task = PythonFunction(
             len(self.tasks),

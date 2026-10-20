@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### New features
+
+* Python API `crash_limit` now accepts `"unlimited"` and `"never-restart"` (and `0` is rejected)
+
 ## v0.27.0
 
 ### New features

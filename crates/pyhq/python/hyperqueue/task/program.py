@@ -2,7 +2,7 @@ from typing import Dict, List, Optional, Sequence, Union
 
 from ..common import GenericPath
 from ..ffi import TaskId
-from ..ffi.protocol import ResourceRequest, TaskDescription
+from ..ffi.protocol import CrashLimit, ResourceRequest, TaskDescription
 from ..output import Output, Stdio, gather_outputs
 from ..validation import ValidationException, validate_args
 from .task import EnvType, Task, _make_ffi_requests
@@ -30,7 +30,7 @@ class ExternalProgram(Task):
         task_dir: bool = False,
         priority: int = 0,
         resources: Optional[ResourceRequest],
-        crash_limit: Optional[int] = None,
+        crash_limit: Optional[CrashLimit] = None,
     ):
         super().__init__(
             task_id,

@@ -5,7 +5,7 @@ from typing import Callable, Optional, Sequence, Union
 
 from ...common import GenericPath
 from ...ffi import TaskId
-from ...ffi.protocol import ResourceRequest, TaskDescription
+from ...ffi.protocol import CrashLimit, ResourceRequest, TaskDescription
 from ..task import EnvType, Task, _make_ffi_requests
 from .wrapper import CloudWrapper
 
@@ -103,7 +103,7 @@ class PythonFunction(Task):
         dependencies=(),
         priority: int = 0,
         resources: Optional[Union[ResourceRequest, Sequence[ResourceRequest]]] = None,
-        crash_limit: Optional[int] = None,
+        crash_limit: Optional[CrashLimit] = None,
     ):
         name = generate_task_name(task_id, name, fn)
         super().__init__(

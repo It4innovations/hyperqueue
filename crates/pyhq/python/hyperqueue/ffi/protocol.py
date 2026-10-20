@@ -1,8 +1,11 @@
 import dataclasses
 import datetime
-from typing import Dict, List, Optional, Sequence, Union
+from typing import Dict, List, Literal, Optional, Sequence, Union
 
 from ..output import StdioDef
+
+# Either a positive number of crashes, "unlimited" or "never-restart"
+CrashLimit = Union[int, Literal["unlimited", "never-restart"]]
 
 
 class ResourceRequest:
@@ -42,7 +45,7 @@ class TaskDescription:
     task_dir: bool
     priority: int
     resource_request: Sequence[ResourceRequest]
-    crash_limit: Optional[int]
+    crash_limit: Optional[CrashLimit]
 
 
 @dataclasses.dataclass
