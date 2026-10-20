@@ -3,7 +3,7 @@ from typing import Dict, Optional, Sequence, Union
 
 from ..common import GenericPath
 from ..ffi import TaskId
-from ..ffi.protocol import ResourceRequest
+from ..ffi.protocol import CrashLimit, ResourceRequest
 from ..output import Stdio, StdioDef
 from ..validation import ValidationException
 
@@ -33,7 +33,7 @@ class Task:
         stdout: Optional[Stdio] = None,
         stderr: Optional[Stdio] = None,
         name: Optional[str] = None,
-        crash_limit: Optional[int] = None,
+        crash_limit: Optional[CrashLimit] = None,
     ):
         assert dependencies is not None
         self.task_id = task_id

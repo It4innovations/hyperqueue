@@ -1,7 +1,9 @@
 use crate::marshal::FromPy;
 use crate::utils::error::ToPyResult;
 use crate::{ClientContextPtr, FromPyObject, PyJobId, PyTaskId, borrow_mut, run_future};
-use hyperqueue::client::commands::submit::command::{DEFAULT_STDERR_PATH, DEFAULT_STDOUT_PATH};
+use hyperqueue::client::commands::submit::command::{
+    DEFAULT_STDERR_PATH, DEFAULT_STDOUT_PATH, parse_crash_limit,
+};
 use hyperqueue::client::commands::submit::resource_rq_map_to_vec;
 use hyperqueue::client::output::resolve_task_paths;
 use hyperqueue::client::resources::parse_allocation_request;
@@ -39,6 +41,12 @@ enum AllocationValue {
 }
 
 #[derive(Debug, FromPyObject)]
+enum CrashLimitValue {
+    Int(u16),
+    String(String),
+}
+
+#[derive(Debug, FromPyObject)]
 pub struct ResourceRequestDescription {
     n_nodes: NumOfNodes,
     resources: HashMap<String, AllocationValue>,
@@ -64,7 +72,7 @@ pub struct TaskDescription {
     task_dir: bool,
     priority: i32,
     resource_request: Vec<ResourceRequestDescription>,
-    crash_limit: Option<u16>,
+    crash_limit: Option<CrashLimitValue>,
 }
 
 #[derive(Debug, FromPyObject)]
@@ -256,10 +264,16 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<H
         }),
         priority: UserPriority::new(desc.priority),
         time_limit: None,
-        crash_limit: desc
-            .crash_limit
-            .map(CrashLimit::MaxCrashes)
-            .unwrap_or_default(),
+        crash_limit: match desc.crash_limit {
+            None => CrashLimit::default(),
+            Some(CrashLimitValue::Int(0)) => {
+                anyhow::bail!(
+                    "Crash limit cannot be 0. Use `never-restart` or `unlimited` instead."
+                );
+            }
+            Some(CrashLimitValue::Int(v)) => CrashLimit::MaxCrashes(v),
+            Some(CrashLimitValue::String(v)) => parse_crash_limit(&v)?,
+        },
     })
 }
 
