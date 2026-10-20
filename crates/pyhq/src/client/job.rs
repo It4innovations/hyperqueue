@@ -57,6 +57,7 @@ pub struct ResourceRequestDescription {
 pub struct StdioDefInput {
     path: Option<PathBuf>,
     on_close: FromPy<FileOnCloseBehavior>,
+    pipe: bool,
 }
 
 #[derive(Debug, FromPyObject)]
@@ -80,6 +81,7 @@ pub struct PyJobDescription {
     name: Option<String>,
     tasks: Vec<TaskDescription>,
     max_fails: Option<JobTaskCount>,
+    stream_path: Option<PathBuf>,
 }
 
 pub fn submit_job_impl(py: Python, ctx: ClientContextPtr, job: PyJobDescription) -> PyResult<u32> {
@@ -102,7 +104,7 @@ pub fn submit_job_impl(py: Python, ctx: ClientContextPtr, job: PyJobDescription)
                 submit_desc: JobSubmitDescription {
                     task_desc,
                     submit_dir,
-                    stream_path: None,
+                    stream_path: job.stream_path,
                 },
                 job_id: None,
             },
@@ -225,6 +227,17 @@ fn build_task_resources(
     Ok(*resource_map.entry(rqv).or_insert(new_id))
 }
 
+fn stdio_def_from_input(stdio: StdioDefInput, default_path: &str) -> StdioDef {
+    if stdio.pipe {
+        StdioDef::Pipe
+    } else {
+        StdioDef::File {
+            path: stdio.path.unwrap_or_else(|| PathBuf::from(default_path)),
+            on_close: stdio.on_close.extract(),
+        }
+    }
+}
+
 fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<HqTaskDescription> {
     let args = desc.args.into_iter().map(|arg| arg.into()).collect();
     let env = desc
@@ -234,17 +247,11 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<H
         .collect();
     let stdout = desc
         .stdout
-        .map(|stdio| StdioDef::File {
-            path: stdio.path.unwrap_or(PathBuf::from(DEFAULT_STDOUT_PATH)),
-            on_close: stdio.on_close.extract(),
-        })
+        .map(|stdio| stdio_def_from_input(stdio, DEFAULT_STDOUT_PATH))
         .unwrap_or_default();
     let stderr = desc
         .stderr
-        .map(|stdio| StdioDef::File {
-            path: stdio.path.unwrap_or(PathBuf::from(DEFAULT_STDERR_PATH)),
-            on_close: stdio.on_close.extract(),
-        })
+        .map(|stdio| stdio_def_from_input(stdio, DEFAULT_STDERR_PATH))
         .unwrap_or_default();
     let stdin = desc.stdin.unwrap_or_default();
     let cwd = desc.cwd.unwrap_or_else(|| submit_dir.to_path_buf());

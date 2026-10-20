@@ -336,3 +336,25 @@ def test_job_name(hq_env: HqEnv):
     client.submit(job)
     data = hq_env.command(["job", "info", "last", "--output-mode", "json"], as_json=True)
     assert data[0]["info"]["name"] == "Foo"
+
+
+def test_job_stream(hq_env: HqEnv):
+    os.mkdir("mylog")
+    (job, client) = prepare_job_client(hq_env, stream="mylog")
+    job.program(args=bash("echo Hello; >&2 echo Err"))
+    submitted_job = client.submit(job)
+    wait_for_job_state(hq_env, submitted_job.id, "FINISHED")
+
+    assert hq_env.command(["output-log", "mylog", "cat", "1", "stdout"]) == "Hello\n"
+    assert hq_env.command(["output-log", "mylog", "cat", "1", "stderr"]) == "Err\n"
+
+
+def test_job_stream_disable_stdout(hq_env: HqEnv):
+    os.mkdir("mylog")
+    (job, client) = prepare_job_client(hq_env, stream="mylog")
+    job.program(args=bash("echo Hello; >&2 echo Err"), stdout=None)
+    submitted_job = client.submit(job)
+    wait_for_job_state(hq_env, submitted_job.id, "FINISHED")
+
+    assert hq_env.command(["output-log", "mylog", "cat", "1", "stdout"]) == ""
+    assert hq_env.command(["output-log", "mylog", "cat", "1", "stderr"]) == "Err\n"

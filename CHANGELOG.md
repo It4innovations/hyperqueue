@@ -5,6 +5,7 @@
 ### New features
 
 * Python API `crash_limit` now accepts `"unlimited"` and `"never-restart"` (and `0` is rejected)
+* Python API now allows to enable stdio streaming
 
 ## v0.27.0
 

@@ -1,14 +1,18 @@
 import dataclasses
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Optional, Sequence, Union
 
 from .common import GenericPath
 from .ffi import JobId, TaskId
 from .ffi.protocol import CrashLimit, JobDescription, ResourceRequest
-from .output import Stdio, default_stderr, default_stdout
+from .output import Stdio, StdioDef, default_stderr, default_stdout
 from .task.function import PythonFunction
 from .task.program import ExternalProgram, ProgramArgs
 from .task.task import EnvType, Task
+
+
+# Marks stdout/stderr that were not specified by the user
+DEFAULT_STDIO: Any = object()
 
 
 class Job:
@@ -22,6 +26,7 @@ class Job:
         max_fails: Optional[int] = 1,
         default_env: Optional[EnvType] = None,
         name: Optional[str] = None,
+        stream: Optional[GenericPath] = None,
     ):
         """
         :param default_workdir: Default working directory for tasks.
@@ -29,6 +34,9 @@ class Job:
         :param default_env: Environment variables that will be automatically set for each task in
         this job.
         :param name: Name of the job.
+        :param stream: Path to a directory into which stdout/stderr of all tasks is streamed
+        (equivalent of `hq submit --stream`). Tasks that do not specify
+        stdout/stderr will stream them; `stdout=None` discards the output.
         """
         self.tasks: List[Task] = []
         self.task_map: Dict[TaskId, Task] = {}
@@ -36,6 +44,7 @@ class Job:
         self.default_workdir = Path(default_workdir).resolve() if default_workdir is not None else default_workdir
         self.default_env = default_env or {}
         self.name = name
+        self.stream = Path(stream).resolve() if stream is not None else None
 
     def task_by_id(self, id: TaskId) -> Optional[Task]:
         """
@@ -49,8 +58,8 @@ class Job:
         *,
         env: Optional[EnvType] = None,
         cwd: Optional[GenericPath] = None,
-        stdout: Optional[Stdio] = default_stdout(),
-        stderr: Optional[Stdio] = default_stderr(),
+        stdout: Optional[Stdio] = DEFAULT_STDIO,
+        stderr: Optional[Stdio] = DEFAULT_STDIO,
         stdin: Optional[Union[str, bytes]] = None,
         deps: Sequence[Task] = (),
         name: Optional[str] = None,
@@ -86,8 +95,8 @@ class Job:
             env=merge_envs(self.default_env, env),
             cwd=cwd or self.default_workdir,
             dependencies=deps,
-            stdout=stdout,
-            stderr=stderr,
+            stdout=self._resolve_stdio(stdout, default_stdout),
+            stderr=self._resolve_stdio(stderr, default_stderr),
             stdin=stdin,
             name=name,
             task_dir=task_dir,
@@ -106,8 +115,8 @@ class Job:
         kwargs=None,
         env: Optional[EnvType] = None,
         cwd: Optional[GenericPath] = None,
-        stdout: Optional[Stdio] = default_stdout(),
-        stderr: Optional[Stdio] = default_stderr(),
+        stdout: Optional[Stdio] = DEFAULT_STDIO,
+        stderr: Optional[Stdio] = DEFAULT_STDIO,
         deps: Sequence[Task] = (),
         name: Optional[str] = None,
         priority: int = 0,
@@ -140,8 +149,8 @@ class Job:
             kwargs=kwargs,
             env=merge_envs(self.default_env, env),
             cwd=cwd or self.default_workdir,
-            stdout=stdout,
-            stderr=stderr,
+            stdout=self._resolve_stdio(stdout, default_stdout),
+            stderr=self._resolve_stdio(stderr, default_stderr),
             name=name,
             dependencies=deps,
             priority=priority,
@@ -151,6 +160,12 @@ class Job:
         self._add_task(task)
         return task
 
+    def _resolve_stdio(self, stdio, default):
+        if stdio is not DEFAULT_STDIO:
+            return stdio
+        # Streamed jobs send output of tasks to the stream, unless a path is given explicitly
+        return StdioDef.to_stream() if self.stream is not None else default()
+
     def _add_task(self, task: Task):
         self.tasks.append(task)
         self.task_map[task.task_id] = task
@@ -159,7 +174,12 @@ class Job:
         task_descriptions = []
         for task in self.tasks:
             task_descriptions.append(task._build(client))
-        return JobDescription(name=self.name, tasks=task_descriptions, max_fails=self.max_fails)
+        return JobDescription(
+            name=self.name,
+            tasks=task_descriptions,
+            max_fails=self.max_fails,
+            stream_path=str(self.stream) if self.stream is not None else None,
+        )
 
 
 @dataclasses.dataclass
