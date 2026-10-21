@@ -7,7 +7,7 @@ use tako::JobId;
 
 #[derive(Parser)]
 pub struct OutputLogOpts {
-    /// Path of the log file
+    /// Path of the directory with streamed output (see `hq submit --stream`)
     path: PathBuf,
 
     /// Filter files for the given server instance

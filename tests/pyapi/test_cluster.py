@@ -1,3 +1,5 @@
+import os
+
 import pytest
 from hyperqueue.cluster import LocalCluster, WorkerConfig
 from hyperqueue.job import Job
@@ -33,7 +35,7 @@ def test_cluster_add_worker():
         cluster.start_worker()
         client = cluster.client()
         job = Job()
-        job.program(["echo", "hello"], stdout="out.txt")
+        job.program(["echo", "hello"], stdout=os.path.abspath("out.txt"))
         job_id = client.submit(job)
         client.wait_for_jobs([job_id])
 

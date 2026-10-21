@@ -66,8 +66,8 @@ def test_submit_stdio(hq_env: HqEnv):
     (job, client) = prepare_job_client(hq_env)
     job.program(
         args=bash("echo Test1; cat -; >&2 echo Test2"),
-        stdout="out",
-        stderr="err",
+        stdout=os.path.abspath("out"),
+        stderr=os.path.abspath("err"),
         stdin=b"Hello\n",
     )
     submitted_job = client.submit(job)
@@ -98,8 +98,8 @@ def test_stdio_rm_if_finished(hq_env: HqEnv):
     (job, client) = prepare_job_client(hq_env)
     job.program(
         args="uname",
-        stdout=StdioDef.remove_if_finished(path="out"),
-        stderr=StdioDef.remove_if_finished(path="err"),
+        stdout=StdioDef.remove_if_finished(path=os.path.abspath("out")),
+        stderr=StdioDef.remove_if_finished(path=os.path.abspath("err")),
     )
     submitted_job = client.submit(job)
     wait_for_job_state(hq_env, submitted_job.id, "FINISHED")
@@ -340,7 +340,7 @@ def test_job_name(hq_env: HqEnv):
 
 def test_job_stream(hq_env: HqEnv):
     os.mkdir("mylog")
-    (job, client) = prepare_job_client(hq_env, stream="mylog")
+    (job, client) = prepare_job_client(hq_env, stream="%{SUBMIT_DIR}/mylog")
     job.program(args=bash("echo Hello; >&2 echo Err"))
     submitted_job = client.submit(job)
     wait_for_job_state(hq_env, submitted_job.id, "FINISHED")
@@ -351,10 +351,45 @@ def test_job_stream(hq_env: HqEnv):
 
 def test_job_stream_disable_stdout(hq_env: HqEnv):
     os.mkdir("mylog")
-    (job, client) = prepare_job_client(hq_env, stream="mylog")
+    (job, client) = prepare_job_client(hq_env, stream="%{SUBMIT_DIR}/mylog")
     job.program(args=bash("echo Hello; >&2 echo Err"), stdout=None)
     submitted_job = client.submit(job)
     wait_for_job_state(hq_env, submitted_job.id, "FINISHED")
 
     assert hq_env.command(["output-log", "mylog", "cat", "1", "stdout"]) == ""
     assert hq_env.command(["output-log", "mylog", "cat", "1", "stderr"]) == "Err\n"
+
+
+@pytest.mark.parametrize("path", ["foo", "foo/bar", "./foo", "../foo"])
+def test_relative_paths_are_rejected(hq_env: HqEnv, path: str):
+    (_, client) = prepare_job_client(hq_env)
+
+    def submit(job_args=None, **program_args):
+        job = Job(**(job_args or {}))
+        job.program(args="uname", **program_args)
+        with pytest.raises(Exception, match="is not absolute"):
+            client.submit(job)
+
+    submit(cwd=path)
+    submit(stdout=path)
+    submit(stderr=path)
+    submit(stdout=StdioDef.remove_if_finished(path=path))
+    submit(job_args=dict(default_workdir=path))
+    submit(job_args=dict(stream=path))
+
+
+def test_placeholder_without_directory_is_rejected(hq_env: HqEnv):
+    (job, client) = prepare_job_client(hq_env)
+    job.program(args="uname", stdout="%{TASK_ID}/out")
+    with pytest.raises(Exception, match="is not absolute"):
+        client.submit(job)
+    job = Job()
+    job.program(args="uname", cwd="%{CWD}/foo")
+    with pytest.raises(Exception, match="is not absolute"):
+        client.submit(job)
+
+
+def test_absolute_and_placeholder_paths_are_accepted(hq_env: HqEnv):
+    (job, client) = prepare_job_client(hq_env, default_workdir="/tmp", stream="%{SUBMIT_DIR}/log")
+    job.program(args="uname", cwd="%{SUBMIT_DIR}", stdout="/tmp/out", stderr="%{CWD}/err")
+    client.submit(job)

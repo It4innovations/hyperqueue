@@ -1,5 +1,4 @@
 import dataclasses
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Union
 
 from .common import GenericPath
@@ -29,22 +28,24 @@ class Job:
         stream: Optional[GenericPath] = None,
     ):
         """
-        :param default_workdir: Default working directory for tasks.
+        :param default_workdir: Default working directory for tasks. It has to be an absolute path or
+        start with `%{SUBMIT_DIR}`, because it is resolved outside this process.
         :param max_fails: How many tasks can fail before the whole job will be cancelled.
         :param default_env: Environment variables that will be automatically set for each task in
         this job.
         :param name: Name of the job.
         :param stream: Path to a directory into which stdout/stderr of all tasks is streamed
-        (equivalent of `hq submit --stream`). Tasks that do not specify
+        (equivalent of `hq submit --stream`). It has to be an absolute path or start with
+        `%{SUBMIT_DIR}`. Tasks that do not specify
         stdout/stderr will stream them; `stdout=None` discards the output.
         """
         self.tasks: List[Task] = []
         self.task_map: Dict[TaskId, Task] = {}
         self.max_fails = max_fails
-        self.default_workdir = Path(default_workdir).resolve() if default_workdir is not None else default_workdir
+        self.default_workdir = default_workdir
         self.default_env = default_env or {}
         self.name = name
-        self.stream = Path(stream).resolve() if stream is not None else None
+        self.stream = stream
 
     def task_by_id(self, id: TaskId) -> Optional[Task]:
         """
@@ -73,8 +74,10 @@ class Job:
 
         :param args: List of arguments will be executed. The arguments have to be strings.
         :param env: Environment variables passed to the executed command.
-        :param cwd: Working directory of the executed command.
-        :param stdout: Path to a file that will store the standard output of the executed command.
+        :param cwd: Working directory of the executed command (an absolute path or a path starting
+        with `%{SUBMIT_DIR}`).
+        :param stdout: Path to a file that will store the standard output of the executed command
+        (an absolute path or a path starting with `%{SUBMIT_DIR}` or `%{CWD}`).
         :param stderr: Path to a file that will store the standard error output of the executed
         command.
         :param stdin: If provided, these bytes will be passed as the standard input of the executed
@@ -129,8 +132,10 @@ class Job:
         :param args: Positional arguments that will be passed to the Python function.
         :param kwargs: Keyword arguments that will be passed to the Python function.
         :param env: Environment variables passed to the executed command.
-        :param cwd: Working directory of the executed command.
-        :param stdout: Path to a file that will store the standard output of the executed command.
+        :param cwd: Working directory of the executed command (an absolute path or a path starting
+        with `%{SUBMIT_DIR}`).
+        :param stdout: Path to a file that will store the standard output of the executed command
+        (an absolute path or a path starting with `%{SUBMIT_DIR}` or `%{CWD}`).
         :param stderr: Path to a file that will store the standard error output of the executed
         command.
         :param deps: A sequence of dependencies that have to be completed first before this task
@@ -178,7 +183,7 @@ class Job:
             name=self.name,
             tasks=task_descriptions,
             max_fails=self.max_fails,
-            stream_path=str(self.stream) if self.stream is not None else None,
+            stream_path=self.stream,
         )
 
 

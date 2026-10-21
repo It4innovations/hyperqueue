@@ -7,6 +7,14 @@
 * Python API `crash_limit` now accepts `"unlimited"` and `"never-restart"` (and `0` is rejected)
 * Python API now allows to enable stdio streaming
 
+### Changes
+
+* Relative `cwd`, `stdout`, `stderr` and `stream` paths are now rejected in the Python API and in job files.
+  Relative `cwd`, `stdout` and `stderr` paths are also rejected in array jobs submitted via the CLI.
+  Use an absolute path or a path starting with `%{SUBMIT_DIR}` (or `%{CWD}` for `stdout`/`stderr`).
+  A relative `--stream` path in the CLI is resolved against the submit directory.
+* The stream path cannot contain task-specific placeholders (`%{TASK_ID}`, `%{INSTANCE_ID}`, `%{CWD}`).
+
 ## v0.27.0
 
 ### New features

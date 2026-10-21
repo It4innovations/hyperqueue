@@ -4,6 +4,7 @@ use crate::{ClientContextPtr, FromPyObject, PyJobId, PyTaskId, borrow_mut, run_f
 use hyperqueue::client::commands::submit::command::{
     DEFAULT_STDERR_PATH, DEFAULT_STDOUT_PATH, parse_crash_limit,
 };
+use hyperqueue::client::commands::submit::paths::validate_submit_paths;
 use hyperqueue::client::commands::submit::resource_rq_map_to_vec;
 use hyperqueue::client::output::resolve_task_paths;
 use hyperqueue::client::resources::parse_allocation_request;
@@ -95,17 +96,20 @@ pub fn submit_job_impl(py: Python, ctx: ClientContextPtr, job: PyJobDescription)
             resource_rqs: resource_rq_map_to_vec(resource_map),
         };
 
+        let submit_desc = JobSubmitDescription {
+            task_desc,
+            submit_dir,
+            stream_path: job.stream_path,
+        };
+        validate_submit_paths(&submit_desc)?;
+
         let message = FromClientMessage::Submit(
             SubmitRequest {
                 job_desc: JobDescription {
                     name: job.name.unwrap_or_else(|| "PyAPI job".to_string()),
                     max_fails: job.max_fails,
                 },
-                submit_desc: JobSubmitDescription {
-                    task_desc,
-                    submit_dir,
-                    stream_path: job.stream_path,
-                },
+                submit_desc,
                 job_id: None,
             },
             None,
