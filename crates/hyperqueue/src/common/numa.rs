@@ -107,8 +107,8 @@ pub fn detect_numa_nodes() -> Vec<NumaNodeInfo> {
                 && let Ok(node_id) = stripped.parse::<u32>()
             {
                 let path = entry.path();
-                let cpulist = read_trimmed(path.join("cpulist"))
-                    .unwrap_or_else(|| "N/A".to_string());
+                let cpulist =
+                    read_trimmed(path.join("cpulist")).unwrap_or_else(|| "N/A".to_string());
                 let cpu_count = count_cpus_in_list(&cpulist);
 
                 let (mem_total, mem_free, _) = parse_node_meminfo(&path.join("meminfo"));
@@ -210,8 +210,7 @@ pub fn detect_gpus() -> Vec<GpuPciInfo> {
             .ok()
             .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()));
 
-        let numa_node = read_trimmed(path.join("numa_node"))
-            .and_then(|s| s.parse::<i32>().ok());
+        let numa_node = read_trimmed(path.join("numa_node")).and_then(|s| s.parse::<i32>().ok());
 
         let local_cpulist = read_trimmed(path.join("local_cpulist"));
 
@@ -320,7 +319,9 @@ fn parse_proc_meminfo() -> (Option<u64>, Option<u64>) {
     for line in reader.lines().map_while(Result::ok) {
         if line.starts_with("MemTotal:") {
             total = extract_kb_from_line(&line);
-        } else if line.starts_with("MemAvailable:") || (free.is_none() && line.starts_with("MemFree:")) {
+        } else if line.starts_with("MemAvailable:")
+            || (free.is_none() && line.starts_with("MemFree:"))
+        {
             free = extract_kb_from_line(&line);
         }
     }
@@ -422,19 +423,17 @@ mod tests {
                     distances: vec![20, 10],
                 },
             ],
-            gpus: vec![
-                GpuPciInfo {
-                    pci_address: "0000:01:00.0".to_string(),
-                    vendor_id: 0x10de,
-                    device_id: 0x1fdd,
-                    class_id: 0x030000,
-                    vendor_name: "NVIDIA Corporation".to_string(),
-                    device_name: Some("GeForce GTX 1650".to_string()),
-                    driver: Some("nvidia".to_string()),
-                    numa_node: Some(0),
-                    local_cpulist: Some("0-7".to_string()),
-                },
-            ],
+            gpus: vec![GpuPciInfo {
+                pci_address: "0000:01:00.0".to_string(),
+                vendor_id: 0x10de,
+                device_id: 0x1fdd,
+                class_id: 0x030000,
+                vendor_name: "NVIDIA Corporation".to_string(),
+                device_name: Some("GeForce GTX 1650".to_string()),
+                driver: Some("nvidia".to_string()),
+                numa_node: Some(0),
+                local_cpulist: Some("0-7".to_string()),
+            }],
         };
 
         assert_eq!(topo.total_cpus(), 16);

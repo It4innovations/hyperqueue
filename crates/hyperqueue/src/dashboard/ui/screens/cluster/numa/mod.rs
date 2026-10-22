@@ -1,7 +1,7 @@
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::Style;
 use ratatui::widgets::{Cell, Paragraph, Row, Table, TableState};
-use crossterm::event::{KeyCode, KeyEvent};
 use tako::WorkerId;
 
 use crate::common::format::human_size;
@@ -107,11 +107,7 @@ impl WorkerNumaScreen {
             KeyCode::Down => match self.focused {
                 FocusedWidget::Nodes => self.nodes_table.select_next_wrap(),
                 FocusedWidget::Distances => {
-                    let total_nodes = self
-                        .topology
-                        .as_ref()
-                        .map(|t| t.nodes.len())
-                        .unwrap_or(0);
+                    let total_nodes = self.topology.as_ref().map(|t| t.nodes.len()).unwrap_or(0);
                     if total_nodes > 0 {
                         let cur = self.distances_state.selected().unwrap_or(0);
                         self.distances_state.select(Some((cur + 1) % total_nodes));
@@ -122,11 +118,7 @@ impl WorkerNumaScreen {
             KeyCode::Up => match self.focused {
                 FocusedWidget::Nodes => self.nodes_table.select_previous_wrap(),
                 FocusedWidget::Distances => {
-                    let total_nodes = self
-                        .topology
-                        .as_ref()
-                        .map(|t| t.nodes.len())
-                        .unwrap_or(0);
+                    let total_nodes = self.topology.as_ref().map(|t| t.nodes.len()).unwrap_or(0);
                     if total_nodes > 0 {
                         let cur = self.distances_state.selected().unwrap_or(0);
                         self.distances_state
@@ -145,7 +137,11 @@ impl WorkerNumaScreen {
         // 1. Header
         let title = if let Some(worker_id) = self.worker_id {
             let host = self.hostname.as_deref().unwrap_or("unknown");
-            format!("Worker {} ({}) - NUMA & Device Topology", worker_id.as_num(), host)
+            format!(
+                "Worker {} ({}) - NUMA & Device Topology",
+                worker_id.as_num(),
+                host
+            )
         } else {
             "Worker NUMA & Device Topology".to_string()
         };
@@ -167,12 +163,7 @@ impl WorkerNumaScreen {
         };
 
         let header_content = format!("{}\n{}", title, summary);
-        draw_text(
-            &header_content,
-            layout.header,
-            frame,
-            style_header_text(),
-        );
+        draw_text(&header_content, layout.header, frame, style_header_text());
 
         // 2. Footer
         let focus_hint = match self.focused {
@@ -225,13 +216,10 @@ impl WorkerNumaScreen {
         let distances_rect = bottom_chunks[0];
         let gpus_rect = bottom_chunks[1];
 
-        // Draw Nodes Table
         self.draw_nodes_table(nodes_rect, frame);
 
-        // Draw Distances Table
         self.draw_distances_table(distances_rect, frame);
 
-        // Draw GPUs Table
         self.draw_gpus_table(gpus_rect, frame);
     }
 
@@ -530,4 +518,3 @@ mod tests {
             .unwrap();
     }
 }
-

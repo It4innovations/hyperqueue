@@ -52,6 +52,7 @@ def test_print_worker_info(hq_env: HqEnv):
                     "group": str,
                     "on_server_lost": "stop",
                     "min_utilization": float,
+                    "numa_topology": {"gpus": list, "nodes": list},
                 },
                 "allocation": None,
                 "started": str,
