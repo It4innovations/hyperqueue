@@ -2,6 +2,7 @@ pub mod command;
 pub mod defs;
 pub mod directives;
 mod jobfile;
+pub mod paths;
 
 pub use command::SubmitJobTaskConfOpts;
 pub use command::{JobSubmitOpts, submit_computation};

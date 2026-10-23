@@ -42,7 +42,7 @@ client = Client()
 
 while True:
     job = Job()
-    job.program(["my-program"], stdout="out.txt")
+    job.program(["my-program"], stdout="/path/to/out.txt")
 
     # Submit a job
     submitted = client.submit(job)

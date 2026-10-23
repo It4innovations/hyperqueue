@@ -1,6 +1,8 @@
 import time
 import os
 
+import pytest
+
 from .conftest import HqEnv
 from .utils import wait_for_job_state
 from .utils.io import check_file_contents
@@ -16,7 +18,7 @@ def test_stream_collision(hq_env: HqEnv):
             [
                 "submit",
                 "--stream",
-                "mylog",
+                "%{SUBMIT_DIR}/mylog",
                 "--array=1-20",
                 "--",
                 "bash",
@@ -39,7 +41,7 @@ def test_stream_submit(hq_env: HqEnv):
         [
             "submit",
             "--stream",
-            "mylog",
+            "%{SUBMIT_DIR}/mylog",
             "--array=1-20",
             "--",
             "bash",
@@ -88,7 +90,7 @@ def test_stream_overlap(hq_env: HqEnv):
         [
             "submit",
             "--stream",
-            "mylog",
+            "%{SUBMIT_DIR}/mylog",
             "--array=1-2",
             "--",
             "bash",
@@ -115,7 +117,7 @@ def test_stream_big_output(hq_env: HqEnv):
         [
             "submit",
             "--stream",
-            "mylog",
+            "%{SUBMIT_DIR}/mylog",
             "--array=1-2",
             "--",
             "python3",
@@ -363,3 +365,25 @@ def test_stream_timeout(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "FAILED")
 
     wait_until(lambda: hq_env.command(["output-log", "mylog", "show"]) == "1.0:0> Start\n")
+
+
+def test_stream_relative_path(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+    os.mkdir("sub")
+    hq_env.command(
+        ["submit", "--stream", "mylog", "--array=1-2", "--", "bash", "-c", "echo Hello${HQ_TASK_ID}"],
+        cwd="sub",
+    )
+    wait_for_job_state(hq_env, 1, "FINISHED")
+    assert hq_env.command(["output-log", "sub/mylog", "cat", "1", "stdout"]) == "Hello1\nHello2\n"
+
+
+@pytest.mark.parametrize("placeholder", ["TASK_ID", "INSTANCE_ID", "CWD"])
+@pytest.mark.parametrize("array_args", [[], ["--array=1-2"]])
+def test_stream_task_placeholder_is_error(hq_env: HqEnv, placeholder, array_args):
+    hq_env.start_server()
+    hq_env.command(
+        ["submit", *array_args, f"--stream=mylog-%{{{placeholder}}}", "--", "true"],
+        expect_fail="depends on a task",
+    )

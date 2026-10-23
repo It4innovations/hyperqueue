@@ -16,10 +16,16 @@ class StdioDef:
 
     path: Optional[GenericPath]
     on_close: FileOnCloseBehavior
+    # Send the output into the job stream instead of a file (the job has to define `stream`)
+    pipe: bool = False
 
     @staticmethod
     def from_path(path: GenericPath) -> "StdioDef":
         return StdioDef(path=path, on_close="none")
+
+    @staticmethod
+    def to_stream() -> "StdioDef":
+        return StdioDef(path=None, on_close="none", pipe=True)
 
     @staticmethod
     def remove_if_finished(path: Optional[GenericPath] = None) -> "StdioDef":

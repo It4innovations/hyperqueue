@@ -1442,3 +1442,29 @@ def test_fast_retracting(hq_env: HqEnv):
     time.sleep(3)
     out = hq_env.command(["--output-mode=json", "job", "info", "1"], as_json=True)
     assert sorted(t["id"] for t in out[0]["tasks"] if t["state"] == "running") == list(range(1, 9))
+
+
+@pytest.mark.parametrize("array_args", [["--array=1-3"], ["--array=1"], ["--each-line=lines"]])
+@pytest.mark.parametrize("option", ["--stdout", "--stderr", "--cwd"])
+def test_array_relative_path_is_error(hq_env: HqEnv, array_args, option):
+    hq_env.start_server()
+    Path("lines").write_text("a\nb\n")
+    hq_env.command(
+        ["submit", *array_args, f"{option}=foo", "--", "true"],
+        expect_fail="is not absolute",
+    )
+    # Placeholders that do not produce a directory do not make the path absolute
+    hq_env.command(
+        ["submit", *array_args, f"{option}=%{{TASK_ID}}/foo", "--", "true"],
+        expect_fail="is not absolute",
+    )
+    hq_env.command(["submit", *array_args, f"{option}=%{{SUBMIT_DIR}}/foo-%{{TASK_ID}}", "--", "true"])
+    hq_env.command(["submit", *array_args, f"{option}={os.path.abspath('foo')}-%{{TASK_ID}}", "--", "true"])
+
+
+def test_single_task_relative_path_is_resolved_on_server(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+    hq_env.command(["submit", "--stdout=out", "--stderr=err", "--", "bash", "-c", "echo Hello"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+    check_file_contents("out", "Hello\n")

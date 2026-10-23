@@ -41,12 +41,12 @@ The default are the same as CLI interface.
 ```toml
 
 name = "test-job"
-stream = "path/to/stream/dir"  # Stdout/Stderr streaming (see --stream)
+stream = "%{SUBMIT_DIR}/path/to/stream/dir"  # Stdout/Stderr streaming (see --stream)
 max_fails = 11
 
 [[task]]
-stdout = "testout-%{TASK_ID}"
-stderr = { path = "testerr-%{TASK_ID}", mode = "rm-if-finished" }
+stdout = "%{SUBMIT_DIR}/testout-%{TASK_ID}"
+stderr = { path = "%{SUBMIT_DIR}/testerr-%{TASK_ID}", mode = "rm-if-finished" }
 task_dir = true
 time_limit = "1m 10s"
 priority = -1

@@ -4,6 +4,7 @@ use crate::{ClientContextPtr, FromPyObject, PyJobId, PyTaskId, borrow_mut, run_f
 use hyperqueue::client::commands::submit::command::{
     DEFAULT_STDERR_PATH, DEFAULT_STDOUT_PATH, parse_crash_limit,
 };
+use hyperqueue::client::commands::submit::paths::validate_submit_paths;
 use hyperqueue::client::commands::submit::resource_rq_map_to_vec;
 use hyperqueue::client::output::resolve_task_paths;
 use hyperqueue::client::resources::parse_allocation_request;
@@ -57,6 +58,7 @@ pub struct ResourceRequestDescription {
 pub struct StdioDefInput {
     path: Option<PathBuf>,
     on_close: FromPy<FileOnCloseBehavior>,
+    pipe: bool,
 }
 
 #[derive(Debug, FromPyObject)]
@@ -80,6 +82,7 @@ pub struct PyJobDescription {
     name: Option<String>,
     tasks: Vec<TaskDescription>,
     max_fails: Option<JobTaskCount>,
+    stream_path: Option<PathBuf>,
 }
 
 pub fn submit_job_impl(py: Python, ctx: ClientContextPtr, job: PyJobDescription) -> PyResult<u32> {
@@ -93,17 +96,20 @@ pub fn submit_job_impl(py: Python, ctx: ClientContextPtr, job: PyJobDescription)
             resource_rqs: resource_rq_map_to_vec(resource_map),
         };
 
+        let submit_desc = JobSubmitDescription {
+            task_desc,
+            submit_dir,
+            stream_path: job.stream_path,
+        };
+        validate_submit_paths(&submit_desc)?;
+
         let message = FromClientMessage::Submit(
             SubmitRequest {
                 job_desc: JobDescription {
                     name: job.name.unwrap_or_else(|| "PyAPI job".to_string()),
                     max_fails: job.max_fails,
                 },
-                submit_desc: JobSubmitDescription {
-                    task_desc,
-                    submit_dir,
-                    stream_path: None,
-                },
+                submit_desc,
                 job_id: None,
             },
             None,
@@ -225,6 +231,17 @@ fn build_task_resources(
     Ok(*resource_map.entry(rqv).or_insert(new_id))
 }
 
+fn stdio_def_from_input(stdio: StdioDefInput, default_path: &str) -> StdioDef {
+    if stdio.pipe {
+        StdioDef::Pipe
+    } else {
+        StdioDef::File {
+            path: stdio.path.unwrap_or_else(|| PathBuf::from(default_path)),
+            on_close: stdio.on_close.extract(),
+        }
+    }
+}
+
 fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<HqTaskDescription> {
     let args = desc.args.into_iter().map(|arg| arg.into()).collect();
     let env = desc
@@ -234,17 +251,11 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<H
         .collect();
     let stdout = desc
         .stdout
-        .map(|stdio| StdioDef::File {
-            path: stdio.path.unwrap_or(PathBuf::from(DEFAULT_STDOUT_PATH)),
-            on_close: stdio.on_close.extract(),
-        })
+        .map(|stdio| stdio_def_from_input(stdio, DEFAULT_STDOUT_PATH))
         .unwrap_or_default();
     let stderr = desc
         .stderr
-        .map(|stdio| StdioDef::File {
-            path: stdio.path.unwrap_or(PathBuf::from(DEFAULT_STDERR_PATH)),
-            on_close: stdio.on_close.extract(),
-        })
+        .map(|stdio| stdio_def_from_input(stdio, DEFAULT_STDERR_PATH))
         .unwrap_or_default();
     let stdin = desc.stdin.unwrap_or_default();
     let cwd = desc.cwd.unwrap_or_else(|| submit_dir.to_path_buf());
