@@ -797,25 +797,22 @@ fn handle_job_forget(
 ) -> (ToClientMessage, Vec<Job>) {
     let mut state = state_ref.get_mut();
     let job_ids: Vec<JobId> = get_job_ids(&state, selector);
-    let mut forgotten: usize = 0;
 
-    let mut forgotten_jobs = Vec::with_capacity(job_ids.len());
-    for &job_id in &job_ids {
-        let can_be_forgotten = state
-            .get_job(job_id)
-            .map(|j| {
-                j.is_terminated() && allowed_statuses.contains(&job_status(&j.make_job_info(false)))
-            })
-            .unwrap_or(false);
-        if can_be_forgotten {
-            if let Some(job) = state.forget_job(job_id) {
-                forgotten_jobs.push(job);
-            }
-            forgotten += 1;
-        }
-    }
-    state.try_release_memory();
-    senders.server_control.try_release_memory();
+    let to_forget: Vec<JobId> = job_ids
+        .iter()
+        .copied()
+        .filter(|&job_id| {
+            state
+                .get_job(job_id)
+                .map(|j| {
+                    j.is_terminated()
+                        && allowed_statuses.contains(&job_status(&j.make_job_info(false)))
+                })
+                .unwrap_or(false)
+        })
+        .collect();
+    let forgotten = to_forget.len();
+    let forgotten_jobs = forget_jobs(&mut state, senders, &to_forget);
 
     let ignored = job_ids.len() - forgotten;
 
@@ -823,6 +820,18 @@ fn handle_job_forget(
         ToClientMessage::ForgetJobResponse(ForgetJobResponse { forgotten, ignored }),
         forgotten_jobs,
     )
+}
+
+/// Removes the given (terminated) jobs from the state and releases memory.
+/// The forgotten jobs are returned, so that the caller can drop them outside the event loop.
+pub(crate) fn forget_jobs(state: &mut State, senders: &Senders, job_ids: &[JobId]) -> Vec<Job> {
+    let forgotten_jobs: Vec<Job> = job_ids
+        .iter()
+        .filter_map(|&job_id| state.forget_job(job_id))
+        .collect();
+    state.try_release_memory();
+    senders.server_control.try_release_memory();
+    forgotten_jobs
 }
 
 fn handle_get_list(state_ref: &StateRef, workers: bool) -> ToClientMessage {

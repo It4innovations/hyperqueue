@@ -17,6 +17,7 @@ use crate::common::serverdir::{
 };
 use crate::server::Senders;
 use crate::server::autoalloc::{QueueId, create_autoalloc_service};
+use crate::server::autoforget::auto_forget_process;
 use crate::server::event::journal::JournalWriter;
 use crate::server::event::journal::start_event_streaming;
 use crate::server::event::streamer::EventStreamer;
@@ -50,6 +51,8 @@ pub struct ServerConfig {
     pub server_uid: Option<String>,
     /// See `tako::server::SchedulerConfig::mip_time_limit`.
     pub scheduler_mip_time_limit: Duration,
+    /// Completed jobs older than this duration are automatically forgotten.
+    pub auto_forget: Option<Duration>,
 }
 
 /// This function initializes the HQ server.
@@ -267,6 +270,15 @@ pub async fn initialize_server(
         senders.clone(),
     )));
 
+    let auto_forget_fut: Pin<Box<dyn Future<Output = ()>>> = match server_cfg.auto_forget {
+        Some(max_age) => Box::pin(auto_forget_process(
+            state_ref.clone(),
+            senders.clone(),
+            max_age,
+        )),
+        None => Box::pin(futures::future::pending()),
+    };
+
     let senders2 = senders.clone();
     let fut = async move {
         tokio::pin! {
@@ -287,6 +299,7 @@ pub async fn initialize_server(
                 key
             ) => { Ok(()) }
             _ = &mut autoalloc_process => { Ok(()) }
+            _ = auto_forget_fut => { Ok(()) }
             r = comm_fut => { r.map_err(|e| e.into()) }
         };
 

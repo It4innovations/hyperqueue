@@ -1,3 +1,4 @@
+import time
 from typing import List, Optional
 
 from ..conftest import HqEnv
@@ -63,6 +64,24 @@ def test_forget_multiple_jobs(hq_env: HqEnv):
 
     forget_jobs(hq_env, "all", forgotten=6, ignored=1, statutes=["finished", "canceled"])
     wait_for_job_list_count(hq_env, 1)
+
+
+def test_auto_forget(hq_env: HqEnv):
+    hq_env.start_server(args=["--auto-forget=3s"])
+    hq_env.start_worker()
+    hq_env.command(["submit", "uname"])
+    hq_env.command(["submit", "/non-existent"])
+    hq_env.command(["submit", "sleep", "100"])
+    hq_env.command(["job", "open"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+    wait_for_job_state(hq_env, 2, "FAILED")
+
+    # Jobs are not forgotten before they are old enough
+    wait_for_job_list_count(hq_env, 4)
+    # Running and open jobs are never forgotten
+    wait_for_job_list_count(hq_env, 2)
+    time.sleep(4)
+    wait_for_job_list_count(hq_env, 2)
 
 
 def forget_jobs(
