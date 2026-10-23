@@ -138,6 +138,13 @@ pub struct ServerStartOpts {
         help = duration_doc!("Maximum time the scheduler's placement solve may run per round.")
     )]
     scheduler_time_limit: Duration,
+
+    #[arg(
+        long,
+        value_parser = parse_hms_or_human_time,
+        help = duration_doc!("Automatically forget completed jobs that finished more than this duration ago.")
+    )]
+    auto_forget: Option<Duration>,
 }
 
 #[derive(Parser)]
@@ -231,6 +238,7 @@ async fn start_server(gsettings: &GlobalSettings, opts: ServerStartOpts) -> anyh
             }),
         server_uid: access_file.as_ref().map(|a| a.server_uid().to_string()),
         scheduler_mip_time_limit: opts.scheduler_time_limit,
+        auto_forget: opts.auto_forget,
     };
 
     init_hq_server(gsettings, server_cfg).await

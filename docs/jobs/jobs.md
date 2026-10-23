@@ -314,6 +314,19 @@ $ hq job forget all --status finished,aborted,canceled
 However, only jobs that are completed, i.e. that have been finished successfully, failed, aborted or have been canceled, can be
 forgotten. If you want to forget a waiting or a running job, [cancel](#cancelling-jobs) it first.
 
+### Automatic forgetting
+
+Instead of calling `hq job forget` periodically, you can let the server forget old jobs automatically
+by starting it with the `--auto-forget` option:
+
+```console
+$ hq server start --auto-forget=7d
+```
+
+The server then forgets every completed job (finished/failed/aborted/canceled) that was completed
+more than the given duration ago. Open jobs are never forgotten automatically; they have to be closed
+and completed first.
+
 Note that if you are using a journal, forgetting only free the memory of the server but the tasks remains
 in journal, run [`hq journal prune`](cli:hq.journal.prune) to remove completed jobs and workers from journal file.
 

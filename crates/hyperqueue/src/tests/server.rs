@@ -58,6 +58,7 @@ where
         client_secret_key: None,
         server_uid: None,
         scheduler_mip_time_limit: Duration::from_secs(5),
+        auto_forget: None,
     };
     let (fut, notify, _state, _senders) =
         initialize_server(&gsettings, server_cfg, 1.into(), 1, None)
