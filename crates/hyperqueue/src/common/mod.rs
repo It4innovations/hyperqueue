@@ -6,6 +6,7 @@ pub mod error;
 pub mod format;
 pub mod idcounter;
 pub mod manager;
+pub mod numa;
 pub mod parser;
 pub mod parser2;
 pub mod placeholders;
