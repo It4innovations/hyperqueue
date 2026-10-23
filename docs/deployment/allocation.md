@@ -266,7 +266,6 @@ $ hq alloc add firecrest \
     --token-url https://auth.cscs.ch/auth/realms/firecrest-clients/protocol/openid-connect/token \
     --client-id <your-client-id> \
     --remote-hq-path /users/<user>/hq \
-    --remote-server-dir /users/<user>/hq-worker-dir \
     --remote-workdir /scratch/<user>/hq-alloc \
     --time-limit 1h -- --account=<account> --partition=<partition>
 ```
@@ -290,12 +289,49 @@ Because the server cannot assume anything about the cluster's filesystem, you al
 (they are used verbatim on the cluster and are not interpreted by the server):
 
 - **`--remote-hq-path`**: path to the `hq` binary **on the cluster**, used to start the workers. It should be the same
-  version as the server binary.
-- **`--remote-server-dir`**: directory **on the cluster** containing the worker access file (`access.json`), which
-  tells the workers where the server runs and provides authentication keys. Generate it with
-  [`hq server generate-access`](cloud.md#splitting-access-for-client-and-workers) and copy it to the cluster.
+  version as the server binary. The path is inserted into the allocation script without quoting, so it is expanded by
+  the shell on the cluster (see the tip below).
+- **`--remote-server-dir`** (optional): directory **on the cluster** containing the worker access file (`access.json`),
+  which tells the workers where the server runs and provides authentication keys. If it is not set, the server uploads
+  the access file itself, see [below](#worker-access-file).
 - **`--remote-workdir`**: directory **on the cluster** used as the working directory of the allocations (stdout/stderr
   of the allocations are placed there). It has to exist before the first allocation starts.
+
+### Worker access file
+
+The workers need the worker access file of the server. Unless you set `--remote-server-dir`, the server uploads it to
+the cluster through the FirecREST API when the queue is created (and again when the queue is restored from a
+[journal](server.md#resuming-stoppedcrashed-server)), to:
+
+```
+<home>/.hq-server/firecrest/<server-uid>/access.json
+```
+
+- Only the worker part of the access file is uploaded; the client key never leaves the server.
+- The directory is accessible only to you (`700`). The file is rewritten only when its content differs, so all
+  queues of one server (e.g. on different partitions, or on clusters sharing the home filesystem) share one file,
+  while each server uses its own directory.
+- The home directory is derived from the filesystem that FirecREST reports as `users` and your user name, and it is
+  verified to be owned by you. If this fails, `hq alloc add` reports an error.
+- The uploaded files are not deleted, consistent with the server directories that HyperQueue keeps locally.
+
+If you prefer to manage the access file yourself, or the automatic upload does not work on your cluster, pass
+`--remote-server-dir`. In that case, generate the access file with
+[`hq server generate-access`](cloud.md#splitting-access-for-client-and-workers) and copy it to that directory on the
+cluster before creating the queue; nothing is uploaded.
+
+!!! tip "Clusters with a shared home directory and different CPU architectures"
+
+    Clusters sharing a home directory can still need different `hq` binaries (e.g. at CSCS, `daint` is `aarch64` and
+    `eiger` is `x86_64`). If you keep the binaries in per-architecture directories, let the shell on the cluster pick
+    the right one. Quote the path so that your local shell does not expand it:
+
+    ```bash
+    $ hq alloc add firecrest ... --remote-hq-path '$HOME/.local/$(uname -m)/bin/hq'
+    ```
+
+    A bare `--remote-hq-path hq` also works if the allocations inherit a `PATH` containing the right binary, which
+    depends on how your FirecREST deployment submits jobs.
 
 !!! important "Network requirements"
 

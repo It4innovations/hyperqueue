@@ -12,7 +12,8 @@
   cluster: allocations are submitted via HTTPS using OAuth2 client credentials, and the
   spawned workers connect back to the server over TCP. This enables long-running
   HyperQueue servers placed outside of clusters with login-node wall-time limits
-  (e.g. CSCS). Enabled with the `firecrest` cargo feature (on by default).
+  (e.g. CSCS). The worker access file is uploaded to the cluster through the FirecREST
+  API automatically. Enabled with the `firecrest` cargo feature (on by default).
 
 ### Fixes
 
