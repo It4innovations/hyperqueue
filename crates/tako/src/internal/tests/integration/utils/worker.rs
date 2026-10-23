@@ -12,7 +12,7 @@ use crate::launcher::{StopReason, TaskBuildContext, TaskResult};
 use crate::program::ProgramDefinition;
 use crate::worker::WorkerConfiguration;
 use derive_builder::Builder;
-use orion::auth::SecretKey;
+use orion::aead::SecretKey;
 use tempfile::TempDir;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::Notify;

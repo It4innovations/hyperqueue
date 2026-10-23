@@ -37,7 +37,7 @@ itertools = { workspace = true }
 humantime = "2"
 clap_complete = "4"
 cli-table = { version = "0.5", default-features = false }
-dirs = "6"
+dirs = "7"
 nom = "7"
 nom-supreme = { version = "0.8" }
 colored = "3"

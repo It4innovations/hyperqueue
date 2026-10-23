@@ -154,7 +154,7 @@ impl Authenticator {
             }
             (AuthenticationResponse::Encryption(response), Some(key)) => {
                 log::trace!("Challenge verification started");
-                let remote_nonce = &Nonce::from_slice(&response.nonce)
+                let remote_nonce = &Nonce::try_from(&response.nonce)
                     .map_err(|_| DsError::AuthenticationRejected("Invalid nonce".to_string()))?;
                 let mut opener = StreamOpener::new(key, remote_nonce).map_err(|_| {
                     DsError::AuthenticationRejected("Failed to create opener".to_string())
@@ -334,7 +334,7 @@ mod tests {
 
     #[test]
     fn test_auth_ok() {
-        let secret_key = Some(Arc::new(SecretKey::generate(32).unwrap()));
+        let secret_key = Some(Arc::new(SecretKey::generate().unwrap()));
         let mut a1 = Authenticator::new(0, "a", "b", secret_key.clone());
         let mut a2 = Authenticator::new(0, "b", "a", secret_key);
 
@@ -358,8 +358,8 @@ mod tests {
 
     #[test]
     fn test_auth_different_keys() {
-        let secret_key1 = Some(Arc::new(SecretKey::generate(32).unwrap()));
-        let secret_key2 = Some(Arc::new(SecretKey::generate(32).unwrap()));
+        let secret_key1 = Some(Arc::new(SecretKey::generate().unwrap()));
+        let secret_key2 = Some(Arc::new(SecretKey::generate().unwrap()));
         let mut a1 = Authenticator::new(0, "a", "b", secret_key1);
         let mut a2 = Authenticator::new(0, "b", "a", secret_key2);
 
@@ -378,7 +378,7 @@ mod tests {
 
     #[test]
     fn test_auth_and_no_auth() {
-        let secret_key = Some(Arc::new(SecretKey::generate(32).unwrap()));
+        let secret_key = Some(Arc::new(SecretKey::generate().unwrap()));
         let mut a1 = Authenticator::new(0, "a", "b", secret_key);
         let mut a2 = Authenticator::new(0, "b", "a", None);
 
@@ -397,7 +397,7 @@ mod tests {
 
     #[test]
     fn test_mirror_attack() {
-        let secret_key = Some(Arc::new(SecretKey::generate(32).unwrap()));
+        let secret_key = Some(Arc::new(SecretKey::generate().unwrap()));
         let mut a1 = Authenticator::new(0, "a", "b", secret_key);
 
         let mut q1 = a1.make_auth_request().unwrap();

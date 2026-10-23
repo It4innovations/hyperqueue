@@ -2,6 +2,7 @@ use crate::comm::{deserialize, serialize};
 use crate::internal::common::error::DsError;
 use crate::internal::worker::localcomm::IntroMessage;
 use bstr::BStr;
+use bytes::Bytes;
 use futures::{SinkExt, StreamExt};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -32,13 +33,13 @@ impl LocalClientConnection {
             token: token.into(),
             connection_type,
         })?;
-        stream.send(data.into()).await?;
+        stream.send(Bytes::from(data)).await?;
         Ok(LocalClientConnection { stream })
     }
 
     pub async fn send_message<T: Serialize>(&mut self, message: T) -> crate::Result<()> {
         let data = serialize(&message)?;
-        self.stream.send(data.into()).await?;
+        self.stream.send(Bytes::from(data)).await?;
         Ok(())
     }
 

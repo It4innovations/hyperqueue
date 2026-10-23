@@ -1,5 +1,5 @@
 use derive_builder::Builder;
-use orion::auth::SecretKey;
+use orion::aead::SecretKey;
 use std::future::Future;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::rc::Rc;
@@ -265,7 +265,7 @@ async fn create_handle(
     let listener = TcpListener::bind(listen_address).await.unwrap();
 
     let secret_key = match config.secret_key {
-        ServerSecretKey::AutoGenerate => Some(Arc::new(Default::default())),
+        ServerSecretKey::AutoGenerate => Some(Arc::new(SecretKey::generate().unwrap())),
         ServerSecretKey::Custom(key) => key.map(Arc::new),
     };
 

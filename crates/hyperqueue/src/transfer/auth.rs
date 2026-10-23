@@ -1,18 +1,16 @@
 use anyhow::Context;
 use orion::kdf::SecretKey;
 
-const KEY_SIZE: usize = 32;
-
 pub fn generate_key() -> SecretKey {
-    SecretKey::generate(KEY_SIZE).unwrap()
+    SecretKey::generate().unwrap()
 }
 pub fn serialize_key(key: &SecretKey) -> String {
-    let bytes = key.unprotected_as_bytes();
+    let bytes = key.unprotected_as_ref::<[u8]>();
     hex::encode(bytes)
 }
 pub fn deserialize_key(key: &str) -> anyhow::Result<SecretKey> {
     let data = hex::decode(key).context("Could not deserialize secret key")?;
-    let key = SecretKey::from_slice(&data).context("Could not create secret key from slice")?;
+    let key = SecretKey::try_from(&data).context("Could not create secret key from slice")?;
     Ok(key)
 }
 
@@ -24,7 +22,7 @@ mod tests {
 
     #[test]
     fn test_roundtrip() {
-        let key = SecretKey::default();
+        let key = SecretKey::generate().unwrap();
         let str = serialize_key(&key);
         let deserialized = deserialize_key(&str).unwrap();
         assert_eq!(key, deserialized);
