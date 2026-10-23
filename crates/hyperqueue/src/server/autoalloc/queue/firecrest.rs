@@ -9,6 +9,10 @@
 //! Because the server is not on the cluster, the queue carries cluster-side paths
 //! (`hq` binary, worker access file directory, working directory) in
 //! [`FirecrestQueueParams`]; see its documentation for details.
+//!
+//! Unless the user provides the worker access file directory explicitly, the server uploads
+//! the worker access file itself through the FirecREST filesystem API, into
+//! `<home>/.hq-server/firecrest/<server-uid>` on the cluster (see [`ensure_remote_server_dir`]).
 
 use std::future::Future;
 use std::path::{Path, PathBuf};
@@ -16,12 +20,13 @@ use std::pin::Pin;
 use std::rc::Rc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, OnceCell};
 
 use anyhow::Context;
 use serde::Deserialize;
 
 use crate::common::manager::info::ManagerType;
+use crate::common::serverdir::{ServerDir, load_access_record};
 use crate::common::utils::time::AbsoluteTime;
 use crate::server::autoalloc::queue::common::{
     add_start_stop_worker_commands, build_worker_args, create_allocation_dir,
@@ -43,6 +48,13 @@ use tako::Map;
 const TOKEN_EXPIRATION_SLACK: Duration = Duration::from_secs(30);
 
 const HTTP_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Directory (relative to the home directory on the cluster) where the server uploads
+/// the worker access file. Each server uses its own subdirectory named after its UID.
+/// It is deliberately not the root of `~/.hq-server`: a `hq-current` symlink left there by
+/// a server running on the cluster would take precedence over the uploaded file.
+const REMOTE_ACCESS_DIR: &str = ".hq-server/firecrest";
+const ACCESS_FILE_NAME: &str = "access.json";
 
 #[derive(Clone)]
 struct CachedToken {
@@ -113,6 +125,56 @@ fn json_value_to_string(value: &serde_json::Value) -> String {
 #[derive(Deserialize)]
 struct GetJobResponse {
     jobs: Option<Vec<JobModel>>,
+}
+
+#[derive(Deserialize)]
+struct SystemsResponse {
+    systems: Vec<SystemModel>,
+}
+
+#[derive(Deserialize)]
+struct SystemModel {
+    name: String,
+    #[serde(rename = "fileSystems", default)]
+    file_systems: Option<Vec<FileSystemModel>>,
+}
+
+#[derive(Deserialize)]
+struct FileSystemModel {
+    path: String,
+    #[serde(rename = "dataType")]
+    data_type: String,
+}
+
+#[derive(Deserialize)]
+struct UserInfoResponse {
+    user: UserModel,
+}
+
+#[derive(Deserialize)]
+struct UserModel {
+    id: serde_json::Value,
+    name: String,
+}
+
+#[derive(Deserialize)]
+struct StatResponse {
+    output: StatModel,
+}
+
+#[derive(Deserialize)]
+struct StatModel {
+    uid: serde_json::Value,
+}
+
+#[derive(Deserialize)]
+struct ChecksumResponse {
+    output: ChecksumModel,
+}
+
+#[derive(Deserialize)]
+struct ChecksumModel {
+    checksum: String,
 }
 
 impl FirecrestContext {
@@ -189,6 +251,198 @@ impl FirecrestContext {
             .send()
             .await
             .context("Cannot reach the FirecREST API")
+    }
+
+    fn status_url(&self, endpoint: &str) -> String {
+        format!(
+            "{}/status/{endpoint}",
+            self.config.api_url.trim_end_matches('/')
+        )
+    }
+
+    fn filesystem_url(&self, operation: &str) -> String {
+        format!(
+            "{}/filesystem/{}/ops/{operation}",
+            self.config.api_url.trim_end_matches('/'),
+            self.config.system
+        )
+    }
+
+    /// Sends a GET request and parses its JSON response.
+    async fn get_json<T: serde::de::DeserializeOwned>(
+        &self,
+        url: &str,
+        query: &[(&str, &str)],
+        description: &str,
+    ) -> AutoAllocResult<T> {
+        let response = self
+            .request_with_auth_retry(|token| self.client.get(url).query(query).bearer_auth(token))
+            .await?;
+        let response = check_response(response)
+            .await
+            .with_context(|| format!("FirecREST {description} failed"))?;
+        response
+            .json()
+            .await
+            .with_context(|| format!("Cannot parse FirecREST {description} response"))
+    }
+
+    /// Finds the home directory of the user on the target system.
+    ///
+    /// FirecREST only accepts absolute paths and does not report the home directory, so it is
+    /// derived from the filesystem marked as `users` and the user name, and then verified by
+    /// checking that the directory is owned by the user.
+    async fn home_directory(&self) -> AutoAllocResult<String> {
+        let systems: SystemsResponse = self
+            .get_json(&self.status_url("systems"), &[], "system list query")
+            .await?;
+        let users_fs = systems
+            .systems
+            .into_iter()
+            .find(|system| system.name == self.config.system)
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "FirecREST does not know the system `{}`",
+                    self.config.system
+                )
+            })?
+            .file_systems
+            .unwrap_or_default()
+            .into_iter()
+            .find(|fs| fs.data_type == "users")
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "FirecREST does not report a `users` filesystem for the system `{}`",
+                    self.config.system
+                )
+            })?;
+
+        let user_info: UserInfoResponse = self
+            .get_json(
+                &self.status_url(&format!("{}/userinfo", self.config.system)),
+                &[],
+                "user info query",
+            )
+            .await?;
+        let home = format!(
+            "{}/{}",
+            users_fs.path.trim_end_matches('/'),
+            user_info.user.name
+        );
+
+        let stat: StatResponse = self
+            .get_json(
+                &self.filesystem_url("stat"),
+                &[("path", &home)],
+                "stat of the home directory",
+            )
+            .await
+            .with_context(|| format!("Cannot find the home directory `{home}`"))?;
+        let uid = json_value_to_string(&user_info.user.id);
+        if json_value_to_string(&stat.output.uid) != uid {
+            anyhow::bail!(
+                "The directory `{home}` is not owned by the user `{}` (uid {uid}), so it is \
+probably not their home directory",
+                user_info.user.name
+            );
+        }
+        Ok(home)
+    }
+
+    async fn post_or_put_json(
+        &self,
+        method: reqwest::Method,
+        operation: &str,
+        body: serde_json::Value,
+    ) -> AutoAllocResult<()> {
+        let url = self.filesystem_url(operation);
+        let response = self
+            .request_with_auth_retry(|token| {
+                self.client
+                    .request(method.clone(), &url)
+                    .bearer_auth(token)
+                    .json(&body)
+            })
+            .await?;
+        check_response(response)
+            .await
+            .with_context(|| format!("FirecREST `{operation}` operation failed"))?;
+        Ok(())
+    }
+
+    /// Returns the SHA256 checksum of a remote file, or `None` if it does not exist.
+    async fn remote_checksum(&self, path: &str) -> AutoAllocResult<Option<String>> {
+        let url = self.filesystem_url("checksum");
+        let response = self
+            .request_with_auth_retry(|token| {
+                self.client
+                    .get(&url)
+                    .query(&[("path", path)])
+                    .bearer_auth(token)
+            })
+            .await?;
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
+        let response = check_response(response)
+            .await
+            .context("FirecREST checksum query failed")?;
+        let checksum: ChecksumResponse = response
+            .json()
+            .await
+            .context("Cannot parse FirecREST checksum response")?;
+        Ok(Some(checksum.output.checksum.to_lowercase()))
+    }
+
+    /// Makes sure that `directory/file_name` on the cluster contains exactly `content`.
+    /// The directory is created if needed and made accessible only to the user, because
+    /// FirecREST creates files with the default permissions of the user.
+    /// The file is only rewritten if its content differs, because the upload is not atomic
+    /// and a worker could be reading the file at the same time.
+    async fn upload_private_file(
+        &self,
+        directory: &str,
+        file_name: &str,
+        content: Vec<u8>,
+    ) -> AutoAllocResult<()> {
+        self.post_or_put_json(
+            reqwest::Method::POST,
+            "mkdir",
+            serde_json::json!({"path": directory, "parent": true}),
+        )
+        .await?;
+        self.post_or_put_json(
+            reqwest::Method::PUT,
+            "chmod",
+            serde_json::json!({"path": directory, "mode": "700"}),
+        )
+        .await?;
+
+        let path = format!("{directory}/{file_name}");
+        let checksum = orion::hazardous::hash::sha2::sha256::Sha256::digest(&content)
+            .map_err(|_| anyhow::anyhow!("Cannot compute the checksum of `{file_name}`"))?;
+        if self.remote_checksum(&path).await?.as_deref() == Some(&hex::encode(checksum)) {
+            log::debug!("File `{path}` on the cluster is up to date");
+            return Ok(());
+        }
+
+        let url = self.filesystem_url("upload");
+        let response = self
+            .request_with_auth_retry(|token| {
+                let part = reqwest::multipart::Part::bytes(content.clone())
+                    .file_name(file_name.to_string());
+                self.client
+                    .post(&url)
+                    .query(&[("path", directory)])
+                    .bearer_auth(token)
+                    .multipart(reqwest::multipart::Form::new().part("file", part))
+            })
+            .await?;
+        check_response(response)
+            .await
+            .with_context(|| format!("FirecREST upload of `{path}` failed"))?;
+        log::info!("Uploaded `{path}` to the system `{}`", self.config.system);
+        Ok(())
     }
 
     fn jobs_url(&self) -> String {
@@ -344,11 +598,60 @@ fn parse_job_status(job: &JobModel) -> AutoAllocResult<AllocationExternalStatus>
     Ok(status)
 }
 
+/// Returns the directory on the cluster that contains the worker access file.
+///
+/// If the user has not provided it, the worker part of the access file of this server is
+/// uploaded to `<home>/.hq-server/firecrest/<server-uid>` first. Using the server UID
+/// keeps several servers of the same user apart, while all queues of one server share
+/// the same file.
+async fn ensure_remote_server_dir(
+    ctx: &FirecrestContext,
+    server_directory: &Path,
+) -> AutoAllocResult<String> {
+    if let Some(directory) = &ctx.config.remote_server_dir {
+        return Ok(directory.clone());
+    }
+
+    let server_dir = ServerDir::open(server_directory)?;
+    let record = load_access_record(&server_dir.access_filename()).with_context(|| {
+        format!(
+            "Cannot load the access file {:?}",
+            server_dir.access_filename()
+        )
+    })?;
+    let server_uid = record.server_uid().to_string();
+    if server_uid.is_empty()
+        || !server_uid
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        anyhow::bail!(
+            "The server UID `{server_uid}` cannot be used to name the directory with the \
+access file on the cluster; use `--remote-server-dir` and copy the access file manually"
+        );
+    }
+    let (_, worker_record) = record.split();
+    let content = serde_json::to_vec_pretty(&worker_record)?;
+
+    let home = ctx.home_directory().await.context(
+        "Cannot determine the home directory on the cluster; use `--remote-server-dir` \
+and copy the access file manually",
+    )?;
+    let directory = format!("{home}/{REMOTE_ACCESS_DIR}/{server_uid}");
+    ctx.upload_private_file(&directory, ACCESS_FILE_NAME, content)
+        .await
+        .context("Cannot upload the worker access file to the cluster")?;
+    Ok(directory)
+}
+
 pub struct FirecrestHandler {
     ctx: FirecrestContext,
     server_directory: PathBuf,
     name: Option<String>,
     allocation_counter: u64,
+    /// Directory with the worker access file on the cluster.
+    /// Resolved (and the access file uploaded) once, by the first successful attempt.
+    remote_server_dir: Rc<OnceCell<String>>,
 }
 
 impl FirecrestHandler {
@@ -379,6 +682,7 @@ in the environment of the server",
             server_directory,
             name,
             allocation_counter: 0,
+            remote_server_dir: Rc::new(OnceCell::new()),
         })
     }
 
@@ -394,15 +698,33 @@ impl QueueHandler for FirecrestHandler {
         queue_id: QueueId,
         queue_info: &QueueInfo,
         worker_count: u64,
-        _mode: SubmitMode,
+        mode: SubmitMode,
     ) -> Pin<Box<dyn Future<Output = AutoAllocResult<AllocationSubmissionResult>>>> {
         let params = queue_info.params().clone();
         let ctx = self.ctx.clone();
         let name = self.name.clone();
         let server_directory = self.server_directory.clone();
         let allocation_num = self.create_allocation_id();
+        let remote_server_dir = self.remote_server_dir.clone();
 
         Box::pin(async move {
+            let remote_server_dir = match (mode, &ctx.config.remote_server_dir) {
+                // A dry run does not have access to the server directory, so it does not
+                // upload anything. It only checks that the upload location can be found;
+                // the test allocation is canceled right away anyway.
+                (SubmitMode::DryRun, None) => {
+                    let home = ctx.home_directory().await.context(
+                        "Cannot determine the home directory on the cluster; use \
+`--remote-server-dir` and copy the access file manually",
+                    )?;
+                    format!("{home}/{REMOTE_ACCESS_DIR}/dry-run")
+                }
+                _ => remote_server_dir
+                    .get_or_try_init(|| ensure_remote_server_dir(&ctx, &server_directory))
+                    .await?
+                    .clone(),
+            };
+
             // Local directory holding a debug copy of the submitted script
             let working_dir = create_allocation_dir(
                 server_directory.clone(),
@@ -417,7 +739,7 @@ impl QueueHandler for FirecrestHandler {
                 Path::new(&ctx.config.remote_hq_path),
                 // The allocation is an ordinary Slurm job on the target cluster
                 ManagerType::Slurm,
-                Path::new(&ctx.config.remote_server_dir),
+                Path::new(&remote_server_dir),
                 &params,
             );
             let worker_args = add_start_stop_worker_commands(
@@ -493,6 +815,19 @@ impl QueueHandler for FirecrestHandler {
         let ctx = self.ctx.clone();
 
         Box::pin(async move { ctx.cancel_job(&allocation_id).await })
+    }
+
+    fn prepare(&mut self) -> Pin<Box<dyn Future<Output = AutoAllocResult<()>>>> {
+        let ctx = self.ctx.clone();
+        let server_directory = self.server_directory.clone();
+        let remote_server_dir = self.remote_server_dir.clone();
+
+        Box::pin(async move {
+            remote_server_dir
+                .get_or_try_init(|| ensure_remote_server_dir(&ctx, &server_directory))
+                .await?;
+            Ok(())
+        })
     }
 }
 

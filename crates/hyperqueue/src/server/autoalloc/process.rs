@@ -302,7 +302,8 @@ async fn handle_message(
                 params,
                 queue_id,
                 worker_resources,
-            );
+            )
+            .await;
             response.respond(result);
             true
         }
@@ -691,7 +692,7 @@ fn create_rate_limiter() -> RateLimiter {
     )
 }
 
-fn create_queue(
+async fn create_queue(
     autoalloc: &mut AutoAllocState,
     events: &EventStreamer,
     server_directory: PathBuf,
@@ -704,7 +705,18 @@ fn create_queue(
     let queue_info = QueueInfo::new(params.clone());
 
     match handler {
-        Ok(handler) => {
+        Ok(mut handler) => {
+            if let Err(error) = handler.prepare().await {
+                // When queue_id is provided, then we are restoring journal. The queue is
+                // restored anyway, the handler can still recover before submitting.
+                if queue_id.is_none() {
+                    return Err(anyhow::anyhow!(
+                        "Could not prepare autoalloc queue: {error:#}"
+                    ));
+                }
+                log::error!("Could not prepare restored autoalloc queue: {error:#}");
+            }
+
             let queue = AllocationQueue::new(
                 queue_info,
                 name,

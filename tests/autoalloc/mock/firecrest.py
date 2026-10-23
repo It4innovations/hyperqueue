@@ -12,14 +12,30 @@ Mocked endpoints (response shapes follow the firecrest-v2 sources):
     GET    /compute/{system}/jobs       -> {"jobs": [...]}     (includes "jobId")
     GET    /compute/{system}/jobs/{id}  -> {"jobs": [<job>]} or 404
     DELETE /compute/{system}/jobs/{id}  -> 204 (job state -> CANCELLED) or 404
+    GET    /status/systems              -> {"systems": [{"name", "fileSystems"}]}
+    GET    /status/{system}/userinfo    -> {"user": {"id", "name"}}
+    GET    /filesystem/{system}/ops/stat?path=      -> {"output": {"uid", ...}} or 404
+    POST   /filesystem/{system}/ops/mkdir           -> 201
+    PUT    /filesystem/{system}/ops/chmod           -> 200 or 404
+    GET    /filesystem/{system}/ops/checksum?path=  -> {"output": {"checksum"}} or 404
+    POST   /filesystem/{system}/ops/upload?path=    -> 204 (multipart field `file`)
+
+The remote filesystem is simulated by the `directories` (path -> mode) and `files`
+(path -> content) dictionaries. Like the real API, filesystem operations reject
+relative paths.
 """
 
+import email.parser
+import email.policy
+import hashlib
 import json
+import posixpath
 import re
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Dict, List, Optional
+from urllib.parse import parse_qs, urlsplit
 
 
 class MockFirecrest:
@@ -34,6 +50,16 @@ class MockFirecrest:
         self.fail_api: List[int] = []
         self.fail_token: List[int] = []
         self.token_expires_in = 300
+
+        # Simulated user and remote filesystem
+        self.user_name = "testuser"
+        self.user_id = "1000"
+        self.file_systems = [{"path": "/users", "dataType": "users", "defaultWorkDir": False}]
+        self.directories: Dict[str, str] = {}
+        self.files: Dict[str, bytes] = {}
+        self.fail_upload = False
+        # Directory path -> uid of its owner (the user by default)
+        self.owners: Dict[str, str] = {}
         self.lock = threading.Lock()
 
         self.server: Optional[ThreadingHTTPServer] = None
@@ -70,6 +96,24 @@ class MockFirecrest:
     def counter(self, key: str) -> int:
         with self.lock:
             return self.counters.get(key, 0)
+
+    @property
+    def home(self) -> str:
+        return f"/users/{self.user_name}"
+
+    def add_directory(self, path: str, owner_uid: Optional[str] = None, mode: str = "755"):
+        """
+        Creates a directory (and its parents) in the simulated remote filesystem.
+        """
+        with self.lock:
+            self._mkdir(path, mode)
+            if owner_uid is not None:
+                self.owners[path] = owner_uid
+
+    def _mkdir(self, path: str, mode: str = "755"):
+        while path not in ("/", ""):
+            self.directories.setdefault(path, mode)
+            path = posixpath.dirname(path)
 
     def __enter__(self) -> "MockFirecrest":
         mock = self
@@ -147,9 +191,125 @@ class MockFirecrest:
                     self.reply(200, {"jobId": job_id})
                     return
 
+                url = urlsplit(self.path)
+                if re.fullmatch(r"/filesystem/[^/]+/ops/mkdir", url.path):
+                    self.count("POST /filesystem/ops/mkdir")
+                    if not self.check_auth() or self.injected_fault():
+                        return
+                    payload = json.loads(body)
+                    path = payload["path"]
+                    if not self.check_absolute(path):
+                        return
+                    with mock.lock:
+                        if not payload.get("parent") and posixpath.dirname(path) not in mock.directories:
+                            self.reply(404, {"message": "No such file or directory"})
+                            return
+                        mock._mkdir(path)
+                    self.reply(201, {"output": {"name": path, "type": "d"}})
+                    return
+
+                if re.fullmatch(r"/filesystem/[^/]+/ops/upload", url.path):
+                    self.count("POST /filesystem/ops/upload")
+                    if not self.check_auth() or self.injected_fault():
+                        return
+                    directory = parse_qs(url.query)["path"][0]
+                    if not self.check_absolute(directory):
+                        return
+                    message = email.parser.BytesParser(policy=email.policy.default).parsebytes(
+                        b"Content-Type: " + self.headers["Content-Type"].encode() + b"\r\n\r\n" + body
+                    )
+                    part = next(
+                        p for p in message.iter_parts() if p.get_param("name", header="content-disposition") == "file"
+                    )
+                    with mock.lock:
+                        if mock.fail_upload:
+                            self.reply(500, {"message": "injected upload failure"})
+                            return
+                        if directory not in mock.directories:
+                            self.reply(404, {"message": "No such file or directory"})
+                            return
+                        mock.files[f"{directory}/{part.get_filename()}"] = part.get_payload(decode=True)
+                    self.reply(204)
+                    return
+
+                self.reply(404, {"message": "unknown endpoint"})
+
+            def check_absolute(self, path: str) -> bool:
+                if not path.startswith("/"):
+                    self.reply(400, {"message": f"The provided path ({path}) is not an absolute path."})
+                    return False
+                return True
+
+            def do_PUT(self):
+                body = self.read_body()
+                url = urlsplit(self.path)
+                if re.fullmatch(r"/filesystem/[^/]+/ops/chmod", url.path):
+                    self.count("PUT /filesystem/ops/chmod")
+                    if not self.check_auth() or self.injected_fault():
+                        return
+                    payload = json.loads(body)
+                    path = payload["path"]
+                    if not self.check_absolute(path):
+                        return
+                    with mock.lock:
+                        if path not in mock.directories:
+                            self.reply(404, {"message": "No such file or directory"})
+                            return
+                        mock.directories[path] = payload["mode"]
+                    self.reply(200, {"output": {"name": path}})
+                    return
                 self.reply(404, {"message": "unknown endpoint"})
 
             def do_GET(self):
+                url = urlsplit(self.path)
+                query = parse_qs(url.query)
+
+                if url.path == "/status/systems":
+                    self.count("GET /status/systems")
+                    if not self.check_auth() or self.injected_fault():
+                        return
+                    self.reply(200, {"systems": [{"name": "daint", "fileSystems": mock.file_systems}]})
+                    return
+
+                if re.fullmatch(r"/status/[^/]+/userinfo", url.path):
+                    self.count("GET /status/userinfo")
+                    if not self.check_auth() or self.injected_fault():
+                        return
+                    self.reply(200, {"user": {"id": mock.user_id, "name": mock.user_name}})
+                    return
+
+                if re.fullmatch(r"/filesystem/[^/]+/ops/stat", url.path):
+                    self.count("GET /filesystem/ops/stat")
+                    if not self.check_auth() or self.injected_fault():
+                        return
+                    path = query["path"][0]
+                    if not self.check_absolute(path):
+                        return
+                    with mock.lock:
+                        exists = path in mock.directories or path in mock.files
+                        uid = mock.owners.get(path, mock.user_id)
+                    if not exists:
+                        self.reply(404, {"message": "No such file or directory"})
+                    else:
+                        self.reply(200, {"output": {"uid": int(uid), "gid": 1000}})
+                    return
+
+                if re.fullmatch(r"/filesystem/[^/]+/ops/checksum", url.path):
+                    self.count("GET /filesystem/ops/checksum")
+                    if not self.check_auth() or self.injected_fault():
+                        return
+                    path = query["path"][0]
+                    if not self.check_absolute(path):
+                        return
+                    with mock.lock:
+                        content = mock.files.get(path)
+                    if content is None:
+                        self.reply(404, {"message": "No such file or directory"})
+                    else:
+                        checksum = hashlib.sha256(content).hexdigest()
+                        self.reply(200, {"output": {"algorithm": "SHA256", "checksum": checksum}})
+                    return
+
                 if re.fullmatch(r"/compute/[^/]+/jobs", self.path):
                     self.count("GET /compute/jobs")
                     if not self.check_auth() or self.injected_fault():
@@ -193,6 +353,7 @@ class MockFirecrest:
                     return
                 self.reply(404, {"message": "unknown endpoint"})
 
+        self.add_directory(self.home)
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         self.port = self.server.server_address[1]
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)

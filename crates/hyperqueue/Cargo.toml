@@ -61,7 +61,7 @@ tako = { path = "../tako", default-features = false }
 
 # Optional dependencies
 jemallocator = { version = "0.5", optional = true }
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"], optional = true }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "multipart"], optional = true }
 which = "8"
 
 [dev-dependencies]

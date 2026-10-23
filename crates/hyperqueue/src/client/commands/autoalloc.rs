@@ -121,10 +121,12 @@ struct FirecrestQueueOpts {
 
     /// Directory on the target cluster containing the worker access file (`access.json`)
     ///
-    /// Generate the access file with `hq server generate-access` and copy it to the
-    /// target cluster before creating the queue.
+    /// If it is not set, the server uploads the worker access file to
+    /// `~/.hq-server/firecrest/<server-uid>` on the target cluster through the FirecREST
+    /// API. If it is set, the access file has to be copied there manually (generate it with
+    /// `hq server generate-access`) before creating the queue.
     #[arg(long)]
-    remote_server_dir: String,
+    remote_server_dir: Option<String>,
 
     /// Existing directory on the target cluster where allocation stdout/stderr will be written
     #[arg(long)]

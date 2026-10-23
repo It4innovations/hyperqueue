@@ -65,8 +65,10 @@ pub struct FirecrestQueueParams {
     pub client_secret_env: String,
     /// Path to the `hq` binary on the target cluster
     pub remote_hq_path: String,
-    /// Directory on the target cluster that contains the worker access file (`access.json`)
-    pub remote_server_dir: String,
+    /// Directory on the target cluster that contains the worker access file (`access.json`).
+    /// If it is `None`, the server uploads the access file itself through the FirecREST
+    /// API into a directory derived from the user's home directory and the server UID.
+    pub remote_server_dir: Option<String>,
     /// Existing directory on the target cluster where allocation stdout/stderr are written
     pub remote_workdir: String,
 }
@@ -198,4 +200,11 @@ pub trait QueueHandler {
         &self,
         allocation: &Allocation,
     ) -> Pin<Box<dyn Future<Output = AutoAllocResult<()>>>>;
+
+    /// Prepare everything that the allocations of this queue need, before the first
+    /// allocation is submitted (e.g. files on a remote cluster).
+    /// Called when the queue is created or restored from the journal.
+    fn prepare(&mut self) -> Pin<Box<dyn Future<Output = AutoAllocResult<()>>>> {
+        Box::pin(async { Ok(()) })
+    }
 }

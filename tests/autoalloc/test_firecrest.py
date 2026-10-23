@@ -1,3 +1,4 @@
+import json
 import os
 from typing import List, Optional
 
@@ -37,6 +38,7 @@ def firecrest_queue_args(
     mock: MockFirecrest,
     time_limit: str = DEFAULT_TIME_LIMIT,
     additional_args: Optional[str] = None,
+    remote_server_dir: Optional[str] = REMOTE_SERVER_DIR,
 ) -> List[str]:
     args = [
         "--api-url",
@@ -49,13 +51,13 @@ def firecrest_queue_args(
         "test-client",
         "--remote-hq-path",
         REMOTE_HQ_PATH,
-        "--remote-server-dir",
-        REMOTE_SERVER_DIR,
         "--remote-workdir",
         REMOTE_WORKDIR,
         "--time-limit",
         time_limit,
     ]
+    if remote_server_dir is not None:
+        args += ["--remote-server-dir", remote_server_dir]
     if additional_args is not None:
         args.append("--")
         args.extend(additional_args.split(" "))
@@ -69,11 +71,17 @@ def add_queue(
     time_limit: str = DEFAULT_TIME_LIMIT,
     additional_args: Optional[str] = None,
     expect_fail: Optional[str] = None,
+    remote_server_dir: Optional[str] = REMOTE_SERVER_DIR,
 ) -> str:
     args = ["alloc", "add", "firecrest"]
     if not dry_run:
         args.append("--no-dry-run")
-    args += firecrest_queue_args(mock, time_limit=time_limit, additional_args=additional_args)
+    args += firecrest_queue_args(
+        mock,
+        time_limit=time_limit,
+        additional_args=additional_args,
+        remote_server_dir=remote_server_dir,
+    )
     return hq_env.command(args, expect_fail=expect_fail)
 
 
@@ -102,6 +110,9 @@ def test_firecrest_submit_script(hq_env: HqEnv):
         assert f"{REMOTE_HQ_PATH} worker start" in worker_command
         assert '--manager "slurm"' in worker_command
         assert f'--server-dir "{REMOTE_SERVER_DIR}"' in worker_command
+
+        # With an explicit server directory, the access file is not uploaded
+        assert mock.counter("POST /filesystem/ops/upload") == 0
 
 
 def test_firecrest_dry_run_success(hq_env: HqEnv):
@@ -254,3 +265,122 @@ def test_firecrest_secret_not_persisted(hq_env: HqEnv, tmp_path):
         # never the secret itself
         assert CLIENT_SECRET.encode() not in journal
         assert b"HQ_FIRECREST_CLIENT_SECRET" in journal
+
+
+def read_access_file(hq_env: HqEnv) -> dict:
+    with open(os.path.join(hq_env.server_dir, "hq-current", "access.json")) as f:
+        return json.load(f)
+
+
+def remote_access_dir(mock: MockFirecrest, access: dict) -> str:
+    return f"{mock.home}/.hq-server/firecrest/{access['server_uid']}"
+
+
+def test_firecrest_upload_access_file(hq_env: HqEnv):
+    with MockFirecrest() as mock:
+        start_server(hq_env)
+        prepare_tasks(hq_env)
+
+        add_queue(hq_env, mock, remote_server_dir=None)
+        access = read_access_file(hq_env)
+        directory = remote_access_dir(mock, access)
+
+        # Only the worker part of the access file is uploaded
+        uploaded = json.loads(mock.files[f"{directory}/access.json"])
+        assert uploaded == {"version": access["version"], "worker": access["worker"]}
+        assert mock.directories[directory] == "700"
+
+        wait_until(lambda: len(mock.submitted) > 0)
+        worker_command = mock.submitted[0]["script"].splitlines()[-1]
+        assert f'--server-dir "{directory}"' in worker_command
+
+
+def test_firecrest_upload_skipped_when_up_to_date(hq_env: HqEnv):
+    with MockFirecrest() as mock:
+        start_server(hq_env)
+        add_queue(hq_env, mock, remote_server_dir=None)
+        add_queue(hq_env, mock, remote_server_dir=None)
+
+        # Both queues share the file, it is uploaded only once
+        assert mock.counter("GET /filesystem/ops/checksum") == 2
+        assert mock.counter("POST /filesystem/ops/upload") == 1
+
+
+def test_firecrest_upload_overwrites_stale_file(hq_env: HqEnv):
+    with MockFirecrest() as mock:
+        start_server(hq_env)
+        access = read_access_file(hq_env)
+        directory = remote_access_dir(mock, access)
+        mock.add_directory(directory)
+        mock.files[f"{directory}/access.json"] = b"stale"
+
+        add_queue(hq_env, mock, remote_server_dir=None)
+        assert json.loads(mock.files[f"{directory}/access.json"])["worker"] == access["worker"]
+        assert mock.directories[directory] == "700"
+
+
+def test_firecrest_upload_after_journal_restore(hq_env: HqEnv, tmp_path):
+    journal_path = os.path.join(tmp_path, "journal")
+    with MockFirecrest() as mock:
+        start_server(hq_env, args=["--journal", journal_path])
+        add_queue(hq_env, mock, remote_server_dir=None)
+        access = read_access_file(hq_env)
+        hq_env.stop_server()
+
+        # The restored server keeps its UID but has new keys, so the file is rewritten
+        start_server(hq_env, args=["--journal", journal_path])
+        restored_access = read_access_file(hq_env)
+        assert restored_access["server_uid"] == access["server_uid"]
+        path = f"{remote_access_dir(mock, access)}/access.json"
+        wait_until(lambda: json.loads(mock.files[path])["worker"] == restored_access["worker"])
+        assert mock.counter("POST /filesystem/ops/upload") == 2
+
+
+def test_firecrest_upload_failure_fails_add_queue(hq_env: HqEnv):
+    with MockFirecrest() as mock:
+        start_server(hq_env)
+        mock.fail_upload = True
+        add_queue(
+            hq_env,
+            mock,
+            remote_server_dir=None,
+            expect_fail="Cannot upload the worker access file to the cluster",
+        )
+        table = hq_env.command(["alloc", "list"], as_table=True)
+        assert len(table) == 0
+
+
+def test_firecrest_home_not_owned_by_user(hq_env: HqEnv):
+    with MockFirecrest() as mock:
+        start_server(hq_env)
+        mock.add_directory(mock.home, owner_uid="4242")
+        add_queue(
+            hq_env,
+            mock,
+            remote_server_dir=None,
+            expect_fail="is not owned by the user `testuser`",
+        )
+        assert mock.counter("POST /filesystem/ops/mkdir") == 0
+
+
+def test_firecrest_no_users_filesystem(hq_env: HqEnv):
+    with MockFirecrest() as mock:
+        start_server(hq_env)
+        mock.file_systems = [{"path": "/scratch", "dataType": "scratch", "defaultWorkDir": True}]
+        add_queue(
+            hq_env,
+            mock,
+            remote_server_dir=None,
+            expect_fail="does not report a `users` filesystem",
+        )
+
+
+def test_firecrest_dry_run_without_server_dir(hq_env: HqEnv):
+    with MockFirecrest() as mock:
+        start_server(hq_env)
+        hq_env.command(["alloc", "dry-run", "firecrest"] + firecrest_queue_args(mock, remote_server_dir=None))
+
+        # The dry run finds the home directory, but does not upload anything
+        assert mock.counter("GET /filesystem/ops/stat") == 1
+        assert mock.counter("POST /filesystem/ops/upload") == 0
+        assert mock.deleted_jobs == ["1"]
