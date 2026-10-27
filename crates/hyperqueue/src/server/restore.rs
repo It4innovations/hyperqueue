@@ -413,6 +413,13 @@ impl StateRestorer {
                 EventPayload::AllocationFinished(_, _) => {}
                 EventPayload::ServerStart { server_uid } => self.server_uid = server_uid,
                 EventPayload::ServerStop => { /* Do nothing */ }
+                EventPayload::IdCounters {
+                    max_job_id,
+                    max_worker_id,
+                } => {
+                    self.max_job_id = self.max_job_id.max(max_job_id.as_num());
+                    self.max_worker_id = self.max_worker_id.max(max_worker_id.as_num());
+                }
                 EventPayload::JobOpen(job_id, job_description) => {
                     let job = RestorerJob::new(job_description, true);
                     self.add_job(job_id, job);

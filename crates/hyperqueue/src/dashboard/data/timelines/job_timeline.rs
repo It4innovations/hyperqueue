@@ -150,7 +150,8 @@ impl JobTimeline {
                 | EventPayload::AllocationFinished(_, _)
                 | EventPayload::ServerStart { .. }
                 | EventPayload::ServerStop
-                | EventPayload::TaskNotify(_) => {}
+                | EventPayload::TaskNotify(_)
+                | EventPayload::IdCounters { .. } => {}
             }
         }
     }

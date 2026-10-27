@@ -212,7 +212,8 @@ pub async fn wait_for_jobs_with_progress(
                     | EventPayload::AllocationFinished(_, _)
                     | EventPayload::ServerStart { .. }
                     | EventPayload::ServerStop
-                    | EventPayload::TaskNotify(..) => {}
+                    | EventPayload::TaskNotify(..)
+                    | EventPayload::IdCounters { .. } => {}
                 },
                 _ => {
                     log::warn!("Unexpected message from server: {:?}", msg);

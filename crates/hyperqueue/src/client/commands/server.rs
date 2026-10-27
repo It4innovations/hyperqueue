@@ -113,6 +113,14 @@ pub struct ServerStartOpts {
     )]
     journal_flush_period: Duration,
 
+    #[arg(
+        long,
+        requires = "journal",
+        value_parser = parse_hms_or_human_time,
+        help = duration_doc!("Periodically prune the journal (remove completed jobs and lost workers).\n\nIf `--auto-forget` is set, only completed jobs that were already forgotten are removed.\n\nIf not set, the journal is never pruned automatically.")
+    )]
+    journal_prune_period: Option<Duration>,
+
     /// The path to an access file
     #[arg(long)]
     access_file: Option<PathBuf>,
@@ -216,6 +224,7 @@ async fn start_server(gsettings: &GlobalSettings, opts: ServerStartOpts) -> anyh
         worker_port,
         journal_path: opts.journal,
         journal_flush_period: opts.journal_flush_period,
+        journal_prune_period: opts.journal_prune_period,
         worker_secret_key: access_file
             .as_ref()
             .map(|a| a.worker_key().cloned())

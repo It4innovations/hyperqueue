@@ -91,6 +91,13 @@ pub enum EventPayload {
 
     /// Task notification from a task (EPHEMERAL - not stored in the journal)
     TaskNotify(TaskNotification),
+
+    /// Highest job/worker IDs used so far; written by journal pruning, so that IDs
+    /// are not reused after a restart from a pruned journal
+    IdCounters {
+        max_job_id: JobId,
+        max_worker_id: WorkerId,
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

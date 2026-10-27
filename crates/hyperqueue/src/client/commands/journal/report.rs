@@ -330,7 +330,8 @@ impl JournalStats {
                 EventPayload::AllocationStarted(_, _)
                 | EventPayload::JobIdle(_)
                 | EventPayload::TaskNotify(_)
-                | EventPayload::ServerStart { .. } => {}
+                | EventPayload::ServerStart { .. }
+                | EventPayload::IdCounters { .. } => {}
                 EventPayload::ServerStop => {
                     for trace in jstats.running_workers.values_mut() {
                         trace.add_value(time, 0);

@@ -134,6 +134,17 @@ whithin a given time frame. It takes duration and it is counted from the beginni
 
 The [`hq journal prune`](cli:hq.journal.prune) command removes all completed jobs and disconnected workers from the journal file, in order to reduce its size on disk.
 
+The server can also prune the journal periodically by itself, using the `--journal-prune-period` option:
+
+```console
+$ hq server start --journal /path/to/journal --journal-prune-period=1d
+```
+
+If this option is not set, the journal is never pruned automatically. If
+[`--auto-forget`](../jobs/jobs.md#automatic-forgetting) is also set, periodic pruning removes only jobs that
+the server has already forgotten, so the journal keeps the same jobs as the server memory. Pruning does not change job and
+worker IDs: after a restart from a pruned journal, new jobs and workers still get IDs that were not used before.
+
 ### Flushing the journal
 
 The [`hq journal flush`](cli:hq.journal.flush) command will force the server to flush the journal, so that the latest state of affairs is persisted to disk. It is mainly useful for testing or if you are going to run `hq journal export` while a server is running (however, it is usually better to use `hq journal stream`).

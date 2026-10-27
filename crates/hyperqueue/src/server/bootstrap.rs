@@ -17,7 +17,7 @@ use crate::common::serverdir::{
 };
 use crate::server::Senders;
 use crate::server::autoalloc::{QueueId, create_autoalloc_service};
-use crate::server::autoforget::auto_forget_process;
+use crate::server::autoclean::{auto_forget_process, journal_prune_process};
 use crate::server::event::journal::JournalWriter;
 use crate::server::event::journal::start_event_streaming;
 use crate::server::event::streamer::EventStreamer;
@@ -46,6 +46,7 @@ pub struct ServerConfig {
     pub worker_port: Option<u16>,
     pub journal_path: Option<PathBuf>,
     pub journal_flush_period: Duration,
+    pub journal_prune_period: Option<Duration>,
     pub worker_secret_key: Option<Arc<SecretKey>>,
     pub client_secret_key: Option<Arc<SecretKey>>,
     pub server_uid: Option<String>,
@@ -278,6 +279,16 @@ pub async fn initialize_server(
         )),
         None => Box::pin(futures::future::pending()),
     };
+    let journal_prune_fut: Pin<Box<dyn Future<Output = ()>>> = match server_cfg.journal_prune_period
+    {
+        Some(period) => Box::pin(journal_prune_process(
+            state_ref.clone(),
+            senders.clone(),
+            period,
+            server_cfg.auto_forget.is_some(),
+        )),
+        None => Box::pin(futures::future::pending()),
+    };
 
     let senders2 = senders.clone();
     let fut = async move {
@@ -300,6 +311,7 @@ pub async fn initialize_server(
             ) => { Ok(()) }
             _ = &mut autoalloc_process => { Ok(()) }
             _ = auto_forget_fut => { Ok(()) }
+            _ = journal_prune_fut => { Ok(()) }
             r = comm_fut => { r.map_err(|e| e.into()) }
         };
 

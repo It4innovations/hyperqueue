@@ -146,6 +146,16 @@ fn format_payload(event: EventPayload) -> serde_json::Value {
                 "type": "server-stop",
             })
         }
+        EventPayload::IdCounters {
+            max_job_id,
+            max_worker_id,
+        } => {
+            json!({
+                "type": "id-counters",
+                "max_job_id": max_job_id,
+                "max_worker_id": max_worker_id,
+            })
+        }
         EventPayload::JobOpen(job_id, job_desc) => {
             json!({
                 "type": "job-open",

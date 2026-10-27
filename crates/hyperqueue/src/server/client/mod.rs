@@ -545,12 +545,24 @@ fn reconstruct_historical_events(
 
 async fn handle_prune_journal(state_ref: &StateRef, senders: &Senders) -> ToClientMessage {
     log::debug!("Client asked for journal prunning");
-    let (live_jobs, live_workers) = {
+    prune_journal(state_ref, senders, false).await;
+    ToClientMessage::Finished
+}
+
+/// Removes completed jobs and lost workers from the journal (if journal is enabled).
+/// If `keep_completed_jobs` is true, completed jobs that are still in the server memory
+/// (i.e. not forgotten yet) are kept in the journal.
+pub(crate) async fn prune_journal(
+    state_ref: &StateRef,
+    senders: &Senders,
+    keep_completed_jobs: bool,
+) {
+    let (live_jobs, live_workers, max_job_id, max_worker_id) = {
         let state = state_ref.get();
         let live_jobs: Set<_> = state
             .jobs()
             .filter_map(|job| {
-                if job.is_terminated() {
+                if job.is_terminated() && !keep_completed_jobs {
                     None
                 } else {
                     Some(job.job_id)
@@ -568,12 +580,20 @@ async fn handle_prune_journal(state_ref: &StateRef, senders: &Senders) -> ToClie
                 }
             })
             .collect();
-        (live_jobs, live_workers)
+        (
+            live_jobs,
+            live_workers,
+            state.last_job_id(),
+            state.max_worker_id(),
+        )
     };
-    if let Some(receiver) = senders.events.prune_journal(live_jobs, live_workers) {
+    if let Some(receiver) =
+        senders
+            .events
+            .prune_journal(live_jobs, live_workers, max_job_id, max_worker_id)
+    {
         let _ = receiver.await;
     }
-    ToClientMessage::Finished
 }
 
 fn handle_worker_stop(

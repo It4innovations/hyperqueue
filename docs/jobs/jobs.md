@@ -329,6 +329,10 @@ and completed first.
 
 Note that if you are using a journal, forgetting only free the memory of the server but the tasks remains
 in journal, run [`hq journal prune`](cli:hq.journal.prune) to remove completed jobs and workers from journal file.
+You can also let the server prune the journal periodically, e.g.
+`hq server start --journal /path/to/journal --auto-forget=7d --journal-prune-period=1d`.
+When both options are set, periodic pruning removes only jobs that were already forgotten, so completed
+jobs are kept in the journal (and survive a server restart) until they are auto-forgotten.
 
 ## Waiting for jobs
 

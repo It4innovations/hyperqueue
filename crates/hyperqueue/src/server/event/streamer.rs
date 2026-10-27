@@ -134,7 +134,9 @@ impl EventFilter {
             | EventPayload::AllocationFinished(_, _) => {
                 self.flags.contains(EventFilterFlags::ALLOCATION_EVENTS)
             }
-            EventPayload::ServerStart { .. } | EventPayload::ServerStop => true,
+            EventPayload::ServerStart { .. }
+            | EventPayload::ServerStop
+            | EventPayload::IdCounters { .. } => true,
             EventPayload::TaskNotify(notify) => {
                 if !self.flags.contains(EventFilterFlags::NOTIFY_EVENTS) {
                     false
@@ -498,6 +500,8 @@ impl EventStreamer {
         &self,
         live_jobs: Set<JobId>,
         live_workers: Set<WorkerId>,
+        max_job_id: JobId,
+        max_worker_id: WorkerId,
     ) -> Option<oneshot::Receiver<()>> {
         let inner = self.inner.get();
         if let Some(ref streamer) = inner.storage_sender {
@@ -506,6 +510,8 @@ impl EventStreamer {
                 .send(EventStreamMessage::PruneJournal {
                     live_jobs,
                     live_workers,
+                    max_job_id,
+                    max_worker_id,
                     callback: sender,
                 })
                 .is_err()
