@@ -7,10 +7,13 @@
 * Python API `crash_limit` now accepts `"unlimited"` and `"never-restart"` (and `0` is rejected)
 * `hq server start --auto-forget=<duration>` makes the server automatically forget completed jobs
   that finished more than the given duration ago (e.g. `--auto-forget=7d`)
+* `hq server start --journal-prune-period=<duration>` makes the server periodically prune the journal
 
-## Fixes
+### Fixes
 
 * Fixed crash in auto alloc query in the case of multi-node tasks
+* Job and worker IDs are no longer reused after the server is restarted from a pruned journal
+
 
 ## v0.27.0
 

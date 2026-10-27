@@ -21,6 +21,8 @@ pub struct State {
     jobs: Map<JobId, Job>,
     workers: Map<WorkerId, Worker>,
     job_id_counter: <JobId as ItemId>::IdType,
+    /// Highest worker ID seen so far (including workers from before a restart)
+    max_worker_id: WorkerId,
     server_info: ServerInfo,
 }
 
@@ -41,6 +43,7 @@ impl State {
 
     pub fn add_worker(&mut self, worker: Worker) {
         let worker_id = worker.worker_id();
+        self.max_worker_id = self.max_worker_id.max(worker_id);
         assert!(self.workers.insert(worker_id, worker).is_none())
     }
 
@@ -96,6 +99,10 @@ impl State {
 
     pub fn last_job_id(&self) -> JobId {
         JobId::new(self.job_id_counter - 1)
+    }
+
+    pub fn max_worker_id(&self) -> WorkerId {
+        self.max_worker_id
     }
 
     pub fn get_workers(&self) -> &Map<WorkerId, Worker> {
@@ -223,7 +230,8 @@ impl State {
     }
 
     pub(crate) fn restore_state(&mut self, restorer: &StateRestorer) {
-        self.job_id_counter = restorer.job_id_counter()
+        self.job_id_counter = restorer.job_id_counter();
+        self.max_worker_id = WorkerId::new(restorer.worker_id_counter().as_num() - 1);
     }
 }
 
@@ -233,6 +241,7 @@ impl StateRef {
             jobs: Default::default(),
             workers: Default::default(),
             job_id_counter: 1,
+            max_worker_id: WorkerId::new(0),
             server_info,
         }))
     }

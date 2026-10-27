@@ -10,6 +10,7 @@ from .autoalloc.flavor import all_flavors, ManagerFlavor
 from .autoalloc.utils import add_queue, remove_queue
 from .conftest import HqEnv
 from .utils import wait_for_job_state, wait_for_task_state
+from .utils.wait import wait_until
 import os
 
 
@@ -491,3 +492,74 @@ def test_journal_cancel_auto_flush(hq_env: HqEnv, tmp_path):
     hq_env.command(["job", "cancel", "1"])
     hq_env.kill_server()
     assert any(event["event"]["type"] == "task-canceled" for event in read_events(hq_env, journal_path))
+
+
+def test_journal_prune_period(hq_env: HqEnv, tmp_path):
+    journal_path = os.path.join(tmp_path, "my.journal")
+    hq_env.start_server(args=["--journal", journal_path, "--journal-prune-period=2s"])
+    hq_env.start_worker()
+    hq_env.command(["submit", "--", "sleep", "0"])
+    hq_env.command(["submit", "--", "sleep", "100"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+    wait_for_job_state(hq_env, 2, "RUNNING")
+
+    def job_ids():
+        hq_env.command(["journal", "flush"])
+        events = read_events(hq_env, journal_path)
+        return {e["event"]["job"] for e in events if "job" in e["event"]}
+
+    assert job_ids() == {1, 2}
+    wait_until(lambda: job_ids() == {2})
+
+
+def test_journal_prune_period_keeps_not_forgotten_jobs(hq_env: HqEnv, tmp_path):
+    journal_path = os.path.join(tmp_path, "my.journal")
+    hq_env.start_server(args=["--journal", journal_path, "--journal-prune-period=1s", "--auto-forget=4s"])
+    hq_env.start_worker()
+    hq_env.command(["submit", "--", "sleep", "0"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    def job_ids():
+        hq_env.command(["journal", "flush"])
+        events = read_events(hq_env, journal_path)
+        return {e["event"]["job"] for e in events if "job" in e["event"]}
+
+    # Several prunes happen before the job is forgotten
+    time.sleep(2.5)
+    assert job_ids() == {1}
+    wait_until(lambda: job_ids() == set())
+
+
+def test_journal_prune_period_requires_journal(hq_env: HqEnv):
+    hq_env.command(
+        ["server", "start", "--journal-prune-period=2s"],
+        expect_fail="--journal <JOURNAL>",
+    )
+
+
+def test_restore_ids_after_prune(hq_env: HqEnv, tmp_path):
+    journal_path = os.path.join(tmp_path, "my.journal")
+    hq_env.start_server(args=["--journal", journal_path])
+    w = hq_env.start_worker()
+    hq_env.command(["submit", "--", "sleep", "0"])
+    hq_env.command(["submit", "--", "sleep", "0"])
+    wait_for_job_state(hq_env, [1, 2], "FINISHED")
+    hq_env.command(["worker", "stop", "1"])
+    hq_env.check_process_exited(w)
+    hq_env.command(["journal", "prune"])
+    hq_env.stop_server()
+
+    # Pruning twice keeps the counters
+    hq_env.start_server(args=["--journal", journal_path])
+    hq_env.command(["journal", "prune"])
+    hq_env.stop_server()
+
+    hq_env.start_server(args=["--journal", journal_path])
+    hq_env.start_worker()
+    hq_env.command(["submit", "--", "sleep", "0"])
+    wait_for_job_state(hq_env, 3, "FINISHED")
+    table = hq_env.command(["job", "list", "--all"], as_table=True)
+    table.check_columns_value(["ID"], 0, ["3"])
+    # Same worker ID as after a restart without pruning (see test_restore_fully_finished)
+    table = hq_env.command(["worker", "list"], as_table=True)
+    table.check_columns_value(["ID", "State"], 0, ["3", "RUNNING"])

@@ -1,5 +1,7 @@
+use crate::server::event::Event;
 use crate::server::event::journal::{JournalReader, JournalWriter};
 use crate::server::event::payload::EventPayload;
+use chrono::Utc;
 use tako::JobId;
 use tako::{Set, WorkerId};
 
@@ -8,7 +10,16 @@ pub(crate) fn prune_journal(
     writer: &mut JournalWriter,
     live_job_ids: &Set<JobId>,
     live_worker_ids: &Set<WorkerId>,
+    max_job_id: JobId,
+    max_worker_id: WorkerId,
 ) -> crate::Result<()> {
+    writer.store(Event {
+        time: Utc::now(),
+        payload: EventPayload::IdCounters {
+            max_job_id,
+            max_worker_id,
+        },
+    })?;
     for event in reader {
         let mut event = event?;
         let event = match &mut event.payload {
@@ -44,6 +55,8 @@ pub(crate) fn prune_journal(
             | EventPayload::TaskNotify(_)
             | EventPayload::JobIdle(_)
             | EventPayload::ServerStop => Some(event),
+            // A fresh one was written at the beginning
+            EventPayload::IdCounters { .. } => None,
         };
         if let Some(event) = event {
             writer.store(event)?;

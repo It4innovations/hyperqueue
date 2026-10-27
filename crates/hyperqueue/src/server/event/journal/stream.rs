@@ -20,6 +20,8 @@ pub enum EventStreamMessage {
         callback: tokio::sync::oneshot::Sender<()>,
         live_jobs: Set<JobId>,
         live_workers: Set<WorkerId>,
+        max_job_id: JobId,
+        max_worker_id: WorkerId,
     },
     FlushJournal(tokio::sync::oneshot::Sender<()>),
 }
@@ -99,7 +101,7 @@ async fn streaming_process(
                             tx.send(event?)?;
                         }
                     },
-                    Some(EventStreamMessage::PruneJournal { live_jobs, live_workers, callback })  => {
+                    Some(EventStreamMessage::PruneJournal { live_jobs, live_workers, max_job_id, max_worker_id, callback })  => {
                         writer.flush()?;
                         drop(writer);
                         let mut tmp_path: OsString = journal_path.into();
@@ -108,7 +110,7 @@ async fn streaming_process(
                         {
                             let mut reader = JournalReader::open(journal_path)?;
                             let mut writer = JournalWriter::create(&tmp_path)?;
-                            if let Err(e) = prune_journal(&mut reader, &mut writer, &live_jobs, &live_workers) {
+                            if let Err(e) = prune_journal(&mut reader, &mut writer, &live_jobs, &live_workers, max_job_id, max_worker_id) {
                                 remove_file(&tmp_path)?;
                                 return Err(e.into())
                             }

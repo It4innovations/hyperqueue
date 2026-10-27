@@ -54,6 +54,7 @@ where
         worker_port: None,
         journal_path: None,
         journal_flush_period: Duration::from_secs(30),
+        journal_prune_period: None,
         worker_secret_key: None,
         client_secret_key: None,
         server_uid: None,

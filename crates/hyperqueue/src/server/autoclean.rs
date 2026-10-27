@@ -1,9 +1,10 @@
 use crate::server::Senders;
-use crate::server::client::forget_jobs;
+use crate::server::client::{forget_jobs, prune_journal};
 use crate::server::state::StateRef;
 use chrono::{TimeDelta, Utc};
 use std::time::Duration;
 use tako::JobId;
+use tokio::time::Instant;
 
 pub async fn auto_forget_process(state_ref: StateRef, senders: Senders, max_age: Duration) {
     let max_age_delta = TimeDelta::from_std(max_age).unwrap_or(TimeDelta::MAX);
@@ -35,5 +36,19 @@ pub async fn auto_forget_process(state_ref: StateRef, senders: Senders, max_age:
             drop(forgotten_jobs);
         })
         .await;
+    }
+}
+
+pub async fn journal_prune_process(
+    state_ref: StateRef,
+    senders: Senders,
+    period: Duration,
+    keep_completed_jobs: bool,
+) {
+    let mut interval = tokio::time::interval_at(Instant::now() + period, period);
+    loop {
+        interval.tick().await;
+        log::debug!("Pruning journal");
+        prune_journal(&state_ref, &senders, keep_completed_jobs).await;
     }
 }
