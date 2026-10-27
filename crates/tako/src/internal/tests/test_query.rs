@@ -850,3 +850,59 @@ fn test_query_partial_absorbs_undeclared_demand_on_one_worker() {
     // On their own they are the probe of \S queries: exactly one worker, not none and not three.
     assert_eq!(ask(100, 0), 1);
 }
+
+#[test]
+fn test_query_multi_node_task_with_free_workers_before_scheduling() {
+    // Fake workers created by the query belong to groups that are not registered in the core.
+    // The solver must not panic when it considers them for a multi-node task.
+    let mut rt = TestEnv::new();
+    rt.new_workers_cpus(&[1, 1]);
+    rt.new_task(&TaskBuilder::new().n_nodes(2));
+
+    let r = compute_new_worker_query(
+        rt.core(),
+        &[WorkerTypeQuery {
+            partial: false,
+            descriptor: ResourceDescriptor::simple_cpus(1),
+            time_limit: None,
+            max_sn_workers: 2,
+            max_workers_per_allocation: 2,
+            min_utilization: 0.0,
+        }],
+    );
+    assert_eq!(r.single_node_workers_per_query, vec![0]);
+    assert_eq!(r.multi_node_allocations.len(), 1);
+    assert_eq!(r.multi_node_allocations[0].worker_type, 0);
+    assert_eq!(r.multi_node_allocations[0].worker_per_allocation, 2);
+    assert_eq!(r.multi_node_allocations[0].max_allocations, 1);
+}
+
+#[test]
+fn test_query_multi_node_tasks_do_not_block_single_node_demand() {
+    // Multi-node tasks of higher priority are answered by multi-node allocations; they cannot run
+    // on the single-node workers of the query, so they must not hold back its single-node demand.
+    let mut rt = TestEnv::new();
+    rt.new_workers_cpus(&[1, 1]);
+    for _ in 0..3 {
+        rt.new_task(&TaskBuilder::new().n_nodes(2).user_priority(10));
+    }
+    for _ in 0..4 {
+        rt.new_task(&TaskBuilder::new().cpus(1));
+    }
+
+    let r = compute_new_worker_query(
+        rt.core(),
+        &[WorkerTypeQuery {
+            partial: false,
+            descriptor: ResourceDescriptor::simple_cpus(1),
+            time_limit: None,
+            max_sn_workers: 4,
+            max_workers_per_allocation: 2,
+            min_utilization: 0.0,
+        }],
+    );
+    assert_eq!(r.single_node_workers_per_query, vec![4]);
+    assert_eq!(r.multi_node_allocations.len(), 1);
+    assert_eq!(r.multi_node_allocations[0].worker_per_allocation, 2);
+    assert_eq!(r.multi_node_allocations[0].max_allocations, 3);
+}

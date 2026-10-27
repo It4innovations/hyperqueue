@@ -53,7 +53,16 @@ pub(crate) fn create_task_batches(
         ..
     } = core.split_mut();
 
-    let queues: Vec<_> = task_queues.iter().filter(|q| !q.is_empty()).collect();
+    // Custom workers are the single-node workers of a worker query. Multi-node tasks cannot run on
+    // them (their groups are not registered) and the query answers them separately, so they must
+    // neither enter the solve nor block single-node tasks there.
+    let queues: Vec<_> = task_queues
+        .iter()
+        .filter(|q| {
+            !q.is_empty()
+                && (custom_workers.is_none() || !request_map.get(q.resource_rq_id).is_multi_node())
+        })
+        .collect();
     if queues.is_empty() {
         return Vec::new();
     }
