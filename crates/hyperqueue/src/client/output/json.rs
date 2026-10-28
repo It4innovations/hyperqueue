@@ -21,6 +21,7 @@ use crate::client::output::common::{TaskToPathsMap, group_jobs_by_status, resolv
 use crate::client::output::outputs::{Output, OutputStream};
 use crate::common::arraydef::IntArray;
 use crate::common::manager::info::{GetManagerInfo, ManagerType};
+use crate::common::numa::{NumaTopology, WORKER_EXTRA_NUMA_KEY};
 use crate::server::autoalloc::{Allocation, AllocationState, QueueId};
 use crate::server::job::{JobTaskInfo, JobTaskState, StartedTaskData};
 use crate::stream::reader::outputlog::Summary;
@@ -560,13 +561,21 @@ fn format_worker_info(worker_info: WorkerInfo) -> serde_json::Value {
                 on_server_lost,
                 group,
                 min_utilization,
-                extra: _,
+                extra,
             },
         started,
         ended,
         runtime_info,
         last_task_started,
     } = worker_info;
+
+    let numa_topology = extra.get(WORKER_EXTRA_NUMA_KEY).map(|serialized| {
+        let numa: Result<NumaTopology, _> = serde_json::from_str(serialized);
+        numa.unwrap_or_else(|_| NumaTopology {
+            nodes: vec![],
+            gpus: vec![],
+        })
+    });
 
     json!({
         "id": id,
@@ -581,6 +590,7 @@ fn format_worker_info(worker_info: WorkerInfo) -> serde_json::Value {
             "resources": format_resource_descriptor(&resources),
             "on_server_lost": crate::common::format::server_lost_policy_to_str(&on_server_lost),
             "min_utilization": min_utilization,
+            "numa_topology": numa_topology.map(format_numa_topology),
         }),
         "allocation": manager_info.map(|info| json!({
             "manager": FormattedManagerType(info.manager),
@@ -602,6 +612,26 @@ fn format_resource_descriptor(descriptor: &ResourceDescriptor) -> Value {
     json!({
         "resources": resources.iter().map(format_resource).collect::<Vec<_>>(),
         "coupling": coupling,
+    })
+}
+
+fn format_numa_topology(descriptor: NumaTopology) -> Value {
+    let NumaTopology { nodes, gpus } = descriptor;
+    json!({
+        "nodes": nodes.iter().map(|node| {
+            json!({
+                "id": node.id,
+                "cpulist": node.cpulist,
+            })
+        }).collect::<Vec<_>>(),
+        "gpus": gpus.iter().map(|gpu| {
+            json!({
+                "pci_address": gpu.pci_address,
+                "device_name": gpu.device_name,
+                "numa_node": gpu.numa_node,
+                "cpulist": gpu.local_cpulist,
+            })
+        }).collect::<Vec<_>>(),
     })
 }
 

@@ -139,6 +139,13 @@ pub fn finalize_configuration(conf: &mut WorkerConfiguration) {
         WORKER_EXTRA_PROCESS_PID.to_string(),
         std::process::id().to_string(),
     );
+    let numa = crate::common::numa::detect_numa_topology();
+    if let Ok(serialized) = serde_json::to_string(&numa) {
+        conf.extra.insert(
+            crate::common::numa::WORKER_EXTRA_NUMA_KEY.to_string(),
+            serialized,
+        );
+    }
 }
 
 pub fn try_get_pbs_info() -> anyhow::Result<ManagerInfo> {
