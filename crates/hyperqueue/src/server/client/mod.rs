@@ -18,9 +18,9 @@ use crate::server::job::{Job, JobTaskState};
 use crate::server::state::{State, StateRef};
 use crate::transfer::connection::accept_client;
 use crate::transfer::messages::{
-    CancelJobResponse, CloseJobResponse, FromClientMessage, IdSelector, JobDetail,
-    JobDetailResponse, JobInfoResponse, JobSubmitDescription, StopWorkerResponse, StreamEvents,
-    SubmitRequest, SubmitResponse, TaskSelector, ToClientMessage, WorkerInfo,
+    CancelJobResponse, CloseJobResponse, DrainWorkerResponse, FromClientMessage, IdSelector,
+    JobDetail, JobDetailResponse, JobInfoResponse, JobSubmitDescription, StopWorkerResponse,
+    StreamEvents, SubmitRequest, SubmitResponse, TaskSelector, ToClientMessage, WorkerInfo,
 };
 use crate::transfer::messages::{ForgetJobResponse, GetListResponse};
 use tako::{JobId, JobTaskCount, WorkerId};
@@ -270,6 +270,13 @@ pub async fn client_rpc_loop<
                     FromClientMessage::StopWorker(msg) => {
                         handle_worker_stop(&state_ref, senders, msg.selector)
                     }
+                    FromClientMessage::DrainWorker(msg) => handle_worker_drain(
+                        &state_ref,
+                        senders,
+                        msg.selector,
+                        msg.drain,
+                        msg.stop_when_idle,
+                    ),
                     FromClientMessage::Cancel(msg) => {
                         let response =
                             handle_job_cancel(&state_ref, senders, &msg.selector, &msg.reason)
@@ -596,15 +603,8 @@ pub(crate) async fn prune_journal(
     }
 }
 
-fn handle_worker_stop(
-    state_ref: &StateRef,
-    senders: &Senders,
-    selector: IdSelector,
-) -> ToClientMessage {
-    log::debug!("Client asked for worker termination {selector:?}");
-    let mut responses: Vec<(WorkerId, StopWorkerResponse)> = Vec::new();
-
-    let worker_ids: Vec<WorkerId> = match selector {
+fn resolve_worker_selector(state_ref: &StateRef, selector: IdSelector) -> Vec<WorkerId> {
+    match selector {
         IdSelector::Specific(array) => array.iter().map(|id| id.into()).collect(),
         IdSelector::All => state_ref
             .get()
@@ -619,9 +619,18 @@ fn handle_worker_stop(
             ids.truncate(n as usize);
             ids
         }
-    };
+    }
+}
 
-    for worker_id in worker_ids {
+fn handle_worker_stop(
+    state_ref: &StateRef,
+    senders: &Senders,
+    selector: IdSelector,
+) -> ToClientMessage {
+    log::debug!("Client asked for worker termination {selector:?}");
+    let mut responses: Vec<(WorkerId, StopWorkerResponse)> = Vec::new();
+
+    for worker_id in resolve_worker_selector(state_ref, selector) {
         if let Some(worker) = state_ref.get().get_worker(worker_id) {
             if worker.make_info(None).ended.is_some() {
                 responses.push((worker_id, StopWorkerResponse::AlreadyStopped));
@@ -642,6 +651,51 @@ fn handle_worker_stop(
         }
     }
     ToClientMessage::StopWorkerResponse(responses)
+}
+
+fn handle_worker_drain(
+    state_ref: &StateRef,
+    senders: &Senders,
+    selector: IdSelector,
+    drain: bool,
+    stop_when_idle: bool,
+) -> ToClientMessage {
+    log::debug!("Client asked for worker drain={drain} {selector:?}");
+    let mut responses: Vec<(WorkerId, DrainWorkerResponse)> = Vec::new();
+
+    for worker_id in resolve_worker_selector(state_ref, selector) {
+        match state_ref.get().get_worker(worker_id) {
+            None => {
+                responses.push((worker_id, DrainWorkerResponse::InvalidWorker));
+                continue;
+            }
+            Some(worker) if !worker.is_running() => {
+                responses.push((worker_id, DrainWorkerResponse::AlreadyStopped));
+                continue;
+            }
+            Some(_) => {}
+        }
+        let response = if drain {
+            senders
+                .server_control
+                .drain_worker(worker_id, stop_when_idle)
+        } else {
+            senders.server_control.undrain_worker(worker_id)
+        };
+        match response {
+            Ok(()) => {
+                if let Some(worker) = state_ref.get_mut().get_worker_mut(worker_id) {
+                    worker.set_draining(drain);
+                }
+                responses.push((worker_id, DrainWorkerResponse::Ok));
+            }
+            Err(err) => {
+                responses.push((worker_id, DrainWorkerResponse::Failed(err.to_string())));
+                log::error!("Unable to set drain of worker: {worker_id} error: {err:?}");
+            }
+        }
+    }
+    ToClientMessage::DrainWorkerResponse(responses)
 }
 
 fn compute_job_detail(

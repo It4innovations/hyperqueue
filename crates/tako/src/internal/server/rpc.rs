@@ -21,6 +21,7 @@ use crate::internal::server::comm::{Comm, CommSenderRef};
 use crate::internal::server::core::{CoreRef, CoreSplitMut};
 use crate::internal::server::reactor::{
     on_new_worker, on_remove_worker, on_retract_response, on_task_update,
+    stop_drained_worker_if_idle,
 };
 use crate::internal::server::worker::{DEFAULT_WORKER_OVERVIEW_INTERVAL, Worker};
 use crate::internal::transfer::auth::{
@@ -227,6 +228,9 @@ async fn worker_rpc_loop(
                 let mut comm = comm_ref2.get_mut();
                 comm.send_worker_message(worker_id, &ToWorkerMessage::Stop);
             }
+
+            // Covers workers freed by other means than their own task updates (e.g. MN tasks)
+            stop_drained_worker_if_idle(worker, &mut *comm_ref2.get_mut());
 
             if let Some((_, stop)) = worker.stop_reason {
                 let delay = Duration::from_secs(60);

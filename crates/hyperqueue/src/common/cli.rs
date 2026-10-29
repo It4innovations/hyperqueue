@@ -249,6 +249,12 @@ pub enum WorkerCommand {
     Start(WorkerStartOpts),
     /// Stops a worker
     Stop(WorkerStopOpts),
+    /// Stops scheduling new tasks to a worker
+    ///
+    /// Tasks that are already running on the worker will be finished.
+    Drain(WorkerDrainOpts),
+    /// Resumes scheduling new tasks to a drained worker
+    Undrain(WorkerUndrainOpts),
     /// Displays information about workers
     ///
     /// By default, only running workers will be displayed.
@@ -275,6 +281,24 @@ pub enum WorkerCommand {
 #[derive(Parser)]
 pub struct WorkerStopOpts {
     /// Selects worker(s) to stop
+    #[arg(value_parser = parse_last_all_range)]
+    pub selector_arg: IdSelector,
+}
+
+#[derive(Parser)]
+pub struct WorkerDrainOpts {
+    /// Selects worker(s) to drain
+    #[arg(value_parser = parse_last_all_range)]
+    pub selector_arg: IdSelector,
+
+    /// Stop the worker once all its running tasks are finished
+    #[arg(long)]
+    pub stop_when_idle: bool,
+}
+
+#[derive(Parser)]
+pub struct WorkerUndrainOpts {
+    /// Selects worker(s) to undrain
     #[arg(value_parser = parse_last_all_range)]
     pub selector_arg: IdSelector,
 }

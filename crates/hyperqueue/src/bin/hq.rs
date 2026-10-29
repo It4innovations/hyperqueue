@@ -20,8 +20,8 @@ use hyperqueue::client::commands::submit::{
 use hyperqueue::client::commands::wait::{wait_for_jobs, wait_for_jobs_with_progress};
 use hyperqueue::client::commands::worker::{
     ManagerOpts, ResourceDetectComponents, WorkerFilter, WorkerStartOpts, deploy_ssh_workers,
-    gather_manager_info, get_worker_info, get_worker_list, start_hq_worker, stop_worker,
-    wait_for_workers,
+    drain_worker, gather_manager_info, get_worker_info, get_worker_list, start_hq_worker,
+    stop_worker, wait_for_workers,
 };
 use hyperqueue::client::default_server_directory_path;
 use hyperqueue::client::globalsettings::GlobalSettings;
@@ -37,8 +37,8 @@ use hyperqueue::client::task::{
 use hyperqueue::common::cli::{
     ColorPolicy, CommonOpts, DeploySshOpts, GenerateCompletionOpts, HwDetectOpts, JobCommand,
     JobProgressOpts, JobWaitOpts, OptsWithMatches, RootOptions, SubCommand, WorkerAddressOpts,
-    WorkerCommand, WorkerInfoOpts, WorkerListOpts, WorkerOpts, WorkerStopOpts, WorkerWaitOpts,
-    get_task_id_selector, get_task_selector,
+    WorkerCommand, WorkerDrainOpts, WorkerInfoOpts, WorkerListOpts, WorkerOpts, WorkerStopOpts,
+    WorkerUndrainOpts, WorkerWaitOpts, get_task_id_selector, get_task_selector,
 };
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::common::utils::fs::absolute_path;
@@ -235,6 +235,24 @@ async fn command_worker_stop(
 ) -> anyhow::Result<()> {
     let mut session = get_client_session(gsettings.server_directory()).await?;
     stop_worker(&mut session, opts.selector_arg).await?;
+    Ok(())
+}
+
+async fn command_worker_drain(
+    gsettings: &GlobalSettings,
+    opts: WorkerDrainOpts,
+) -> anyhow::Result<()> {
+    let mut session = get_client_session(gsettings.server_directory()).await?;
+    drain_worker(&mut session, opts.selector_arg, true, opts.stop_when_idle).await?;
+    Ok(())
+}
+
+async fn command_worker_undrain(
+    gsettings: &GlobalSettings,
+    opts: WorkerUndrainOpts,
+) -> anyhow::Result<()> {
+    let mut session = get_client_session(gsettings.server_directory()).await?;
+    drain_worker(&mut session, opts.selector_arg, false, false).await?;
     Ok(())
 }
 
@@ -511,6 +529,8 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Worker(opts) => match opts.subcmd {
             WorkerCommand::Start(opts) => command_worker_start(&gsettings, opts).await,
             WorkerCommand::Stop(opts) => command_worker_stop(&gsettings, opts).await,
+            WorkerCommand::Drain(opts) => command_worker_drain(&gsettings, opts).await,
+            WorkerCommand::Undrain(opts) => command_worker_undrain(&gsettings, opts).await,
             WorkerCommand::List(opts) => command_worker_list(&gsettings, opts).await,
             WorkerCommand::HwDetect(opts) => command_worker_hwdetect(&gsettings, opts),
             WorkerCommand::Info(opts) => command_worker_info(&gsettings, opts).await,

@@ -23,6 +23,7 @@ pub struct Worker {
     worker_id: WorkerId,
     state: WorkerState,
     last_task_started: Option<TaskTimestamp>,
+    draining: bool,
     pub(crate) configuration: WorkerConfiguration,
 }
 
@@ -35,6 +36,7 @@ impl Worker {
                 started_at: Utc::now(),
             }),
             last_task_started: None,
+            draining: false,
         }
     }
 
@@ -76,6 +78,10 @@ impl Worker {
         }
     }
 
+    pub fn set_draining(&mut self, draining: bool) {
+        self.draining = draining;
+    }
+
     pub fn is_running(&self) -> bool {
         matches!(self.state, WorkerState::Online(_))
     }
@@ -91,6 +97,7 @@ impl Worker {
                 Offline { exit_info, .. } => Some(exit_info.clone()),
             },
             last_task_started: self.last_task_started.clone(),
+            draining: self.draining,
         }
     }
 }

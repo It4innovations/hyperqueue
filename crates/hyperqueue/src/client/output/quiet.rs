@@ -32,6 +32,7 @@ impl Output for Quiet {
     fn print_worker_list(&self, workers: Vec<WorkerInfo>) {
         for worker in workers {
             let worker_status = match worker.ended.as_ref() {
+                None if worker.draining => "DRAINING",
                 None => "RUNNING",
                 Some(WorkerExitInfo {
                     reason: LostWorkerReason::ConnectionLost,

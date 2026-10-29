@@ -8,6 +8,8 @@
 * `hq server start --auto-forget=<duration>` makes the server automatically forget completed jobs
   that finished more than the given duration ago (e.g. `--auto-forget=7d`)
 * `hq server start --journal-prune-period=<duration>` makes the server periodically prune the journal
+* New commands `hq worker drain` and `hq worker undrain`. A drained worker does not receive new tasks, but it finishes
+  the tasks that it is already computing. With `--stop-when-idle`, the worker is stopped once all its tasks are finished.
 * When MILP scheduling fails because of time limit, there is new greedy fallback.
 * New Cargo feature `highs-system` links HyperQueue to a HiGHS library installed on the system
   instead of building the bundled copy

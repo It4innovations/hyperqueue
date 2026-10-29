@@ -12,7 +12,7 @@ use crate::internal::server::core::{Core, CoreSplitMut};
 use crate::internal::server::task::ComputeTasksBuilder;
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::taskmap::TaskMap;
-use crate::internal::server::worker::{Worker, WorkerAssignment};
+use crate::internal::server::worker::{DrainMode, Worker, WorkerAssignment};
 use crate::internal::server::workermap::WorkerMap;
 use crate::resources::ResourceRqMap;
 use crate::{ResourceVariantId, TaskId, WorkerId};
@@ -258,6 +258,50 @@ pub(crate) fn on_task_update(
     }
     if need_scheduling && !is_prefill_update {
         comm.ask_for_scheduling();
+    }
+    if let Some(worker) = core.find_worker_mut(worker_id) {
+        stop_drained_worker_if_idle(worker, comm);
+    }
+}
+
+pub(crate) fn on_set_worker_drain(
+    core: &mut Core,
+    comm: &mut impl Comm,
+    worker_id: WorkerId,
+    drain: Option<DrainMode>,
+) {
+    log::debug!("Setting drain mode of worker {worker_id} to {drain:?}");
+    let CoreSplitMut {
+        task_map,
+        task_queues,
+        worker_map,
+        ..
+    } = core.split_mut();
+    let worker = worker_map.get_worker_mut(worker_id);
+    worker.drain = drain;
+    if drain.is_some() {
+        // Prefilled tasks would be started by the worker itself, so we have to take them back
+        let retracted: Vec<TaskId> = worker
+            .sn_assignment()
+            .map(|a| a.prefilled_tasks.iter().copied().collect())
+            .unwrap_or_default();
+        for task_id in &retracted {
+            let task = task_map.get_task(*task_id);
+            task_queues
+                .get_mut(task.resource_rq_id)
+                .move_prefilled_task_to_ready(*task_id);
+        }
+        process_retracted(task_map, worker_map, comm, retracted);
+        stop_drained_worker_if_idle(worker_map.get_worker_mut(worker_id), comm);
+    }
+    comm.ask_for_scheduling();
+}
+
+pub(crate) fn stop_drained_worker_if_idle(worker: &mut Worker, comm: &mut impl Comm) {
+    if worker.should_stop_drained() {
+        log::debug!("Drained worker {} is idle, stopping it", worker.id);
+        worker.set_stop(LostWorkerReason::Stopped);
+        comm.send_worker_message(worker.id, &ToWorkerMessage::Stop);
     }
 }
 
