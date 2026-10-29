@@ -52,7 +52,7 @@ fn is_task_completed(tasks: &Map<JobTaskId, RestorerTaskInfo>, task_id: JobTaskI
 
 impl RestorerJob {
     pub fn restore_job(
-        mut self,
+        self,
         job_id: JobId,
         state: &mut State,
         server_ref: &ServerRef,
@@ -76,6 +76,8 @@ impl RestorerJob {
                 submit.submitted_at(),
             );
             let job = state.get_job_mut(job_id).unwrap();
+            let submitted_ids: Vec<JobTaskId> =
+                new_tasks.tasks.iter().map(|t| t.id.job_task_id()).collect();
 
             new_tasks.tasks.retain_mut(|t| {
                 t.task_deps
@@ -83,11 +85,13 @@ impl RestorerJob {
                 !is_task_completed(&self.tasks, t.id.job_task_id())
             });
 
-            for (task_id, job_task) in job.tasks.iter_mut() {
-                if let Some(task) = self.tasks.get_mut(task_id) {
+            for task_id in submitted_ids {
+                if let (Some(task), Some(job_task)) =
+                    (self.tasks.get(&task_id), job.tasks.get_mut(&task_id))
+                {
                     if task.crash_counter > 0 || task.instance_id.is_some() {
                         new_tasks.adjust_instance_id_and_crash_counters.insert(
-                            TaskId::new(job_id, *task_id),
+                            TaskId::new(job_id, task_id),
                             (
                                 task.instance_id.map(|x| x.as_num() + 1).unwrap_or(0).into(),
                                 task.crash_counter,

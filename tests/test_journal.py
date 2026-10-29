@@ -305,6 +305,35 @@ def test_restore_open_job_more_submits(hq_env: HqEnv, tmp_path):
     wait_for_job_state(hq_env, 1, "OPENED")
 
 
+def test_restore_open_job_more_submits_counters(hq_env: HqEnv, tmp_path):
+    journal_path = os.path.join(tmp_path, "my.journal")
+
+    hq_env.start_server(args=["--journal", journal_path])
+    w = hq_env.start_worker()
+    hq_env.command(["job", "open"])
+    hq_env.command(["job", "submit", "--job=1", "--array=0-1", "--", "uname"])
+    wait_for_task_state(hq_env, 1, [0, 1], ["finished", "finished"])
+    hq_env.command(["worker", "stop", "1"])
+    wait_for_worker_state(hq_env, 1, "STOPPED", check_running_processes=False)
+    hq_env.check_process_exited(w)
+    for _ in range(2):
+        hq_env.command(["job", "submit", "--job=1", "--", "uname"])
+
+    expected = {"aborted": 0, "canceled": 0, "failed": 0, "finished": 2, "running": 0, "waiting": 2}
+    out = hq_env.command(["--output-mode=json", "job", "info", "1"], as_json=True)
+    assert out[0]["info"]["task_stats"] == expected
+    hq_env.stop_server()
+
+    hq_env.start_server(args=["--journal", journal_path])
+    out = hq_env.command(["--output-mode=json", "job", "info", "1"], as_json=True)
+    assert out[0]["info"]["task_stats"] == expected
+
+    hq_env.start_worker()
+    wait_for_task_state(hq_env, 1, [2, 3], ["finished", "finished"])
+    out = hq_env.command(["--output-mode=json", "job", "info", "1"], as_json=True)
+    assert out[0]["info"]["task_stats"]["finished"] == 4
+
+
 def test_restore_streaming(hq_env: HqEnv, tmp_path):
     journal_path = os.path.join(tmp_path, "my.journal")
     stream_path = os.path.join(tmp_path, "stream")
