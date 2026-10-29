@@ -125,6 +125,69 @@ def test_worker_stop_last(hq_env: HqEnv):
     hq_env.check_process_exited(processes[3])
 
 
+def test_worker_drain(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+    wait_for_worker_state(hq_env, 1, "RUNNING")
+
+    response = hq_env.command(["worker", "drain", "1"])
+    assert "Worker 1 drained" in response
+    wait_for_worker_state(hq_env, 1, "DRAINING")
+
+    hq_env.command(["submit", "--", "ls"])
+    time.sleep(1)
+    wait_for_job_state(hq_env, 1, "WAITING")
+
+    worker2 = hq_env.start_worker()
+    wait_for_job_state(hq_env, 1, "FINISHED")
+    table = hq_env.command(["job", "info", "1"], as_table=True)
+    assert table.get_row_value("Workers") == "worker2"
+
+    hq_env.command(["worker", "stop", "2"])
+    wait_for_worker_state(hq_env, 2, "STOPPED", check_running_processes=False)
+    response = hq_env.command(["worker", "undrain", "1"])
+    assert "Worker 1 undrained" in response
+    wait_for_worker_state(hq_env, 1, "RUNNING", check_running_processes=False)
+    hq_env.command(["submit", "--", "ls"])
+    wait_for_job_state(hq_env, 2, "FINISHED", check_running_processes=False)
+    table = hq_env.command(["job", "info", "2"], as_table=True)
+    assert table.get_row_value("Workers") == "worker1"
+    hq_env.check_process_exited(worker2)
+
+
+def test_worker_drain_finishes_running_tasks(hq_env: HqEnv):
+    hq_env.start_server()
+    process = hq_env.start_worker()
+    path = os.path.join(hq_env.work_path, "finished")
+    hq_env.command(["submit", "--", "bash", "-c", f"sleep 2; touch {path}"])
+    wait_for_job_state(hq_env, 1, "RUNNING")
+    hq_env.command(["submit", "--", "ls"])
+
+    hq_env.command(["worker", "drain", "1", "--stop-when-idle"])
+    wait_for_worker_state(hq_env, 1, "DRAINING")
+    wait_for_worker_state(hq_env, 1, "STOPPED", check_running_processes=False)
+    hq_env.check_process_exited(process)
+
+    wait_for_job_state(hq_env, 1, "FINISHED")
+    assert os.path.isfile(path)
+    wait_for_job_state(hq_env, 2, "WAITING")
+
+
+def test_worker_drain_invalid(hq_env: HqEnv):
+    hq_env.start_server()
+    process = hq_env.start_worker()
+    wait_for_worker_state(hq_env, 1, "RUNNING")
+
+    response = hq_env.command(["worker", "drain", "2"])
+    assert "worker not found" in response
+
+    hq_env.command(["worker", "stop", "1"])
+    wait_for_worker_state(hq_env, 1, "STOPPED", check_running_processes=False)
+    hq_env.check_process_exited(process)
+    response = hq_env.command(["worker", "drain", "1"])
+    assert "worker is already stopped" in response
+
+
 def test_worker_list_only_online(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_workers(2)

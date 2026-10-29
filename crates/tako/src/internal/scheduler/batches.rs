@@ -79,7 +79,11 @@ pub(crate) fn create_task_batches(
                         g.worker_ids()
                             .map(|w_id| {
                                 let worker = worker_map.get_worker(w_id);
-                                if worker.is_free() { 1 } else { 0 }
+                                if worker.is_free() && !worker.is_draining() {
+                                    1
+                                } else {
+                                    0
+                                }
                             })
                             .sum::<u32>()
                     })

@@ -34,8 +34,8 @@ use crate::common::utils::time::parse_hms_or_human_time;
 use crate::common::utils::time::parse_human_time;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
-    FromClientMessage, IdSelector, StopWorkerMessage, StopWorkerResponse, ToClientMessage,
-    WorkerInfo, WorkerInfoRequest,
+    DrainWorkerMessage, DrainWorkerResponse, FromClientMessage, IdSelector, StopWorkerMessage,
+    StopWorkerResponse, ToClientMessage, WorkerInfo, WorkerInfoRequest,
 };
 use crate::worker::bootstrap::{
     finalize_configuration, initialize_worker, try_get_pbs_info, try_get_slurm_info,
@@ -318,6 +318,7 @@ pub async fn start_hq_worker(
         ended: None,
         runtime_info: None,
         last_task_started: None,
+        draining: false,
     }]);
     worker.run().await?;
     log::info!("Worker stopping");
@@ -564,6 +565,47 @@ pub async fn stop_worker(session: &mut ClientSession, selector: IdSelector) -> c
             }
             StopWorkerResponse::Stopped => {
                 log::info!("Worker {id} stopped")
+            }
+        }
+    }
+
+    Ok(())
+}
+
+pub async fn drain_worker(
+    session: &mut ClientSession,
+    selector: IdSelector,
+    drain: bool,
+    stop_when_idle: bool,
+) -> crate::Result<()> {
+    let message = FromClientMessage::DrainWorker(DrainWorkerMessage {
+        selector,
+        drain,
+        stop_when_idle,
+    });
+    let mut responses =
+        rpc_call!(session.connection(), message, ToClientMessage::DrainWorkerResponse(r) => r)
+            .await?;
+
+    let action = if drain { "Draining" } else { "Undraining" };
+    responses.sort_unstable_by_key(|x| x.0);
+    for (id, response) in responses {
+        match response {
+            DrainWorkerResponse::Failed(e) => {
+                log::error!("{action} worker {id} failed; {e}");
+            }
+            DrainWorkerResponse::InvalidWorker => {
+                log::error!("{action} worker {id} failed; worker not found");
+            }
+            DrainWorkerResponse::AlreadyStopped => {
+                log::warn!("{action} worker {id} failed; worker is already stopped");
+            }
+            DrainWorkerResponse::Ok => {
+                if drain {
+                    log::info!("Worker {id} drained")
+                } else {
+                    log::info!("Worker {id} undrained")
+                }
             }
         }
     }

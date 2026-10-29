@@ -1,7 +1,9 @@
 use crate::WorkerId;
 use crate::internal::messages::worker::ToWorkerMessage;
 use crate::internal::scheduler::create_task_batches;
+use crate::internal::server::reactor::on_set_worker_drain;
 use crate::internal::server::task::Task;
+use crate::internal::server::worker::DrainMode;
 use crate::tests::utils::env::{TestComm, TestEnv};
 use crate::tests::utils::resources::ResBuilder;
 use crate::tests::utils::task::TaskBuilder;
@@ -380,4 +382,27 @@ fn test_mn_task_stays_within_one_group_when_group_ids_interleave() {
             "multi-node task {workers:?} spans worker groups {groups:?}"
         );
     }
+}
+
+#[test]
+fn test_mn_skips_drained_worker() {
+    let mut rt = TestEnv::new();
+    let ws = rt.new_workers_cpus(&[1, 1, 1]);
+    let mut comm = TestComm::new();
+    on_set_worker_drain(
+        rt.core(),
+        &mut comm,
+        ws[1],
+        Some(DrainMode {
+            stop_when_idle: false,
+        }),
+    );
+    let t1 = rt.new_task(&TaskBuilder::new().n_nodes(3));
+    let t2 = rt.new_task(&TaskBuilder::new().n_nodes(2));
+    rt.schedule();
+    rt.sanity_check();
+    assert!(rt.task(t1).is_waiting());
+    let placement = rt.task(t2).mn_placement().unwrap().to_vec();
+    assert!(!placement.contains(&ws[1]));
+    assert!(rt.core().get_worker(ws[1]).mn_assignment().is_none());
 }
