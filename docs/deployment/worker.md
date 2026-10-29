@@ -110,6 +110,39 @@ $ hq worker stop <selector>
 
 [^2]: You can use various [shortcuts](../cli/shortcuts.md#id-selector) to select multiple workers at once.
 
+#### Draining workers
+
+If you want to take a worker out of service without interrupting the tasks that it is currently computing (e.g. before
+a scheduled maintenance of its node), you can *drain* it using the [`hq worker drain`](cli:hq.worker.drain) command[^2]:
+
+```bash
+$ hq worker drain <selector>
+```
+
+A drained worker will not receive any new tasks, but tasks that are already running on it will be finished normally.
+Tasks that were sent to the worker in advance but have not started yet will be returned back to the server and
+scheduled to other workers. Drained workers are displayed with the `DRAINING` state in `hq worker list`.
+
+If you pass the `--stop-when-idle` flag, the worker will be stopped automatically once all its running tasks are
+finished:
+
+```bash
+$ hq worker drain <selector> --stop-when-idle
+```
+
+You can resume scheduling new tasks to a drained worker using the [`hq worker undrain`](cli:hq.worker.undrain)
+command[^2]:
+
+```bash
+$ hq worker undrain <selector>
+```
+
+!!! note
+
+    The drain state is kept only in the memory of the server, so it does not survive a server restart.
+    Draining a worker also does not affect [automatic allocation](allocation.md), which does not spawn a replacement
+    for the capacity of a drained worker.
+
 ## Time limit
 HyperQueue workers are designed to be volatile, i.e. it is expected that they will be stopped from time to time, because
 they are often started inside PBS/Slurm allocations that have a limited duration.

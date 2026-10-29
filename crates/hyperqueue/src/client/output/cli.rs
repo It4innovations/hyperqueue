@@ -274,6 +274,7 @@ impl Output for CliOutput {
                 ended: _ended,
                 runtime_info,
                 last_task_started,
+                draining: _,
             } = worker_info;
 
             let manager_info = configuration.get_manager_info();
@@ -1316,6 +1317,7 @@ fn job_status_to_cell(info: &JobInfo) -> String {
 
 pub fn worker_status(worker_info: &WorkerInfo) -> CellStruct {
     match worker_info.ended.as_ref() {
+        None if worker_info.draining => "DRAINING".cell().foreground_color(Some(Color::Yellow)),
         None => "RUNNING".cell().foreground_color(Some(Color::Green)),
         Some(WorkerExitInfo {
             reason: LostWorkerReason::ConnectionLost,

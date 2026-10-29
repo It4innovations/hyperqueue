@@ -25,8 +25,10 @@ use crate::internal::server::core::{CoreRef, CustomConnectionHandler};
 use crate::internal::server::explain::{
     TaskExplanation, task_explain_for_worker, task_explain_init,
 };
-use crate::internal::server::reactor::{get_or_create_resource_rq_id, on_cancel_tasks};
-use crate::internal::server::worker::DEFAULT_WORKER_OVERVIEW_INTERVAL;
+use crate::internal::server::reactor::{
+    get_or_create_resource_rq_id, on_cancel_tasks, on_set_worker_drain,
+};
+use crate::internal::server::worker::{DEFAULT_WORKER_OVERVIEW_INTERVAL, DrainMode};
 use crate::resources::ResourceDescriptor;
 use crate::{TaskId, WorkerId};
 
@@ -98,6 +100,32 @@ impl ServerRef {
         } else {
             Err(format!("Worker with id {worker_id} not found").into())
         }
+    }
+
+    /// Stops scheduling new tasks to the worker; running tasks are not affected.
+    /// Prefilled tasks are retracted from the worker.
+    /// If `stop_when_idle` is true, the worker is stopped once it has no running tasks.
+    pub fn drain_worker(&self, worker_id: WorkerId, stop_when_idle: bool) -> crate::Result<()> {
+        self.set_worker_drain(worker_id, Some(DrainMode { stop_when_idle }))
+    }
+
+    /// Allows scheduling new tasks to a previously drained worker
+    pub fn undrain_worker(&self, worker_id: WorkerId) -> crate::Result<()> {
+        self.set_worker_drain(worker_id, None)
+    }
+
+    fn set_worker_drain(&self, worker_id: WorkerId, drain: Option<DrainMode>) -> crate::Result<()> {
+        let mut core = self.core_ref.get_mut();
+        match core.find_worker_mut(worker_id) {
+            None => return Err(format!("Worker with id {worker_id} not found").into()),
+            Some(worker) if worker.is_stopping() => {
+                return Err(format!("Worker with id {worker_id} is stopping").into());
+            }
+            Some(_) => {}
+        }
+        let mut comm = self.comm_ref.get_mut();
+        on_set_worker_drain(&mut core, &mut *comm, worker_id, drain);
+        Ok(())
     }
 
     /* Ask scheduler for the information about how

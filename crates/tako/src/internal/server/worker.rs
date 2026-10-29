@@ -62,6 +62,12 @@ impl WorkerAssignment {
 
 pub const DEFAULT_WORKER_OVERVIEW_INTERVAL: Duration = Duration::from_secs(2);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct DrainMode {
+    // Stop the worker when it has no tasks to compute
+    pub stop_when_idle: bool,
+}
+
 pub struct Worker {
     pub(crate) id: WorkerId,
 
@@ -74,6 +80,8 @@ pub struct Worker {
 
     pub(crate) flags: WorkerFlags,
     pub(crate) stop_reason: Option<(LostWorkerReason, Instant)>,
+    // When set, no new tasks are scheduled to the worker
+    pub(crate) drain: Option<DrainMode>,
 
     // Saved timestamp when a worker is put into an idle state
     pub(crate) idle_timestamp: Instant,
@@ -272,7 +280,7 @@ impl Worker {
     }
 
     pub fn is_capable_to_run(&self, request: &ResourceRequest, now: Instant) -> bool {
-        if !self.has_time_to_run(request.min_time(), now) {
+        if self.is_draining() || !self.has_time_to_run(request.min_time(), now) {
             return false;
         }
         if request.is_multi_node() {
@@ -309,6 +317,15 @@ impl Worker {
 
     pub fn is_stopping(&self) -> bool {
         self.stop_reason.is_some()
+    }
+
+    pub fn is_draining(&self) -> bool {
+        self.drain.is_some()
+    }
+
+    /// Returns true if the worker is drained with `stop_when_idle` and has nothing to compute
+    pub fn should_stop_drained(&self) -> bool {
+        self.drain.is_some_and(|d| d.stop_when_idle) && self.is_free()
     }
 
     pub fn has_time_to_run(&self, time_request: TimeRequest, now: Instant) -> bool {
@@ -354,6 +371,7 @@ impl Worker {
             resources,
             flags: WorkerFlags::empty(),
             stop_reason: None,
+            drain: None,
             last_heartbeat: now,
             idle_timestamp: now,
             blocked_requests: Set::new(),
@@ -373,6 +391,7 @@ impl Worker {
                 })
             },
             "flags": self.flags.bits(),
+            "drain": self.drain.map(|d| json!({"stop_when_idle": d.stop_when_idle})),
             "termination_time": self.termination_time.map(|x| x - now),
             "idle_timestamp": now - self.idle_timestamp,
             "last_heartbeat": now - self.last_heartbeat,

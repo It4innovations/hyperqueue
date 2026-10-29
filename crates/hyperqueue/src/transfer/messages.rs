@@ -47,6 +47,7 @@ pub enum FromClientMessage {
     },
     WorkerInfo(WorkerInfoRequest),
     StopWorker(StopWorkerMessage),
+    DrainWorker(DrainWorkerMessage),
     Stop,
     AutoAlloc(AutoAllocRequest),
     ServerInfo,
@@ -323,6 +324,14 @@ pub struct StopWorkerMessage {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct DrainWorkerMessage {
+    pub selector: IdSelector,
+    /// If false, the worker is undrained
+    pub drain: bool,
+    pub stop_when_idle: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct WorkerInfoRequest {
     pub selector: IdSelector,
     pub runtime_info: bool,
@@ -398,6 +407,7 @@ pub enum ToClientMessage {
     GetListResponse(GetListResponse),
     WorkerInfoResponse(Vec<(WorkerId, Option<WorkerInfo>)>),
     StopWorkerResponse(Vec<(WorkerId, StopWorkerResponse)>),
+    DrainWorkerResponse(Vec<(WorkerId, DrainWorkerResponse)>),
     CancelJobResponse(Vec<(JobId, CancelJobResponse)>),
     ForgetJobResponse(ForgetJobResponse),
     AutoAllocResponse(AutoAllocResponse),
@@ -445,6 +455,14 @@ pub struct ForgetJobResponse {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum StopWorkerResponse {
     Stopped,
+    AlreadyStopped,
+    InvalidWorker,
+    Failed(String),
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum DrainWorkerResponse {
+    Ok,
     AlreadyStopped,
     InvalidWorker,
     Failed(String),
@@ -504,6 +522,7 @@ pub struct WorkerInfo {
     pub ended: Option<WorkerExitInfo>,
     pub runtime_info: Option<WorkerRuntimeInfo>,
     pub last_task_started: Option<TaskTimestamp>,
+    pub draining: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

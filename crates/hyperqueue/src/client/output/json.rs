@@ -566,6 +566,7 @@ fn format_worker_info(worker_info: WorkerInfo) -> serde_json::Value {
         ended,
         runtime_info,
         last_task_started,
+        draining,
     } = worker_info;
 
     json!({
@@ -588,6 +589,7 @@ fn format_worker_info(worker_info: WorkerInfo) -> serde_json::Value {
         })),
         "runtime_info": runtime_info,
         "last_task_started": last_task_started,
+        "draining": draining,
         "started": format_datetime(started),
         "ended": ended.map(|info| json!({
             "at": format_datetime(info.ended_at)

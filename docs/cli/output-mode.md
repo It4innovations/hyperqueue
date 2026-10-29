@@ -86,6 +86,7 @@ Time-based items are formatted in the following way:
             "time_limit": null,
             "work_dir": "..."
           },
+          "draining": false,
           "ended": null,
           "id": 1
         }]
@@ -115,6 +116,7 @@ Time-based items are formatted in the following way:
             "time_limit": null,
             "work_dir": "..."
           },
+          "draining": false,
           "ended": null,
           "id": 1
         }

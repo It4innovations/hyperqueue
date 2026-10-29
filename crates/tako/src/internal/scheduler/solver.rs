@@ -52,7 +52,7 @@ pub(crate) fn run_scheduling_solver(
     } else {
         let mut ws = worker_map
             .get_workers()
-            .filter(|w| w.sn_assignment().is_some())
+            .filter(|w| w.sn_assignment().is_some() && !w.is_draining())
             .collect::<Vec<_>>();
         ws.sort_unstable_by_key(|w| w.id);
         ws
