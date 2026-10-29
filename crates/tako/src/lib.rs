@@ -38,7 +38,7 @@ pub mod resources {
         ResourceDescriptorCoupling, ResourceDescriptorCouplingItem, ResourceDescriptorItem,
         ResourceDescriptorKind, ResourceFractions, ResourceGroupIdx, ResourceIndex, ResourceLabel,
         ResourceRequest, ResourceRequestEntries, ResourceRequestVariants, ResourceRqId,
-        ResourceUnits, ResourceWeight, TimeRequest,
+        ResourceUnits, ResourceWeight, TimeRequest, NVIDIA_GPU_VENDOR_ID, AMD_GPU_VENDOR_ID,
     };
 
     pub use crate::internal::common::resources::map::{ResourceIdMap, ResourceRqMap};

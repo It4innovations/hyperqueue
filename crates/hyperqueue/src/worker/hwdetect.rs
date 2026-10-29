@@ -10,13 +10,12 @@ use crate::client::commands::worker::{ResourceDetectComponent, ResourceDetectCom
 use crate::common::format::human_size;
 use crate::common::manager::info::ManagerInfo;
 use crate::common::numa::GpuPciInfo;
+use crate::common::numa::GpuPciInfo;
 use crate::common::parser::{NomResult, consume_all, p_u32};
 use tako::hwstats::GpuFamily;
 use tako::internal::has_unique_elements;
 use tako::resources::{
-    AMD_GPU_RESOURCE_NAME, CPU_RESOURCE_NAME, FRACTIONS_PER_UNIT, MEM_RESOURCE_NAME,
-    NVIDIA_GPU_RESOURCE_NAME, ResourceAmount, ResourceDescriptorItem, ResourceDescriptorKind,
-    ResourceFractions, ResourceIndex, ResourceLabel,
+    AMD_GPU_RESOURCE_NAME, AMD_GPU_VENDOR_ID, CPU_RESOURCE_NAME, FRACTIONS_PER_UNIT, MEM_RESOURCE_NAME, NVIDIA_GPU_RESOURCE_NAME, NVIDIA_GPU_VENDOR_ID, ResourceAmount, ResourceDescriptorItem, ResourceDescriptorKind, ResourceFractions, ResourceIndex, ResourceLabel
 };
 use tako::{Set, format_comma_delimited};
 
@@ -104,10 +103,12 @@ pub fn detect_additional_resources(
         |items: &[ResourceDescriptorItem], name: &str| items.iter().any(|x| x.name == name);
 
     let cpu_item = items.iter().find(|x| x.name == CPU_RESOURCE_NAME);
-    let cpu_groups = cpu_item.map(|x| x.kind.n_groups()).unwrap_or(1);
-
     let numa_topology = crate::common::numa::detect_numa_topology();
-    let num_numa_nodes = std::cmp::max(cpu_groups, numa_topology.nodes.len()).max(1);
+    let num_numa_nodes = match cpu_item {
+        Some(item) if item.kind.n_groups() > 1 => item.kind.n_groups(),
+        Some(_) => 1,
+        None => numa_topology.nodes.len().max(1),
+    };
 
     let numa_nodes_cpus: Vec<Vec<u32>> = if let Some(cpu_res) = cpu_item
         && let ResourceDescriptorKind::Groups { ref groups } = cpu_res.kind
@@ -137,17 +138,49 @@ pub fn detect_additional_resources(
     let sys_nvidia_gpus: Vec<&GpuPciInfo> = numa_topology
         .gpus
         .iter()
-        .filter(|g| g.vendor_id == 0x10de)
+        .filter(|g| g.vendor_id == NVIDIA_GPU_VENDOR_ID)
         .collect();
 
     let sys_amd_gpus: Vec<&GpuPciInfo> = numa_topology
         .gpus
         .iter()
-        .filter(|g| g.vendor_id == 0x1002)
+        .filter(|g| g.vendor_id == AMD_GPU_VENDOR_ID)
         .collect();
 
     if detect_resources.has(ResourceDetectComponent::GpusNvidia)
         && !has_resource(items, NVIDIA_GPU_RESOURCE_NAME)
+        && let Some(kind) = detect_gpus_for_family(
+            GpuFamily::Nvidia,
+            NVIDIA_GPU_RESOURCE_NAME,
+            NVIDIA_GPU_ENVIRONMENT.env_var,
+            num_numa_nodes,
+            &sys_nvidia_gpus,
+            &numa_nodes_cpus,
+        )?
+    {
+        gpu_families.insert(GpuFamily::Nvidia);
+        items.push(ResourceDescriptorItem {
+            name: NVIDIA_GPU_RESOURCE_NAME.to_string(),
+            kind,
+        });
+    }
+
+    if detect_resources.has(ResourceDetectComponent::GpusAmd)
+        && !has_resource(items, AMD_GPU_RESOURCE_NAME)
+        && let Some(kind) = detect_gpus_for_family(
+            GpuFamily::Amd,
+            AMD_GPU_RESOURCE_NAME,
+            AMD_GPU_ENVIRONMENT.env_var,
+            num_numa_nodes,
+            &sys_amd_gpus,
+            &numa_nodes_cpus,
+        )?
+    {
+        gpu_families.insert(GpuFamily::Amd);
+        items.push(ResourceDescriptorItem {
+            name: AMD_GPU_RESOURCE_NAME.to_string(),
+            kind,
+        });
         && let Some(kind) = detect_gpus_for_family(
             GpuFamily::Nvidia,
             NVIDIA_GPU_RESOURCE_NAME,
@@ -290,6 +323,55 @@ fn determine_gpu_numa_node(
 /// Detects GPUs for a specific family (NVIDIA or AMD), grouping them by NUMA nodes.
 fn detect_gpus_for_family(
     family: GpuFamily,
+/// Determines which NUMA node a GPU belongs to based on sysfs numa_node or local_cpulist.
+fn determine_gpu_numa_node(
+    gpu: &GpuPciInfo,
+    num_numa_nodes: usize,
+    numa_nodes_cpus: &[Vec<u32>],
+) -> usize {
+    if num_numa_nodes <= 1 {
+        return 0;
+    }
+
+    // 1. Direct sysfs numa_node attribute
+    if let Some(node_id) = gpu.numa_node
+        && node_id >= 0
+    {
+        let node = node_id as usize;
+        if node < num_numa_nodes {
+            return node;
+        }
+        return node % num_numa_nodes;
+    }
+
+    // 2. Check local_cpulist attribute for overlap with node CPUs
+    if let Some(ref cpulist_str) = gpu.local_cpulist
+        && let Ok(local_cpus) = parse_range(cpulist_str)
+        && !local_cpus.is_empty()
+    {
+        let mut best_node = 0;
+        let mut max_overlap = 0;
+        for (node_idx, node_cpus) in numa_nodes_cpus.iter().enumerate() {
+            let overlap = local_cpus
+                .iter()
+                .filter(|c| node_cpus.contains(&c.as_num()))
+                .count();
+            if overlap > max_overlap {
+                max_overlap = overlap;
+                best_node = node_idx;
+            }
+        }
+        if max_overlap > 0 {
+            return best_node;
+        }
+    }
+
+    0
+}
+
+/// Detects GPUs for a specific family (NVIDIA or AMD), grouping them by NUMA nodes.
+fn detect_gpus_for_family(
+    family: GpuFamily,
     resource_name: &'static str,
     env_var: &'static str,
     num_numa_nodes: usize,
@@ -318,22 +400,18 @@ fn detect_gpus_for_family(
 
         let mut groups: Vec<Vec<ResourceLabel>> = vec![Vec::new(); num_numa_nodes];
 
-        for (device_seq_idx, label) in devices.into_iter().enumerate() {
+        for label in devices {
             let node = if let Ok(idx) = label.parse::<usize>() {
                 if let Some(gpu) = sys_gpus.get(idx) {
                     determine_gpu_numa_node(gpu, num_numa_nodes, numa_nodes_cpus)
-                } else if std::env::var("HQ_MOCK_NUMA_NODES").is_ok() && num_numa_nodes > 1 {
-                    idx % num_numa_nodes
                 } else {
                     0
                 }
             } else if let Some(gpu) = sys_gpus
                 .iter()
-                .find(|g| g.pci_address == label || g.pci_address.ends_with(&label))
+                .find(|g| g.pci_address == label || g.pci_address.strip_prefix("0000:") == Some(label.as_str()))
             {
                 determine_gpu_numa_node(gpu, num_numa_nodes, numa_nodes_cpus)
-            } else if std::env::var("HQ_MOCK_NUMA_NODES").is_ok() && num_numa_nodes > 1 {
-                device_seq_idx % num_numa_nodes
             } else {
                 0
             };
@@ -354,14 +432,7 @@ fn detect_gpus_for_family(
         let mut groups: Vec<Vec<ResourceLabel>> = vec![Vec::new(); num_numa_nodes];
         for (i, gpu) in sys_gpus.iter().enumerate() {
             let label = i.to_string();
-            let node = if std::env::var("HQ_MOCK_NUMA_NODES").is_ok()
-                && num_numa_nodes > 1
-                && gpu.numa_node.unwrap_or(-1) < 0
-            {
-                i % num_numa_nodes
-            } else {
-                determine_gpu_numa_node(gpu, num_numa_nodes, numa_nodes_cpus)
-            };
+            let node = determine_gpu_numa_node(gpu, num_numa_nodes, numa_nodes_cpus);
             groups[node.min(num_numa_nodes - 1)].push(label);
         }
         let kind = ResourceDescriptorKind::groups(groups)
@@ -376,13 +447,7 @@ fn detect_gpus_for_family(
         log::info!("Detected {count} NVIDIA GPUs from procs");
         let mut groups: Vec<Vec<ResourceLabel>> = vec![Vec::new(); num_numa_nodes];
         for i in 0..count {
-            let label = i.to_string();
-            let node = if std::env::var("HQ_MOCK_NUMA_NODES").is_ok() && num_numa_nodes > 1 {
-                i % num_numa_nodes
-            } else {
-                0
-            };
-            groups[node.min(num_numa_nodes - 1)].push(label);
+            groups[0].push(i.to_string());
         }
         let kind = ResourceDescriptorKind::groups(groups)
             .map_err(|e| anyhow!("Failed to create GPU resource descriptor for {resource_name}: {e:?}"))?;
@@ -408,34 +473,23 @@ fn read_linux_memory() -> anyhow::Result<u64> {
 ///
 /// Returns a list of NUMA nodes, each node contains a list of assigned CPUs.
 fn read_linux_numa() -> anyhow::Result<Vec<Vec<ResourceIndex>>> {
-    if let Ok(mock_val) = std::env::var("HQ_MOCK_NUMA_NODES")
-        && let Ok(n_nodes) = mock_val.parse::<usize>()
-        && n_nodes > 1
-    {
-        let n_cpus = std::thread::available_parallelism()?.get();
-        let cpus_per_node = n_cpus.div_ceil(n_nodes);
-        let mut numa_nodes: Vec<Vec<ResourceIndex>> = Vec::new();
-        for i in 0..n_nodes {
-            let start = i * cpus_per_node;
-            let end = (start + cpus_per_node).min(n_cpus);
-            if start < end {
-                numa_nodes.push((start..end).map(|c| (c as u32).into()).collect());
-            } else {
-                numa_nodes.push(Vec::new());
-            }
-        }
-        return Ok(numa_nodes);
-    }
-
-    let nodes = parse_range(&std::fs::read_to_string(
-        "/sys/devices/system/node/possible",
-    )?)?;
+    let nodes_str = std::fs::read_to_string("/sys/devices/system/node/online")
+        .or_else(|_| std::fs::read_to_string("/sys/devices/system/node/possible"))?;
+    let nodes = parse_range(&nodes_str)?;
     let mut numa_nodes: Vec<Vec<ResourceIndex>> = Vec::new();
     for numa_index in nodes {
         let filename = format!("/sys/devices/system/node/node{numa_index}/cpulist");
-        numa_nodes.push(parse_range(&std::fs::read_to_string(filename)?)?);
+        if let Ok(content) = std::fs::read_to_string(&filename) {
+            let trimmed = content.trim();
+            if !trimmed.is_empty() {
+                numa_nodes.push(parse_range(trimmed)?);
+            }
+        }
     }
-    log::debug!("Linux numa detection is successful");
+    if numa_nodes.is_empty() {
+        anyhow::bail!("No online NUMA nodes with CPUs found");
+    }
+    log::debug!("Linux numa detection is successful, found {} nodes", numa_nodes.len());
     Ok(numa_nodes)
 }
 
@@ -732,5 +786,54 @@ mod tests {
         let coupling = parse_resource_coupling("cpus[0]:gpus/nvidia[0]=256", &resources).unwrap();
         let desc = ResourceDescriptor::new(resources, coupling);
         assert!(desc.validate(true).is_ok());
+    }
+
+    #[test]
+    fn test_detect_gpus_for_family_pci_matching() {
+        use super::detect_gpus_for_family;
+        use crate::common::numa::GpuPciInfo;
+        use tako::hwstats::GpuFamily;
+        use tako::resources::ResourceDescriptorKind;
+
+        let gpu0 = GpuPciInfo {
+            pci_address: "0000:02:00.0".to_string(),
+            vendor_id: 0x10de,
+            numa_node: Some(0),
+            ..Default::default()
+        };
+        let gpu1 = GpuPciInfo {
+            pci_address: "0000:82:00.0".to_string(),
+            vendor_id: 0x10de,
+            numa_node: Some(1),
+            ..Default::default()
+        };
+        let sys_gpus = vec![&gpu0, &gpu1];
+        let node_cpus = vec![vec![0, 1], vec![2, 3]];
+
+        // Test matching with BDF notation without domain (e.g. "82:00.0")
+        let var_name = "TEST_CUDA_VISIBLE_DEVICES";
+        unsafe {
+            std::env::set_var(var_name, "82:00.0,0000:02:00.0");
+        }
+        let kind = detect_gpus_for_family(
+            GpuFamily::Nvidia,
+            "gpus/nvidia",
+            var_name,
+            2,
+            &sys_gpus,
+            &node_cpus,
+        )
+        .unwrap()
+        .unwrap();
+        unsafe {
+            std::env::remove_var(var_name);
+        }
+
+        if let ResourceDescriptorKind::Groups { ref groups } = kind {
+            assert_eq!(groups[0], vec!["0000:02:00.0"]);
+            assert_eq!(groups[1], vec!["82:00.0"]);
+        } else {
+            panic!("Expected ResourceDescriptorKind::Groups");
+        }
     }
 }

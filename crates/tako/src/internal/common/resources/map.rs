@@ -10,6 +10,8 @@ pub const CPU_RESOURCE_NAME: &str = "cpus";
 pub const NVIDIA_GPU_RESOURCE_NAME: &str = "gpus/nvidia";
 pub const AMD_GPU_RESOURCE_NAME: &str = "gpus/amd";
 pub const MEM_RESOURCE_NAME: &str = "mem";
+pub const NVIDIA_GPU_VENDOR_ID: u16 = 0x10de;
+pub const AMD_GPU_VENDOR_ID: u16 = 0x1002;
 
 #[derive(Debug)]
 pub struct GlobalResourceMapping {
