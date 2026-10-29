@@ -94,6 +94,13 @@ pub fn detect_numa_topology() -> NumaTopology {
 
 #[cfg(target_os = "linux")]
 pub fn detect_numa_nodes() -> Vec<NumaNodeInfo> {
+    if let Ok(mock_val) = std::env::var("HQ_MOCK_NUMA_NODES")
+        && let Ok(n_nodes) = mock_val.parse::<u32>()
+        && n_nodes > 1
+    {
+        return generate_mock_numa_nodes(n_nodes);
+    }
+
     let node_dir = Path::new("/sys/devices/system/node");
     let mut nodes = Vec::new();
 
@@ -149,6 +156,47 @@ pub fn detect_numa_nodes() -> Vec<NumaNodeInfo> {
 }
 
 #[cfg(target_os = "linux")]
+fn generate_mock_numa_nodes(n_nodes: u32) -> Vec<NumaNodeInfo> {
+    let total_cpus = std::thread::available_parallelism()
+        .map(|p| p.get())
+        .unwrap_or(8);
+    let cpus_per_node = total_cpus.div_ceil(n_nodes as usize);
+    let (mem_total, mem_free) = parse_proc_meminfo();
+    let node_mem_total = mem_total.map(|m| (m / (n_nodes as u64)) * 1024);
+    let node_mem_free = mem_free.map(|m| (m / (n_nodes as u64)) * 1024);
+
+    let mut nodes = Vec::new();
+    for i in 0..n_nodes {
+        let start = (i as usize) * cpus_per_node;
+        let end = (start + cpus_per_node).min(total_cpus);
+        let cpulist = if start < end {
+            if end - start == 1 {
+                format!("{start}")
+            } else {
+                format!("{start}-{}", end - 1)
+            }
+        } else {
+            String::new()
+        };
+        let cpu_count = end.saturating_sub(start);
+
+        let distances = (0..n_nodes)
+            .map(|j| if i == j { 10 } else { 20 })
+            .collect();
+
+        nodes.push(NumaNodeInfo {
+            id: i,
+            cpulist,
+            cpu_count,
+            mem_total_bytes: node_mem_total,
+            mem_free_bytes: node_mem_free,
+            distances,
+        });
+    }
+    nodes
+}
+
+#[cfg(target_os = "linux")]
 pub fn detect_gpus() -> Vec<GpuPciInfo> {
     let pci_dir = Path::new("/sys/bus/pci/devices");
     let mut gpus = Vec::new();
@@ -187,11 +235,11 @@ pub fn detect_gpus() -> Vec<GpuPciInfo> {
         let base_class = (class_id >> 16) as u8;
         let is_display_or_3d = base_class == 0x03;
         let is_accelerator = base_class == 0x12;
-        let is_known_gpu_vendor = vendor_id == 0x10de // NVIDIA
-            || vendor_id == 0x1002 // AMD
-            || vendor_id == 0x1da3; // Habana / Gaudi
 
-        if !is_display_or_3d && !is_accelerator && !is_known_gpu_vendor {
+        // Only accept Display/3D controllers or Processing Accelerators.
+        // This filters out audio controllers (PCI class 0x0403), USB controllers (0x0c03),
+        // and other non-GPU companion functions on multi-function graphics cards.
+        if !is_display_or_3d && !is_accelerator {
             continue;
         }
 
