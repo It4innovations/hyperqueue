@@ -19,7 +19,7 @@ def test_submit_pyfunction(hq_env: HqEnv):
     def body(a, b, c):
         print(f"stdout {a} {b} {c}")
 
-    job.function(body, args=(1, 2), kwargs={"c": 3}, stdout="out", stderr="err")
+    job.function(body, args=(1, 2), kwargs={"c": 3}, stdout=os.path.abspath("out"), stderr=os.path.abspath("err"))
     submitted_job = client.submit(job)
     wait_for_job_state(hq_env, submitted_job.id, "FINISHED")
 
@@ -38,7 +38,7 @@ def test_submit_python_prologue(hq_env: HqEnv):
         print(os.environ.get("ABC"))
 
     job = Job()
-    job.function(body, stdout="out")
+    job.function(body, stdout=os.path.abspath("out"))
     submitted_job = client.submit(job)
     wait_for_job_state(hq_env, submitted_job.id, "FINISHED")
     check_file_contents("out", "xyz\n")
@@ -50,7 +50,7 @@ def test_submit_pyfunction_fail(hq_env: HqEnv):
     def body():
         raise Exception("MyException")
 
-    job.function(body, stderr="err")
+    job.function(body, stderr=os.path.abspath("err"))
     job_id = client.submit(job)
     client.wait_for_jobs([job_id], raise_on_error=False)
     errors = client.get_failed_tasks(job_id)

@@ -1,6 +1,7 @@
 use super::directives::parse_hq_directives;
 use crate::client::commands::duration_doc;
 use crate::client::commands::submit::directives::parse_hq_directives_from_file;
+use crate::client::commands::submit::paths::{validate_stream_path, validate_task_paths};
 use crate::client::commands::wait::{wait_for_jobs, wait_for_jobs_with_progress};
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::resources::{
@@ -316,7 +317,7 @@ pub struct SubmitJobTaskConfOpts {
     )]
     time_limit: Option<Duration>,
 
-    /// Stream the output of tasks into the given log file
+    /// Stream the output of tasks into the given directory
     #[arg(long)]
     stream: Option<PathBuf>,
 
@@ -667,6 +668,8 @@ pub async fn submit_computation(
     let task_count = ids.id_count();
 
     check_suspicious_options(&opts, task_count)?;
+    let is_array =
+        opts.conf.array.is_some() || opts.conf.each_line.is_some() || opts.conf.from_json.is_some();
 
     let JobSubmitOpts {
         commands,
@@ -764,6 +767,14 @@ pub async fn submit_computation(
         },
         job_id,
     };
+
+    // Tasks of an array share the paths, so relative paths could not be told apart.
+    // For a single task, relative paths are resolved against the submit dir.
+    // The stream path is shared by all tasks and it is always resolved against the submit dir.
+    if is_array {
+        validate_task_paths(&request.submit_desc)?;
+    }
+    validate_stream_path(&request.submit_desc)?;
 
     send_submit_request(
         gsettings,
@@ -961,7 +972,7 @@ fn warn_unknown_placeholders(opts: &JobSubmitOpts) {
         opts.conf.stderr.as_ref().and_then(|arg| arg.path()),
         "stderr path",
     );
-    check(opts.conf.stream.as_deref(), "log path");
+    check(opts.conf.stream.as_deref(), "stream path");
     check(opts.conf.cwd.as_deref(), "working directory path");
 }
 

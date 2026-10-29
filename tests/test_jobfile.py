@@ -1,5 +1,8 @@
 import collections
 import os
+from pathlib import Path
+
+import pytest
 
 from .conftest import HqEnv
 from .utils import wait_for_job_state
@@ -33,8 +36,8 @@ max_fails = 11
 
 [[task]]
 id = 12
-stdout = "testout-%{TASK_ID}"
-stderr = "testerr-%{TASK_ID}"
+stdout = "%{SUBMIT_DIR}/testout-%{TASK_ID}"
+stderr = "%{SUBMIT_DIR}/testerr-%{TASK_ID}"
 task_dir = true
 time_limit = "1m 10s"
 priority = -1
@@ -48,7 +51,7 @@ n_nodes = 2
 [[task]]
 id = 200
 pin = "taskset"
-cwd = "test-200"
+cwd = "%{SUBMIT_DIR}/test-200"
 command = ["bash", "-c", "echo test1"]
 [[task.request]]
 resources = { "cpus" = "4 compact!", "gpus" = 2 }
@@ -431,7 +434,7 @@ def test_job_file_stream(hq_env: HqEnv, tmp_path):
     hq_env.start_worker()
     tmp_path.joinpath("job.toml").write_text(
         """
-stream = "output"
+stream = "%{SUBMIT_DIR}/output"
 
 [[task]]
 id = 1
@@ -485,3 +488,18 @@ def test_job_variant_weights(hq_env: HqEnv, tmp_path):
         "Resources",
         "# Variant 1\ncpus: 2 compact\n[weight: 2]\n# Variant 2\ncpus: 1 compact\ngpus: 2 compact\n[weight: 0.5]",
     )
+
+
+@pytest.mark.parametrize("config", ['stdout = "foo"', 'stderr = "foo"', 'cwd = "foo"', 'stream = "foo"'])
+def test_job_file_relative_path_is_error(hq_env: HqEnv, config):
+    hq_env.start_server()
+    Path("job.toml").write_text(
+        f"""
+{config if config.startswith("stream") else ""}
+[[task]]
+id = 1
+command = ["true"]
+{config if not config.startswith("stream") else ""}
+"""
+    )
+    hq_env.command(["job", "submit-file", "job.toml"], expect_fail="is not absolute")

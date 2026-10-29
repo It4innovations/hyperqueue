@@ -34,6 +34,13 @@ The command above will cause the `stdout` and `stderr` of all `10_000` tasks to 
 !!! tip
 
     You can use selected [placeholders](jobs.md#placeholders) inside the stream directory path.
+    The stream directory is shared by all tasks of a job, so task-specific placeholders (`%{TASK_ID}`,
+    `%{INSTANCE_ID}`, `%{CWD}`) are not allowed.
+
+!!! note
+
+    A relative stream directory passed to `hq submit` is resolved against the directory from which the job was submitted.
+    For job files and the Python API, the stream directory has to be an absolute path or start with `%{SUBMIT_DIR}`. See [relative paths](jobs.md#relative-paths).
 
 ### Partial redirection
 
@@ -46,7 +53,7 @@ For example:
 
 ```bash
 # Redirecting stdout into a file, streaming stderr into `my-log`
-$ hq submit --stream=my-log --stdout="stdout-%{TASK_ID}" ...
+$ hq submit --stream=my-log --stdout="%{SUBMIT_DIR}/stdout-%{TASK_ID}" ...
 
 # Streaming stdout into `my-log`, disabling stderr
 $ hq submit --stream=my-log --stderr=none ...

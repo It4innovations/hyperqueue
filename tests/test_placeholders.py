@@ -188,7 +188,7 @@ def test_server_uid_placeholder(hq_env: HqEnv, tmp_path):
 @pytest.mark.parametrize("channel", ("stdout", "stderr"))
 def test_warning_missing_placeholder_in_output(hq_env: HqEnv, channel: str):
     hq_env.start_server()
-    output = hq_env.command(["submit", "--array=1-4", f"--{channel}=foo", "uname"])
+    output = hq_env.command(["submit", "--array=1-4", f"--{channel}=%{{SUBMIT_DIR}}/foo", "uname"])
     assert (
         f"You have submitted an array job, but the `{channel}` " + "path does not contain the task ID placeholder."
         in output
@@ -204,7 +204,7 @@ def test_missing_placeholder_in_output_present_in_cwd(hq_env: HqEnv, channel: st
             "submit",
             "--array=1-4",
             "--cwd",
-            "task-%{TASK_ID}",
+            "%{SUBMIT_DIR}/task-%{TASK_ID}",
             f"--{channel}",
             "%{CWD}/foo",
             "uname",
@@ -230,7 +230,7 @@ def test_unknown_placeholder(hq_env: HqEnv):
             "uname",
         ]
     )
-    assert "Found unknown placeholder `FOO` in log path" in output
+    assert "Found unknown placeholder `FOO` in stream path" in output
     assert "Found unknown placeholders `BAR, BAZ` in stdout path" in output
     assert "Found unknown placeholder `TAS_ID` in stderr path" in output
     assert "Found unknown placeholder `BAR` in working directory path" in output

@@ -53,3 +53,4 @@ class JobDescription:
     name: Optional[str]
     tasks: List[TaskDescription]
     max_fails: Optional[int]
+    stream_path: Optional[str] = None

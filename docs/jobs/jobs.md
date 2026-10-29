@@ -76,6 +76,20 @@ $ hq submit --cwd=<path> ...
 
     You can use [placeholders](#placeholders) in the working directory path.
 
+### Relative paths
+
+The paths of the working directory (`--cwd`), `--stdout`, `--stderr` and `--stream` are resolved on the server and on
+workers, not by the process that submits the job. A relative path of a single task is resolved against the directory
+from which the job was submitted. A relative `--stream` path is always resolved against the directory from which the
+job was submitted, also for task arrays.
+
+For [task arrays](arrays.md), relative `--cwd`, `--stdout` and `--stderr` paths are rejected with an error. For
+[job files](jobfile.md) and the Python API, all relative paths (including the stream path) are rejected with an error.
+Use an absolute path or a path that starts with a placeholder that expands to a directory, e.g.
+`%{SUBMIT_DIR}/out/%{TASK_ID}.stdout`. These are `%{SUBMIT_DIR}` for all four paths and also `%{CWD}` for `--stdout`
+and `--stderr`. Other placeholders, such as `%{TASK_ID}`, do not make a path absolute, so `%{TASK_ID}/out.txt` is still
+a relative path.
+
 ### Output
 
 By default, each job will produce two files containing the standard output and standard error output, respectively. The

@@ -5,6 +5,7 @@ use crate::client::commands::submit::defs::{
     ArrayDef, JobDef, StdioDefFull, StdioDefInput, TaskDef,
 };
 use crate::client::commands::submit::defs::{PinMode as PinModeDef, TaskConfigDef};
+use crate::client::commands::submit::paths::validate_submit_paths;
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::arraydef::IntArray;
 use crate::common::utils::fs::get_current_dir;
@@ -238,6 +239,7 @@ pub async fn submit_computation_from_job_file(
             })?)?
         };
     let request = build_job_submit(jdef, opts.job)?;
+    validate_submit_paths(&request.submit_desc)?;
     send_submit_request(gsettings, session, request, false, false, None).await
 }
 
