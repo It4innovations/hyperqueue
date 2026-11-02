@@ -162,11 +162,11 @@ fn parse_slurm_status(items: Map<&str, &str>) -> AutoAllocResult<AllocationExter
     };
 
     let status = get_key("JobState")?;
-    let status = match status {
-        "PENDING" | "CONFIGURING" => AllocationExternalStatus::Queued,
-        "RUNNING" | "COMPLETING" => AllocationExternalStatus::Running,
-        "COMPLETED" | "CANCELLED" | "FAILED" | "TIMEOUT" => {
-            let finished = matches!(status, "COMPLETED" | "TIMEOUT");
+    let status = match parse_slurm_job_state(status) {
+        Some(SlurmJobState::Queued) => AllocationExternalStatus::Queued,
+        Some(SlurmJobState::Running) => AllocationExternalStatus::Running,
+        Some(state @ (SlurmJobState::Finished | SlurmJobState::Failed)) => {
+            let finished = matches!(state, SlurmJobState::Finished);
             let started_at = parse_time(get_key("StartTime")?)?;
             let finished_at = parse_time(get_key("EndTime")?)?;
 
@@ -183,9 +183,42 @@ fn parse_slurm_status(items: Map<&str, &str>) -> AutoAllocResult<AllocationExter
                 }
             }
         }
-        _ => anyhow::bail!("Unknown Slurm job status {}", status),
+        None => anyhow::bail!("Unknown Slurm job status {}", status),
     };
     Ok(status)
+}
+
+/// Category of a Slurm job state, shared by the backends that observe Slurm jobs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum SlurmJobState {
+    Queued,
+    Running,
+    /// The job has ended normally, or was ended by Slurm for a reason that does not
+    /// indicate a problem with the allocation queue (time limit, preemption).
+    Finished,
+    /// The job has ended abnormally or was cancelled.
+    Failed,
+}
+
+/// Maps a Slurm job state to its category, or returns `None` for an unknown state.
+/// Besides the plain state reported by `scontrol`, it also accepts the form reported by
+/// `sacct` for cancelled jobs (`CANCELLED by <uid>`).
+pub(super) fn parse_slurm_job_state(state: &str) -> Option<SlurmJobState> {
+    let state = match state {
+        "PENDING" | "CONFIGURING" | "REQUEUED" => SlurmJobState::Queued,
+        // A suspended job has already started; its workers resume when it is resumed.
+        "RUNNING" | "COMPLETING" | "SUSPENDED" => SlurmJobState::Running,
+        // `PREEMPTED` is final and only observed with `PreemptMode=CANCEL`; a job preempted
+        // with `PreemptMode=REQUEUE` is reported as `REQUEUED` and then `PENDING`. Preemption
+        // is not a failure of the allocation, so it must not count towards pausing the queue.
+        "COMPLETED" | "TIMEOUT" | "PREEMPTED" => SlurmJobState::Finished,
+        "FAILED" | "CANCELLED" | "NODE_FAIL" | "OUT_OF_MEMORY" | "BOOT_FAIL" | "DEADLINE" => {
+            SlurmJobState::Failed
+        }
+        _ if state.starts_with("CANCELLED by ") => SlurmJobState::Failed,
+        _ => return None,
+    };
+    Some(state)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -230,4 +263,58 @@ pub(super) fn build_slurm_submit_script(
     };
     write!(script, "\n{prefix}{worker_cmd}").unwrap();
     script
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn map_slurm_job_states() {
+        let cases = [
+            ("PENDING", SlurmJobState::Queued),
+            ("CONFIGURING", SlurmJobState::Queued),
+            ("REQUEUED", SlurmJobState::Queued),
+            ("RUNNING", SlurmJobState::Running),
+            ("COMPLETING", SlurmJobState::Running),
+            ("SUSPENDED", SlurmJobState::Running),
+            ("COMPLETED", SlurmJobState::Finished),
+            ("TIMEOUT", SlurmJobState::Finished),
+            ("PREEMPTED", SlurmJobState::Finished),
+            ("FAILED", SlurmJobState::Failed),
+            ("CANCELLED", SlurmJobState::Failed),
+            ("CANCELLED by 12345", SlurmJobState::Failed),
+            ("NODE_FAIL", SlurmJobState::Failed),
+            ("OUT_OF_MEMORY", SlurmJobState::Failed),
+            ("BOOT_FAIL", SlurmJobState::Failed),
+            ("DEADLINE", SlurmJobState::Failed),
+        ];
+        for (state, expected) in cases {
+            assert_eq!(parse_slurm_job_state(state), Some(expected), "{state}");
+        }
+    }
+
+    #[test]
+    fn unknown_slurm_job_state() {
+        assert_eq!(parse_slurm_job_state("FROBNICATING"), None);
+        assert_eq!(parse_slurm_job_state("CANCELLEDX"), None);
+    }
+
+    #[test]
+    fn scontrol_node_fail_is_failed() {
+        let items: Map<&str, &str> = [
+            ("JobState", "NODE_FAIL"),
+            ("StartTime", "2026-01-01T10:00:00"),
+            ("EndTime", "2026-01-01T11:00:00"),
+        ]
+        .into_iter()
+        .collect();
+        assert!(matches!(
+            parse_slurm_status(items).unwrap(),
+            AllocationExternalStatus::Failed {
+                started_at: Some(_),
+                ..
+            }
+        ));
+    }
 }

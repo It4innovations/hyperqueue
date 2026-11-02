@@ -25,6 +25,11 @@
   recreated (for example because its backend is unavailable in the current build or its
   configuration is no longer valid), the queue is now skipped with an error in the log
   instead of silently aborting the rest of the state restoration.
+* The Slurm automatic allocation backend now recognizes more Slurm job states
+  (`NODE_FAIL`, `OUT_OF_MEMORY`, `PREEMPTED`, `BOOT_FAIL`, `DEADLINE`, `REQUEUED`, `SUSPENDED`).
+  Allocations in these states were previously reported as status errors until they were
+  eventually closed. Preempted allocations count as finished, not failed, so preemption does
+  not lead to the queue being paused.
 
 ## v0.26.2
 

@@ -32,7 +32,9 @@ use crate::server::autoalloc::queue::common::{
     add_start_stop_worker_commands, build_worker_args, create_allocation_dir,
     format_allocation_name,
 };
-use crate::server::autoalloc::queue::slurm::build_slurm_submit_script;
+use crate::server::autoalloc::queue::slurm::{
+    SlurmJobState, build_slurm_submit_script, parse_slurm_job_state,
+};
 use crate::server::autoalloc::queue::{
     AllocationExternalStatus, AllocationStatusMap, AllocationSubmissionResult, QueueHandler,
     SubmitMode,
@@ -581,30 +583,20 @@ fn parse_job_status(job: &JobModel) -> AutoAllocResult<AllocationExternalStatus>
         .and_then(epoch_to_time)
         .unwrap_or_else(|| AbsoluteTime::from(SystemTime::now()));
 
-    // FirecREST reports Slurm job states; the mapping mirrors `slurm.rs::parse_slurm_status`.
-    // Cancelled jobs can be reported e.g. as `CANCELLED by <uid>`.
+    // FirecREST reports the states of the underlying Slurm jobs.
     let state = job.status.state.as_str();
-    let status = match state {
-        "PENDING" | "CONFIGURING" | "REQUEUED" | "SUSPENDED" => AllocationExternalStatus::Queued,
-        "RUNNING" | "COMPLETING" => AllocationExternalStatus::Running,
-        "COMPLETED" | "TIMEOUT" => AllocationExternalStatus::Finished {
+    let status = match parse_slurm_job_state(state) {
+        Some(SlurmJobState::Queued) => AllocationExternalStatus::Queued,
+        Some(SlurmJobState::Running) => AllocationExternalStatus::Running,
+        Some(SlurmJobState::Finished) => AllocationExternalStatus::Finished {
             started_at,
             finished_at,
         },
-        _ if state == "FAILED"
-            || state.starts_with("CANCELLED")
-            || state == "NODE_FAIL"
-            || state == "OUT_OF_MEMORY"
-            || state == "PREEMPTED"
-            || state == "BOOT_FAIL"
-            || state == "DEADLINE" =>
-        {
-            AllocationExternalStatus::Failed {
-                started_at,
-                finished_at,
-            }
-        }
-        other => anyhow::bail!("Unknown Slurm job status {other}"),
+        Some(SlurmJobState::Failed) => AllocationExternalStatus::Failed {
+            started_at,
+            finished_at,
+        },
+        None => anyhow::bail!("Unknown Slurm job status {state}"),
     };
     Ok(status)
 }
@@ -876,13 +868,13 @@ mod tests {
 
     #[test]
     fn map_queued_and_running_states() {
-        for state in ["PENDING", "CONFIGURING", "REQUEUED", "SUSPENDED"] {
+        for state in ["PENDING", "CONFIGURING", "REQUEUED"] {
             assert!(matches!(
                 parse_job_status(&job(state, None, None)).unwrap(),
                 AllocationExternalStatus::Queued
             ));
         }
-        for state in ["RUNNING", "COMPLETING"] {
+        for state in ["RUNNING", "COMPLETING", "SUSPENDED"] {
             assert!(matches!(
                 parse_job_status(&job(state, Some(1), None)).unwrap(),
                 AllocationExternalStatus::Running
@@ -892,14 +884,12 @@ mod tests {
 
     #[test]
     fn map_finished_states() {
-        assert!(matches!(
-            parse_job_status(&job("COMPLETED", Some(1), Some(2))).unwrap(),
-            AllocationExternalStatus::Finished { .. }
-        ));
-        assert!(matches!(
-            parse_job_status(&job("TIMEOUT", Some(1), Some(2))).unwrap(),
-            AllocationExternalStatus::Finished { .. }
-        ));
+        for state in ["COMPLETED", "TIMEOUT", "PREEMPTED"] {
+            assert!(matches!(
+                parse_job_status(&job(state, Some(1), Some(2))).unwrap(),
+                AllocationExternalStatus::Finished { .. }
+            ));
+        }
     }
 
     #[test]
@@ -910,7 +900,6 @@ mod tests {
             "CANCELLED by 12345",
             "NODE_FAIL",
             "OUT_OF_MEMORY",
-            "PREEMPTED",
             "BOOT_FAIL",
             "DEADLINE",
         ] {
