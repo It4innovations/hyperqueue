@@ -555,19 +555,21 @@ async fn check_response(response: reqwest::Response) -> AutoAllocResult<reqwest:
 }
 
 fn parse_job_status(job: &JobModel) -> AutoAllocResult<AllocationExternalStatus> {
-    let epoch_to_time = |secs: i64| -> AbsoluteTime {
-        AbsoluteTime::from(UNIX_EPOCH + Duration::from_secs(secs.max(0) as u64))
+    // Slurm reports 0 for a time that is not known, e.g. the start of a job that was
+    // cancelled while still pending. Such times are treated as missing.
+    let epoch_to_time = |secs: i64| -> Option<AbsoluteTime> {
+        (secs > 0).then(|| AbsoluteTime::from(UNIX_EPOCH + Duration::from_secs(secs as u64)))
     };
     let started_at = job
         .time
         .as_ref()
         .and_then(|time| time.start)
-        .map(epoch_to_time);
+        .and_then(epoch_to_time);
     let finished_at = job
         .time
         .as_ref()
         .and_then(|time| time.end)
-        .map(epoch_to_time)
+        .and_then(epoch_to_time)
         .unwrap_or_else(|| AbsoluteTime::from(SystemTime::now()));
 
     // FirecREST reports Slurm job states; the mapping mirrors `slurm.rs::parse_slurm_status`.
@@ -925,6 +927,23 @@ mod tests {
                 assert!(before <= finished_at.inner() && finished_at.inner() <= after);
             }
             _ => panic!("expected a finished allocation"),
+        }
+    }
+
+    #[test]
+    fn zero_times_are_treated_as_unknown() {
+        let before = SystemTime::now();
+        let status = parse_job_status(&job("CANCELLED", Some(0), Some(0))).unwrap();
+        let after = SystemTime::now();
+        match status {
+            AllocationExternalStatus::Failed {
+                started_at,
+                finished_at,
+            } => {
+                assert!(started_at.is_none());
+                assert!(before <= finished_at.inner() && finished_at.inner() <= after);
+            }
+            _ => panic!("expected a failed allocation"),
         }
     }
 }
