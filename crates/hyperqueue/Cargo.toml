@@ -76,6 +76,7 @@ jemalloc = ["jemallocator"]
 dashboard = ["dep:ratatui", "dep:crossterm", "dep:unicode-width"]
 
 highs = ["tako/highs"]
+highs-system = ["tako/highs-system"]
 microlp = ["tako/microlp"]
 coin_cbc = ["tako/coin_cbc"]
 

@@ -34,6 +34,7 @@ termcolor = "1.1"
 [features]
 default = ["highs"]
 highs = ["hyperqueue/highs"]
+highs-system = ["hyperqueue/highs-system"]
 microlp = ["hyperqueue/microlp"]
 
 [package.metadata.maturin]
