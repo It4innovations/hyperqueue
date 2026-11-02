@@ -10,6 +10,9 @@ rust-version.workspace = true
 # any features. It also helps with IDE integration.
 default = ["highs"]
 highs = ["dep:highs"]
+# Link against a HiGHS library installed on the system (found through pkg-config) instead of
+# building the bundled copy
+highs-system = ["highs", "dep:highs-sys", "highs-sys/discover"]
 microlp = ["dep:microlp"]
 coin_cbc = ["dep:coin_cbc"]
 
@@ -39,6 +42,8 @@ tempfile = { workspace = true }
 itertools = { workspace = true }
 
 highs = { version = "2.1", optional = true }
+# Not used directly, only needed to enable its `discover` feature in `highs-system`
+highs-sys = { version = "1.15", optional = true }
 microlp = { version = "0.6", optional = true }
 coin_cbc = { version = "0.1", optional = true }
 

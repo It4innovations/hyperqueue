@@ -1104,6 +1104,7 @@ checksum = "e4da0c52322648e2360a5a8896d23301fa5ed99ed7607c5faf229bd0bbb30d3f"
 dependencies = [
  "bindgen",
  "cmake",
+ "pkg-config",
 ]
 
 [[package]]
@@ -2637,6 +2638,7 @@ dependencies = [
  "fxhash",
  "hashbrown 0.17.1",
  "highs",
+ "highs-sys",
  "itertools 0.15.0",
  "log",
  "microlp",

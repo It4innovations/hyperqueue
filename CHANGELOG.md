@@ -8,6 +8,8 @@
 * `hq server start --auto-forget=<duration>` makes the server automatically forget completed jobs
   that finished more than the given duration ago (e.g. `--auto-forget=7d`)
 * `hq server start --journal-prune-period=<duration>` makes the server periodically prune the journal
+* New Cargo feature `highs-system` links HyperQueue to a HiGHS library installed on the system
+  instead of building the bundled copy
 
 ### Fixes
 

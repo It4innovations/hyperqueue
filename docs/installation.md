@@ -49,4 +49,16 @@ $ cargo build --profile=dist --no-default-features --features dashboard,microlp
 
 This will come at some cost to runtime performance.
 
-Note that even if HyperQueue is built with the C/C++ dependencies, they are always statically linked, so they are not required during runtime, only at build time.
+Note that even if HyperQueue is built with the C/C++ dependencies, they are statically linked by default, so they are not required during runtime, only at build time.
+
+### Using a system installation of HiGHS
+
+If HiGHS is already installed on your system (for example from a package of your Linux distribution), you can link to it dynamically instead of building the bundled copy:
+
+```bash
+$ cargo build --profile=dist --features highs-system
+```
+
+This requires `pkg-config` to be able to find HiGHS and `libclang` to generate the bindings, but HiGHS itself is not compiled, so it does not need CMake. The HiGHS shared library is then required during runtime.
+
+If `pkg-config` does not find HiGHS, the build falls back to the bundled copy without reporting an error. You can check the result using `ldd hq | grep highs`.
