@@ -21,7 +21,7 @@ pub(crate) use main::run_scheduling_inner;
 pub(crate) use mapping::{WorkerTaskMapping, create_task_mapping};
 
 #[cfg(test)]
-pub(crate) use solver::SchedulingSolution;
+pub(crate) use solver::{SchedulingSolution, greedy_fallback};
 
 #[cfg(test)]
 pub(crate) use batches::PriorityCut;

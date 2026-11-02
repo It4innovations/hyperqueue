@@ -54,7 +54,6 @@ impl TaskQueues {
         &mut self.queues[resource_rq_id.as_usize()]
     }
 
-    #[cfg(test)]
     pub fn get(&self, resource_rq_id: ResourceRqId) -> &TaskQueue {
         &self.queues[resource_rq_id.as_usize()]
     }

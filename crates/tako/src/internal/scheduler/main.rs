@@ -35,6 +35,7 @@ pub(crate) async fn scheduler_loop(
             SchedulerResult::NeedMoreCompute
         ) {
             sleep(minimum_delay).await;
+            now = Instant::now();
         }
         comm_ref.get_mut().reset_scheduling_flag();
         last_schedule = Instant::now();

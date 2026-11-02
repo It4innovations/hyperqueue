@@ -1,6 +1,8 @@
 use crate::internal::common::resources::ResourceId;
 use crate::internal::messages::worker::ToWorkerMessage;
-use crate::internal::scheduler::{PriorityCut, SchedulerConfig, create_task_batches};
+use crate::internal::scheduler::{
+    PriorityCut, SchedulerConfig, SchedulerResult, create_task_batches,
+};
 use crate::internal::server::reactor::on_retract_response;
 use crate::internal::server::task::TaskRuntimeState;
 use crate::internal::tests::utils::scheduler::TestCase;
@@ -1692,6 +1694,133 @@ fn test_schedule_many_distinct_shapes_stays_bounded() {
     let start = std::time::Instant::now();
     rt.schedule();
     assert!(start.elapsed() < Duration::from_secs(10));
+    assert!(
+        rt.core()
+            .get_workers()
+            .any(|w| { !w.sn_assignment().unwrap().assigned_tasks.is_empty() })
+    );
+}
+
+#[test]
+fn test_greedy_fallback_priority_order() {
+    let mut rt = TestEnv::new();
+    let w = rt.new_worker(&WorkerBuilder::new(4));
+    let low = rt.new_tasks(2, &TaskBuilder::new().cpus(2));
+    let high = rt.new_task(&TaskBuilder::new().cpus(3).user_priority(10));
+    rt.schedule_greedy();
+    assert!(rt.task(high).is_assigned());
+    assert!(low.iter().all(|t| !rt.task(*t).is_assigned()));
+    assert_eq!(
+        rt.worker(w).sn_assignment().unwrap().assigned_tasks.len(),
+        1
+    );
+}
+
+#[test]
+fn test_greedy_fallback_backfills_lower_priority() {
+    let mut rt = TestEnv::new();
+    rt.new_worker(&WorkerBuilder::new(4));
+    let big = rt.new_task(&TaskBuilder::new().cpus(8).user_priority(10));
+    let small = rt.new_tasks(5, &TaskBuilder::new().cpus(1));
+    rt.schedule_greedy();
+    assert!(!rt.task(big).is_assigned());
+    assert_eq!(
+        small.iter().filter(|t| rt.task(**t).is_assigned()).count(),
+        4
+    );
+}
+
+#[test]
+fn test_greedy_fallback_no_backfill_on_usable_worker() {
+    let mut rt = TestEnv::new();
+    let w1 = rt.new_worker(&WorkerBuilder::new(4));
+    let w2 = rt.new_worker(&WorkerBuilder::new(2));
+    rt.new_task_running(&TaskBuilder::new().cpus(1), w1);
+    let big = rt.new_task(&TaskBuilder::new().cpus(4).user_priority(10));
+    let small = rt.new_tasks(5, &TaskBuilder::new().cpus(1));
+    rt.schedule_greedy();
+    assert!(!rt.task(big).is_assigned());
+    // w1 is kept for the big task, w2 cannot run it and is backfilled
+    assert_eq!(
+        rt.worker(w1).sn_assignment().unwrap().assigned_tasks.len(),
+        1
+    );
+    assert_eq!(
+        rt.worker(w2).sn_assignment().unwrap().assigned_tasks.len(),
+        2
+    );
+    assert_eq!(
+        small.iter().filter(|t| rt.task(**t).is_assigned()).count(),
+        2
+    );
+}
+
+#[test]
+fn test_greedy_fallback_same_priority_does_not_block() {
+    let mut rt = TestEnv::new();
+    let w = rt.new_worker(&WorkerBuilder::new(4));
+    rt.new_task_running(&TaskBuilder::new().cpus(1), w);
+    let big = rt.new_task(&TaskBuilder::new().cpus(4));
+    let small = rt.new_tasks(5, &TaskBuilder::new().cpus(1));
+    rt.schedule_greedy();
+    assert!(!rt.task(big).is_assigned());
+    assert_eq!(
+        small.iter().filter(|t| rt.task(**t).is_assigned()).count(),
+        3
+    );
+}
+
+#[test]
+fn test_greedy_fallback_needs_more_compute() {
+    let mut rt = TestEnv::new();
+    rt.set_scheduler_config(SchedulerConfig {
+        mip_time_limit: Duration::ZERO,
+        ..Default::default()
+    });
+    rt.new_named_resource("mem");
+    for _ in 0..20 {
+        rt.new_worker(&WorkerBuilder::new(64).res_sum("mem", 459_000));
+    }
+    for i in 0..60u32 {
+        rt.new_tasks(2, &TaskBuilder::new().cpus(1 + (i % 60)));
+    }
+    let (result, _) = rt.schedule_with_result();
+    assert!(matches!(result, SchedulerResult::NeedMoreCompute));
+}
+
+#[test]
+fn test_greedy_fallback_spreads_over_workers() {
+    let mut rt = TestEnv::new();
+    rt.new_workers(3, &WorkerBuilder::new(4));
+    let ts = rt.new_tasks(7, &TaskBuilder::new().cpus(2));
+    rt.schedule_greedy();
+    assert_eq!(ts.iter().filter(|t| rt.task(**t).is_assigned()).count(), 6);
+}
+
+#[test]
+fn test_greedy_fallback_variants() {
+    let mut rt = TestEnv::new();
+    rt.new_named_resource("gpus");
+    rt.new_worker(&WorkerBuilder::new(5).res_sum("gpus", 1));
+    let ts = rt.new_tasks(
+        3,
+        &TaskBuilder::new().add_resource(1, 1).next_variant().cpus(2),
+    );
+    rt.schedule_greedy();
+    assert_eq!(ts.iter().filter(|t| rt.task(**t).is_assigned()).count(), 3);
+}
+
+#[test]
+fn test_greedy_fallback_min_utilization() {
+    let mut rt = TestEnv::new();
+    rt.new_worker(&WorkerBuilder::new(4).min_utilization(0.75));
+    let t = rt.new_task(&TaskBuilder::new().cpus(2));
+    rt.schedule_greedy();
+    assert!(!rt.task(t).is_assigned());
+    let t2 = rt.new_task(&TaskBuilder::new().cpus(1));
+    rt.schedule_greedy();
+    assert!(rt.task(t).is_assigned());
+    assert!(rt.task(t2).is_assigned());
 }
 
 #[test]

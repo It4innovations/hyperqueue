@@ -8,8 +8,8 @@ use crate::internal::messages::worker::{
     TaskRunningMsg, ToWorkerMessage, WorkerOverview, WorkerTaskUpdate,
 };
 use crate::internal::scheduler::{
-    SchedulerConfig, SchedulingSolution, WorkerTaskMapping, create_task_batches,
-    create_task_mapping, run_scheduling_inner, run_scheduling_solver,
+    SchedulerConfig, SchedulerResult, SchedulingSolution, WorkerTaskMapping, create_task_batches,
+    create_task_mapping, greedy_fallback, run_scheduling_inner, run_scheduling_solver,
 };
 use crate::internal::server::comm::Comm;
 use crate::internal::server::core::{Core, CoreSplitMut};
@@ -245,10 +245,14 @@ impl TestEnv {
     }
 
     pub fn schedule(&mut self) -> TestComm {
+        self.schedule_with_result().1
+    }
+
+    pub fn schedule_with_result(&mut self) -> (SchedulerResult, TestComm) {
         let mut comm = TestComm::new();
-        run_scheduling_inner(&mut self.core, &mut comm, self.now);
+        let result = run_scheduling_inner(&mut self.core, &mut comm, self.now);
         self.core.sanity_check();
-        comm
+        (result, comm)
     }
 
     pub fn schedule_mapping(&mut self) -> WorkerTaskMapping {
@@ -262,6 +266,20 @@ impl TestEnv {
     pub fn schedule_solution(&mut self) -> SchedulingSolution {
         let batches = create_task_batches(&mut self.core, self.now, None);
         run_scheduling_solver(&self.core, self.now, &batches, None)
+    }
+
+    /// Assigns tasks using only the greedy fallback of the scheduler, without the MILP solve.
+    pub fn schedule_greedy(&mut self) {
+        let batches = create_task_batches(&mut self.core, self.now, None);
+        let mut workers: Vec<&Worker> = self
+            .core
+            .get_workers()
+            .filter(|w| w.sn_assignment().is_some())
+            .collect();
+        workers.sort_unstable_by_key(|w| w.id);
+        let solution = greedy_fallback(&self.core, self.now, &batches, &workers);
+        create_task_mapping(&mut self.core, solution);
+        self.core.sanity_check();
     }
 }
 
