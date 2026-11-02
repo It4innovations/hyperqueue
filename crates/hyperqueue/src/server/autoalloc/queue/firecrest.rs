@@ -96,7 +96,10 @@ struct SubmitResponse {
 
 #[derive(Deserialize)]
 struct JobStatus {
-    state: String,
+    /// FirecREST reports `null` when Slurm does not report any state of the job. It must
+    /// not fail the parsing of the whole job list, which covers all allocations of a queue.
+    #[serde(default)]
+    state: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -584,7 +587,9 @@ fn parse_job_status(job: &JobModel) -> AutoAllocResult<AllocationExternalStatus>
         .unwrap_or_else(|| AbsoluteTime::from(SystemTime::now()));
 
     // FirecREST reports the states of the underlying Slurm jobs.
-    let state = job.status.state.as_str();
+    let Some(state) = job.status.state.as_deref() else {
+        anyhow::bail!("FirecREST did not report a Slurm job status");
+    };
     let status = match parse_slurm_job_state(state) {
         Some(SlurmJobState::Queued) => AllocationExternalStatus::Queued,
         Some(SlurmJobState::Running) => AllocationExternalStatus::Running,
@@ -842,7 +847,7 @@ mod tests {
         JobModel {
             job_id: None,
             status: JobStatus {
-                state: state.to_string(),
+                state: Some(state.to_string()),
             },
             time: Some(JobTime { start, end }),
         }
@@ -926,6 +931,25 @@ mod tests {
             }
             _ => panic!("expected a finished allocation"),
         }
+    }
+
+    #[test]
+    fn missing_state_fails_only_its_job() {
+        let response: GetJobResponse = serde_json::from_str(
+            r#"{"jobs": [
+                {"jobId": "1", "status": {"state": null}},
+                {"jobId": "2", "status": {}},
+                {"jobId": "3", "status": {"state": "RUNNING"}}
+            ]}"#,
+        )
+        .unwrap();
+        let jobs = response.jobs.unwrap();
+        assert!(parse_job_status(&jobs[0]).is_err());
+        assert!(parse_job_status(&jobs[1]).is_err());
+        assert!(matches!(
+            parse_job_status(&jobs[2]).unwrap(),
+            AllocationExternalStatus::Running
+        ));
     }
 
     #[test]
