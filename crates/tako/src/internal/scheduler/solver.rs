@@ -61,10 +61,148 @@ pub(crate) fn run_scheduling_solver(
     if solution.is_optimal || !solution.is_empty() {
         return solution;
     };
-    let task_batches = trim_to_unblocked(task_batches);
-    let mut solution = run_scheduling_solver_inner(core, now, &task_batches, &workers);
-    solution.is_optimal = false;
-    solution
+    // Without cuts, trimming gives back the same model, so a second solve would only fail again
+    if task_batches.iter().any(|b| !b.cuts.is_empty()) {
+        let trimmed = trim_to_unblocked(task_batches);
+        let mut solution = run_scheduling_solver_inner(core, now, &trimmed, &workers);
+        if !solution.is_empty() {
+            solution.is_optimal = false;
+            return solution;
+        }
+    }
+    // Second-level fallback: the solver found nothing within its time limit.
+    // If it places some tasks, the round is non-optimal and the scheduler runs again
+    // right away on the remaining tasks; if not, the round made no progress.
+    log::warn!("Scheduler solve failed, placing tasks by the greedy fallback");
+    greedy_fallback(core, now, task_batches, &workers)
+}
+
+pub(crate) fn greedy_fallback(
+    core: &Core,
+    now: std::time::Instant,
+    task_batches: &[TaskBatch],
+    workers: &[&Worker],
+) -> SchedulingSolution {
+    let CoreSplit {
+        task_queues,
+        request_map,
+        ..
+    } = core.split();
+
+    // (priority, batch index, count), at most `batch.size` tasks per batch
+    let mut items = Vec::new();
+    for (b_idx, batch) in task_batches.iter().enumerate() {
+        if request_map.get(batch.resource_rq_id).is_multi_node() {
+            continue;
+        }
+        let mut remaining = batch.size;
+        for (priority, size) in task_queues.get(batch.resource_rq_id).iter_priority_sizes() {
+            if remaining == 0 {
+                break;
+            }
+            let count = size.min(remaining);
+            remaining -= count;
+            items.push((priority, b_idx, count));
+        }
+    }
+    items.sort_by_key(|(priority, _, _)| std::cmp::Reverse(*priority));
+
+    let mut free: Vec<Option<WorkerResources>> = workers
+        .iter()
+        .map(|w| w.sn_assignment().map(|a| a.free_resources.clone()))
+        .collect();
+    let mut placed: Map<(ResourceRqId, ResourceVariantId, usize), u32> = Map::new();
+    // Workers usable by unplaced tasks of a higher priority level
+    let mut closed = vec![false; workers.len()];
+    let mut unplaced: Vec<ResourceRqId> = Vec::new();
+    for (i, &(priority, b_idx, mut count)) in items.iter().enumerate() {
+        let rq_id = task_batches[b_idx].resource_rq_id;
+        let rqv = request_map.get(rq_id);
+        for (w_idx, worker) in workers.iter().enumerate() {
+            if closed[w_idx] {
+                continue;
+            }
+            let Some(free) = free[w_idx].as_mut() else {
+                continue;
+            };
+            for (v_id, rq) in rqv.requests_with_ids() {
+                if count == 0 {
+                    break;
+                }
+                if worker.is_request_blocked(rq_id, v_id)
+                    || !worker.has_time_to_run(rq.min_time(), now)
+                {
+                    continue;
+                }
+                let n = free.task_max_count_for_request(rq).min(count);
+                if n > 0 {
+                    free.remove_multiple(rq, n);
+                    *placed.entry((rq_id, v_id, w_idx)).or_default() += n;
+                    count -= n;
+                }
+            }
+            if count == 0 {
+                break;
+            }
+        }
+        if count > 0 {
+            unplaced.push(rq_id);
+        }
+        // Close workers only at the end of a priority level; tasks of the same priority do not
+        // block each other
+        if items.get(i + 1).is_none_or(|(p, _, _)| *p != priority) {
+            for rq_id in unplaced.drain(..) {
+                let rqv = request_map.get(rq_id);
+                for (w_idx, worker) in workers.iter().enumerate() {
+                    if !closed[w_idx]
+                        && rqv.requests_with_ids().any(|(v_id, rq)| {
+                            !worker.is_request_blocked(rq_id, v_id)
+                                && worker.is_capable_to_run(rq, now)
+                        })
+                    {
+                        closed[w_idx] = true;
+                    }
+                }
+            }
+        }
+    }
+
+    // A worker with min_utilization gets either no tasks or enough to reach it
+    // From here on, `closed` marks workers whose placements are dropped
+    closed.fill(false);
+    for (w_idx, worker) in workers.iter().enumerate() {
+        let mu = worker.configuration.min_utilization;
+        if mu <= 0.001 {
+            continue;
+        }
+        let (Some(a), Some(free)) = (worker.sn_assignment(), free[w_idx].as_ref()) else {
+            continue;
+        };
+        let all_cpus = worker.resources.get(CPU_RESOURCE_ID);
+        if all_cpus.is_max() {
+            continue;
+        }
+        let used_before = all_cpus.as_f64() - a.free_resources.get(CPU_RESOURCE_ID).as_f64();
+        let used_after = all_cpus.as_f64() - free.get(CPU_RESOURCE_ID).as_f64();
+        if used_after > used_before && used_after < mu as f64 * all_cpus.as_f64() {
+            closed[w_idx] = true;
+        }
+    }
+
+    let mut result = SchedulingSolution {
+        is_optimal: false,
+        ..Default::default()
+    };
+    for ((rq_id, v_id, w_idx), count) in placed {
+        if !closed[w_idx] {
+            result
+                .sn_counts
+                .entry((rq_id, v_id))
+                .or_default()
+                .insert(workers[w_idx].id, count);
+        }
+    }
+    result
 }
 
 pub fn run_scheduling_solver_inner(
