@@ -72,6 +72,11 @@ pub async fn init_hq_server(
     match get_server_status(gsettings.server_directory()).await {
         Err(_) | Ok(ServerStatus::Offline) => {
             log::info!("No online server found, starting a new server");
+            #[cfg(all(feature = "microlp", not(feature = "highs")))]
+            log::warn!(
+                "HyperQueue was compiled with the microlp solver, \
+                which may have an impact on scheduling performance"
+            );
             start_server(gsettings, server_cfg).await
         }
         Ok(ServerStatus::Online) => anyhow::bail!(
