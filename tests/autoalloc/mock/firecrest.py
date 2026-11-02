@@ -49,7 +49,8 @@ class MockFirecrest:
         self.deleted_jobs: List[str] = []
         self.fail_api: List[int] = []
         self.fail_token: List[int] = []
-        self.token_expires_in = 300
+        # Token lifetime in seconds; None omits `expires_in` from the token response
+        self.token_expires_in: Optional[int] = 300
 
         # Simulated user and remote filesystem
         self.user_name = "testuser"
@@ -169,7 +170,10 @@ class MockFirecrest:
                     if b"client_id=" not in body or b"client_secret=" not in body:
                         self.reply(401, {"error": "invalid_client"})
                         return
-                    self.reply(200, {"access_token": f"mock-token-{n}", "expires_in": expires})
+                    token = {"access_token": f"mock-token-{n}"}
+                    if expires is not None:
+                        token["expires_in"] = expires
+                    self.reply(200, token)
                     return
 
                 if re.fullmatch(r"/compute/[^/]+/jobs", self.path):

@@ -59,7 +59,9 @@ const ACCESS_FILE_NAME: &str = "access.json";
 #[derive(Clone)]
 struct CachedToken {
     token: String,
-    expires_at: Instant,
+    /// `None` if the token endpoint did not report a lifetime; such a token is used
+    /// until the API rejects it.
+    expires_at: Option<Instant>,
 }
 
 /// Shared context for performing authenticated FirecREST requests.
@@ -80,7 +82,8 @@ struct FirecrestContext {
 #[derive(Deserialize)]
 struct TokenResponse {
     access_token: String,
-    expires_in: u64,
+    /// Only recommended by the OAuth2 specification (RFC 6749, section 5.1).
+    expires_in: Option<u64>,
 }
 
 #[derive(Deserialize)]
@@ -180,10 +183,14 @@ struct ChecksumModel {
 impl FirecrestContext {
     /// Returns a valid bearer token, fetching a fresh one through the OAuth2
     /// client-credentials grant if the cached one is missing or about to expire.
+    /// A token without a known lifetime is kept until a request is rejected with 401
+    /// (see [`Self::request_with_auth_retry`]).
     async fn bearer_token(&self) -> AutoAllocResult<String> {
         let mut cached = self.token.lock().await;
         if let Some(token) = cached.as_ref()
-            && token.expires_at > Instant::now() + TOKEN_EXPIRATION_SLACK
+            && token
+                .expires_at
+                .is_none_or(|expires_at| expires_at > Instant::now() + TOKEN_EXPIRATION_SLACK)
         {
             return Ok(token.token.clone());
         }
@@ -213,7 +220,9 @@ impl FirecrestContext {
 
         let fresh = CachedToken {
             token: token.access_token,
-            expires_at: Instant::now() + Duration::from_secs(token.expires_in),
+            expires_at: token
+                .expires_in
+                .map(|secs| Instant::now() + Duration::from_secs(secs)),
         };
         *cached = Some(fresh.clone());
         Ok(fresh.token)

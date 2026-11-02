@@ -226,6 +226,28 @@ def test_firecrest_retry_with_fresh_token_on_401(hq_env: HqEnv):
         wait_for_alloc(hq_env, "RUNNING", "1")
 
 
+def test_firecrest_token_without_expiration(hq_env: HqEnv):
+    with MockFirecrest() as mock:
+        mock.token_expires_in = None
+        start_server(hq_env)
+        prepare_tasks(hq_env)
+
+        add_queue(hq_env, mock)
+        wait_for_alloc(hq_env, "QUEUED", "1")
+
+        # A token without a reported lifetime is reused across status refreshes
+        tokens_before = mock.token_counter
+        refreshes_before = mock.counter("GET /compute/jobs")
+        wait_until(lambda: mock.counter("GET /compute/jobs") >= refreshes_before + 2)
+        assert mock.token_counter == tokens_before
+
+        # ...until the API rejects it
+        mock.fail_next_api_request(401)
+        wait_until(lambda: mock.token_counter == tokens_before + 1)
+        mock.set_job_state("1", "RUNNING")
+        wait_for_alloc(hq_env, "RUNNING", "1")
+
+
 def test_firecrest_journal_restore(hq_env: HqEnv, tmp_path):
     journal_path = os.path.join(tmp_path, "journal")
     with MockFirecrest() as mock:
