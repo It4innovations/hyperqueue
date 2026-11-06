@@ -310,20 +310,32 @@ impl StateRestorer {
                 EventPayload::TaskFailed { task_id, error } => {
                     log::debug!("Replaying: TaskFailed {task_id}");
                     if let Some(job) = self.jobs.get_mut(&task_id.job_id()) {
-                        let task = job.tasks.get_mut(&task_id.job_task_id()).unwrap();
-                        task.state = match std::mem::replace(&mut task.state, JobTaskState::Waiting)
-                        {
-                            JobTaskState::Waiting => JobTaskState::Failed {
-                                started_data: None,
-                                end_date: event.time,
-                                error,
-                            },
-                            JobTaskState::Running { started_data } => JobTaskState::Failed {
-                                started_data: Some(started_data),
-                                end_date: event.time,
-                                error,
-                            },
-                            _ => panic!("Invalid task state"),
+                        if let Some(task) = job.tasks.get_mut(&task_id.job_task_id()) {
+                            task.state =
+                                match std::mem::replace(&mut task.state, JobTaskState::Waiting) {
+                                    JobTaskState::Running { started_data } => {
+                                        JobTaskState::Failed {
+                                            started_data: Some(started_data),
+                                            end_date: event.time,
+                                            error,
+                                        }
+                                    }
+                                    _ => panic!("Invalid task state"),
+                                }
+                        } else {
+                            // The task failed before it was started
+                            job.tasks.insert(
+                                task_id.job_task_id(),
+                                RestorerTaskInfo {
+                                    state: JobTaskState::Failed {
+                                        started_data: None,
+                                        end_date: event.time,
+                                        error,
+                                    },
+                                    instance_id: None,
+                                    crash_counter: 0,
+                                },
+                            );
                         }
                     }
                 }
