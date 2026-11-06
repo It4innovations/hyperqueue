@@ -592,3 +592,47 @@ def test_restore_ids_after_prune(hq_env: HqEnv, tmp_path):
     # Same worker ID as after a restart without pruning (see test_restore_fully_finished)
     table = hq_env.command(["worker", "list"], as_table=True)
     table.check_columns_value(["ID", "State"], 0, ["3", "RUNNING"])
+
+
+def test_restore_task_failed_before_start(hq_env: HqEnv, tmp_path):
+    # A task whose stdout cannot be created fails before it starts,
+    # so the journal has TaskFailed without a preceding TaskStarted.
+    journal_path = os.path.join(tmp_path, "my.journal")
+    hq_env.start_server(args=["--journal", journal_path])
+    hq_env.start_worker()
+    hq_env.command(["submit", "--stdout", "/proc/nope/out", "--", "true"])
+    wait_for_job_state(hq_env, 1, "FAILED")
+    hq_env.stop_server()
+
+    hq_env.start_server(args=["--journal", journal_path])
+    hq_env.start_worker()
+    hq_env.command(["submit", "--", "true"])
+    wait_for_job_state(hq_env, 2, "FINISHED")
+
+
+def test_restore_task_failed_before_start_open_job(hq_env: HqEnv, tmp_path):
+    journal_path = os.path.join(tmp_path, "my.journal")
+    hq_env.start_server(args=["--journal", journal_path])
+    hq_env.start_worker()
+    hq_env.command(["job", "open"])
+    hq_env.command(["submit", "--job=1", "--stdout", "/proc/nope/out", "--", "true"])
+    wait_for_task_state(hq_env, 1, 0, "failed")
+    hq_env.command(["submit", "--job=1", "--", "true"])
+    wait_for_task_state(hq_env, 1, 1, "finished")
+    hq_env.stop_server()
+
+    hq_env.start_server(args=["--journal", journal_path])
+    expected = {"aborted": 0, "canceled": 0, "failed": 1, "finished": 1, "running": 0, "waiting": 0}
+    out = hq_env.command(["--output-mode=json", "job", "info", "1"], as_json=True)
+    assert out[0]["info"]["task_stats"] == expected
+
+    out = hq_env.command(["--output-mode=json", "task", "info", "1", "0"], as_json=True)
+    assert "Cannot create stdout directory" in out[0]["error"]
+
+    # The failed task must not be resubmitted
+    hq_env.start_worker()
+    hq_env.command(["submit", "--job=1", "--", "true"])
+    wait_for_task_state(hq_env, 1, 2, "finished")
+    out = hq_env.command(["--output-mode=json", "job", "info", "1"], as_json=True)
+    assert out[0]["info"]["task_stats"]["failed"] == 1
+    assert out[0]["info"]["task_stats"]["finished"] == 2
