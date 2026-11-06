@@ -13,7 +13,9 @@ use tokio::time::timeout;
 use super::worker::WorkerConfigBuilder;
 use crate::control::ServerRef;
 use crate::events::EventProcessor;
-use crate::gateway::{LostWorkerReason, SharedTaskConfiguration, TaskConfiguration, TaskSubmit};
+use crate::gateway::{
+    DrainMode, LostWorkerReason, SharedTaskConfiguration, TaskConfiguration, TaskSubmit,
+};
 use crate::internal::common::resources::ResourceRqId;
 use crate::internal::common::{Map, Set};
 use crate::internal::messages::common::TaskFailInfo;
@@ -248,6 +250,8 @@ impl EventProcessor for AsyncTestClientProcessorRef {
         self.get_mut().overviews.insert(overview.id, overview);
         self.get().notify.notify_one();
     }
+
+    fn on_worker_drain_changed(&mut self, _worker_id: WorkerId, _drain: Option<DrainMode>) {}
 
     fn on_task_notify(&mut self, task_id: TaskId, worker_id: WorkerId, message: Box<[u8]>) {
         self.get_mut()

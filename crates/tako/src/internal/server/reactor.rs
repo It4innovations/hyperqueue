@@ -1,5 +1,5 @@
 use crate::gateway::ResourceRequestVariants as ClientResourceRequestVariants;
-use crate::gateway::{CrashLimit, LostWorkerReason};
+use crate::gateway::{CrashLimit, DrainMode, LostWorkerReason};
 use crate::internal::common::resources::ResourceRqId;
 use crate::internal::common::{Map, Set};
 use crate::internal::messages::common::TaskFailInfo;
@@ -12,7 +12,7 @@ use crate::internal::server::core::{Core, CoreSplitMut};
 use crate::internal::server::task::ComputeTasksBuilder;
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::taskmap::TaskMap;
-use crate::internal::server::worker::{DrainMode, Worker, WorkerAssignment};
+use crate::internal::server::worker::{Worker, WorkerAssignment};
 use crate::internal::server::workermap::WorkerMap;
 use crate::resources::ResourceRqMap;
 use crate::{ResourceVariantId, TaskId, WorkerId};
@@ -185,6 +185,8 @@ pub(crate) fn on_remove_worker(
         }
     }
 
+    // A lost root of a multi-node task frees the other workers of the task
+    stop_all_idle_drained_workers(core, comm);
     comm.ask_for_scheduling();
 }
 
@@ -229,6 +231,12 @@ pub(crate) fn on_task_update(
     updates: TaskUpdates,
 ) {
     log::debug!("Task update for {worker_id}");
+    // Only the root of a multi-node task sends updates, but the task occupies all its workers
+    let is_mn_update = core
+        .split()
+        .worker_map
+        .get(&worker_id)
+        .is_some_and(|worker| worker.mn_assignment().is_some());
     let mut need_scheduling = false;
     // This relies on the fact that when worker switching to prefill, it will send Finish, followed by Start
     // And this cannot happen in any other way
@@ -262,48 +270,122 @@ pub(crate) fn on_task_update(
     if need_scheduling && !is_prefill_update {
         comm.ask_for_scheduling();
     }
-    if let Some(worker) = core.find_worker_mut(worker_id) {
-        stop_drained_worker_if_idle(worker, comm);
+    if is_mn_update {
+        stop_all_idle_drained_workers(core, comm);
+        return;
+    }
+    let CoreSplitMut {
+        task_map,
+        worker_map,
+        ..
+    } = core.split_mut();
+    if let Some(worker) = worker_map.get_mut(&worker_id) {
+        stop_drained_worker_if_idle(task_map, worker, comm);
     }
 }
 
+/// Sets the drain mode of the given workers.
+/// Workers are handled together because `stop_when_idle` needs a scan over all tasks.
 pub(crate) fn on_set_worker_drain(
     core: &mut Core,
     comm: &mut impl Comm,
-    worker_id: WorkerId,
+    worker_ids: &[WorkerId],
     drain: Option<DrainMode>,
 ) {
-    log::debug!("Setting drain mode of worker {worker_id} to {drain:?}");
+    log::debug!("Setting drain mode of workers {worker_ids:?} to {drain:?}");
     let CoreSplitMut {
         task_map,
         task_queues,
         worker_map,
+        scheduler_state,
+        request_map,
         ..
     } = core.split_mut();
-    let worker = worker_map.get_worker_mut(worker_id);
-    worker.drain = drain;
+    let worker_ids: Set<WorkerId> = worker_ids.iter().copied().collect();
+    let mut retracted: Vec<TaskId> = Vec::new();
+    for worker_id in &worker_ids {
+        let worker = worker_map.get_worker_mut(*worker_id);
+        if worker.drain != drain {
+            comm.client().on_worker_drain_changed(*worker_id, drain);
+        }
+        worker.drain = drain;
+        worker.drain_retracting.clear();
+        if drain.is_some()
+            && let Some(assignment) = worker.sn_assignment()
+        {
+            // Prefilled tasks would be started by the worker itself, so we have to take them back
+            retracted.extend(assignment.prefilled_tasks.iter().copied());
+        }
+    }
     if drain.is_some() {
-        // Prefilled tasks would be started by the worker itself, so we have to take them back
-        let retracted: Vec<TaskId> = worker
-            .sn_assignment()
-            .map(|a| a.prefilled_tasks.iter().copied().collect())
-            .unwrap_or_default();
         for task_id in &retracted {
             let task = task_map.get_task(*task_id);
             task_queues
                 .get_mut(task.resource_rq_id)
                 .move_prefilled_task_to_ready(*task_id);
         }
+        // A task redirected here would be sent to this worker when its retract finishes.
+        // Nothing was sent to this worker yet, so the task just returns to the ready queue.
+        let redirected: Vec<TaskId> = scheduler_state
+            .redirects
+            .iter()
+            .filter(|(_, (target_id, _))| worker_ids.contains(target_id))
+            .map(|(task_id, _)| *task_id)
+            .collect();
+        for task_id in redirected {
+            let task = task_map.get_task(task_id);
+            assert!(try_remove_redirection(
+                worker_map,
+                scheduler_state,
+                request_map,
+                task_id,
+                task.resource_rq_id,
+            ));
+            task_queues.add_ready_task(task, &mut retracted);
+        }
         process_retracted(task_map, worker_map, comm, retracted);
-        stop_drained_worker_if_idle(worker_map.get_worker_mut(worker_id), comm);
+        if drain.is_some_and(|d| d.stop_when_idle) {
+            // Besides the tasks retracted above, the scheduler may have retracts from these
+            // workers in flight, and such a task may still start before the worker is stopped.
+            for task in task_map.tasks() {
+                if let TaskRuntimeState::Retracting { worker_id } = task.state
+                    && worker_ids.contains(&worker_id)
+                {
+                    worker_map
+                        .get_worker_mut(worker_id)
+                        .drain_retracting
+                        .push(task.id);
+                }
+            }
+        }
+        for worker_id in &worker_ids {
+            stop_drained_worker_if_idle(task_map, worker_map.get_worker_mut(*worker_id), comm);
+        }
     }
     comm.ask_for_scheduling();
 }
 
-pub(crate) fn stop_drained_worker_if_idle(worker: &mut Worker, comm: &mut impl Comm) {
-    if worker.should_stop_drained() {
+/// Checks all workers. It is for events that may free other workers than the one
+/// involved in the event (multi-node tasks, task cancellation).
+fn stop_all_idle_drained_workers(core: &mut Core, comm: &mut impl Comm) {
+    let CoreSplitMut {
+        task_map,
+        worker_map,
+        ..
+    } = core.split_mut();
+    for worker in worker_map.get_workers_mut() {
+        stop_drained_worker_if_idle(task_map, worker, comm);
+    }
+}
+
+pub(crate) fn stop_drained_worker_if_idle(
+    task_map: &TaskMap,
+    worker: &mut Worker,
+    comm: &mut impl Comm,
+) {
+    if worker.should_stop_drained(task_map) {
         log::debug!("Drained worker {} is idle, stopping it", worker.id);
-        worker.set_stop(LostWorkerReason::Stopped);
+        worker.set_stop(LostWorkerReason::Drained);
         comm.send_worker_message(worker.id, &ToWorkerMessage::Stop);
     }
 }
@@ -558,6 +640,15 @@ pub(crate) fn on_retract_response(
         if let Some(msg) = task_msg_builder.into_last_message() {
             comm.send_worker_message(target_id, &msg);
         }
+    }
+    // A resolved retract may be the last thing a drained worker was waiting for
+    let CoreSplitMut {
+        task_map,
+        worker_map,
+        ..
+    } = core.split_mut();
+    if let Some(worker) = worker_map.get_mut(&worker_id) {
+        stop_drained_worker_if_idle(task_map, worker, comm);
     }
 }
 
@@ -845,6 +936,8 @@ pub(crate) fn on_cancel_tasks(core: &mut Core, comm: &mut impl Comm, task_ids: &
     for (w_id, ids) in running_ids {
         comm.send_worker_message(w_id, &ToWorkerMessage::CancelTasks(TaskIdsMsg { ids }));
     }
+    // After sending the cancel messages, a worker has to receive them before its stop message
+    stop_all_idle_drained_workers(core, comm);
 }
 
 pub(crate) fn get_or_create_resource_rq_id(

@@ -10,6 +10,8 @@
 * `hq server start --journal-prune-period=<duration>` makes the server periodically prune the journal
 * New commands `hq worker drain` and `hq worker undrain`. A drained worker does not receive new tasks, but it finishes
   the tasks that it is already computing. With `--stop-when-idle`, the worker is stopped once all its tasks are finished.
+    * New journal events: `worker-drained` (contains `stop-when-idle`) and `worker-undrained`.
+    * A worker stopped by `--stop-when-idle` ends with the new reason `Drained` (shown as `DRAINED` in `hq worker list`).
 * When MILP scheduling fails because of time limit, there is new greedy fallback.
 * New Cargo feature `highs-system` links HyperQueue to a HiGHS library installed on the system
   instead of building the bundled copy

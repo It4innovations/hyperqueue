@@ -145,6 +145,13 @@ pub struct TaskConfiguration {
     pub entry: Option<EntryType>,
 }
 
+/// Drain setting of a worker. A drained worker does not receive new tasks.
+#[derive(Serialize, Deserialize, Debug, Copy, Clone, Eq, PartialEq)]
+pub struct DrainMode {
+    /// Stop the worker when it has no tasks to compute
+    pub stop_when_idle: bool,
+}
+
 #[derive(Serialize, Deserialize, Debug, Copy, Clone, Eq, PartialEq)]
 pub enum LostWorkerReason {
     Stopped,
@@ -152,6 +159,8 @@ pub enum LostWorkerReason {
     HeartbeatLost,
     IdleTimeout,
     TimeLimitReached,
+    /// The worker was drained with `stop_when_idle` and finished all its tasks
+    Drained,
 }
 
 impl LostWorkerReason {
@@ -171,6 +180,7 @@ impl Display for LostWorkerReason {
             LostWorkerReason::HeartbeatLost => "heartbeat lost",
             LostWorkerReason::IdleTimeout => "idle timeout",
             LostWorkerReason::TimeLimitReached => "time limit reached",
+            LostWorkerReason::Drained => "drained",
         })
     }
 }

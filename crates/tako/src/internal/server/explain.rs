@@ -58,6 +58,8 @@ pub enum TaskExplainItem {
         n_nodes: NumOfNodes,
         group_size: NumOfNodes,
     },
+    /// The worker is drained, so it does not accept new tasks
+    Draining,
 }
 
 impl TaskExplainItem {
@@ -80,6 +82,7 @@ impl TaskExplainItem {
                 n_nodes,
                 group_size,
             } => n_nodes > group_size,
+            TaskExplainItem::Draining => true,
         }
     }
 }
@@ -111,6 +114,9 @@ pub fn task_explain_for_worker(
             .iter()
             .map(|rq| {
                 let mut result = Vec::new();
+                if worker.is_draining() {
+                    result.push(TaskExplainItem::Draining);
+                }
                 if !rq.min_time().is_zero() {
                     result.push(TaskExplainItem::Time {
                         min_time: rq.min_time(),
@@ -147,6 +153,7 @@ mod tests {
 
     use crate::internal::server::explain::{TaskExplainItem, task_explain_for_worker};
 
+    use crate::gateway::DrainMode;
     use crate::internal::server::workergroup::WorkerGroup;
     use crate::internal::tests::utils::task::TaskBuilder;
 
@@ -156,6 +163,39 @@ mod tests {
     use crate::tests::utils::worker::WorkerBuilder;
     use crate::{Set, TaskId, WorkerId};
     use std::time::{Duration, Instant};
+
+    #[test]
+    fn explain_draining_worker() {
+        let mut rt = TestEnv::new();
+        let w1 = rt.new_worker(&WorkerBuilder::new(4));
+        let t1 = rt.new_task(&TaskBuilder::new());
+        let resource_map = rt.core().create_resource_map();
+        let explain = |rt: &mut TestEnv| {
+            let group = WorkerGroup::new(Set::new());
+            let CoreSplitMut {
+                task_map,
+                worker_map,
+                request_map,
+                ..
+            } = rt.core().split_mut();
+            task_explain_for_worker(
+                &resource_map,
+                request_map,
+                task_map.get_task(t1),
+                worker_map.get_worker(w1),
+                &group,
+                Instant::now(),
+            )
+        };
+        assert_eq!(explain(&mut rt).n_enabled_variants(), 1);
+
+        rt.core().get_worker_mut(w1).drain = Some(DrainMode {
+            stop_when_idle: false,
+        });
+        let r = explain(&mut rt);
+        assert_eq!(r.n_enabled_variants(), 0);
+        assert!(matches!(r.variants[0][0], TaskExplainItem::Draining));
+    }
 
     #[test]
     fn explain_single_node() {

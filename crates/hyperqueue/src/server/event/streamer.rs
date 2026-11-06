@@ -7,7 +7,7 @@ use crate::transfer::messages::{JobDescription, SubmitRequest};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
-use tako::gateway::LostWorkerReason;
+use tako::gateway::{DrainMode, LostWorkerReason};
 use tako::worker::{WorkerConfiguration, WorkerOverview};
 use tako::{InstanceId, JobId, ResourceVariantId, Set, TaskId, WorkerId, WrappedRcRefCell};
 use tokio::sync::{mpsc, oneshot};
@@ -83,7 +83,8 @@ impl EventFilter {
         match payload {
             EventPayload::WorkerConnected(_, _)
             | EventPayload::WorkerLost(_, _)
-            | EventPayload::WorkerOverviewReceived(_) => {
+            | EventPayload::WorkerOverviewReceived(_)
+            | EventPayload::WorkerDrainChanged(_, _) => {
                 self.flags.contains(EventFilterFlags::WORKER_EVENTS)
             }
             EventPayload::Submit { job_id, .. }
@@ -177,6 +178,14 @@ impl EventStreamer {
     pub fn on_worker_lost(&self, id: WorkerId, reason: LostWorkerReason) {
         self.send_event(
             EventPayload::WorkerLost(id, reason),
+            None,
+            ForwardMode::StreamAndPersist,
+        );
+    }
+
+    pub fn on_worker_drain_changed(&self, id: WorkerId, drain: Option<DrainMode>) {
+        self.send_event(
+            EventPayload::WorkerDrainChanged(id, drain),
             None,
             ForwardMode::StreamAndPersist,
         );

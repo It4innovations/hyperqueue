@@ -200,6 +200,7 @@ pub async fn wait_for_jobs_with_progress(
                     EventPayload::WorkerConnected(..)
                     | EventPayload::WorkerLost(..)
                     | EventPayload::WorkerOverviewReceived(..)
+                    | EventPayload::WorkerDrainChanged(..)
                     | EventPayload::Submit { .. }
                     | EventPayload::JobOpen(..)
                     | EventPayload::JobClose(..)

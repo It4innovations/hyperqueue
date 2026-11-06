@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::gateway::{LostWorkerReason, WorkerRuntimeInfo};
+use crate::gateway::{DrainMode, LostWorkerReason, WorkerRuntimeInfo};
 use crate::internal::common::Set;
 use crate::internal::common::resources::TimeRequest;
 use crate::internal::common::resources::map::{ResourceIdMap, ResourceRqMap};
@@ -62,12 +62,6 @@ impl WorkerAssignment {
 
 pub const DEFAULT_WORKER_OVERVIEW_INTERVAL: Duration = Duration::from_secs(2);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct DrainMode {
-    // Stop the worker when it has no tasks to compute
-    pub stop_when_idle: bool,
-}
-
 pub struct Worker {
     pub(crate) id: WorkerId,
 
@@ -82,6 +76,10 @@ pub struct Worker {
     pub(crate) stop_reason: Option<(LostWorkerReason, Instant)>,
     // When set, no new tasks are scheduled to the worker
     pub(crate) drain: Option<DrainMode>,
+    // Tasks that were being retracted from this worker when it was drained.
+    // The worker may have already started some of them, so with `stop_when_idle`
+    // it cannot be stopped before all of these retracts are resolved.
+    pub(crate) drain_retracting: Vec<TaskId>,
 
     // Saved timestamp when a worker is put into an idle state
     pub(crate) idle_timestamp: Instant,
@@ -323,9 +321,19 @@ impl Worker {
         self.drain.is_some()
     }
 
-    /// Returns true if the worker is drained with `stop_when_idle` and has nothing to compute
-    pub fn should_stop_drained(&self) -> bool {
-        self.drain.is_some_and(|d| d.stop_when_idle) && self.is_free()
+    /// Returns true if the worker is drained with `stop_when_idle`, has nothing to compute
+    /// and no task that may still start on it is being retracted.
+    pub fn should_stop_drained(&mut self, task_map: &TaskMap) -> bool {
+        if !self.drain.is_some_and(|d| d.stop_when_idle) || !self.is_free() {
+            return false;
+        }
+        let worker_id = self.id;
+        self.drain_retracting.retain(|task_id| {
+            task_map.find_task(*task_id).is_some_and(|task| {
+                matches!(task.state, TaskRuntimeState::Retracting { worker_id: w_id } if w_id == worker_id)
+            })
+        });
+        self.drain_retracting.is_empty()
     }
 
     pub fn has_time_to_run(&self, time_request: TimeRequest, now: Instant) -> bool {
@@ -372,6 +380,7 @@ impl Worker {
             flags: WorkerFlags::empty(),
             stop_reason: None,
             drain: None,
+            drain_retracting: Vec::new(),
             last_heartbeat: now,
             idle_timestamp: now,
             blocked_requests: Set::new(),

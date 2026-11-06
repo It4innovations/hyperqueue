@@ -1,9 +1,9 @@
 use crate::WorkerId;
+use crate::gateway::DrainMode;
 use crate::internal::messages::worker::ToWorkerMessage;
 use crate::internal::scheduler::create_task_batches;
 use crate::internal::server::reactor::on_set_worker_drain;
 use crate::internal::server::task::Task;
-use crate::internal::server::worker::DrainMode;
 use crate::tests::utils::env::{TestComm, TestEnv};
 use crate::tests::utils::resources::ResBuilder;
 use crate::tests::utils::task::TaskBuilder;
@@ -392,7 +392,7 @@ fn test_mn_skips_drained_worker() {
     on_set_worker_drain(
         rt.core(),
         &mut comm,
-        ws[1],
+        &[ws[1]],
         Some(DrainMode {
             stop_when_idle: false,
         }),

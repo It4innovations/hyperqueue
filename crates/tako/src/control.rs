@@ -8,6 +8,7 @@ use tokio::net::TcpListener;
 use tokio::sync::Notify;
 
 use crate::events::EventProcessor;
+use crate::gateway::DrainMode;
 use crate::gateway::ResourceRequestVariants;
 use crate::gateway::{
     LostWorkerReason, MultiNodeAllocationResponse, TaskSubmit, WorkerRuntimeInfo,
@@ -28,7 +29,7 @@ use crate::internal::server::explain::{
 use crate::internal::server::reactor::{
     get_or_create_resource_rq_id, on_cancel_tasks, on_set_worker_drain,
 };
-use crate::internal::server::worker::{DEFAULT_WORKER_OVERVIEW_INTERVAL, DrainMode};
+use crate::internal::server::worker::DEFAULT_WORKER_OVERVIEW_INTERVAL;
 use crate::resources::ResourceDescriptor;
 use crate::{TaskId, WorkerId};
 
@@ -102,30 +103,39 @@ impl ServerRef {
         }
     }
 
-    /// Stops scheduling new tasks to the worker; running tasks are not affected.
-    /// Prefilled tasks are retracted from the worker.
-    /// If `stop_when_idle` is true, the worker is stopped once it has no running tasks.
-    pub fn drain_worker(&self, worker_id: WorkerId, stop_when_idle: bool) -> crate::Result<()> {
-        self.set_worker_drain(worker_id, Some(DrainMode { stop_when_idle }))
-    }
-
-    /// Allows scheduling new tasks to a previously drained worker
-    pub fn undrain_worker(&self, worker_id: WorkerId) -> crate::Result<()> {
-        self.set_worker_drain(worker_id, None)
-    }
-
-    fn set_worker_drain(&self, worker_id: WorkerId, drain: Option<DrainMode>) -> crate::Result<()> {
+    /// Sets the drain mode of workers and returns the result for each of them.
+    ///
+    /// A drained worker receives no new tasks; running tasks are not affected and prefilled
+    /// tasks are retracted from it. If `DrainMode::stop_when_idle` is true, the worker is stopped
+    /// once it has no running tasks. `None` allows scheduling new tasks to the workers again.
+    pub fn set_workers_drain(
+        &self,
+        worker_ids: &[WorkerId],
+        drain: Option<DrainMode>,
+    ) -> Vec<(WorkerId, crate::Result<()>)> {
         let mut core = self.core_ref.get_mut();
-        match core.find_worker_mut(worker_id) {
-            None => return Err(format!("Worker with id {worker_id} not found").into()),
-            Some(worker) if worker.is_stopping() => {
-                return Err(format!("Worker with id {worker_id} is stopping").into());
-            }
-            Some(_) => {}
+        let mut valid_ids = Vec::with_capacity(worker_ids.len());
+        let results = worker_ids
+            .iter()
+            .map(|&worker_id| {
+                let result: crate::Result<()> = match core.find_worker_mut(worker_id) {
+                    None => Err(format!("Worker with id {worker_id} not found").into()),
+                    Some(worker) if worker.is_stopping() => {
+                        Err(format!("Worker with id {worker_id} is stopping").into())
+                    }
+                    Some(_) => {
+                        valid_ids.push(worker_id);
+                        Ok(())
+                    }
+                };
+                (worker_id, result)
+            })
+            .collect();
+        if !valid_ids.is_empty() {
+            let mut comm = self.comm_ref.get_mut();
+            on_set_worker_drain(&mut core, &mut *comm, &valid_ids, drain);
         }
-        let mut comm = self.comm_ref.get_mut();
-        on_set_worker_drain(&mut core, &mut *comm, worker_id, drain);
-        Ok(())
+        results
     }
 
     /* Ask scheduler for the information about how
