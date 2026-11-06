@@ -66,9 +66,11 @@ pub(crate) fn create_task_mapping(
                             TaskRuntimeState::Retracting {
                                 worker_id: old_worker_id,
                             } => {
-                                if old_worker_id != w_id
-                                    && let Some((old_target, v_id)) =
-                                        scheduler_state.redirects.insert(task_id, (*w_id, v_id))
+                                // The target may be the same worker the task is retracted from.
+                                // The redirect is needed even then: the task is already taken out
+                                // of the queue and the worker forgets it when the retract finishes.
+                                if let Some((old_target, v_id)) =
+                                    scheduler_state.redirects.insert(task_id, (*w_id, v_id))
                                 {
                                     let rq = request_map.get(task.resource_rq_id).get(v_id);
                                     worker_map

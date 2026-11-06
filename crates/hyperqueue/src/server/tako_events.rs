@@ -1,7 +1,7 @@
 use crate::server::Senders;
 use crate::server::state::StateRef;
 use tako::events::EventProcessor;
-use tako::gateway::LostWorkerReason;
+use tako::gateway::{DrainMode, LostWorkerReason};
 use tako::internal::messages::common::TaskFailInfo;
 use tako::task::SerializedTaskContext;
 use tako::worker::{WorkerConfiguration, WorkerOverview};
@@ -93,6 +93,12 @@ impl EventProcessor for UpstreamEventProcessor {
                 .events
                 .on_overview_received(overview, persist_event);
         }
+    }
+
+    fn on_worker_drain_changed(&mut self, worker_id: WorkerId, drain: Option<DrainMode>) {
+        self.state_ref
+            .get_mut()
+            .process_worker_drain_changed(&self.senders, worker_id, drain)
     }
 
     fn on_task_notify(&mut self, task_id: TaskId, worker_id: WorkerId, message: Box<[u8]>) {

@@ -165,7 +165,7 @@ def test_worker_drain_finishes_running_tasks(hq_env: HqEnv):
 
     hq_env.command(["worker", "drain", "1", "--stop-when-idle"])
     wait_for_worker_state(hq_env, 1, "DRAINING")
-    wait_for_worker_state(hq_env, 1, "STOPPED", check_running_processes=False)
+    wait_for_worker_state(hq_env, 1, "DRAINED", check_running_processes=False)
     hq_env.check_process_exited(process)
 
     wait_for_job_state(hq_env, 1, "FINISHED")
@@ -178,14 +178,23 @@ def test_worker_drain_invalid(hq_env: HqEnv):
     process = hq_env.start_worker()
     wait_for_worker_state(hq_env, 1, "RUNNING")
 
-    response = hq_env.command(["worker", "drain", "2"])
-    assert "worker not found" in response
+    hq_env.command(["worker", "drain", "2"], expect_fail="worker not found")
+    hq_env.command(["worker", "undrain", "2"], expect_fail="worker not found")
 
     hq_env.command(["worker", "stop", "1"])
     wait_for_worker_state(hq_env, 1, "STOPPED", check_running_processes=False)
     hq_env.check_process_exited(process)
-    response = hq_env.command(["worker", "drain", "1"])
-    assert "worker is already stopped" in response
+    hq_env.command(["worker", "drain", "1"], expect_fail="worker is already stopped")
+
+
+def test_worker_drain_partial_failure(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+    wait_for_worker_state(hq_env, 1, "RUNNING")
+
+    # The command fails, but the workers that could be drained are drained
+    hq_env.command(["worker", "drain", "1-2"], expect_fail="Draining failed for 1 worker(s)")
+    wait_for_worker_state(hq_env, 1, "DRAINING")
 
 
 def test_worker_list_only_online(hq_env: HqEnv):

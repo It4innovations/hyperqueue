@@ -4,7 +4,7 @@ use crate::dashboard::data::time_interval::TimeRange;
 use crate::server::event::Event;
 use crate::server::event::payload::EventPayload;
 use std::time::SystemTime;
-use tako::gateway::LostWorkerReason;
+use tako::gateway::{DrainMode, LostWorkerReason};
 use tako::worker::{WorkerConfiguration, WorkerOverview};
 use tako::{Map, WorkerId};
 
@@ -23,6 +23,7 @@ pub struct WorkerRecord {
     connection_time: SystemTime,
     worker_config: WorkerConfiguration,
     worker_overviews: TimeBasedVec<WorkerOverview>,
+    drain_changes: TimeBasedVec<Option<DrainMode>>,
 
     disconnect_info: Option<WorkerDisconnectInfo>,
 }
@@ -54,6 +55,7 @@ impl WorkerTimeline {
                             connection_time: event.time.into(),
                             worker_config: *info.clone(),
                             worker_overviews: Default::default(),
+                            drain_changes: Default::default(),
                             disconnect_info: None,
                         },
                     );
@@ -61,6 +63,11 @@ impl WorkerTimeline {
                 EventPayload::WorkerLost(lost_id, reason) => {
                     if let Some(worker) = self.workers.get_mut(lost_id) {
                         worker.set_loss_details(event.time.into(), *reason);
+                    }
+                }
+                EventPayload::WorkerDrainChanged(id, drain) => {
+                    if let Some(worker) = self.workers.get_mut(id) {
+                        worker.drain_changes.push(event.time.into(), *drain);
                     }
                 }
                 EventPayload::WorkerOverviewReceived(overview) => {
@@ -133,6 +140,13 @@ impl WorkerTimeline {
             };
             Some((*worker_id, status))
         })
+    }
+
+    pub fn query_worker_draining_at(&self, worker_id: WorkerId, time: SystemTime) -> bool {
+        self.workers
+            .get(&worker_id)
+            .and_then(|worker| worker.drain_changes.get_most_recent_at(time))
+            .is_some_and(|change| change.item.is_some())
     }
 
     pub fn query_worker_overview_at(

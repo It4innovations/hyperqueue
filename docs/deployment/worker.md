@@ -124,11 +124,16 @@ Tasks that were sent to the worker in advance but have not started yet will be r
 scheduled to other workers. Drained workers are displayed with the `DRAINING` state in `hq worker list`.
 
 If you pass the `--stop-when-idle` flag, the worker will be stopped automatically once all its running tasks are
-finished:
+finished. Such worker is then displayed with the `DRAINED` state:
 
 ```bash
 $ hq worker drain <selector> --stop-when-idle
 ```
+
+If you drain a worker that is already drained, the flags of the latest command replace the previous ones. This means
+that running `hq worker drain` without `--stop-when-idle` on a worker that was drained with this flag cancels its
+automatic stop: the worker remains connected after its tasks finish, and it keeps holding its allocation until you stop
+it. Conversely, adding `--stop-when-idle` to an already drained worker makes it stop once it becomes idle.
 
 You can resume scheduling new tasks to a drained worker using the [`hq worker undrain`](cli:hq.worker.undrain)
 command[^2]:

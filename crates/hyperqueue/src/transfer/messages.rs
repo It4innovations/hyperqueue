@@ -13,7 +13,7 @@ use crate::server::job::{JobTaskCounters, JobTaskInfo, SubmittedJobDescription};
 use std::path::PathBuf;
 use std::time::Duration;
 use tako::gateway::{
-    CrashLimit, EntryType, LostWorkerReason, ResourceRequestVariants, WorkerRuntimeInfo,
+    CrashLimit, DrainMode, EntryType, LostWorkerReason, ResourceRequestVariants, WorkerRuntimeInfo,
 };
 use tako::program::ProgramDefinition;
 use tako::resources::{ResourceDescriptor, ResourceRqId};
@@ -326,9 +326,8 @@ pub struct StopWorkerMessage {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DrainWorkerMessage {
     pub selector: IdSelector,
-    /// If false, the worker is undrained
-    pub drain: bool,
-    pub stop_when_idle: bool,
+    /// `None` undrains the workers
+    pub drain: Option<DrainMode>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -406,8 +405,8 @@ pub enum ToClientMessage {
     ResourceRqIdResponse(Vec<ResourceRqId>),
     GetListResponse(GetListResponse),
     WorkerInfoResponse(Vec<(WorkerId, Option<WorkerInfo>)>),
-    StopWorkerResponse(Vec<(WorkerId, StopWorkerResponse)>),
-    DrainWorkerResponse(Vec<(WorkerId, DrainWorkerResponse)>),
+    StopWorkerResponse(Vec<(WorkerId, WorkerActionResponse)>),
+    DrainWorkerResponse(Vec<(WorkerId, WorkerActionResponse)>),
     CancelJobResponse(Vec<(JobId, CancelJobResponse)>),
     ForgetJobResponse(ForgetJobResponse),
     AutoAllocResponse(AutoAllocResponse),
@@ -452,16 +451,9 @@ pub struct ForgetJobResponse {
     pub ignored: usize,
 }
 
+/// Result of an operation (stop, drain, undrain) requested for a single worker
 #[derive(Serialize, Deserialize, Debug)]
-pub enum StopWorkerResponse {
-    Stopped,
-    AlreadyStopped,
-    InvalidWorker,
-    Failed(String),
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub enum DrainWorkerResponse {
+pub enum WorkerActionResponse {
     Ok,
     AlreadyStopped,
     InvalidWorker,

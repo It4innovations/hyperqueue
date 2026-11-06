@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
 use tako::Map;
+use tako::gateway::DrainMode;
 use tako::resources::{
     CPU_RESOURCE_NAME, ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind,
 };
@@ -27,6 +28,7 @@ use tokio::time::sleep;
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::utils::{PassThroughArgument, passthrough_parser};
 use crate::common::cli::DeploySshOpts;
+use crate::common::error::error;
 use crate::common::manager::info::{ManagerInfo, WORKER_EXTRA_MANAGER_KEY};
 use crate::common::utils::fs::get_hq_binary_path;
 use crate::common::utils::network::get_hostname;
@@ -34,8 +36,8 @@ use crate::common::utils::time::parse_hms_or_human_time;
 use crate::common::utils::time::parse_human_time;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
-    DrainWorkerMessage, DrainWorkerResponse, FromClientMessage, IdSelector, StopWorkerMessage,
-    StopWorkerResponse, ToClientMessage, WorkerInfo, WorkerInfoRequest,
+    DrainWorkerMessage, FromClientMessage, IdSelector, StopWorkerMessage, ToClientMessage,
+    WorkerActionResponse, WorkerInfo, WorkerInfoRequest,
 };
 use crate::worker::bootstrap::{
     finalize_configuration, initialize_worker, try_get_pbs_info, try_get_slurm_info,
@@ -547,69 +549,63 @@ pub async fn get_worker_info(
 
 pub async fn stop_worker(session: &mut ClientSession, selector: IdSelector) -> crate::Result<()> {
     let message = FromClientMessage::StopWorker(StopWorkerMessage { selector });
-    let mut responses =
+    let responses =
         rpc_call!(session.connection(), message, ToClientMessage::StopWorkerResponse(r) => r)
             .await?;
 
+    report_worker_action(responses, "Stopping", "stopped");
+    Ok(())
+}
+
+/// Logs the result of an operation for each worker and returns the number of failed workers.
+fn report_worker_action(
+    mut responses: Vec<(WorkerId, WorkerActionResponse)>,
+    action: &str,
+    done: &str,
+) -> usize {
     responses.sort_unstable_by_key(|x| x.0);
+    let mut failed = 0;
     for (id, response) in responses {
         match response {
-            StopWorkerResponse::Failed(e) => {
-                log::error!("Stopping worker {id} failed; {e}");
+            WorkerActionResponse::Failed(e) => {
+                log::error!("{action} worker {id} failed; {e}");
+                failed += 1;
             }
-            StopWorkerResponse::InvalidWorker => {
-                log::error!("Stopping worker {id} failed; worker not found");
+            WorkerActionResponse::InvalidWorker => {
+                log::error!("{action} worker {id} failed; worker not found");
+                failed += 1;
             }
-            StopWorkerResponse::AlreadyStopped => {
-                log::warn!("Stopping worker {id} failed; worker is already stopped");
+            WorkerActionResponse::AlreadyStopped => {
+                log::warn!("{action} worker {id} failed; worker is already stopped");
+                failed += 1;
             }
-            StopWorkerResponse::Stopped => {
-                log::info!("Worker {id} stopped")
+            WorkerActionResponse::Ok => {
+                log::info!("Worker {id} {done}")
             }
         }
     }
-
-    Ok(())
+    failed
 }
 
 pub async fn drain_worker(
     session: &mut ClientSession,
     selector: IdSelector,
-    drain: bool,
-    stop_when_idle: bool,
+    drain: Option<DrainMode>,
 ) -> crate::Result<()> {
-    let message = FromClientMessage::DrainWorker(DrainWorkerMessage {
-        selector,
-        drain,
-        stop_when_idle,
-    });
-    let mut responses =
+    let message = FromClientMessage::DrainWorker(DrainWorkerMessage { selector, drain });
+    let responses =
         rpc_call!(session.connection(), message, ToClientMessage::DrainWorkerResponse(r) => r)
             .await?;
 
-    let action = if drain { "Draining" } else { "Undraining" };
-    responses.sort_unstable_by_key(|x| x.0);
-    for (id, response) in responses {
-        match response {
-            DrainWorkerResponse::Failed(e) => {
-                log::error!("{action} worker {id} failed; {e}");
-            }
-            DrainWorkerResponse::InvalidWorker => {
-                log::error!("{action} worker {id} failed; worker not found");
-            }
-            DrainWorkerResponse::AlreadyStopped => {
-                log::warn!("{action} worker {id} failed; worker is already stopped");
-            }
-            DrainWorkerResponse::Ok => {
-                if drain {
-                    log::info!("Worker {id} drained")
-                } else {
-                    log::info!("Worker {id} undrained")
-                }
-            }
-        }
+    let (action, done) = if drain.is_some() {
+        ("Draining", "drained")
+    } else {
+        ("Undraining", "undrained")
+    };
+    let failed = report_worker_action(responses, action, done);
+    if failed > 0 {
+        return error(format!("{action} failed for {failed} worker(s)"));
     }
-
     Ok(())
 }
 

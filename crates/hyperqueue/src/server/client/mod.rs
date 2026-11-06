@@ -18,11 +18,12 @@ use crate::server::job::{Job, JobTaskState};
 use crate::server::state::{State, StateRef};
 use crate::transfer::connection::accept_client;
 use crate::transfer::messages::{
-    CancelJobResponse, CloseJobResponse, DrainWorkerResponse, FromClientMessage, IdSelector,
-    JobDetail, JobDetailResponse, JobInfoResponse, JobSubmitDescription, StopWorkerResponse,
-    StreamEvents, SubmitRequest, SubmitResponse, TaskSelector, ToClientMessage, WorkerInfo,
+    CancelJobResponse, CloseJobResponse, FromClientMessage, IdSelector, JobDetail,
+    JobDetailResponse, JobInfoResponse, JobSubmitDescription, StreamEvents, SubmitRequest,
+    SubmitResponse, TaskSelector, ToClientMessage, WorkerActionResponse, WorkerInfo,
 };
 use crate::transfer::messages::{ForgetJobResponse, GetListResponse};
+use tako::gateway::DrainMode;
 use tako::{JobId, JobTaskCount, WorkerId};
 
 pub mod autoalloc;
@@ -270,13 +271,9 @@ pub async fn client_rpc_loop<
                     FromClientMessage::StopWorker(msg) => {
                         handle_worker_stop(&state_ref, senders, msg.selector)
                     }
-                    FromClientMessage::DrainWorker(msg) => handle_worker_drain(
-                        &state_ref,
-                        senders,
-                        msg.selector,
-                        msg.drain,
-                        msg.stop_when_idle,
-                    ),
+                    FromClientMessage::DrainWorker(msg) => {
+                        handle_worker_drain(&state_ref, senders, msg.selector, msg.drain)
+                    }
                     FromClientMessage::Cancel(msg) => {
                         let response =
                             handle_job_cancel(&state_ref, senders, &msg.selector, &msg.reason)
@@ -397,6 +394,13 @@ fn reconstruct_historical_events(
             worker.started_at(),
             EventPayload::WorkerConnected(*id, Box::new(worker.configuration().clone())),
         ));
+        // Only the current drain setting is known, so earlier drain changes are not reconstructed
+        if let Some((mode, time)) = worker.drain() {
+            events.push(Event::at(
+                *time,
+                EventPayload::WorkerDrainChanged(*id, Some(*mode)),
+            ));
+        }
     }
 
     // Reconstruct job submits
@@ -628,24 +632,24 @@ fn handle_worker_stop(
     selector: IdSelector,
 ) -> ToClientMessage {
     log::debug!("Client asked for worker termination {selector:?}");
-    let mut responses: Vec<(WorkerId, StopWorkerResponse)> = Vec::new();
+    let mut responses: Vec<(WorkerId, WorkerActionResponse)> = Vec::new();
 
     for worker_id in resolve_worker_selector(state_ref, selector) {
         if let Some(worker) = state_ref.get().get_worker(worker_id) {
             if worker.make_info(None).ended.is_some() {
-                responses.push((worker_id, StopWorkerResponse::AlreadyStopped));
+                responses.push((worker_id, WorkerActionResponse::AlreadyStopped));
                 continue;
             }
         } else {
-            responses.push((worker_id, StopWorkerResponse::InvalidWorker));
+            responses.push((worker_id, WorkerActionResponse::InvalidWorker));
             continue;
         }
         let response = senders.server_control.stop_worker(worker_id);
 
         match response {
-            Ok(()) => responses.push((worker_id, StopWorkerResponse::Stopped)),
+            Ok(()) => responses.push((worker_id, WorkerActionResponse::Ok)),
             Err(err) => {
-                responses.push((worker_id, StopWorkerResponse::Failed(err.to_string())));
+                responses.push((worker_id, WorkerActionResponse::Failed(err.to_string())));
                 log::error!("Unable to stop worker: {worker_id} error: {err:?}");
             }
         }
@@ -657,40 +661,28 @@ fn handle_worker_drain(
     state_ref: &StateRef,
     senders: &Senders,
     selector: IdSelector,
-    drain: bool,
-    stop_when_idle: bool,
+    drain: Option<DrainMode>,
 ) -> ToClientMessage {
-    log::debug!("Client asked for worker drain={drain} {selector:?}");
-    let mut responses: Vec<(WorkerId, DrainWorkerResponse)> = Vec::new();
+    log::debug!("Client asked for worker drain={drain:?} {selector:?}");
+    let mut responses: Vec<(WorkerId, WorkerActionResponse)> = Vec::new();
+    let mut worker_ids = Vec::new();
 
     for worker_id in resolve_worker_selector(state_ref, selector) {
         match state_ref.get().get_worker(worker_id) {
-            None => {
-                responses.push((worker_id, DrainWorkerResponse::InvalidWorker));
-                continue;
-            }
+            None => responses.push((worker_id, WorkerActionResponse::InvalidWorker)),
             Some(worker) if !worker.is_running() => {
-                responses.push((worker_id, DrainWorkerResponse::AlreadyStopped));
-                continue;
+                responses.push((worker_id, WorkerActionResponse::AlreadyStopped))
             }
-            Some(_) => {}
+            Some(_) => worker_ids.push(worker_id),
         }
-        let response = if drain {
-            senders
-                .server_control
-                .drain_worker(worker_id, stop_when_idle)
-        } else {
-            senders.server_control.undrain_worker(worker_id)
-        };
+    }
+
+    for (worker_id, response) in senders.server_control.set_workers_drain(&worker_ids, drain) {
         match response {
-            Ok(()) => {
-                if let Some(worker) = state_ref.get_mut().get_worker_mut(worker_id) {
-                    worker.set_draining(drain);
-                }
-                responses.push((worker_id, DrainWorkerResponse::Ok));
-            }
+            // HQ worker state and the journal are updated through the drain change event from tako
+            Ok(()) => responses.push((worker_id, WorkerActionResponse::Ok)),
             Err(err) => {
-                responses.push((worker_id, DrainWorkerResponse::Failed(err.to_string())));
+                responses.push((worker_id, WorkerActionResponse::Failed(err.to_string())));
                 log::error!("Unable to set drain of worker: {worker_id} error: {err:?}");
             }
         }

@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use tako::gateway::{LostWorkerReason, WorkerRuntimeInfo};
+use tako::gateway::{DrainMode, LostWorkerReason, WorkerRuntimeInfo};
 use tako::worker::WorkerConfiguration;
 
 use crate::server::worker::WorkerState::Offline;
@@ -23,7 +23,9 @@ pub struct Worker {
     worker_id: WorkerId,
     state: WorkerState,
     last_task_started: Option<TaskTimestamp>,
-    draining: bool,
+    // Mirrors the drain setting of the worker in tako, together with the time of the change.
+    // It is updated only by the drain change event from tako.
+    drain: Option<(DrainMode, DateTime<Utc>)>,
     pub(crate) configuration: WorkerConfiguration,
 }
 
@@ -36,7 +38,7 @@ impl Worker {
                 started_at: Utc::now(),
             }),
             last_task_started: None,
-            draining: false,
+            drain: None,
         }
     }
 
@@ -78,8 +80,12 @@ impl Worker {
         }
     }
 
-    pub fn set_draining(&mut self, draining: bool) {
-        self.draining = draining;
+    pub fn set_drain(&mut self, drain: Option<DrainMode>, now: DateTime<Utc>) {
+        self.drain = drain.map(|mode| (mode, now));
+    }
+
+    pub fn drain(&self) -> Option<&(DrainMode, DateTime<Utc>)> {
+        self.drain.as_ref()
     }
 
     pub fn is_running(&self) -> bool {
@@ -97,7 +103,7 @@ impl Worker {
                 Offline { exit_info, .. } => Some(exit_info.clone()),
             },
             last_task_started: self.last_task_started.clone(),
-            draining: self.draining,
+            draining: self.is_running() && self.drain.is_some(),
         }
     }
 }

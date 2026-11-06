@@ -55,6 +55,7 @@ use nix::sys::signal::{SigHandler, Signal};
 use std::io;
 use std::io::IsTerminal;
 use std::panic::PanicHookInfo;
+use tako::gateway::DrainMode;
 use tako::resources::{CPU_RESOURCE_NAME, ResourceDescriptor, ResourceDescriptorItem};
 
 #[cfg(feature = "jemalloc")]
@@ -243,7 +244,10 @@ async fn command_worker_drain(
     opts: WorkerDrainOpts,
 ) -> anyhow::Result<()> {
     let mut session = get_client_session(gsettings.server_directory()).await?;
-    drain_worker(&mut session, opts.selector_arg, true, opts.stop_when_idle).await?;
+    let mode = DrainMode {
+        stop_when_idle: opts.stop_when_idle,
+    };
+    drain_worker(&mut session, opts.selector_arg, Some(mode)).await?;
     Ok(())
 }
 
@@ -252,7 +256,7 @@ async fn command_worker_undrain(
     opts: WorkerUndrainOpts,
 ) -> anyhow::Result<()> {
     let mut session = get_client_session(gsettings.server_directory()).await?;
-    drain_worker(&mut session, opts.selector_arg, false, false).await?;
+    drain_worker(&mut session, opts.selector_arg, None).await?;
     Ok(())
 }
 

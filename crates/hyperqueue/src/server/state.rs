@@ -11,7 +11,7 @@ use crate::server::job::Job;
 use crate::server::restore::StateRestorer;
 use crate::server::worker::Worker;
 use crate::transfer::messages::ServerInfo;
-use tako::gateway::LostWorkerReason;
+use tako::gateway::{DrainMode, LostWorkerReason};
 use tako::internal::messages::common::TaskFailInfo;
 use tako::task::SerializedTaskContext;
 use tako::worker::WorkerConfiguration;
@@ -227,6 +227,19 @@ impl State {
             },
         );
         senders.events.on_worker_lost(worker_id, reason);
+    }
+
+    pub fn process_worker_drain_changed(
+        &mut self,
+        senders: &Senders,
+        worker_id: WorkerId,
+        drain: Option<DrainMode>,
+    ) {
+        log::debug!("Worker drain changed id={worker_id} drain={drain:?}");
+        if let Some(worker) = self.workers.get_mut(&worker_id) {
+            worker.set_drain(drain, Utc::now());
+        }
+        senders.events.on_worker_drain_changed(worker_id, drain);
     }
 
     pub(crate) fn restore_state(&mut self, restorer: &StateRestorer) {

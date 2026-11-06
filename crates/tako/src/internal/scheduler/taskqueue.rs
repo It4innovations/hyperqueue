@@ -83,7 +83,7 @@ impl TaskQueues {
                 match ts {
                     OneOrMoreTaskIds::One(t) => {
                         let task = task_map.get_task(*t);
-                        assert!(task.is_waiting())
+                        assert!(task.is_waiting() || task.is_retracting())
                     }
                     OneOrMoreTaskIds::More(ts) => {
                         for t in ts.iter() {

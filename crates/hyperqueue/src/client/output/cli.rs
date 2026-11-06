@@ -1341,6 +1341,10 @@ pub fn worker_status(worker_info: &WorkerInfo) -> CellStruct {
         }) => "TIME LIMIT REACHED"
             .cell()
             .foreground_color(Some(Color::Cyan)),
+        Some(WorkerExitInfo {
+            reason: LostWorkerReason::Drained,
+            ..
+        }) => "DRAINED".cell().foreground_color(Some(Color::Magenta)),
     }
 }
 
@@ -1779,6 +1783,11 @@ fn explanation_item_to_strings(
             "nodes".color(colored::Color::Magenta),
             format!("group size {group_size}").color(colored::Color::Yellow),
             format!("{n_nodes}").color(request_color),
+        ),
+        TaskExplainItem::Draining => (
+            "drain".color(colored::Color::Magenta),
+            "draining".color(colored::Color::Yellow),
+            "not draining".color(request_color),
         ),
     }
 }

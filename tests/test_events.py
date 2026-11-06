@@ -104,6 +104,40 @@ def test_worker_lost_event(hq_env: HqEnv):
     assert event["reason"] == "Stopped"
 
 
+def test_worker_drain_events(hq_env: HqEnv):
+    def body():
+        hq_env.start_worker()
+        wait_for_worker_state(hq_env, 1, "RUNNING")
+        hq_env.command(["worker", "drain", "1"])
+        # Draining an already drained worker does not create a new event
+        hq_env.command(["worker", "drain", "1"])
+        hq_env.command(["worker", "undrain", "1"])
+        hq_env.command(["worker", "drain", "1", "--stop-when-idle"])
+        wait_for_worker_state(hq_env, 1, "DRAINED", check_running_processes=False)
+
+    events = get_events(hq_env, body)
+    drain_events = [
+        e["event"] for e in events if e["event"]["type"] in ("worker-drained", "worker-undrained", "worker-lost")
+    ]
+    assert drain_events == [
+        {"type": "worker-drained", "id": 1, "stop-when-idle": False},
+        {"type": "worker-undrained", "id": 1},
+        {"type": "worker-drained", "id": 1, "stop-when-idle": True},
+        {"type": "worker-lost", "id": 1, "reason": "Drained"},
+    ]
+
+
+def test_worker_drain_replay_without_journal(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+    hq_env.start_worker()
+    wait_for_worker_state(hq_env, [1, 2], "RUNNING")
+    hq_env.command(["worker", "drain", "2"])
+    wait_for_worker_state(hq_env, 2, "DRAINING")
+    events = get_replayed_events(hq_env)
+    assert find_events(events, "worker-drained") == [{"type": "worker-drained", "id": 2, "stop-when-idle": False}]
+
+
 def test_worker_send_overview(hq_env: HqEnv):
     def body():
         hq_env.start_worker(args=["--overview-interval", "10ms"])

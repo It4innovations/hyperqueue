@@ -1,3 +1,4 @@
+use crate::gateway::DrainMode;
 use crate::gateway::LostWorkerReason;
 use crate::internal::common::resources::ResourceDescriptor;
 use crate::internal::messages::common::TaskFailInfo;
@@ -11,7 +12,7 @@ use crate::internal::server::reactor::{
     on_set_worker_drain, on_task_update,
 };
 use crate::internal::server::task::{Task, TaskRuntimeState};
-use crate::internal::server::worker::{DrainMode, Worker};
+use crate::internal::server::worker::Worker;
 use crate::internal::tests::utils::shared::{res_kind_groups, res_kind_sum};
 use crate::internal::tests::utils::sorted_vec;
 use crate::internal::tests::utils::task::{TaskBuilder, task_running_msg};
@@ -1197,11 +1198,11 @@ fn test_steal_target_worker_lost() {
 }
 
 fn drain(rt: &mut TestEnv, comm: &mut TestComm, worker_id: WorkerId, stop_when_idle: bool) {
-    on_set_worker_drain(
-        rt.core(),
-        comm,
-        worker_id,
-        Some(DrainMode { stop_when_idle }),
+    let mode = DrainMode { stop_when_idle };
+    on_set_worker_drain(rt.core(), comm, &[worker_id], Some(mode));
+    assert_eq!(
+        comm.client.take_drain_changes(1),
+        vec![(worker_id, Some(mode))]
     );
 }
 
@@ -1226,7 +1227,8 @@ fn test_drain_worker_blocks_new_tasks() {
     ));
 
     let t2 = rt.new_task_default();
-    on_set_worker_drain(rt.core(), &mut comm, w1, None);
+    on_set_worker_drain(rt.core(), &mut comm, &[w1], None);
+    assert_eq!(comm.client.take_drain_changes(1), vec![(w1, None)]);
     comm.check_need_scheduling();
     comm.emptiness_check();
     rt.schedule();
@@ -1358,4 +1360,406 @@ fn test_drain_worker_stop_when_idle_after_finish() {
     ));
     comm.emptiness_check();
     assert!(rt.worker(w1).is_stopping());
+}
+
+fn assert_stopped_by_drain(rt: &mut TestEnv, comm: &mut TestComm, worker_id: WorkerId) {
+    assert!(matches!(
+        comm.take_worker_msgs(worker_id, 1)[0],
+        ToWorkerMessage::Stop
+    ));
+    assert!(matches!(
+        rt.worker(worker_id).stop_reason,
+        Some((LostWorkerReason::Drained, _))
+    ));
+}
+
+#[test]
+fn test_drain_stop_when_idle_waits_for_retract_started_task() {
+    let mut rt = TestEnv::new();
+    let (w1, t1, t2) = setup_prefill(&mut rt);
+    let mut comm = TestComm::new();
+    drain(&mut rt, &mut comm, w1, true);
+    comm.check_need_scheduling();
+    comm.take_worker_msgs(w1, 1);
+    comm.emptiness_check();
+
+    // The worker has nothing assigned, but t2 may still be started by the worker
+    on_task_update(rt.core(), &mut comm, w1, smallvec![task_finished(t1)]);
+    comm.client.take_task_finished(1);
+    comm.check_need_scheduling();
+    comm.emptiness_check();
+    assert!(!rt.worker(w1).is_stopping());
+
+    // The worker has started t2 before it received the retract
+    let up = WorkerTaskUpdate::RunningPrefilled(task_running_msg(t2));
+    on_task_update(rt.core(), &mut comm, w1, smallvec![up]);
+    assert!(rt.task(t2).is_sn_running());
+    assert!(!rt.worker(w1).is_stopping());
+    comm.check_need_scheduling();
+    comm.client.take_task_running(1);
+    comm.emptiness_check();
+
+    on_task_update(rt.core(), &mut comm, w1, smallvec![task_finished(t2)]);
+    comm.client.take_task_finished(1);
+    comm.check_need_scheduling();
+    assert_stopped_by_drain(&mut rt, &mut comm, w1);
+    comm.emptiness_check();
+    rt.sanity_check();
+}
+
+#[test]
+fn test_drain_stop_when_idle_after_retract_response() {
+    let mut rt = TestEnv::new();
+    let (w1, t1, t2) = setup_prefill(&mut rt);
+    let mut comm = TestComm::new();
+    drain(&mut rt, &mut comm, w1, true);
+    comm.check_need_scheduling();
+    comm.take_worker_msgs(w1, 1);
+
+    on_task_update(rt.core(), &mut comm, w1, smallvec![task_finished(t1)]);
+    comm.client.take_task_finished(1);
+    comm.check_need_scheduling();
+    comm.emptiness_check();
+    assert!(!rt.worker(w1).is_stopping());
+
+    on_retract_response(rt.core(), &mut comm, w1, &[t2]);
+    assert!(rt.task(t2).is_waiting());
+    assert_stopped_by_drain(&mut rt, &mut comm, w1);
+    comm.emptiness_check();
+    rt.sanity_check();
+}
+
+#[test]
+fn test_drain_stop_when_idle_waits_for_scheduler_retract() {
+    let mut rt = TestEnv::new();
+    // The scheduler has already started to retract `t` from w1 before the drain
+    let (w1, w2, t) = setup_retracting(&mut rt);
+    let assigned = rt
+        .core()
+        .split()
+        .task_map
+        .tasks()
+        .find(|task| matches!(task.state, TaskRuntimeState::Assigned { worker_id, .. } if worker_id == w1))
+        .unwrap()
+        .id;
+    let mut comm = TestComm::new();
+    drain(&mut rt, &mut comm, w1, true);
+    comm.check_need_scheduling();
+    comm.emptiness_check();
+
+    on_task_update(rt.core(), &mut comm, w1, smallvec![task_finished(assigned)]);
+    comm.client.take_task_finished(1);
+    comm.check_need_scheduling();
+    comm.emptiness_check();
+    assert!(!rt.worker(w1).is_stopping());
+
+    on_retract_response(rt.core(), &mut comm, w1, &[t]);
+    comm.take_worker_msgs(w2, 1);
+    assert_stopped_by_drain(&mut rt, &mut comm, w1);
+    comm.emptiness_check();
+    rt.sanity_check();
+}
+
+#[test]
+fn test_drain_cancels_redirect_to_drained_worker() {
+    let mut rt = TestEnv::new();
+    // `t` is being retracted from w1 and it is redirected to w2
+    let (w1, w2, t) = setup_retracting(&mut rt);
+    let assigned = rt
+        .core()
+        .split()
+        .task_map
+        .tasks()
+        .find(|task| matches!(task.state, TaskRuntimeState::Assigned { worker_id, .. } if worker_id == w2))
+        .unwrap()
+        .id;
+    let mut comm = TestComm::new();
+    drain(&mut rt, &mut comm, w2, true);
+    comm.check_need_scheduling();
+    comm.emptiness_check();
+    assert!(rt.core().split().scheduler_state.redirects.is_empty());
+    assert!(
+        !rt.worker(w2)
+            .sn_assignment()
+            .unwrap()
+            .assigned_tasks
+            .contains(&t)
+    );
+    rt.sanity_check();
+
+    // The finished retract must not send the task to the drained worker
+    on_retract_response(rt.core(), &mut comm, w1, &[t]);
+    comm.emptiness_check();
+    assert!(rt.task(t).is_waiting());
+    rt.sanity_check();
+
+    on_task_update(rt.core(), &mut comm, w2, smallvec![task_finished(assigned)]);
+    comm.client.take_task_finished(1);
+    comm.check_need_scheduling();
+    assert_stopped_by_drain(&mut rt, &mut comm, w2);
+    comm.emptiness_check();
+    rt.sanity_check();
+}
+
+fn setup_mn_task(rt: &mut TestEnv) -> (WorkerId, WorkerId, TaskId) {
+    rt.new_workers_cpus(&[1, 1]);
+    let t = rt.new_task(&TaskBuilder::new().n_nodes(2));
+    rt.schedule();
+    let ws = rt.task(t).mn_placement().unwrap().to_vec();
+    (ws[0], ws[1], t)
+}
+
+#[test]
+fn test_drain_stop_when_idle_mn_task_finished() {
+    let mut rt = TestEnv::new();
+    let (root, non_root, t) = setup_mn_task(&mut rt);
+    let mut comm = TestComm::new();
+    drain(&mut rt, &mut comm, non_root, true);
+    comm.check_need_scheduling();
+    comm.emptiness_check();
+    assert!(!rt.worker(non_root).is_stopping());
+
+    on_task_update(rt.core(), &mut comm, root, smallvec![task_finished(t)]);
+    comm.client.take_task_finished(1);
+    assert_stopped_by_drain(&mut rt, &mut comm, non_root);
+    assert!(!rt.worker(root).is_stopping());
+    rt.sanity_check();
+}
+
+#[test]
+fn test_drain_stop_when_idle_mn_task_canceled() {
+    let mut rt = TestEnv::new();
+    let (root, non_root, t) = setup_mn_task(&mut rt);
+    let mut comm = TestComm::new();
+    drain(&mut rt, &mut comm, non_root, true);
+    on_cancel_tasks(rt.core(), &mut comm, &[t]);
+    assert!(matches!(
+        comm.take_worker_msgs(root, 1)[0],
+        ToWorkerMessage::CancelTasks(_)
+    ));
+    assert_stopped_by_drain(&mut rt, &mut comm, non_root);
+    rt.sanity_check();
+}
+
+#[test]
+fn test_drain_stop_when_idle_mn_root_lost() {
+    let mut rt = TestEnv::new();
+    let (root, non_root, _t) = setup_mn_task(&mut rt);
+    let mut comm = TestComm::new();
+    drain(&mut rt, &mut comm, non_root, true);
+    on_remove_worker(rt.core(), &mut comm, root, LostWorkerReason::ConnectionLost);
+    assert_stopped_by_drain(&mut rt, &mut comm, non_root);
+    rt.sanity_check();
+}
+
+#[test]
+fn test_drain_stop_when_idle_task_canceled() {
+    let mut rt = TestEnv::new();
+    let w1 = rt.new_worker_cpus(1);
+    let t = rt.new_task(&TaskBuilder::new());
+    rt.schedule();
+    let mut comm = TestComm::new();
+    drain(&mut rt, &mut comm, w1, true);
+    assert!(!rt.worker(w1).is_stopping());
+
+    on_cancel_tasks(rt.core(), &mut comm, &[t]);
+    // The worker has to learn about the cancellation before it is stopped
+    let msgs = comm.take_worker_msgs(w1, 2);
+    assert!(matches!(msgs[0], ToWorkerMessage::CancelTasks(_)));
+    assert!(matches!(msgs[1], ToWorkerMessage::Stop));
+    assert!(matches!(
+        rt.worker(w1).stop_reason,
+        Some((LostWorkerReason::Drained, _))
+    ));
+    rt.sanity_check();
+}
+
+#[test]
+fn test_plain_drain_does_not_track_retracts() {
+    let mut rt = TestEnv::new();
+    let (w1, _w2, _t) = setup_retracting(&mut rt);
+    let mut comm = TestComm::new();
+    drain(&mut rt, &mut comm, w1, false);
+    assert!(rt.worker(w1).drain_retracting.is_empty());
+    rt.sanity_check();
+}
+
+#[test]
+fn test_drain_more_workers_at_once() {
+    let mut rt = TestEnv::new();
+    // `t` is being retracted from w1 and it is redirected to w2
+    let (w1, w2, t) = setup_retracting(&mut rt);
+    let mut comm = TestComm::new();
+    let mode = DrainMode {
+        stop_when_idle: true,
+    };
+    on_set_worker_drain(rt.core(), &mut comm, &[w1, w2], Some(mode));
+    comm.client.take_drain_changes(2);
+    assert_eq!(rt.worker(w1).drain_retracting, vec![t]);
+    assert!(rt.worker(w2).drain_retracting.is_empty());
+    assert!(rt.core().split().scheduler_state.redirects.is_empty());
+    rt.sanity_check();
+}
+
+#[test]
+fn test_drain_duplicate_worker_ids() {
+    let mut rt = TestEnv::new();
+    let (w1, _t1, t2) = setup_prefill(&mut rt);
+    let mut comm = TestComm::new();
+    let mode = DrainMode {
+        stop_when_idle: false,
+    };
+    on_set_worker_drain(rt.core(), &mut comm, &[w1, w1], Some(mode));
+    assert_eq!(comm.client.take_drain_changes(1), vec![(w1, Some(mode))]);
+    assert!(rt.task(t2).is_retracting());
+    rt.sanity_check();
+}
+
+/// Prefilled task is retracted by a drain and the worker is undrained before the retract response
+/// comes. The scheduler then places the still retracting task on its original worker.
+fn setup_retract_to_same_worker(rt: &mut TestEnv) -> (WorkerId, TaskId) {
+    rt.set_scheduler_config(SchedulerConfig {
+        proactive_filling_reserve: 0,
+        proactive_filling_max: 1,
+        ..Default::default()
+    });
+    let tasks = rt.new_tasks(2, &TaskBuilder::new());
+    let w1 = rt.new_worker(&WorkerBuilder::new(1));
+    rt.schedule();
+    let assigned = get_assigned(rt, &tasks).unwrap();
+    let t = get_prefilled(rt, &tasks).unwrap();
+
+    let mut comm = TestComm::new();
+    drain(rt, &mut comm, w1, false);
+    comm.take_worker_msgs(w1, 1);
+    on_task_update(rt.core(), &mut comm, w1, smallvec![task_finished(assigned)]);
+    comm.client.take_task_finished(1);
+    on_set_worker_drain(rt.core(), &mut comm, &[w1], None);
+    comm.client.take_drain_changes(1);
+    assert!(rt.task(t).is_retracting());
+
+    rt.schedule().emptiness_check();
+    assert!(
+        rt.worker(w1)
+            .sn_assignment()
+            .unwrap()
+            .assigned_tasks
+            .contains(&t)
+    );
+    (w1, t)
+}
+
+#[test]
+fn test_retract_to_same_worker_records_redirect() {
+    let mut rt = TestEnv::new();
+    let (w1, t) = setup_retract_to_same_worker(&mut rt);
+    assert_eq!(
+        rt.core()
+            .split()
+            .scheduler_state
+            .redirects
+            .get(&t)
+            .map(|r| r.0),
+        Some(w1)
+    );
+
+    let mut comm = TestComm::new();
+    on_retract_response(rt.core(), &mut comm, w1, &[t]);
+    match &comm.take_worker_msgs(w1, 1)[0] {
+        ToWorkerMessage::ComputeTasks(msg) => {
+            assert_eq!(msg.tasks.len(), 1);
+            assert_eq!(msg.tasks[0].id, t);
+        }
+        _ => panic!("Invalid worker msg"),
+    }
+    comm.emptiness_check();
+    assert!(matches!(
+        rt.task(t).state,
+        TaskRuntimeState::Assigned { worker_id, .. } if worker_id == w1
+    ));
+    assert!(rt.core().split().scheduler_state.redirects.is_empty());
+    rt.sanity_check();
+}
+
+#[test]
+fn test_retract_to_same_worker_lost() {
+    let mut rt = TestEnv::new();
+    let (w1, t) = setup_retract_to_same_worker(&mut rt);
+    let mut comm = TestComm::new();
+    on_remove_worker(rt.core(), &mut comm, w1, LostWorkerReason::ConnectionLost);
+    assert!(rt.task(t).is_waiting());
+    assert!(rt.core().split().scheduler_state.redirects.is_empty());
+    rt.sanity_check();
+}
+
+#[test]
+fn test_retract_to_same_worker_drained_again() {
+    let mut rt = TestEnv::new();
+    let (w1, t) = setup_retract_to_same_worker(&mut rt);
+    let mut comm = TestComm::new();
+    drain(&mut rt, &mut comm, w1, false);
+    comm.check_need_scheduling();
+    comm.emptiness_check();
+    rt.sanity_check();
+
+    on_retract_response(rt.core(), &mut comm, w1, &[t]);
+    comm.emptiness_check();
+    assert!(rt.task(t).is_waiting());
+    rt.sanity_check();
+}
+
+#[test]
+fn test_retract_to_same_worker_task_started() {
+    let mut rt = TestEnv::new();
+    let (w1, t) = setup_retract_to_same_worker(&mut rt);
+    let mut comm = TestComm::new();
+    let up = WorkerTaskUpdate::RunningPrefilled(task_running_msg(t));
+    on_task_update(rt.core(), &mut comm, w1, smallvec![up]);
+    assert!(rt.task(t).is_sn_running());
+    assert!(rt.core().split().scheduler_state.redirects.is_empty());
+    rt.sanity_check();
+}
+
+#[test]
+fn test_drain_change_events() {
+    let mut rt = TestEnv::new();
+    let w1 = rt.new_worker_cpus(1);
+    let mut comm = TestComm::new();
+    drain(&mut rt, &mut comm, w1, false);
+    comm.check_need_scheduling();
+
+    // Draining again with the same setting does not produce an event
+    let mode = DrainMode {
+        stop_when_idle: false,
+    };
+    on_set_worker_drain(rt.core(), &mut comm, &[w1], Some(mode));
+    comm.check_need_scheduling();
+    comm.emptiness_check();
+
+    on_set_worker_drain(rt.core(), &mut comm, &[w1], None);
+    assert_eq!(comm.client.take_drain_changes(1), vec![(w1, None)]);
+    comm.check_need_scheduling();
+
+    // Undraining a worker that is not drained does not produce an event
+    on_set_worker_drain(rt.core(), &mut comm, &[w1], None);
+    comm.check_need_scheduling();
+    comm.emptiness_check();
+}
+
+#[test]
+fn test_drain_worker_not_prefilled_again() {
+    let mut rt = TestEnv::new();
+    let (w1, _t1, t2) = setup_prefill(&mut rt);
+    let mut comm = TestComm::new();
+    drain(&mut rt, &mut comm, w1, false);
+    on_retract_response(rt.core(), &mut comm, w1, &[t2]);
+    rt.schedule();
+    assert!(
+        rt.worker(w1)
+            .sn_assignment()
+            .unwrap()
+            .prefilled_tasks
+            .is_empty()
+    );
+    rt.sanity_check();
 }
