@@ -8,6 +8,7 @@ use tokio::net::TcpListener;
 use tokio::sync::Notify;
 
 use crate::events::EventProcessor;
+use crate::gateway::DrainMode;
 use crate::gateway::ResourceRequestVariants;
 use crate::gateway::{
     LostWorkerReason, MultiNodeAllocationResponse, TaskSubmit, WorkerRuntimeInfo,
@@ -28,7 +29,7 @@ use crate::internal::server::explain::{
 use crate::internal::server::reactor::{
     get_or_create_resource_rq_id, on_cancel_tasks, on_set_worker_drain,
 };
-use crate::internal::server::worker::{DEFAULT_WORKER_OVERVIEW_INTERVAL, DrainMode};
+use crate::internal::server::worker::DEFAULT_WORKER_OVERVIEW_INTERVAL;
 use crate::resources::ResourceDescriptor;
 use crate::{TaskId, WorkerId};
 

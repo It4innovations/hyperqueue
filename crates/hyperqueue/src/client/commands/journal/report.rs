@@ -223,7 +223,8 @@ impl JournalStats {
                         .unwrap()
                         .add_change(time, -1);
                 }
-                EventPayload::WorkerOverviewReceived(_) => {}
+                EventPayload::WorkerOverviewReceived(_)
+                | EventPayload::WorkerDrainChanged(_, _) => {}
                 EventPayload::Submit {
                     job_id,
                     serialized_desc,

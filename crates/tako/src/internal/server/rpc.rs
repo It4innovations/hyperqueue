@@ -207,7 +207,7 @@ async fn worker_rpc_loop(
             interval.tick().await;
             let mut core = core_ref.get_mut();
             let CoreSplitMut {
-                task_map: _,
+                task_map,
                 worker_map,
                 ..
             } = core.split_mut();
@@ -230,7 +230,7 @@ async fn worker_rpc_loop(
             }
 
             // Covers workers freed by other means than their own task updates (e.g. MN tasks)
-            stop_drained_worker_if_idle(worker, &mut *comm_ref2.get_mut());
+            stop_drained_worker_if_idle(task_map, worker, &mut *comm_ref2.get_mut());
 
             if let Some((_, stop)) = worker.stop_reason {
                 let delay = Duration::from_secs(60);

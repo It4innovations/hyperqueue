@@ -22,6 +22,7 @@ pub struct WorkerTable {
 
 enum WorkerState {
     Connected {
+        draining: bool,
         num_tasks: u32,
         average_cpu_usage: Option<f64>,
         memory_usage: Option<u64>,
@@ -62,6 +63,9 @@ impl WorkerTable {
                         let running_tasks =
                             overview.map(|o| o.running_tasks.len() as u32).unwrap_or(0);
                         WorkerState::Connected {
+                            draining: data
+                                .workers()
+                                .query_worker_draining_at(worker_id, current_time),
                             num_tasks: running_tasks,
                             average_cpu_usage,
                             memory_usage,
@@ -132,6 +136,7 @@ impl WorkerTable {
 
                 let (status, tasks, cpu, mem) = match &data.state {
                     WorkerState::Connected {
+                        draining,
                         num_tasks,
                         average_cpu_usage,
                         memory_usage,
@@ -153,7 +158,11 @@ impl WorkerTable {
                         );
 
                         (
-                            Cell::from("online").style(Style::default().fg(Color::Green)),
+                            if *draining {
+                                Cell::from("draining").style(Style::default().fg(Color::Yellow))
+                            } else {
+                                Cell::from("online").style(Style::default().fg(Color::Green))
+                            },
                             Cell::from(num_tasks.to_string()),
                             Cell::from(cpu_prog_bar).style(get_progress_bar_color(cpu_progress)),
                             Cell::from(mem_prog_bar).style(get_progress_bar_color(mem_progress)),
@@ -167,6 +176,7 @@ impl WorkerTable {
                             }
                             LostWorkerReason::IdleTimeout => "timeout",
                             LostWorkerReason::TimeLimitReached => "time-limit",
+                            LostWorkerReason::Drained => "drained",
                         };
 
                         (

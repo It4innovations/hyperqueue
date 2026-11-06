@@ -54,6 +54,10 @@ impl Output for Quiet {
                     reason: LostWorkerReason::Stopped,
                     ..
                 }) => "STOPPED",
+                Some(WorkerExitInfo {
+                    reason: LostWorkerReason::Drained,
+                    ..
+                }) => "DRAINED",
             };
             println!("{} {}", worker.id, worker_status)
         }

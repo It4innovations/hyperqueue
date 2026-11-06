@@ -7,6 +7,7 @@ use crate::transfer::messages::{
 };
 
 use serde_json::json;
+use tako::gateway::DrainMode;
 use tako::worker::WorkerOverview;
 
 pub fn format_event(event: Event) -> serde_json::Value {
@@ -27,6 +28,15 @@ fn format_payload(event: EventPayload) -> serde_json::Value {
             "type": "worker-lost",
             "id": id,
             "reason": reason
+        }),
+        EventPayload::WorkerDrainChanged(id, Some(DrainMode { stop_when_idle })) => json!({
+            "type": "worker-drained",
+            "id": id,
+            "stop-when-idle": stop_when_idle,
+        }),
+        EventPayload::WorkerDrainChanged(id, None) => json!({
+            "type": "worker-undrained",
+            "id": id,
         }),
         EventPayload::WorkerOverviewReceived(overview) => {
             let WorkerOverview { id, hw_state, .. } = *overview;

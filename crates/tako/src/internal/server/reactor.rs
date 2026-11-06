@@ -1,5 +1,5 @@
 use crate::gateway::ResourceRequestVariants as ClientResourceRequestVariants;
-use crate::gateway::{CrashLimit, LostWorkerReason};
+use crate::gateway::{CrashLimit, DrainMode, LostWorkerReason};
 use crate::internal::common::resources::ResourceRqId;
 use crate::internal::common::{Map, Set};
 use crate::internal::messages::common::TaskFailInfo;
@@ -12,7 +12,7 @@ use crate::internal::server::core::{Core, CoreSplitMut};
 use crate::internal::server::task::ComputeTasksBuilder;
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::taskmap::TaskMap;
-use crate::internal::server::worker::{DrainMode, Worker, WorkerAssignment};
+use crate::internal::server::worker::{Worker, WorkerAssignment};
 use crate::internal::server::workermap::WorkerMap;
 use crate::resources::ResourceRqMap;
 use crate::{ResourceVariantId, TaskId, WorkerId};
@@ -259,8 +259,13 @@ pub(crate) fn on_task_update(
     if need_scheduling && !is_prefill_update {
         comm.ask_for_scheduling();
     }
-    if let Some(worker) = core.find_worker_mut(worker_id) {
-        stop_drained_worker_if_idle(worker, comm);
+    let CoreSplitMut {
+        task_map,
+        worker_map,
+        ..
+    } = core.split_mut();
+    if let Some(worker) = worker_map.get_mut(&worker_id) {
+        stop_drained_worker_if_idle(task_map, worker, comm);
     }
 }
 
@@ -278,7 +283,11 @@ pub(crate) fn on_set_worker_drain(
         ..
     } = core.split_mut();
     let worker = worker_map.get_worker_mut(worker_id);
+    if worker.drain != drain {
+        comm.client().on_worker_drain_changed(worker_id, drain);
+    }
     worker.drain = drain;
+    worker.drain_retracting.clear();
     if drain.is_some() {
         // Prefilled tasks would be started by the worker itself, so we have to take them back
         let retracted: Vec<TaskId> = worker
@@ -292,15 +301,29 @@ pub(crate) fn on_set_worker_drain(
                 .move_prefilled_task_to_ready(*task_id);
         }
         process_retracted(task_map, worker_map, comm, retracted);
-        stop_drained_worker_if_idle(worker_map.get_worker_mut(worker_id), comm);
+        // Besides the tasks retracted above, the scheduler may have retracts to this worker in
+        // flight. Drain is a rare operation, so we can afford to scan all tasks here.
+        let worker = worker_map.get_worker_mut(worker_id);
+        worker.drain_retracting = task_map
+            .tasks()
+            .filter(|task| {
+                matches!(task.state, TaskRuntimeState::Retracting { worker_id: w_id } if w_id == worker_id)
+            })
+            .map(|task| task.id)
+            .collect();
+        stop_drained_worker_if_idle(task_map, worker, comm);
     }
     comm.ask_for_scheduling();
 }
 
-pub(crate) fn stop_drained_worker_if_idle(worker: &mut Worker, comm: &mut impl Comm) {
-    if worker.should_stop_drained() {
+pub(crate) fn stop_drained_worker_if_idle(
+    task_map: &TaskMap,
+    worker: &mut Worker,
+    comm: &mut impl Comm,
+) {
+    if worker.should_stop_drained(task_map) {
         log::debug!("Drained worker {} is idle, stopping it", worker.id);
-        worker.set_stop(LostWorkerReason::Stopped);
+        worker.set_stop(LostWorkerReason::Drained);
         comm.send_worker_message(worker.id, &ToWorkerMessage::Stop);
     }
 }
@@ -555,6 +578,15 @@ pub(crate) fn on_retract_response(
         if let Some(msg) = task_msg_builder.into_last_message() {
             comm.send_worker_message(target_id, &msg);
         }
+    }
+    // A resolved retract may be the last thing a drained worker was waiting for
+    let CoreSplitMut {
+        task_map,
+        worker_map,
+        ..
+    } = core.split_mut();
+    if let Some(worker) = worker_map.get_mut(&worker_id) {
+        stop_drained_worker_if_idle(task_map, worker, comm);
     }
 }
 

@@ -124,7 +124,7 @@ Tasks that were sent to the worker in advance but have not started yet will be r
 scheduled to other workers. Drained workers are displayed with the `DRAINING` state in `hq worker list`.
 
 If you pass the `--stop-when-idle` flag, the worker will be stopped automatically once all its running tasks are
-finished:
+finished. Such worker is then displayed with the `DRAINED` state:
 
 ```bash
 $ hq worker drain <selector> --stop-when-idle

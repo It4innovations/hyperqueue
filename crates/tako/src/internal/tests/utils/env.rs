@@ -1,5 +1,5 @@
 use crate::events::EventProcessor;
-use crate::gateway::LostWorkerReason;
+use crate::gateway::{DrainMode, LostWorkerReason};
 use crate::internal::common::Map;
 use crate::internal::common::index::ItemId;
 use crate::internal::common::resources::ResourceId;
@@ -292,6 +292,7 @@ pub struct TestClientProcessor {
     pub new_workers: Vec<(WorkerId, WorkerConfiguration)>,
     pub lost_workers: Vec<(WorkerId, Vec<TaskId>)>,
     pub worker_overviews: Vec<Box<WorkerOverview>>,
+    pub drain_changes: Vec<(WorkerId, Option<DrainMode>)>,
 }
 
 impl TestClientProcessor {
@@ -318,6 +319,11 @@ impl TestClientProcessor {
         std::mem::take(&mut self.lost_workers)
     }
 
+    pub fn take_drain_changes(&mut self, len: usize) -> Vec<(WorkerId, Option<DrainMode>)> {
+        assert_eq!(self.drain_changes.len(), len);
+        std::mem::take(&mut self.drain_changes)
+    }
+
     pub fn emptiness_check(&self) {
         assert!(self.task_finished.is_empty());
         assert!(self.task_running.is_empty());
@@ -325,6 +331,7 @@ impl TestClientProcessor {
 
         assert!(self.new_workers.is_empty());
         assert!(self.lost_workers.is_empty());
+        assert!(self.drain_changes.is_empty());
     }
 }
 
@@ -407,6 +414,10 @@ impl EventProcessor for TestClientProcessor {
 
     fn on_worker_overview(&mut self, overview: Box<WorkerOverview>) {
         self.worker_overviews.push(overview);
+    }
+
+    fn on_worker_drain_changed(&mut self, worker_id: WorkerId, drain: Option<DrainMode>) {
+        self.drain_changes.push((worker_id, drain));
     }
 
     fn on_task_notify(&mut self, _task_id: TaskId, _worker_id: WorkerId, _message: Box<[u8]>) {

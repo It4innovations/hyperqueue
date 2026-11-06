@@ -397,6 +397,13 @@ fn reconstruct_historical_events(
             worker.started_at(),
             EventPayload::WorkerConnected(*id, Box::new(worker.configuration().clone())),
         ));
+        // Only the current drain setting is known, so earlier drain changes are not reconstructed
+        if let Some((mode, time)) = worker.drain() {
+            events.push(Event::at(
+                *time,
+                EventPayload::WorkerDrainChanged(*id, Some(*mode)),
+            ));
+        }
     }
 
     // Reconstruct job submits
@@ -683,12 +690,8 @@ fn handle_worker_drain(
             senders.server_control.undrain_worker(worker_id)
         };
         match response {
-            Ok(()) => {
-                if let Some(worker) = state_ref.get_mut().get_worker_mut(worker_id) {
-                    worker.set_draining(drain);
-                }
-                responses.push((worker_id, DrainWorkerResponse::Ok));
-            }
+            // HQ worker state and the journal are updated through the drain change event from tako
+            Ok(()) => responses.push((worker_id, DrainWorkerResponse::Ok)),
             Err(err) => {
                 responses.push((worker_id, DrainWorkerResponse::Failed(err.to_string())));
                 log::error!("Unable to set drain of worker: {worker_id} error: {err:?}");

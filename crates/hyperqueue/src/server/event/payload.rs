@@ -4,7 +4,7 @@ use crate::server::autoalloc::{AllocationId, QueueParameters};
 use crate::transfer::messages::{JobDescription, SubmitRequest};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
-use tako::gateway::LostWorkerReason;
+use tako::gateway::{DrainMode, LostWorkerReason};
 use tako::worker::{WorkerConfiguration, WorkerOverview};
 use tako::{InstanceId, ResourceVariantId, TaskId, static_assert_size};
 use tako::{JobId, WorkerId};
@@ -22,6 +22,8 @@ pub enum EventPayload {
     WorkerLost(WorkerId, LostWorkerReason),
     /// Worker has proactively send its overview (task status and HW utilization report) to the server
     WorkerOverviewReceived(Box<WorkerOverview>),
+    /// Worker was drained (`Some`) or undrained (`None`)
+    WorkerDrainChanged(WorkerId, Option<DrainMode>),
     /// A Job was submitted by the user -- full information to reconstruct the job;
     ///  it will be only stored into file, not held in memory
     ///  Vec<u8> is serialized SubmitRequest; the main reason is avoiding duplication of SubmitRequest

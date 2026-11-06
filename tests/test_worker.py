@@ -165,7 +165,7 @@ def test_worker_drain_finishes_running_tasks(hq_env: HqEnv):
 
     hq_env.command(["worker", "drain", "1", "--stop-when-idle"])
     wait_for_worker_state(hq_env, 1, "DRAINING")
-    wait_for_worker_state(hq_env, 1, "STOPPED", check_running_processes=False)
+    wait_for_worker_state(hq_env, 1, "DRAINED", check_running_processes=False)
     hq_env.check_process_exited(process)
 
     wait_for_job_state(hq_env, 1, "FINISHED")

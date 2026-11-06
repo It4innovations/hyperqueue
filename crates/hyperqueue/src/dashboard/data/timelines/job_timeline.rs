@@ -139,6 +139,7 @@ impl JobTimeline {
                 EventPayload::WorkerConnected(_, _)
                 | EventPayload::WorkerLost(_, _)
                 | EventPayload::WorkerOverviewReceived(_)
+                | EventPayload::WorkerDrainChanged(_, _)
                 | EventPayload::JobOpen(_, _)
                 | EventPayload::JobClose(_)
                 | EventPayload::JobIdle(_)

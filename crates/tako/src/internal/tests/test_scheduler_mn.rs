@@ -1,9 +1,9 @@
 use crate::WorkerId;
+use crate::gateway::DrainMode;
 use crate::internal::messages::worker::ToWorkerMessage;
 use crate::internal::scheduler::create_task_batches;
 use crate::internal::server::reactor::on_set_worker_drain;
 use crate::internal::server::task::Task;
-use crate::internal::server::worker::DrainMode;
 use crate::tests::utils::env::{TestComm, TestEnv};
 use crate::tests::utils::resources::ResBuilder;
 use crate::tests::utils::task::TaskBuilder;

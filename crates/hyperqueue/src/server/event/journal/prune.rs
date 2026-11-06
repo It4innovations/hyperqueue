@@ -24,7 +24,8 @@ pub(crate) fn prune_journal(
         let mut event = event?;
         let event = match &mut event.payload {
             EventPayload::WorkerConnected(worker_id, _)
-            | EventPayload::WorkerLost(worker_id, _) => {
+            | EventPayload::WorkerLost(worker_id, _)
+            | EventPayload::WorkerDrainChanged(worker_id, _) => {
                 live_worker_ids.contains(worker_id).then_some(event)
             }
             EventPayload::WorkerOverviewReceived(overview) => {
