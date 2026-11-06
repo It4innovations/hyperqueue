@@ -9,6 +9,7 @@ use crate::client::status::{Status, get_task_status, job_status};
 use crate::common::env::is_hq_env;
 use crate::common::format::{human_duration, human_mem_amount, human_size};
 use crate::common::manager::info::GetManagerInfo;
+use crate::common::numa::{NumaTopology, WORKER_EXTRA_NUMA_KEY};
 use crate::server::autoalloc::{Allocation, AllocationState};
 use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState};
 use crate::stream::reader::outputlog::Summary;
@@ -356,6 +357,29 @@ impl Output for CliOutput {
                     last_task_started
                         .map(|t| format!("{}; Time: {}", t.task_id, format_datetime(t.time)).cell())
                         .unwrap_or_else(|| "".cell()),
+                ],
+                vec![
+                    "Numa nodes".cell().bold(true),
+                    configuration
+                        .extra
+                        .get(WORKER_EXTRA_NUMA_KEY)
+                        .cloned()
+                        .map(|serialized| {
+                            let numa: Result<NumaTopology, _> = serde_json::from_str(&serialized);
+                            match numa {
+                                Ok(numa) => numa
+                                    .nodes
+                                    .iter()
+                                    .map(|node| {
+                                        format!("Node {}, Cpu ids: {}", node.id, node.cpulist)
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .join("\n"),
+                                Err(_) => "Invalid NUMA topology".to_string(),
+                            }
+                        })
+                        .unwrap_or_else(|| "N/A".to_string())
+                        .cell(),
                 ],
             ];
             if let Some(runtime_info) = runtime_info {

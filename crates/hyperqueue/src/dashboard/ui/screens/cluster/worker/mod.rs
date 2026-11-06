@@ -45,6 +45,10 @@ impl WorkerDetail {
     pub fn set_worker_id(&mut self, worker_id: WorkerId) {
         self.worker_id = Some(worker_id);
     }
+
+    pub fn get_worker_id(&self) -> Option<WorkerId> {
+        self.worker_id
+    }
 }
 
 impl WorkerDetail {
@@ -60,7 +64,7 @@ impl WorkerDetail {
 
         draw_text(
             format!(
-                "<\u{21F5}> cpu scroll, <backspace>: Back, <c>: {}",
+                "<\u{21F5}> cpu scroll, <backspace>: Back, <c>: {}, <n>: NUMA topology",
                 self.cpu_util_table.next_text()
             )
             .as_str(),

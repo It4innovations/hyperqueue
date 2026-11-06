@@ -21,7 +21,7 @@ impl ClusterOverview {
     pub fn draw(&mut self, in_area: Rect, frame: &mut DashboardFrame) {
         let layout = OverviewLayout::new(&in_area);
         draw_text(
-            "<\u{21F5}> select worker, <i> worker details",
+            "<\u{21F5}> select worker, <i> worker details, <n> NUMA topology",
             layout.footer_chunk,
             frame,
             style_footer(),
