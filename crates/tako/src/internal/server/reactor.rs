@@ -554,7 +554,7 @@ fn task_reject(
                 return false;
             }
             if let Some((target_id, rv_id)) = scheduler_state.redirects.remove(&task_id) {
-                log::debug!("Transfering to {target_id}");
+                log::debug!("Transferring to {target_id}");
                 task.state = TaskRuntimeState::Assigned {
                     worker_id: target_id,
                     rv_id,

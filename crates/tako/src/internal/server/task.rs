@@ -440,7 +440,7 @@ fn estimate_task_data_size(data: &ComputeTaskSeparateData) -> usize {
         entry,
     } = data;
 
-    // We cound each field separately, because if we just used size_of on the whole struct, it would
+    // We count each field separately, because if we just used size_of on the whole struct, it would
     // count internal field of Vecs, which are not serialized.
     size_of_val(shared_index)
         + size_of_val(id)

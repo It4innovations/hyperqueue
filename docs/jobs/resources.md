@@ -212,7 +212,7 @@ Strategies:
   second, etc. See the Example below.
 
 * **Strict tight** (``tight!``) -- Strict mode for ``tight``. Works as ``tight`` but
-  a task is not executed until the minial number of groups for the given worker could not be
+  a task is not executed until the minimal number of groups for the given worker could not be
   achieved.
 
 * **Scatter** (``scatter``) - Allocate indices across as many groups as possible in the current worker state.
@@ -362,7 +362,7 @@ this feature, but it can be configured through a [Job Definition File](jobfile.m
 
 ## Resource weights
 
-Resource weights allow you to manipulate the relative importance of resource equests during scheduling.
+Resource weights allow you to manipulate the relative importance of resource requests during scheduling.
 They are used to adjust priority between different tasks or between multiple resource request variants within the same
 task.
 
