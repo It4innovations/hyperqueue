@@ -885,6 +885,60 @@ fn test_prefill_worker_lost() {
     rt.sanity_check();
 }
 
+/// Returning a higher-priority task of the lost worker to the queue disposes the lower-priority
+/// prefill. The prefill of the lost worker has to be resolved without retracting it, while the
+/// prefill of the remaining workers has to be retracted as usual.
+#[test]
+fn test_prefill_worker_lost_with_higher_priority_task() {
+    let mut rt = TestEnv::new();
+    rt.set_scheduler_config(SchedulerConfig {
+        proactive_filling_reserve: 0,
+        proactive_filling_max: 1,
+        ..Default::default()
+    });
+    let workers = rt.new_workers(2, &WorkerBuilder::new(2));
+    let high = rt.new_task(&TaskBuilder::new().user_priority(10));
+    rt.schedule();
+    let lost = match rt.task(high).state {
+        TaskRuntimeState::Assigned { worker_id, .. } => worker_id,
+        _ => panic!("Invalid state"),
+    };
+    let other = *workers.iter().find(|w| **w != lost).unwrap();
+
+    let low = rt.new_tasks(5, &TaskBuilder::new());
+    rt.schedule();
+    let prefilled_on = |rt: &TestEnv, worker: WorkerId| {
+        low.iter()
+            .copied()
+            .find(|t| {
+                matches!(rt.task(*t).state,
+                    TaskRuntimeState::Prefilled { worker_id } if worker_id == worker)
+            })
+            .unwrap()
+    };
+    let prefilled_lost = prefilled_on(&rt, lost);
+    let prefilled_other = prefilled_on(&rt, other);
+
+    let mut comm = TestComm::new();
+    on_remove_worker(rt.core(), &mut comm, lost, LostWorkerReason::HeartbeatLost);
+    comm.check_need_scheduling();
+    match &comm.take_worker_msgs(other, 1)[0] {
+        ToWorkerMessage::RetractTasks(ts) => assert_eq!(ts.ids, vec![prefilled_other]),
+        _ => panic!("Invalid worker msg"),
+    }
+    comm.take_broadcasts(1);
+    comm.client.take_lost_workers();
+    comm.emptiness_check();
+
+    assert!(rt.task(high).is_waiting());
+    assert!(rt.task(prefilled_lost).is_waiting());
+    assert!(matches!(
+        rt.task(prefilled_other).state,
+        TaskRuntimeState::Retracting { worker_id } if worker_id == other
+    ));
+    rt.sanity_check();
+}
+
 #[test]
 fn test_prefill_started_on_same_worker() {
     let mut rt = TestEnv::new();
