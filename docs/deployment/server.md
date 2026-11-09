@@ -128,7 +128,7 @@ $ hq journal report <journal-path> <output-filename>
 ```
 
 You may specify `--start-time` or `--end-time` to filter events
-whithin a given time frame. It takes duration and it is counted from the beginning of the journal. For example if you want to selected a 30min iterval after the first hour, you can use: `--start-time=1h` and `--end-time="1h 30m"`.
+within a given time frame. It takes duration and it is counted from the beginning of the journal. For example if you want to select a 30min interval after the first hour, you can use: `--start-time=1h` and `--end-time="1h 30m"`.
 
 ### Pruning the journal
 

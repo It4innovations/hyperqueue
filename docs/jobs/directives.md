@@ -45,7 +45,7 @@ determine when should HyperQueue attempt to parse directives from the provided c
   to precede the directives.   
 * Directives have to be defined in the first 32KiB of the file, the rest of the file is ignored.
 * Parameters set via CLI have precedence over parameters set via direectives:
-    * Parameters that cannot occur multiple times (like `--name`) **will be overriden** by values set from CLI.
+    * Parameters that cannot occur multiple times (like `--name`) **will be overridden** by values set from CLI.
     * Parameters that can occur multiple times (like `--resource`) will be combined from CLI and from directives.
 * A script may contain more lines with the `#HQ` prefix, such lines are combined and evaluated as a
 continuous list of parameters.

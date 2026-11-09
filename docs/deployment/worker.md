@@ -29,7 +29,7 @@ If you want to connect to a different server, use the `--server-dir` option.
 !!! important "Sharing the server directory"
 
     When you start a worker, it will need to read the server directory to find out how to connect to the server. The
-    directory thus has to be accesible both by the server and the worker machines. On HPC clusters, it is common that
+    directory thus has to be accessible both by the server and the worker machines. On HPC clusters, it is common that
     login nodes and compute nodes use a shared filesystem, so this shouldn't be a problem.
 
     However, if a shared filesystem is not available on your cluster, you can just copy the server directory from the

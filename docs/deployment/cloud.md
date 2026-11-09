@@ -41,7 +41,7 @@ Clients and workers should load the pre-generated access file in the same way as
 
 !!! note
 
-    The server will still generate and manages its "own" `access.json` in the server directory path, even if you provide your own access file. These files are the same, so you can use either when connectiong clients and workers.
+    The server will still generate and manages its "own" `access.json` in the server directory path, even if you provide your own access file. These files are the same, so you can use either when connecting clients and workers.
 
 
 ## Splitting access for client and workers

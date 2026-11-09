@@ -75,7 +75,7 @@ job.
 # Configuring jobs's name and max fails
 $ hq job open --name=MyOpenJob --max-fails=10
 
-# Submit fails becase --max-fails cannot be used together with --job
+# Submit fails because --max-fails cannot be used together with --job
 $ hq submit --job <JOB_ID> --max-fails=5 ...
 ```
 
