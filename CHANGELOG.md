@@ -18,6 +18,7 @@
 * Job and worker IDs are no longer reused after the server is restarted from a pruned journal
 * Fixes invalid counters when journal restores job with multiple submits
 * Fixed server crash when restoring a journal containing a task that failed before it started
+* Fixed server crash when a lost worker held prefilled tasks together with a task of a higher priority
 
 
 ## v0.27.0

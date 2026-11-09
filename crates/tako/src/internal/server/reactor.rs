@@ -82,6 +82,17 @@ pub(crate) fn on_remove_worker(
     let mut retracted = Vec::new();
     match worker.assignment() {
         WorkerAssignment::Sn(sn) => {
+            // The prefilled tasks have to be processed first. Adding a ready task below may
+            // dispose a prefill with a lower priority, and the disposed tasks are retracted,
+            // which is not possible for tasks of the removed worker.
+            for task_id in &sn.prefilled_tasks {
+                let task = task_map.get_task_mut(*task_id);
+                task.increment_instance_id();
+                task.state = TaskRuntimeState::Waiting { unfinished_deps: 0 };
+                task_queues
+                    .get_mut(task.resource_rq_id)
+                    .move_prefilled_task_to_ready(*task_id);
+            }
             for task_id in &sn.assigned_tasks {
                 let task = task_map.get_task_mut(*task_id);
                 if task.is_sn_running() {
@@ -94,14 +105,6 @@ pub(crate) fn on_remove_worker(
                 }
                 task.increment_instance_id();
                 task_queues.add_ready_task(task, &mut retracted);
-            }
-            for task_id in &sn.prefilled_tasks {
-                let task = task_map.get_task_mut(*task_id);
-                task.increment_instance_id();
-                task.state = TaskRuntimeState::Waiting { unfinished_deps: 0 };
-                task_queues
-                    .get_mut(task.resource_rq_id)
-                    .move_prefilled_task_to_ready(*task_id);
             }
         }
         WorkerAssignment::Mn(mn) => {
