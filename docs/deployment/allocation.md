@@ -192,12 +192,29 @@ use a long duration for this parameter, as it can result in wasting precious all
 Specifies a shell command that will be executed on each allocated node just before a worker is started
 on that node. You can use it e.g. to initialize some shared environment for the node, or to load software modules.
 
+The command is executed once per worker, i.e. once on every node of the allocation, when the allocation starts. It is
+not executed for each task. It runs in the same shell that then starts the worker
+(`<start-cmd> && hq worker start ...`), so environment changes made by the command itself (e.g. `module load` or
+`export`) are inherited by the worker and by the tasks that it runs. If the command fails, the worker on that node is
+not started.
+
+!!! Note
+
+    A [multi-node task](../jobs/multinode.md) is started only on its root node, while the start command was already
+    executed on all nodes of the allocation, because each node runs its own worker. The task itself is responsible for
+    starting processes on the other nodes (e.g. using `srun` or `mpirun` with `HQ_NODE_FILE`).
+
 #### Worker stop command
 
 - Format: `--worker-stop-cmd <cmd>`
 
 Specifies a shell command that will be executed on each allocated node just after the worker stops on
 that node. You can use it e.g. to clean up a previously initialized environment for the node.
+
+The command is executed regardless of how the worker ended, and also when the
+[worker start command](#worker-start-command) failed and the worker was not started at all
+(`<start-cmd> && hq worker start ...; <stop-cmd>`). Write it so that it also works when the start command did
+not finish its work.
 
 !!! Warning
 
@@ -211,6 +228,36 @@ that node. You can use it e.g. to clean up a previously initialized environment 
 Specifies a string that will be prepended before the command used to start a worker on a node inside an allocation.
 
 For example, if you specify `--worker-wrap-cmd "podman run"`, each worker will be started using `podman run hq worker start ...`.
+
+The wrap command receives the worker command as separate arguments, with the shell quotes already removed (e.g.
+`--resource score=sum(36)`). If you use your own wrapper script, pass the arguments on with `"$@"` (or a bash array) and
+do not re-parse them with `eval` or `bash -c "$*"`:
+
+```bash
+#!/bin/bash
+# ... prepare the environment ...
+exec "$@"
+```
+
+#### Worker launch command
+
+- Format: `--worker-launch-cmd <cmd>`
+
+Replaces the command that HQ uses to start a worker on each node of an allocation. By default, HQ uses
+`srun --overlap --ntasks=<N> --nodes=<N>` (Slurm) or `pbsdsh --` (PBS) for allocations with more than one node, and
+starts the worker directly when the allocation has a single node. When you set this option, the worker of every
+allocation is started using `<cmd> bash -c '<worker command>'` (`bash -l -c` for PBS), where the worker command also
+contains the start, wrap and stop commands.
+
+You can use it e.g. to stop the worker from inheriting a CPU binding that is set by default for job steps on your
+cluster:
+
+```bash
+$ hq alloc add slurm --worker-launch-cmd "srun --external-launcher --ntasks-per-node=1" ...
+```
+
+The number of nodes can be different for each allocation, so do not put a fixed node count into the command. Use
+options such as `--ntasks-per-node=1` or environment variables such as `$SLURM_JOB_NUM_NODES` instead.
 
 #### Worker time limit
 

@@ -9,12 +9,16 @@
   that finished more than the given duration ago (e.g. `--auto-forget=7d`)
 * `hq server start --journal-prune-period=<duration>` makes the server periodically prune the journal
 * New commands `hq worker drain` and `hq worker undrain`. A drained worker does not receive new tasks, but it finishes
-  the tasks that it is already computing. With `--stop-when-idle`, the worker is stopped once all its tasks are finished.
+  the tasks that it is already computing. With `--stop-when-idle`, the worker is stopped once all its tasks are
+  finished.
     * New journal events: `worker-drained` (contains `stop-when-idle`) and `worker-undrained`.
-    * A worker stopped by `--stop-when-idle` ends with the new reason `Drained` (shown as `DRAINED` in `hq worker list`).
+    * A worker stopped by `--stop-when-idle` ends with the new reason `Drained` (shown as `DRAINED` in
+      `hq worker list`).
 * When MILP scheduling fails because of time limit, there is new greedy fallback.
 * New Cargo feature `highs-system` links HyperQueue to a HiGHS library installed on the system
   instead of building the bundled copy
+* `hq alloc add --worker-launch-cmd <cmd>` allows to replace the command (`srun`/`pbsdsh`) used to
+  start workers on the nodes of an allocation.
 
 ### Fixes
 
@@ -23,14 +27,23 @@
 * Fixes invalid counters when journal restores job with multiple submits
 * Fixed server crash when restoring a journal containing a task that failed before it started
 * Fixed server crash when a lost worker held prefilled tasks together with a task of a higher priority
-* Fixed the server silently stopping writing the journal when a client disconnected during journal replay.
+* Fixed starting workers in multi-node Slurm allocations:
+    * With `--worker-start-cmd`, `srun` ran only the start command, so the worker and `--worker-stop-cmd` ran once,
+      on the node running the batch script, instead of on every node.
+    * Without `--worker-start-cmd`, no worker started when the server had `RUST_LOG` set, because `srun` tried to run
+      `RUST_LOG=...` as a program.
 
+  The whole worker command now runs on every node as `srun ... bash -c '<worker command>'`.
+* Single quotes in `--worker-start-cmd`, `--worker-stop-cmd` or `--worker-wrap-cmd` no longer break the submit script
+  of multi-node PBS allocations.
+* Fixed the server silently stopping writing the journal when a client disconnected during journal replay.
 
 ## v0.27.0
 
 ### New features
 
-* The server scheduler now contains a safety limit for computation, configurable via `--scheduler-time-limit` (default: 5s)
+* The server scheduler now contains a safety limit for computation, configurable via `--scheduler-time-limit` (default:
+  5s)
 * Better scheduling policy (prefill) for heterogenous clusters
 * Workers held for a waiting high-priority task are now chosen per priority threshold, so fewer
   workers are held back and more lower-priority work can run elsewhere
@@ -57,13 +70,11 @@
   that lack some resource
 * Fixed constraining gap that could lead to priority inversion
 
-
 ## v0.26.2
 
 ### Fixes
 
 * Updated Cargo.lock. No visible change if you are using precompiled binaries.
-
 
 ## v0.26.1
 
@@ -73,7 +84,7 @@
 
 ### New features
 
-* Added scrolling to CPU table 
+* Added scrolling to CPU table
 
 ## v0.26.0
 
@@ -83,14 +94,16 @@
 
 ### New features
 
-* Complete rewrite of the main server scheduler, now based on MILP. This includes major rewrite of worker scheduler. It brings the following new features:
-  * Better resource allocation in complex situations
-  * Better handling resource variants
-  * Correctly solves priorities
-  * Better scheduler decisions in situations when single node & multi node tasks are mixed
-  * Better handling of situations when a worker cannot run a task because of strict resource requests of resource fragmentation
-  * Reduced the number of messages between server/worker when there are many tasks of the same resource requests
-  * Non-delayed reaction when a pre-assigned tasks cannot be run because of time request
+* Complete rewrite of the main server scheduler, now based on MILP. This includes major rewrite of worker scheduler. It
+  brings the following new features:
+    * Better resource allocation in complex situations
+    * Better handling resource variants
+    * Correctly solves priorities
+    * Better scheduler decisions in situations when single node & multi node tasks are mixed
+    * Better handling of situations when a worker cannot run a task because of strict resource requests of resource
+      fragmentation
+    * Reduced the number of messages between server/worker when there are many tasks of the same resource requests
+    * Non-delayed reaction when a pre-assigned tasks cannot be run because of time request
 * Resource weights (configured via `--weight`). They are used to adjust priority between different tasks or between
   multiple resource request variants within the same task.
 * Worker can be started with `--min-utilization` (so not only through autoalloc).
@@ -98,7 +111,6 @@
 * New "aborted" task state introduced; it is derived from "cancel" state.
   When HQ cancels a task (e.g. because dependency fails), it is now marked as "aborted";
   Task state "canceled" is now reserved for tasks that are canceled by the user.
-
 
 ## v0.25.1
 
@@ -111,7 +123,6 @@
 
 * Failing non-root worker within multi-node tasks, does NOT cause failing of task.
   The task may continue. It is up to root worker to signal error if necessary.
-
 
 ## v0.25.0
 
@@ -137,16 +148,17 @@
   modification),
   the operation is immediately a part of the written journal.
 * `hq worker info` can now be used with a selector, to display information about multiple workers at once.
-  * Note that this is a breaking change for the JSON format, as it now outputs the worker infos as an array of objects. Before it was a single object.   
-* `hq job cancel` now adds new possibility to add a reason to the cancelation of the job using `--reason <cancel-reason>`
-  * This is connected with this information added in `hq job list --verbose` and `hq job info`
+    * Note that this is a breaking change for the JSON format, as it now outputs the worker infos as an array of
+      objects. Before it was a single object.
+* `hq job cancel` now adds new possibility to add a reason to the cancelation of the job using
+  `--reason <cancel-reason>`
+    * This is connected with this information added in `hq job list --verbose` and `hq job info`
 
 ### Changes
 
 * `hq job progress` stopped using periodic polling.
   In the current version, the client passively waits for events.
   It saves some resources as the server is not queried every second.
-
 
 ## v0.24.0
 
@@ -347,8 +359,8 @@ As this is a large behavioral change, we would be happy to hear your feedback!
 
 * Dashboard is disabled in this version. We expect to reneeble it in 1-2 release cycles
 
-* Node file generated for multi-node tasks now contains only short hostnames
-  (e.g. if hostname is "cn690.karolina.it4i.cz", only "cn690" is written into node list)
+* Node file generated for multi-node tasks now contains only short hostnames (e.g. if hostname is
+  "cn690.karolina.it4i.cz", only "cn690" is written into node list)
   You can read ``HQ_HOST_FILE`` if you need to get full hostnames without stripping.
 
 ### Fixes
@@ -569,8 +581,8 @@ an old client/worker to a new server (Connecting a new client/worker to an old s
 
 #### Tasks
 
-* HQ allows to limit how many times a task may be in a running state while worker is lost
-  (such a task may be a potential source of worker's crash).
+* HQ allows to limit how many times a task may be in a running state while worker is lost (such a task may be a
+  potential source of worker's crash).
   If the limit is reached, the task is marked as failed.
   The limit can be configured by `--crash-limit` in submit.
 
@@ -785,8 +797,8 @@ would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
 
 #### Tasks
 
-* Task may be started with a temporary directory that is automatically deleted when the task is finished.
-  (flag `--task-dir`).
+* Task may be started with a temporary directory that is automatically deleted when the task is finished. (flag
+  `--task-dir`).
 
 * Task may provide its own error message by creating a file with name passed by environment variable
   `HQ_ERROR_FILENAME`.
@@ -901,14 +913,14 @@ would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
   not accessed through `hq job`. The only previous job-related command that remained on the top level
   is `hq submit`, which is now a shortcut for `hq job submit`. Here is a table of changed commands:
 
-  | **Previous command** | **New command**    |
-  |----------------------|--------------------|
-  | `hq jobs`            | `hq job list`    |
-  | `hq job`             | `hq job info`    |
-  | `hq resubmit`        | `hq job resubmit` |
-  | `hq cancel`          | `hq job cancel`  |
-  | `hq wait`            | `hq job wait`    |
-  | `hq progress`        | `hq job progress` |
+  | **Previous command** | **New command**                |
+  |----------------------|--------------------------------|
+  | `hq jobs`            | `hq job list`                  |
+  | `hq job`             | `hq job info`                  |
+  | `hq resubmit`        | `hq job resubmit`              |
+  | `hq cancel`          | `hq job cancel`                |
+  | `hq wait`            | `hq job wait`                  |
+  | `hq progress`        | `hq job progress`              |
   | `hq submit`          | `hq submit` or `hq job submit` |
 
 * The `--tasks` flag of the `hq job info <job-id>` command has been removed. If you want to display the
@@ -985,8 +997,7 @@ would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
 
 * Workers can be now started with the parameter `--cpus="no-ht"`. When detecting CPUs in this mode,
   HyperThreading will be ignored (for each physical core only the first HT virtual core will be chosen).
-* The user may explicitly specify what CPU IDs should be used by a worker
-  (including arrangement of IDs into sockets).
+* The user may explicitly specify what CPU IDs should be used by a worker (including arrangement of IDs into sockets).
   (E.g. ``hq worker start --cpus=[[0, 1], [6, 8]]``)
 
 #### CLI
