@@ -1,5 +1,3 @@
-
-
 !!! warning
 
     Multi-node support is now in the experimental stage.
@@ -8,7 +6,7 @@
 
 
 Multi-node tasks are tasks that spreads across multiple nodes.
-Each node reserved for such task is exclusively reserved, i.e. no other 
+Each node reserved for such task is exclusively reserved, i.e. no other
 tasks may run on such nodes.
 
 A job with multi-node task can be specified by ``--nodes=X`` option.
@@ -32,16 +30,16 @@ Many HPC applications use only short hostnames, hence we provide them as default
 If you need a full hostnames, there is file which name is written in ``HQ_HOST_FILE`` and it has the same meaning
 as ``NQ_NODE_FILE`` but contains the full node hostnames without stripping.
 
-Note: Both files are placed in task directory; therefore, a multi-node tasks always enables task directory (``--task-dir``).
+Note: Both files are placed in task directory; therefore, a multi-node tasks always enables task directory
+(``--task-dir``).
 
 If a multinode task is started, HQ also creates variable `HQ_NUM_NODES` that
 holds the number of nodes assigned to a task (i.e. the number of lines of the node file)
 
-
 ## Groups
 
 A multi-node task is started only on workers that belong to the same group.
-By default, workers are grouped by PBS/Slurm allocations and workers outside any allocation 
+By default, workers are grouped by PBS/Slurm allocations and workers outside any allocation
 are put in "default" group.
 
 A group of a worker can be specified at the start of the worker and it may be any string. Example:
@@ -73,4 +71,5 @@ Note: It is important to set `--nodes` otherwise the node file will not be respe
 ## Automatic allocation
 
 If you combine multi-node tasks with [automatic allocation](../deployment/allocation.md), you should
-configure the maximum [number of tasks per allocation](../deployment/allocation.md#maximum-number-of-workers-per-allocation).
+configure the
+maximum [number of tasks per allocation](../deployment/allocation.md#maximum-number-of-workers-per-allocation).
