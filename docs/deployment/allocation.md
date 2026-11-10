@@ -211,6 +211,11 @@ not started.
 Specifies a shell command that will be executed on each allocated node just after the worker stops on
 that node. You can use it e.g. to clean up a previously initialized environment for the node.
 
+The command is executed regardless of how the worker ended, and also when the
+[worker start command](#worker-start-command) failed and the worker was not started at all
+(`<start-cmd> && hq worker start ...; <stop-cmd>`). Write it so that it also works when the start command did
+not finish its work.
+
 !!! Warning
 
     The execution of this command is best-effort! It is not guaranteed that the command will always be executed. For example,
