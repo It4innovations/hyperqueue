@@ -137,7 +137,8 @@ struct SharedQueueOpts {
 
     /// A command executed before the start of each worker
     ///
-    /// It is executed as a shell command.
+    /// It is executed as a shell command once on every node of an allocation, in the same shell
+    /// that then starts the worker on that node. It is not executed for each task.
     #[arg(long)]
     worker_start_cmd: Option<String>,
 
@@ -159,6 +160,20 @@ struct SharedQueueOpts {
     /// provided wrapping command will be executed on each node.
     #[arg(long)]
     worker_wrap_cmd: Option<String>,
+
+    /// A command that starts the worker on the allocated nodes
+    ///
+    /// It replaces the default launcher: `srun --overlap --ntasks=<N> --nodes=<N>` (Slurm) or
+    /// `pbsdsh --` (PBS), which is otherwise used only for allocations with more than one node.
+    /// When this option is set, the worker is always started as
+    /// `<launch-cmd> bash -c '<worker command>'` (`bash -l -c` for PBS), where the worker command
+    /// includes the start, wrap and stop commands.
+    ///
+    /// The number of nodes can differ between allocations, so use environment variables such as
+    /// `$SLURM_JOB_NUM_NODES` instead of a fixed count,
+    /// e.g. `--worker-launch-cmd 'srun --external-launcher --ntasks-per-node=1'`.
+    #[arg(long)]
+    worker_launch_cmd: Option<String>,
 
     #[arg(
         long,
@@ -293,6 +308,7 @@ fn args_to_params(manager: ManagerType, args: SharedQueueOpts) -> anyhow::Result
         worker_start_cmd,
         worker_stop_cmd,
         worker_wrap_cmd,
+        worker_launch_cmd,
         worker_time_limit,
         additional_args,
         on_server_lost,
@@ -392,6 +408,12 @@ wasted allocation duration."
         format!("\"{}\"", server_lost_policy_to_str(&on_server_lost.into())),
     ]);
 
+    if worker_launch_cmd
+        .as_deref()
+        .is_some_and(|cmd| cmd.trim().is_empty())
+    {
+        anyhow::bail!("--worker-launch-cmd must not be empty");
+    }
     let worker_time_limit = worker_time_limit.unwrap_or(time_limit);
     worker_args.extend([
         "--time-limit".to_string(),
@@ -409,6 +431,7 @@ wasted allocation duration."
         worker_start_cmd,
         worker_stop_cmd,
         worker_wrap_cmd,
+        worker_launch_cmd,
         max_worker_count,
         worker_args,
         idle_timeout,

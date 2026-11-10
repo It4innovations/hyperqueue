@@ -178,10 +178,66 @@ def test_slurm_multinode_allocation(hq_env: HqEnv):
         with open(sbatch_script_path) as f:
             commands = normalize_output(hq_env, "slurm", extract_script_commands(f.read()))
             assert commands == snapshot(
-                'srun --overlap --ntasks=2 --nodes=2 RUST_LOG=tako=trace,hyperqueue=trace <hq-binary> worker start --idle-timeout "5m"'
-                ' --manager "<manager>" --server-dir "<server-dir>/001" --on-server-lost "finish-running" --time-limit'
-                ' "1h"'
+                "srun --overlap --ntasks=2 --nodes=2 bash -c 'RUST_LOG=tako=trace,hyperqueue=trace <hq-binary> worker"
+                ' start --idle-timeout "5m" --manager "<manager>" --server-dir "<server-dir>/001" --on-server-lost'
+                ' "finish-running" --time-limit "1h"\''
             )
+
+
+def test_slurm_multinode_start_stop_cmd(hq_env: HqEnv):
+    manager = ExtractSubmitScriptPath(SlurmManagerFlavor().create_adapter())
+
+    with MockJobManager(hq_env, manager):
+        start_server_with_quick_refresh(hq_env)
+        prepare_tasks(hq_env, nodes=2)
+
+        add_queue(
+            hq_env,
+            manager="slurm",
+            max_workers_per_alloc=2,
+            start_cmd="echo 'init' && init.sh",
+            stop_cmd="unload.sh",
+        )
+        script = manager.get_script_path()
+        # The launcher has to run the start and stop commands on every node as well
+        assert normalize_output(hq_env, "slurm", get_exec_line(script)) == snapshot(
+            "srun --overlap --ntasks=2 --nodes=2 bash -c 'echo '\\''init'\\'' && init.sh &&"
+            ' RUST_LOG=tako=trace,hyperqueue=trace <hq-binary> worker start --idle-timeout "5m" --manager'
+            ' "<manager>" --server-dir "<server-dir>/001" --on-server-lost "finish-running" --time-limit "1h";'
+            " unload.sh'"
+        )
+
+
+@all_flavors
+def test_worker_launch_cmd(hq_env: HqEnv, flavor: ManagerFlavor):
+    manager = ExtractSubmitScriptPath(flavor.create_adapter())
+
+    with MockJobManager(hq_env, manager):
+        start_server_with_quick_refresh(hq_env)
+        prepare_tasks(hq_env)
+
+        add_queue(
+            hq_env,
+            manager=flavor.manager_type(),
+            launch_cmd="srun --external-launcher --ntasks-per-node=1",
+        )
+        script = manager.get_script_path()
+        shell = "bash -l" if flavor.manager_type() == "pbs" else "bash"
+        assert normalize_output(hq_env, flavor.manager_type(), get_exec_line(script)) == (
+            f"srun --external-launcher --ntasks-per-node=1 {shell} -c '"
+            'RUST_LOG=tako=trace,hyperqueue=trace <hq-binary> worker start --idle-timeout "5m" --manager'
+            ' "<manager>" --server-dir "<server-dir>/001" --on-server-lost "finish-running" --time-limit "1h"\''
+        )
+
+
+def test_worker_launch_cmd_empty(hq_env: HqEnv):
+    hq_env.start_server()
+    add_queue(
+        hq_env,
+        manager="slurm",
+        launch_cmd=" ",
+        expect_fail="--worker-launch-cmd must not be empty",
+    )
 
 
 @all_flavors

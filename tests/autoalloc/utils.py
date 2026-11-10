@@ -39,6 +39,7 @@ def add_queue(
     start_cmd: Optional[str] = None,
     stop_cmd: Optional[str] = None,
     wrap_cmd: Optional[str] = None,
+    launch_cmd: Optional[str] = None,
     **kwargs,
 ) -> str:
     args = []
@@ -68,6 +69,8 @@ def add_queue(
         args.extend(["--worker-stop-cmd", stop_cmd])
     if wrap_cmd is not None:
         args.extend(["--worker-wrap-cmd", wrap_cmd])
+    if launch_cmd is not None:
+        args.extend(["--worker-launch-cmd", launch_cmd])
     if additional_worker_args is not None:
         args.extend(additional_worker_args)
     if additional_args is not None:

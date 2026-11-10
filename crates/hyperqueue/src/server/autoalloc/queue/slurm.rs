@@ -14,8 +14,8 @@ use crate::common::manager::slurm::{
 };
 use crate::common::utils::time::local_to_system_time;
 use crate::server::autoalloc::queue::common::{
-    ExternalHandler, add_start_stop_worker_commands, build_worker_args, create_allocation_dir,
-    create_command, format_allocation_name, submit_script,
+    ExternalHandler, add_start_stop_worker_commands, build_worker_args, build_worker_launch_line,
+    create_allocation_dir, create_command, format_allocation_name, submit_script,
 };
 use crate::server::autoalloc::queue::{
     AllocationExternalStatus, AllocationStatusMap, AllocationSubmissionResult, QueueHandler,
@@ -71,6 +71,7 @@ impl QueueHandler for SlurmHandler {
                 &working_dir.stdout().display().to_string(),
                 &working_dir.stderr().display().to_string(),
                 &params.additional_args.join(" "),
+                params.worker_launch_cmd.as_deref(),
                 &worker_args,
             );
             let id = submit_script(script, "sbatch", &working_dir, |output| {
@@ -196,6 +197,7 @@ fn build_slurm_submit_script(
     stdout: &str,
     stderr: &str,
     sbatch_args: &str,
+    launch_cmd: Option<&str>,
     worker_cmd: &str,
 ) -> String {
     let mut script = format!(
@@ -223,11 +225,70 @@ fn build_slurm_submit_script(
     // the number of nodes that we want. Therefore, we use `--ntasks` and `--nodes`.
     // The `--overlap` parameter is then used to make sure that nested invocations within the HQ
     // worker will be able to still consume Slurm resources.
-    let prefix = if nodes > 1 {
-        format!("srun --overlap --ntasks={nodes} --nodes={nodes} ")
-    } else {
-        "".to_string()
+    // The user can replace the launcher with `--worker-launch-cmd`.
+    let default_launcher = format!("srun --overlap --ntasks={nodes} --nodes={nodes}");
+    let launcher = match launch_cmd {
+        Some(cmd) => Some(cmd),
+        None if nodes > 1 => Some(default_launcher.as_str()),
+        None => None,
     };
-    write!(script, "\n{prefix}{worker_cmd}").unwrap();
+    write!(
+        script,
+        "\n{}",
+        build_worker_launch_line(launcher, "bash", worker_cmd)
+    )
+    .unwrap();
     script
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_slurm_submit_script;
+    use std::time::Duration;
+
+    fn exec_line(nodes: u64, launch_cmd: Option<&str>, worker_cmd: &str) -> String {
+        let script = build_slurm_submit_script(
+            nodes,
+            Duration::from_secs(3600),
+            "name",
+            "out",
+            "err",
+            "",
+            launch_cmd,
+            worker_cmd,
+        );
+        script.lines().last().unwrap().to_string()
+    }
+
+    #[test]
+    fn single_node_runs_command_directly() {
+        assert_eq!(
+            exec_line(1, None, "init.sh && X=1 hq worker start; stop.sh"),
+            "init.sh && X=1 hq worker start; stop.sh"
+        );
+    }
+
+    #[test]
+    fn multi_node_runs_whole_command_on_each_node() {
+        assert_eq!(
+            exec_line(2, None, "init.sh && X=1 hq worker start --a \"b\"; stop.sh"),
+            "srun --overlap --ntasks=2 --nodes=2 bash -c 'init.sh && X=1 hq worker start --a \"b\"; stop.sh'"
+        );
+    }
+
+    #[test]
+    fn custom_launch_cmd() {
+        let launcher = "srun --external-launcher --ntasks-per-node=1";
+        let expected = "srun --external-launcher --ntasks-per-node=1 bash -c 'hq worker start'";
+        assert_eq!(exec_line(1, Some(launcher), "hq worker start"), expected);
+        assert_eq!(exec_line(3, Some(launcher), "hq worker start"), expected);
+    }
+
+    #[test]
+    fn single_quote_in_command() {
+        assert_eq!(
+            exec_line(2, None, "echo 'x' && hq worker start"),
+            r"srun --overlap --ntasks=2 --nodes=2 bash -c 'echo '\''x'\'' && hq worker start'"
+        );
+    }
 }

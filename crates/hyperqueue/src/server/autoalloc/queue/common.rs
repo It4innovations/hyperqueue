@@ -185,11 +185,51 @@ pub fn add_start_stop_worker_commands(
     worker_cmd
 }
 
+/// Quotes `value` for a POSIX shell
+pub fn shell_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', r"'\''"))
+}
+
+pub fn build_worker_launch_line(launcher: Option<&str>, shell: &str, worker_cmd: &str) -> String {
+    match launcher {
+        Some(launcher) => format!("{} {shell} -c {}", launcher.trim(), shell_quote(worker_cmd)),
+        None => worker_cmd.to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::common::utils::fs::normalize_exe_path;
-    use crate::server::autoalloc::queue::common::add_start_stop_worker_commands;
+    use crate::server::autoalloc::queue::common::{
+        add_start_stop_worker_commands, build_worker_launch_line, shell_quote,
+    };
     use std::path::PathBuf;
+
+    #[test]
+    fn shell_quote_plain() {
+        assert_eq!(shell_quote("foo \"bar\" $X"), "'foo \"bar\" $X'");
+    }
+
+    #[test]
+    fn shell_quote_single_quote() {
+        assert_eq!(shell_quote("echo 'a b'"), r"'echo '\''a b'\'''");
+    }
+
+    #[test]
+    fn launch_line_without_launcher() {
+        assert_eq!(
+            build_worker_launch_line(None, "bash", "a && b; c"),
+            "a && b; c"
+        );
+    }
+
+    #[test]
+    fn launch_line_with_launcher() {
+        assert_eq!(
+            build_worker_launch_line(Some(" srun -N2 "), "bash", "X=1 a && b; c"),
+            "srun -N2 bash -c 'X=1 a && b; c'"
+        );
+    }
 
     #[test]
     fn wrap_cmd_noop() {

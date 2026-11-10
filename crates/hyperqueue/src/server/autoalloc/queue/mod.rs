@@ -27,6 +27,8 @@ pub struct QueueParameters {
     pub worker_start_cmd: Option<String>,
     pub worker_stop_cmd: Option<String>,
     pub worker_wrap_cmd: Option<String>,
+    /// Replaces the default command (`srun`/`pbsdsh`) used to start workers on the allocated nodes
+    pub worker_launch_cmd: Option<String>,
 
     /// Resources descriptor constructed from worker CLI options
     pub cli_resource_descriptor: Option<ResourceDescriptor>,

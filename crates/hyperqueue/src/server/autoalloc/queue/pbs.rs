@@ -11,8 +11,9 @@ use crate::common::manager::info::ManagerType;
 use crate::common::manager::pbs::{format_pbs_duration, parse_pbs_datetime};
 use crate::common::utils::time::local_to_system_time;
 use crate::server::autoalloc::queue::common::{
-    ExternalHandler, add_start_stop_worker_commands, build_worker_args, check_command_output,
-    create_allocation_dir, create_command, format_allocation_name, submit_script,
+    ExternalHandler, add_start_stop_worker_commands, build_worker_args, build_worker_launch_line,
+    check_command_output, create_allocation_dir, create_command, format_allocation_name,
+    submit_script,
 };
 use crate::server::autoalloc::queue::{
     AllocationExternalStatus, AllocationStatusMap, AllocationSubmissionResult, QueueHandler,
@@ -68,6 +69,7 @@ impl QueueHandler for PbsHandler {
                 &directory.stdout().display().to_string(),
                 &directory.stderr().display().to_string(),
                 &params.additional_args.join(" "),
+                params.worker_launch_cmd.as_deref(),
                 &worker_args,
                 mode,
             );
@@ -199,6 +201,7 @@ fn build_pbs_submit_script(
     stdout: &str,
     stderr: &str,
     qsub_args: &str,
+    launch_cmd: Option<&str>,
     worker_cmd: &str,
     mode: SubmitMode,
 ) -> String {
@@ -227,11 +230,14 @@ fn build_pbs_submit_script(
 
     script.push('\n');
 
-    if nodes > 1 {
-        write!(script, "pbsdsh -- bash -l -c '{worker_cmd}'").unwrap();
-    } else {
-        script.push_str(worker_cmd);
+    // `pbsdsh` does not propagate the environment, so a login shell is used on the nodes.
+    // The user can replace the launcher with `--worker-launch-cmd`.
+    let launcher = match launch_cmd {
+        Some(cmd) => Some(cmd),
+        None if nodes > 1 => Some("pbsdsh --"),
+        None => None,
     };
+    script.push_str(&build_worker_launch_line(launcher, "bash -l", worker_cmd));
     script
 }
 
@@ -244,4 +250,58 @@ fn get_json_number(value: &serde_json::Value, context: &str) -> AutoAllocResult<
     value
         .as_u64()
         .ok_or_else(|| anyhow::anyhow!("JSON key {} not found", context))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_pbs_submit_script;
+    use crate::server::autoalloc::queue::SubmitMode;
+    use std::time::Duration;
+
+    fn exec_line(nodes: u64, launch_cmd: Option<&str>, worker_cmd: &str) -> String {
+        let script = build_pbs_submit_script(
+            nodes,
+            Duration::from_secs(3600),
+            "name",
+            "out",
+            "err",
+            "",
+            launch_cmd,
+            worker_cmd,
+            SubmitMode::Submit,
+        );
+        script.lines().last().unwrap().to_string()
+    }
+
+    #[test]
+    fn single_node_runs_command_directly() {
+        assert_eq!(
+            exec_line(1, None, "init.sh && hq worker start"),
+            "init.sh && hq worker start"
+        );
+    }
+
+    #[test]
+    fn multi_node_uses_pbsdsh() {
+        assert_eq!(
+            exec_line(2, None, "init.sh && hq worker start --a \"b\"; stop.sh"),
+            "pbsdsh -- bash -l -c 'init.sh && hq worker start --a \"b\"; stop.sh'"
+        );
+    }
+
+    #[test]
+    fn single_quote_in_command() {
+        assert_eq!(
+            exec_line(2, None, "echo 'x' && hq worker start"),
+            r"pbsdsh -- bash -l -c 'echo '\''x'\'' && hq worker start'"
+        );
+    }
+
+    #[test]
+    fn custom_launch_cmd() {
+        assert_eq!(
+            exec_line(1, Some("mpirun -ppn 1"), "hq worker start"),
+            "mpirun -ppn 1 bash -l -c 'hq worker start'"
+        );
+    }
 }
