@@ -9,8 +9,16 @@ on:
 
 jobs:
   test:
-    name: Test
-    runs-on: ubuntu-latest
+    name: Test (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
@@ -24,6 +32,8 @@ jobs:
           components: clippy, rustfmt
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.arch }}
 
       - name: Check package versions
         run: python scripts/check_package_versions.py
@@ -62,7 +72,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always() && steps.python_test.outcome == 'failure'
         with:
-          name: pytest artifacts
+          name: pytest artifacts (${{ matrix.arch }})
           path: artifacts.tar
 
       - name: Lint Rust

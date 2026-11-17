@@ -25,6 +25,13 @@
 * Fixed server crash when a lost worker held prefilled tasks together with a task of a higher priority
 * Fixed the server silently stopping writing the journal when a client disconnected during journal replay.
 
+### Changes
+
+* Linux arm64 binaries are now built natively on a manylinux_2_28 (GLIBC 2.28) image and use the
+  jemalloc allocator, like the x64 binaries. jemalloc is configured for 64 KiB pages, so the binaries
+  also work on aarch64 systems that use 64 KiB pages.
+* The Python API wheel (`hyperqueue` on PyPI) is now also built for Linux arm64 (aarch64).
+
 
 ## v0.27.0
 

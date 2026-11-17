@@ -60,7 +60,7 @@ use tako::resources::{CPU_RESOURCE_NAME, ResourceDescriptor, ResourceDescriptorI
 
 #[cfg(feature = "jemalloc")]
 #[global_allocator]
-static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
+static ALLOC: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
 async fn command_job_submit(
     gsettings: &GlobalSettings,
