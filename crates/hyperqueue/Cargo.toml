@@ -60,7 +60,7 @@ unicode-width = { version = "0.2", optional = true }
 tako = { path = "../tako", default-features = false }
 
 # Optional dependencies
-jemallocator = { version = "0.5", optional = true }
+tikv-jemallocator = { version = "0.7", optional = true }
 which = "8"
 
 [dev-dependencies]
@@ -71,7 +71,7 @@ criterion = { workspace = true }
 [features]
 default = ["jemalloc", "dashboard", "highs"]
 # Use the jemalloc allocator
-jemalloc = ["jemallocator"]
+jemalloc = ["tikv-jemallocator"]
 # Enable the dashboard
 dashboard = ["dep:ratatui", "dep:crossterm", "dep:unicode-width"]
 
