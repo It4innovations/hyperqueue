@@ -14,6 +14,12 @@
 * Fixed crash in auto alloc query in the case of multi-node tasks
 * Job and worker IDs are no longer reused after the server is restarted from a pruned journal
 
+### Changes
+
+* Linux arm64 binaries are now built natively on a manylinux_2_28 (GLIBC 2.28) image and use the
+  jemalloc allocator, like the x64 binaries. jemalloc is configured for 64 KiB pages, so the binaries
+  also work on aarch64 systems that use 64 KiB pages.
+
 
 ## v0.27.0
 

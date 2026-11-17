@@ -30,11 +30,21 @@ jobs:
       - name: Set sha
         run: |
           echo "HQ_SHA=${{ inputs.sha || github.sha }}" | tee -a $GITHUB_ENV
-  build-binaries-x64:
+  build-binaries-linux:
     needs: [ set-env ]
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+            name: x64
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+            name: arm64-linux
+    runs-on: ${{ matrix.runner }}
     # Use a container with GLIBC 2.28
-    container: quay.io/pypa/manylinux_2_28_x86_64
+    container: quay.io/pypa/manylinux_2_28_${{ matrix.arch }}
     steps:
       - name: Show GLIBC
         run: ldd --version
@@ -51,7 +61,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          key: x64
+          key: ${{ matrix.arch }}
 
       # Needed for the highs dependency
       - name: Install Clang
@@ -68,14 +78,14 @@ jobs:
       - name: Prepare archive
         id: archive
         run: |
-          export ARCHIVE_NAME=hq-${{ needs.set-env.outputs.version }}-linux-x64.tar.gz
+          export ARCHIVE_NAME=hq-${{ needs.set-env.outputs.version }}-linux-${{ matrix.name }}.tar.gz
           tar -czvf $ARCHIVE_NAME -C target/dist hq
           echo "::set-output name=archive-name::$ARCHIVE_NAME"
 
       - name: Store archive
         uses: actions/upload-artifact@v4
         with:
-          name: archive-x64
+          name: archive-${{ matrix.name }}
           path: ${{ steps.archive.outputs.archive-name }}
   build-binaries-ext:
     needs: [ set-env ]
@@ -87,8 +97,6 @@ jobs:
             name: powerpc64
           - arch: armv7-unknown-linux-gnueabihf
             name: raspberry-pi
-          - arch: aarch64-unknown-linux-gnu
-            name: arm64-linux
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
