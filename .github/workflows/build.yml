@@ -32,7 +32,7 @@ jobs:
           echo "HQ_SHA=${{ inputs.sha || github.sha }}" | tee -a $GITHUB_ENV
   build-binaries-linux:
     needs: [ set-env ]
-    strategy:
+    strategy: &linux-matrix
       fail-fast: false
       matrix:
         include:
@@ -134,9 +134,11 @@ jobs:
           name: archive-${{ matrix.name }}
           path: ${{ steps.archive.outputs.archive-name }}
   build-python-binding:
+    name: Build Python wheel (${{ matrix.arch }})
     needs: [ set-env ]
-    runs-on: ubuntu-latest
-    container: quay.io/pypa/manylinux_2_28_x86_64
+    strategy: *linux-matrix
+    runs-on: ${{ matrix.runner }}
+    container: quay.io/pypa/manylinux_2_28_${{ matrix.arch }}
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
@@ -148,7 +150,7 @@ jobs:
           override: true
       - uses: Swatinem/rust-cache@v2
         with:
-          key: pyhq
+          key: pyhq-${{ matrix.arch }}
       # Needed for the highs dependency
       - name: Install Clang and Python development headers
         run: yum install clang python3.12-devel -y
@@ -194,5 +196,5 @@ jobs:
       - name: Upload test artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: archive-pyhq
+          name: archive-pyhq-${{ matrix.arch }}
           path: wheels/hyperqueue-*.whl
