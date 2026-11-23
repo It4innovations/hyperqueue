@@ -256,7 +256,7 @@ pub struct ResourceDescriptorCouplingItem {
 
 impl ResourceDescriptorCouplingItem {
     pub fn normalize(&mut self) {
-        if self.resource1_idx > self.resource2_idx {
+        if (self.resource1_idx, self.group1_idx) > (self.resource2_idx, self.group2_idx) {
             std::mem::swap(&mut self.resource1_idx, &mut self.resource2_idx);
             std::mem::swap(&mut self.group1_idx, &mut self.group2_idx);
         }

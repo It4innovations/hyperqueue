@@ -3,6 +3,10 @@ use std::io::{self, BufRead};
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
+use tako::resources::{
+    CPU_RESOURCE_NAME, ResourceDescriptorCoupling, ResourceDescriptorCouplingItem,
+    ResourceDescriptorItem,
+};
 use tako::worker::WorkerConfiguration;
 
 pub const WORKER_EXTRA_NUMA_KEY: &str = "numa";
@@ -74,6 +78,149 @@ impl GetNumaInfo for WorkerConfiguration {
             .get(WORKER_EXTRA_NUMA_KEY)
             .and_then(|str| serde_json::from_str(str).ok())
     }
+}
+
+/// Translates NUMA distances into `ResourceDescriptorCoupling` for the CPU resource groups.
+///
+/// Handles arbitrary NUMA topology architectures of variable size N x N:
+/// - Single-node / UMA: returns empty coupling.
+/// - Multi-node systems (2, 4, 8, 16, 32, 64 nodes etc.):
+///   Dynamically calculates D_min (minimum non-self distance > 0 across pairs).
+///   Scales each pair's weight inversely: W(D) = round(256 * D_min / D), clamped to [1, 256].
+///   Edges where D <= 0 or missing are omitted.
+pub fn numa_distances_to_coupling(
+    topology: &NumaTopology,
+    cpu_resource_idx: u8,
+    num_cpu_groups: usize,
+) -> ResourceDescriptorCoupling {
+    if num_cpu_groups <= 1 || topology.nodes.len() <= 1 {
+        return ResourceDescriptorCoupling::default();
+    }
+
+    // Match CPU groups to NUMA nodes that have CPUs
+    let cpu_nodes: Vec<&NumaNodeInfo> = topology.nodes.iter().filter(|n| n.cpu_count > 0).collect();
+    let nodes_ref: Vec<&NumaNodeInfo> = if cpu_nodes.len() == num_cpu_groups {
+        cpu_nodes
+    } else {
+        // Fallback: use all nodes up to num_cpu_groups
+        topology.nodes.iter().collect()
+    };
+
+    if nodes_ref.len() < num_cpu_groups {
+        return ResourceDescriptorCoupling::default();
+    }
+
+    // Helper to find pairwise distance between group i and group j
+    let get_distance = |i: usize, j: usize| -> Option<u32> {
+        let node_i = nodes_ref.get(i)?;
+        let node_j = nodes_ref.get(j)?;
+
+        // Try lookup by hardware node ID first, then positional fallback
+        let d_ij = node_i
+            .distances
+            .get(node_j.id as usize)
+            .copied()
+            .filter(|&d| d > 0)
+            .or_else(|| node_i.distances.get(j).copied().filter(|&d| d > 0));
+
+        let d_ji = node_j
+            .distances
+            .get(node_i.id as usize)
+            .copied()
+            .filter(|&d| d > 0)
+            .or_else(|| node_j.distances.get(i).copied().filter(|&d| d > 0));
+
+        match (d_ij, d_ji) {
+            (Some(a), Some(b)) => Some(a.max(b)),
+            (Some(a), None) => Some(a),
+            (None, Some(b)) => Some(b),
+            (None, None) => None,
+        }
+    };
+
+    // First pass: collect all valid pairs and find the minimum non-self distance
+    let mut pairs = Vec::new();
+    let mut min_distance = u32::MAX;
+
+    for i in 0..num_cpu_groups {
+        for j in (i + 1)..num_cpu_groups {
+            if let Some(dist) = get_distance(i, j)
+                && dist > 0
+            {
+                min_distance = min_distance.min(dist);
+                pairs.push((i, j, dist));
+            }
+        }
+    }
+
+    if pairs.is_empty() || min_distance == u32::MAX || min_distance == 0 {
+        return ResourceDescriptorCoupling::default();
+    }
+
+    // Second pass: compute weights using Option A (Normalized Latency Inversion)
+    // W(D) = round(256 * min_dist / D), clamped to [1, 256]
+    let mut weights = Vec::with_capacity(pairs.len());
+    for (i, j, dist) in pairs {
+        let weight = (((256u64 * min_distance as u64) as f64 / dist as f64).round() as u64)
+            .clamp(1, 256) as u16;
+        let mut item = ResourceDescriptorCouplingItem {
+            resource1_idx: cpu_resource_idx,
+            group1_idx: (i as u8).into(),
+            resource2_idx: cpu_resource_idx,
+            group2_idx: (j as u8).into(),
+            weight,
+        };
+        item.normalize();
+        weights.push(item);
+    }
+
+    weights.sort_unstable();
+    ResourceDescriptorCoupling { weights }
+}
+
+/// Automatically derives NUMA distance coupling for the `cpus` resource in `resources`.
+pub fn detect_numa_coupling(
+    resources: &[ResourceDescriptorItem],
+    topology: &NumaTopology,
+) -> ResourceDescriptorCoupling {
+    let Some((cpu_idx, cpu_res)) = resources
+        .iter()
+        .enumerate()
+        .find(|(_, r)| r.name == CPU_RESOURCE_NAME)
+    else {
+        return ResourceDescriptorCoupling::default();
+    };
+
+    let n_groups = cpu_res.kind.n_groups();
+    if n_groups <= 1 {
+        return ResourceDescriptorCoupling::default();
+    }
+
+    numa_distances_to_coupling(topology, cpu_idx as u8, n_groups)
+}
+
+/// Merges user-specified coupling on top of a base coupling.
+/// User-specified weights override matching base weights, and new items are added.
+pub fn merge_coupling(
+    base: ResourceDescriptorCoupling,
+    override_coupling: ResourceDescriptorCoupling,
+) -> ResourceDescriptorCoupling {
+    let mut weights = base.weights;
+    for mut item in override_coupling.weights {
+        item.normalize();
+        if let Some(existing) = weights.iter_mut().find(|w| {
+            w.resource1_idx == item.resource1_idx
+                && w.group1_idx == item.group1_idx
+                && w.resource2_idx == item.resource2_idx
+                && w.group2_idx == item.group2_idx
+        }) {
+            existing.weight = item.weight;
+        } else {
+            weights.push(item);
+        }
+    }
+    weights.sort_unstable();
+    ResourceDescriptorCoupling { weights }
 }
 
 /// Detects the NUMA topology and attached accelerators on the current machine.
@@ -480,5 +627,248 @@ mod tests {
         assert_eq!(topo.total_memory_bytes(), Some(2 * 1024 * 1024 * 1024));
         assert_eq!(topo.gpus_for_node(0).len(), 1);
         assert_eq!(topo.gpus_for_node(1).len(), 0);
+    }
+
+    #[test]
+    fn test_numa_distances_to_coupling_8_nodes_user_matrix() {
+        let matrix = [
+            vec![10, 12, 12, 12, 32, 32, 32, 32],
+            vec![12, 10, 12, 12, 32, 32, 32, 32],
+            vec![12, 12, 10, 12, 32, 32, 32, 32],
+            vec![12, 12, 12, 10, 32, 32, 32, 32],
+            vec![32, 32, 32, 32, 10, 12, 12, 12],
+            vec![32, 32, 32, 32, 12, 10, 12, 12],
+            vec![32, 32, 32, 32, 12, 12, 10, 12],
+            vec![32, 32, 32, 32, 12, 12, 12, 10],
+        ];
+
+        let nodes = (0..8)
+            .map(|id| NumaNodeInfo {
+                id,
+                cpulist: format!("{}-{}", id * 10, id * 10 + 9),
+                cpu_count: 10,
+                mem_total_bytes: Some(16 * 1024 * 1024 * 1024),
+                mem_free_bytes: Some(8 * 1024 * 1024 * 1024),
+                distances: matrix[id as usize].clone(),
+            })
+            .collect();
+
+        let topo = NumaTopology {
+            nodes,
+            gpus: vec![],
+        };
+
+        let coupling = numa_distances_to_coupling(&topo, 0, 8);
+        assert_eq!(coupling.weights.len(), 28); // 8 choose 2
+
+        // Verify intra-socket weights (dist 12 -> 256)
+        // Socket 0 intra-pairs
+        for i in 0..4u8 {
+            for j in (i + 1)..4u8 {
+                let item = coupling
+                    .weights
+                    .iter()
+                    .find(|w| w.group1_idx == i.into() && w.group2_idx == j.into())
+                    .expect("Intra-socket S0 edge missing");
+                assert_eq!(item.weight, 256);
+            }
+        }
+        // Socket 1 intra-pairs
+        for i in 4..8u8 {
+            for j in (i + 1)..8u8 {
+                let item = coupling
+                    .weights
+                    .iter()
+                    .find(|w| w.group1_idx == i.into() && w.group2_idx == j.into())
+                    .expect("Intra-socket S1 edge missing");
+                assert_eq!(item.weight, 256);
+            }
+        }
+
+        // Verify inter-socket weights (dist 32 -> round(256 * 12 / 32) = 96)
+        for i in 0..4u8 {
+            for j in 4..8u8 {
+                let item = coupling
+                    .weights
+                    .iter()
+                    .find(|w| w.group1_idx == i.into() && w.group2_idx == j.into())
+                    .expect("Inter-socket edge missing");
+                assert_eq!(item.weight, 96);
+            }
+        }
+    }
+
+    #[test]
+    fn test_numa_distances_to_coupling_variable_sizes() {
+        // 2-node dual-socket system
+        let topo_2 = NumaTopology {
+            nodes: vec![
+                NumaNodeInfo {
+                    id: 0,
+                    cpulist: "0-3".to_string(),
+                    cpu_count: 4,
+                    distances: vec![10, 20],
+                    ..Default::default()
+                },
+                NumaNodeInfo {
+                    id: 1,
+                    cpulist: "4-7".to_string(),
+                    cpu_count: 4,
+                    distances: vec![20, 10],
+                    ..Default::default()
+                },
+            ],
+            gpus: vec![],
+        };
+        let c2 = numa_distances_to_coupling(&topo_2, 0, 2);
+        assert_eq!(c2.weights.len(), 1);
+        assert_eq!(c2.weights[0].weight, 256);
+
+        // 4-node system with 3 distance tiers (10 self, 16 near, 24 far)
+        let topo_4 = NumaTopology {
+            nodes: vec![
+                NumaNodeInfo {
+                    id: 0,
+                    cpulist: "0-3".to_string(),
+                    cpu_count: 4,
+                    distances: vec![10, 16, 24, 16],
+                    ..Default::default()
+                },
+                NumaNodeInfo {
+                    id: 1,
+                    cpulist: "4-7".to_string(),
+                    cpu_count: 4,
+                    distances: vec![16, 10, 16, 24],
+                    ..Default::default()
+                },
+                NumaNodeInfo {
+                    id: 2,
+                    cpulist: "8-11".to_string(),
+                    cpu_count: 4,
+                    distances: vec![24, 16, 10, 16],
+                    ..Default::default()
+                },
+                NumaNodeInfo {
+                    id: 3,
+                    cpulist: "12-15".to_string(),
+                    cpu_count: 4,
+                    distances: vec![16, 24, 16, 10],
+                    ..Default::default()
+                },
+            ],
+            gpus: vec![],
+        };
+        let c4 = numa_distances_to_coupling(&topo_4, 0, 4);
+        assert_eq!(c4.weights.len(), 6); // 4 choose 2
+        // Dist 16 -> 256, Dist 24 -> round(256 * 16 / 24) = 171
+        let near = c4
+            .weights
+            .iter()
+            .find(|w| w.group1_idx == 0.into() && w.group2_idx == 1.into())
+            .unwrap();
+        assert_eq!(near.weight, 256);
+        let far = c4
+            .weights
+            .iter()
+            .find(|w| w.group1_idx == 0.into() && w.group2_idx == 2.into())
+            .unwrap();
+        assert_eq!(far.weight, 171);
+
+        // Single node -> no coupling
+        let topo_1 = NumaTopology {
+            nodes: vec![NumaNodeInfo {
+                id: 0,
+                cpulist: "0-15".to_string(),
+                cpu_count: 16,
+                distances: vec![10],
+                ..Default::default()
+            }],
+            gpus: vec![],
+        };
+        let c1 = numa_distances_to_coupling(&topo_1, 0, 1);
+        assert!(c1.weights.is_empty());
+    }
+
+    #[test]
+    fn test_merge_coupling() {
+        use tako::resources::ResourceDescriptorCouplingItem;
+
+        let base = ResourceDescriptorCoupling {
+            weights: vec![
+                ResourceDescriptorCouplingItem {
+                    resource1_idx: 0,
+                    group1_idx: 0.into(),
+                    resource2_idx: 0,
+                    group2_idx: 1.into(),
+                    weight: 256,
+                },
+                ResourceDescriptorCouplingItem {
+                    resource1_idx: 0,
+                    group1_idx: 0.into(),
+                    resource2_idx: 0,
+                    group2_idx: 2.into(),
+                    weight: 96,
+                },
+            ],
+        };
+
+        // User overrides (0, 0) <-> (0, 2) to 150, and adds GPU (0, 0) <-> (1, 0) with weight 256
+        let user = ResourceDescriptorCoupling {
+            weights: vec![
+                ResourceDescriptorCouplingItem {
+                    resource1_idx: 0,
+                    group1_idx: 2.into(),
+                    resource2_idx: 0,
+                    group2_idx: 0.into(),
+                    weight: 150,
+                },
+                ResourceDescriptorCouplingItem {
+                    resource1_idx: 0,
+                    group1_idx: 0.into(),
+                    resource2_idx: 1,
+                    group2_idx: 0.into(),
+                    weight: 256,
+                },
+            ],
+        };
+
+        let merged = merge_coupling(base, user);
+        assert_eq!(merged.weights.len(), 3);
+        assert_eq!(
+            merged
+                .weights
+                .iter()
+                .find(|w| w.resource1_idx == 0
+                    && w.group1_idx == 0.into()
+                    && w.resource2_idx == 0
+                    && w.group2_idx == 1.into())
+                .unwrap()
+                .weight,
+            256
+        );
+        assert_eq!(
+            merged
+                .weights
+                .iter()
+                .find(|w| w.resource1_idx == 0
+                    && w.group1_idx == 0.into()
+                    && w.resource2_idx == 0
+                    && w.group2_idx == 2.into())
+                .unwrap()
+                .weight,
+            150
+        );
+        assert_eq!(
+            merged
+                .weights
+                .iter()
+                .find(|w| w.resource1_idx == 0
+                    && w.group1_idx == 0.into()
+                    && w.resource2_idx == 1
+                    && w.group2_idx == 0.into())
+                .unwrap()
+                .weight,
+            256
+        );
     }
 }

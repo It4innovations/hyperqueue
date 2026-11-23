@@ -1068,3 +1068,56 @@ fn test_tight_scattering() {
     assert_eq!(r1[4].group_idx, r1[5].group_idx);
     assert_ne!(r1[0].group_idx, r1[4].group_idx);
 }
+
+#[test]
+fn test_numa_distance_coupling_allocator_preference() {
+    // 8 NUMA nodes, 4 cores per node. S0: 0..3, S1: 4..7.
+    let mut coupling = ResourceDescriptorCoupling::default();
+    // Intra-socket (dist 12 -> 256)
+    for i in 0..4u8 {
+        for j in (i + 1)..4u8 {
+            coupling.add(0, i, 0, j, 256);
+        }
+    }
+    for i in 4..8u8 {
+        for j in (i + 1)..8u8 {
+            coupling.add(0, i, 0, j, 256);
+        }
+    }
+    // Inter-socket (dist 32 -> 96)
+    for i in 0..4u8 {
+        for j in 4..8u8 {
+            coupling.add(0, i, 0, j, 96);
+        }
+    }
+
+    let descriptor = ResourceDescriptor::new(
+        vec![ResourceDescriptorItem {
+            name: "cpus".to_string(),
+            kind: ResourceDescriptorKind::regular_sockets(8, 4),
+        }],
+        coupling,
+    );
+
+    let mut allocator = test_allocator(&descriptor);
+
+    // Request 6 CPUs (requires 2 NUMA nodes).
+    // The allocator should pick two nodes on the same socket (both in 0..4 or both in 4..8)
+    // rather than crossing sockets.
+    let rq = ResBuilder::default()
+        .add_force_compact(0, ResourceAmount::new_units(6))
+        .finish();
+    let al = allocator.try_allocate(&rq).unwrap();
+    let groups = al.get_groups(0);
+    assert_eq!(groups.len(), 2);
+    let group_ids: Vec<u32> = groups.keys().copied().collect();
+    let g1 = group_ids[0];
+    let g2 = group_ids[1];
+
+    let same_socket = (g1 < 4 && g2 < 4) || (g1 >= 4 && g2 >= 4);
+    assert!(
+        same_socket,
+        "Expected both groups to be on the same socket (either 0..4 or 4..8), but got {} and {}",
+        g1, g2
+    );
+}

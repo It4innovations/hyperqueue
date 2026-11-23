@@ -15,7 +15,10 @@ use crate::common::parser::{NomResult, consume_all, p_u32};
 use tako::hwstats::GpuFamily;
 use tako::internal::has_unique_elements;
 use tako::resources::{
-    AMD_GPU_RESOURCE_NAME, AMD_GPU_VENDOR_ID, CPU_RESOURCE_NAME, FRACTIONS_PER_UNIT, MEM_RESOURCE_NAME, NVIDIA_GPU_RESOURCE_NAME, NVIDIA_GPU_VENDOR_ID, ResourceAmount, ResourceDescriptorItem, ResourceDescriptorKind, ResourceFractions, ResourceIndex, ResourceLabel
+    AMD_GPU_RESOURCE_NAME, AMD_GPU_VENDOR_ID, CPU_RESOURCE_NAME, FRACTIONS_PER_UNIT,
+    MEM_RESOURCE_NAME, NVIDIA_GPU_RESOURCE_NAME, NVIDIA_GPU_VENDOR_ID, ResourceAmount,
+    ResourceDescriptorItem, ResourceDescriptorKind, ResourceFractions, ResourceIndex,
+    ResourceLabel,
 };
 use tako::{Set, format_comma_delimited};
 
@@ -407,10 +410,10 @@ fn detect_gpus_for_family(
                 } else {
                     0
                 }
-            } else if let Some(gpu) = sys_gpus
-                .iter()
-                .find(|g| g.pci_address == label || g.pci_address.strip_prefix("0000:") == Some(label.as_str()))
-            {
+            } else if let Some(gpu) = sys_gpus.iter().find(|g| {
+                g.pci_address == label
+                    || g.pci_address.strip_prefix("0000:") == Some(label.as_str())
+            }) {
                 determine_gpu_numa_node(gpu, num_numa_nodes, numa_nodes_cpus)
             } else {
                 0
@@ -421,8 +424,9 @@ fn detect_gpus_for_family(
 
         let total = groups.iter().map(|g| g.len()).sum::<usize>();
         if total > 0 {
-            let kind = ResourceDescriptorKind::groups(groups)
-                .map_err(|e| anyhow!("Failed to create GPU resource descriptor for {resource_name}: {e:?}"))?;
+            let kind = ResourceDescriptorKind::groups(groups).map_err(|e| {
+                anyhow!("Failed to create GPU resource descriptor for {resource_name}: {e:?}")
+            })?;
             return Ok(Some(kind));
         }
         return Ok(None);
@@ -435,8 +439,9 @@ fn detect_gpus_for_family(
             let node = determine_gpu_numa_node(gpu, num_numa_nodes, numa_nodes_cpus);
             groups[node.min(num_numa_nodes - 1)].push(label);
         }
-        let kind = ResourceDescriptorKind::groups(groups)
-            .map_err(|e| anyhow!("Failed to create GPU resource descriptor for {resource_name}: {e:?}"))?;
+        let kind = ResourceDescriptorKind::groups(groups).map_err(|e| {
+            anyhow!("Failed to create GPU resource descriptor for {resource_name}: {e:?}")
+        })?;
         return Ok(Some(kind));
     }
 
@@ -449,8 +454,9 @@ fn detect_gpus_for_family(
         for i in 0..count {
             groups[0].push(i.to_string());
         }
-        let kind = ResourceDescriptorKind::groups(groups)
-            .map_err(|e| anyhow!("Failed to create GPU resource descriptor for {resource_name}: {e:?}"))?;
+        let kind = ResourceDescriptorKind::groups(groups).map_err(|e| {
+            anyhow!("Failed to create GPU resource descriptor for {resource_name}: {e:?}")
+        })?;
         return Ok(Some(kind));
     }
 
@@ -489,7 +495,10 @@ fn read_linux_numa() -> anyhow::Result<Vec<Vec<ResourceIndex>>> {
     if numa_nodes.is_empty() {
         anyhow::bail!("No online NUMA nodes with CPUs found");
     }
-    log::debug!("Linux numa detection is successful, found {} nodes", numa_nodes.len());
+    log::debug!(
+        "Linux numa detection is successful, found {} nodes",
+        numa_nodes.len()
+    );
     Ok(numa_nodes)
 }
 
@@ -654,9 +663,7 @@ mod tests {
         use crate::common::numa::GpuPciInfo;
         use crate::worker::parser::parse_resource_coupling;
         use tako::hwstats::GpuFamily;
-        use tako::resources::{
-            ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind,
-        };
+        use tako::resources::{ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind};
 
         let gpu0 = GpuPciInfo {
             pci_address: "0000:01:00.0".to_string(),
@@ -727,9 +734,7 @@ mod tests {
         use crate::common::numa::GpuPciInfo;
         use crate::worker::parser::parse_resource_coupling;
         use tako::hwstats::GpuFamily;
-        use tako::resources::{
-            ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind,
-        };
+        use tako::resources::{ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind};
 
         // Both GPUs attached to node 0, none on node 1
         let gpu0 = GpuPciInfo {
