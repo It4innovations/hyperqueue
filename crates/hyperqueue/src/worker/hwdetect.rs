@@ -10,7 +10,6 @@ use crate::client::commands::worker::{ResourceDetectComponent, ResourceDetectCom
 use crate::common::format::human_size;
 use crate::common::manager::info::ManagerInfo;
 use crate::common::numa::GpuPciInfo;
-use crate::common::numa::GpuPciInfo;
 use crate::common::parser::{NomResult, consume_all, p_u32};
 use tako::hwstats::GpuFamily;
 use tako::internal::has_unique_elements;
@@ -184,38 +183,6 @@ pub fn detect_additional_resources(
             name: AMD_GPU_RESOURCE_NAME.to_string(),
             kind,
         });
-        && let Some(kind) = detect_gpus_for_family(
-            GpuFamily::Nvidia,
-            NVIDIA_GPU_RESOURCE_NAME,
-            NVIDIA_GPU_ENVIRONMENT.env_var,
-            num_numa_nodes,
-            &sys_nvidia_gpus,
-            &numa_nodes_cpus,
-        )?
-    {
-        gpu_families.insert(GpuFamily::Nvidia);
-        items.push(ResourceDescriptorItem {
-            name: NVIDIA_GPU_RESOURCE_NAME.to_string(),
-            kind,
-        });
-    }
-
-    if detect_resources.has(ResourceDetectComponent::GpusAmd)
-        && !has_resource(items, AMD_GPU_RESOURCE_NAME)
-        && let Some(kind) = detect_gpus_for_family(
-            GpuFamily::Amd,
-            AMD_GPU_RESOURCE_NAME,
-            AMD_GPU_ENVIRONMENT.env_var,
-            num_numa_nodes,
-            &sys_amd_gpus,
-            &numa_nodes_cpus,
-        )?
-    {
-        gpu_families.insert(GpuFamily::Amd);
-        items.push(ResourceDescriptorItem {
-            name: AMD_GPU_RESOURCE_NAME.to_string(),
-            kind,
-        });
     }
 
     if !has_resource(items, MEM_RESOURCE_NAME)
@@ -277,55 +244,6 @@ const AMD_GPU_ENVIRONMENT: GpuEnvironmentRecord = GpuEnvironmentRecord::new(
 pub const GPU_ENVIRONMENTS: &[GpuEnvironmentRecord; 2] =
     &[NVIDIA_GPU_ENVIRONMENT, AMD_GPU_ENVIRONMENT];
 
-/// Determines which NUMA node a GPU belongs to based on sysfs numa_node or local_cpulist.
-fn determine_gpu_numa_node(
-    gpu: &GpuPciInfo,
-    num_numa_nodes: usize,
-    numa_nodes_cpus: &[Vec<u32>],
-) -> usize {
-    if num_numa_nodes <= 1 {
-        return 0;
-    }
-
-    // 1. Direct sysfs numa_node attribute
-    if let Some(node_id) = gpu.numa_node
-        && node_id >= 0
-    {
-        let node = node_id as usize;
-        if node < num_numa_nodes {
-            return node;
-        }
-        return node % num_numa_nodes;
-    }
-
-    // 2. Check local_cpulist attribute for overlap with node CPUs
-    if let Some(ref cpulist_str) = gpu.local_cpulist
-        && let Ok(local_cpus) = parse_range(cpulist_str)
-        && !local_cpus.is_empty()
-    {
-        let mut best_node = 0;
-        let mut max_overlap = 0;
-        for (node_idx, node_cpus) in numa_nodes_cpus.iter().enumerate() {
-            let overlap = local_cpus
-                .iter()
-                .filter(|c| node_cpus.contains(&c.as_num()))
-                .count();
-            if overlap > max_overlap {
-                max_overlap = overlap;
-                best_node = node_idx;
-            }
-        }
-        if max_overlap > 0 {
-            return best_node;
-        }
-    }
-
-    0
-}
-
-/// Detects GPUs for a specific family (NVIDIA or AMD), grouping them by NUMA nodes.
-fn detect_gpus_for_family(
-    family: GpuFamily,
 /// Determines which NUMA node a GPU belongs to based on sysfs numa_node or local_cpulist.
 fn determine_gpu_numa_node(
     gpu: &GpuPciInfo,
