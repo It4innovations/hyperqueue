@@ -177,7 +177,7 @@ pub fn command_from_definitions(definition: &ProgramDefinition) -> crate::Result
 
     let mut command = Command::new(definition.args[0].to_os_str_lossy());
 
-    #[cfg(target_os = "linux")]
+    #[cfg(unix)]
     unsafe {
         command.pre_exec(|| {
             // We need to create a new process group for the task, so that we can
@@ -185,11 +185,14 @@ pub fn command_from_definitions(definition: &ProgramDefinition) -> crate::Result
             if let Err(error) = nix::unistd::setsid() {
                 log::error!("Cannot set SID for task process: {error:?}");
             }
-            // Send SIGTERM to this task when the parent (worker) dies.
-            let ret = libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM);
-            match ret {
-                0 => {}
-                error => log::error!("Cannot set PR_SET_PDEATHSIG for task process: {error:?}"),
+            #[cfg(target_os = "linux")]
+            {
+                // Send SIGTERM to this task when the parent (worker) dies.
+                let ret = libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM);
+                match ret {
+                    0 => {}
+                    error => log::error!("Cannot set PR_SET_PDEATHSIG for task process: {error:?}"),
+                }
             }
             Ok(())
         });

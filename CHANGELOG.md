@@ -18,6 +18,7 @@
 
 ### Fixes
 
+* Fixed canceling a task on macOS stopping the worker
 * Fixed crash in auto alloc query in the case of multi-node tasks
 * Job and worker IDs are no longer reused after the server is restarted from a pruned journal
 * Fixes invalid counters when journal restores job with multiple submits
