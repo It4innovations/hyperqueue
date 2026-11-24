@@ -422,10 +422,18 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
     }
     // We need to finally sort resources before parsing coupling
     resources.sort_by(|x, y| x.name.cmp(&y.name));
-    let coupling = coupling
-        .map(|x| parse_resource_coupling(&x, &resources))
-        .transpose()?
-        .unwrap_or_default();
+    let numa_topology = crate::common::numa::detect_numa_topology();
+    let auto_coupling = crate::common::numa::detect_numa_coupling(&resources, &numa_topology);
+    let coupling = if let Some(coupling_str) = coupling {
+        if coupling_str.trim().eq_ignore_ascii_case("none") {
+            Default::default()
+        } else {
+            let user_coupling = parse_resource_coupling(&coupling_str, &resources)?;
+            crate::common::numa::merge_coupling(auto_coupling, user_coupling)
+        }
+    } else {
+        auto_coupling
+    };
     let resources = ResourceDescriptor::new(resources, coupling);
     resources.validate(true)?;
 

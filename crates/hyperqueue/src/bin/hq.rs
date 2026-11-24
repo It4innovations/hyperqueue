@@ -331,9 +331,12 @@ fn command_worker_hwdetect(gsettings: &GlobalSettings, opts: HwDetectOpts) -> an
         &ResourceDetectComponents::All,
         gather_manager_info(ManagerOpts::Detect)?.as_ref(),
     )?;
+    resources.sort_by(|x, y| x.name.cmp(&y.name));
+    let numa_topology = hyperqueue::common::numa::detect_numa_topology();
+    let coupling = hyperqueue::common::numa::detect_numa_coupling(&resources, &numa_topology);
     gsettings
         .printer()
-        .print_hw(&ResourceDescriptor::new(resources, Default::default()));
+        .print_hw(&ResourceDescriptor::new(resources, coupling));
     Ok(())
 }
 

@@ -696,7 +696,29 @@ mod test {
                     weight: 1,
                 },
             ]
-        )
+        );
+
+        let r2 =
+            parse_resource_coupling("foo[3]:foo[1]=256, foo[0]:foo[2]=96", &resources).unwrap();
+        assert_eq!(
+            r2.weights,
+            vec![
+                ResourceDescriptorCouplingItem {
+                    resource1_idx: 0,
+                    group1_idx: 0.into(),
+                    resource2_idx: 0,
+                    group2_idx: 2.into(),
+                    weight: 96,
+                },
+                ResourceDescriptorCouplingItem {
+                    resource1_idx: 0,
+                    group1_idx: 1.into(),
+                    resource2_idx: 0,
+                    group2_idx: 3.into(),
+                    weight: 256,
+                },
+            ]
+        );
     }
 
     fn check_item(

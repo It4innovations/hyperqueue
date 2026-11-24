@@ -9,6 +9,7 @@ use crate::client::status::{Status, get_task_status, job_status};
 use crate::common::env::is_hq_env;
 use crate::common::format::{human_duration, human_mem_amount, human_size};
 use crate::common::manager::info::GetManagerInfo;
+use crate::common::numa::{NumaTopology, WORKER_EXTRA_NUMA_KEY};
 use crate::server::autoalloc::{Allocation, AllocationState};
 use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState};
 use crate::stream::reader::outputlog::Summary;
@@ -318,6 +319,20 @@ impl Output for CliOutput {
                     "Resources".cell().bold(true),
                     resources_summary(&configuration.resources, true).cell(),
                 ],
+            ];
+
+            if !configuration.resources.coupling.weights.is_empty() {
+                rows.push(vec![
+                    "Coupling".cell().bold(true),
+                    format_coupling_for_cli(
+                        &configuration.resources.coupling,
+                        &configuration.resources.resources,
+                    )
+                    .cell(),
+                ]);
+            }
+
+            rows.extend(vec![
                 vec![
                     "Time Limit".cell().bold(true),
                     configuration
@@ -358,7 +373,30 @@ impl Output for CliOutput {
                         .map(|t| format!("{}; Time: {}", t.task_id, format_datetime(t.time)).cell())
                         .unwrap_or_else(|| "".cell()),
                 ],
-            ];
+                vec![
+                    "Numa nodes".cell().bold(true),
+                    configuration
+                        .extra
+                        .get(WORKER_EXTRA_NUMA_KEY)
+                        .cloned()
+                        .map(|serialized| {
+                            let numa: Result<NumaTopology, _> = serde_json::from_str(&serialized);
+                            match numa {
+                                Ok(numa) => numa
+                                    .nodes
+                                    .iter()
+                                    .map(|node| {
+                                        format!("Node {}, Cpu ids: {}", node.id, node.cpulist)
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .join("\n"),
+                                Err(_) => "Invalid NUMA topology".to_string(),
+                            }
+                        })
+                        .unwrap_or_else(|| "N/A".to_string())
+                        .cell(),
+                ],
+            ]);
             if let Some(runtime_info) = runtime_info {
                 let mut s = String::with_capacity(60);
                 match runtime_info {
@@ -1634,6 +1672,35 @@ fn format_time(time: DateTime<Utc>) -> impl Display {
     datetime.format("%d.%m.%Y %H:%M:%S")
 }
 
+pub fn format_coupling_for_cli(
+    coupling: &tako::resources::ResourceDescriptorCoupling,
+    resources: &[tako::resources::ResourceDescriptorItem],
+) -> String {
+    coupling
+        .weights
+        .iter()
+        .map(|w| {
+            let res1 = resources
+                .get(w.resource1_idx as usize)
+                .map(|r| r.name.as_str())
+                .unwrap_or("unknown");
+            let res2 = resources
+                .get(w.resource2_idx as usize)
+                .map(|r| r.name.as_str())
+                .unwrap_or("unknown");
+            format!(
+                "{}[{}]:{}[{}]={}",
+                res1,
+                w.group1_idx.as_num(),
+                res2,
+                w.group2_idx.as_num(),
+                w.weight
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
 fn resources_full_describe(resources: &ResourceDescriptor) -> String {
     let mut result = String::new();
     let mut first = true;
@@ -1647,6 +1714,12 @@ fn resources_full_describe(resources: &ResourceDescriptor) -> String {
         )
         .unwrap();
         first = false;
+    }
+    if !resources.coupling.weights.is_empty() {
+        write!(result,
+            "\nCoupling:\n\"{}\"",
+            format_coupling_for_cli(&resources.coupling, &resources.resources)
+        ).unwrap();
     }
     result
 }
@@ -1908,5 +1981,44 @@ mod tests {
             Default::default(),
         );
         assert_eq!(resources_summary(&d, false), "mem 4.12 GiB");
+    }
+
+    #[test]
+    fn test_format_coupling_for_cli() {
+        use super::format_coupling_for_cli;
+        use tako::resources::{ResourceDescriptorCoupling, ResourceDescriptorCouplingItem};
+
+        let resources = vec![
+            ResourceDescriptorItem {
+                name: "cpus".into(),
+                kind: ResourceDescriptorKind::regular_sockets(2, 4),
+            },
+            ResourceDescriptorItem {
+                name: "gpus".into(),
+                kind: ResourceDescriptorKind::regular_sockets(2, 1),
+            },
+        ];
+
+        let coupling = ResourceDescriptorCoupling {
+            weights: vec![
+                ResourceDescriptorCouplingItem {
+                    resource1_idx: 0,
+                    group1_idx: 0.into(),
+                    resource2_idx: 0,
+                    group2_idx: 1.into(),
+                    weight: 256,
+                },
+                ResourceDescriptorCouplingItem {
+                    resource1_idx: 0,
+                    group1_idx: 0.into(),
+                    resource2_idx: 1,
+                    group2_idx: 0.into(),
+                    weight: 128,
+                },
+            ],
+        };
+
+        let formatted = format_coupling_for_cli(&coupling, &resources);
+        assert_eq!(formatted, "cpus[0]:cpus[1]=256,cpus[0]:gpus[0]=128");
     }
 }
