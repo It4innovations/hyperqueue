@@ -259,7 +259,7 @@ data = {
     },
     "card1": {
         "GPU use (%)": "12.5",
-        "GPU memory use (%)": "64.0",
+        "GPU Memory Read/Write Activity (%)": "64.0",
         "PCI Bus": "FOOBAR2"
     }
 }
