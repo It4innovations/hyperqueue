@@ -35,7 +35,7 @@ pub fn get_amd_gpu_state() -> crate::Result<GpuCollectionStats> {
 struct AmdGpuStats {
     #[serde(rename = "GPU use (%)")]
     pub gpu_use: String,
-    #[serde(rename = "GPU memory use (%)")]
+    #[serde(rename = "GPU memory use (%)", alias = "GPU Memory Read/Write Activity (%)")]
     pub gpu_memory_use: String,
     #[serde(rename = "PCI Bus")]
     pub pci_bus: String,
